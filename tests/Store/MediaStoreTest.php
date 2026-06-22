@@ -6,6 +6,7 @@ namespace Phlix\Console\Tests\Store;
 
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\Dto\ContinueWatchingItem;
+use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\Dto\MediaPage;
 use Phlix\Console\Api\MediaQuery;
 use Phlix\Console\Store\MediaRange;
@@ -210,6 +211,122 @@ final class MediaStoreTest extends TestCase
 
         $store->invalidate();
         $this->await($store->letterIndex($query));
+        self::assertSame(2, $transport->requestCount(), 'invalidate forces a refetch');
+    }
+
+    /** The single-item detail envelope: `{ "item": { … } }`. */
+    private function itemResponse(string $id, string $type = 'movie'): array
+    {
+        return ['item' => [
+            'id' => $id,
+            'name' => 'Item ' . $id,
+            'type' => $type,
+            'overview' => 'A synopsis.',
+            'stream_url' => 'https://srv/media/' . $id . '/stream?sig=abc',
+        ]];
+    }
+
+    public function testItemFetchesShapesAndCachesWithinTtl(): void
+    {
+        $now = 1000.0;
+        $clock = static function () use (&$now): float {
+            return $now;
+        };
+        $transport = (new FakeTransport())
+            ->json(200, $this->itemResponse('m1'))
+            ->json(200, $this->itemResponse('m1'));
+        $store = new MediaStore(new ApiClient('https://srv', $transport), 60.0, $clock);
+
+        $item = $this->await($store->item('m1'));
+        self::assertInstanceOf(MediaItem::class, $item);
+        self::assertSame('m1', $item->id);
+        self::assertSame('A synopsis.', $item->overview);
+        self::assertSame('https://srv/media/m1/stream?sig=abc', $item->streamUrl, 'detail carries the signed stream url');
+        self::assertSame(1, $transport->requestCount());
+        self::assertStringContainsString('/api/v1/media/m1', $transport->requestAt(0)['url']);
+
+        // Same id within TTL → cache, no second request.
+        $now = 1030.0;
+        $this->await($store->item('m1'));
+        self::assertSame(1, $transport->requestCount(), 'cached within TTL');
+
+        // Past the TTL → refetch.
+        $now = 1070.0;
+        $this->await($store->item('m1'));
+        self::assertSame(2, $transport->requestCount(), 'refetched after TTL expiry');
+    }
+
+    public function testItemForceBypassesTheCache(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->itemResponse('m1'))
+            ->json(200, $this->itemResponse('m1'));
+        $store = new MediaStore(new ApiClient('https://srv', $transport), 60.0, static fn (): float => 1000.0);
+
+        $this->await($store->item('m1'));
+        $this->await($store->item('m1', force: true));
+
+        self::assertSame(2, $transport->requestCount(), 'force refetches even within TTL');
+    }
+
+    public function testItemCachesPerId(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->itemResponse('m1'))
+            ->json(200, $this->itemResponse('m2'));
+        $store = new MediaStore(new ApiClient('https://srv', $transport), 60.0, static fn (): float => 1000.0);
+
+        $a = $this->await($store->item('m1'));
+        $b = $this->await($store->item('m2'));
+
+        self::assertSame('m1', $a->id);
+        self::assertSame('m2', $b->id);
+        self::assertSame(2, $transport->requestCount(), 'a different id is a different cache entry');
+    }
+
+    public function testConcurrentItemFetchesAreDeduplicated(): void
+    {
+        $transport = (new FakeTransport())->pending();
+        $store = new MediaStore(new ApiClient('https://srv', $transport), 60.0, static fn (): float => 1000.0);
+
+        $first = $store->item('m1');
+        $second = $store->item('m1');
+
+        self::assertSame($first, $second, 'a concurrent fetch of the same item shares the in-flight promise');
+        self::assertSame(1, $transport->requestCount(), 'only one underlying request');
+    }
+
+    public function testFailedItemClearsInFlightSoARetryRefetches(): void
+    {
+        $transport = (new FakeTransport())
+            ->fail(new \RuntimeException('boom'))
+            ->json(200, $this->itemResponse('m1'));
+        $store = new MediaStore(new ApiClient('https://srv', $transport), 60.0, static fn (): float => 1000.0);
+
+        $error = null;
+        try {
+            $this->await($store->item('m1'));
+        } catch (\Throwable $e) {
+            $error = $e;
+        }
+        self::assertNotNull($error, 'first fetch rejects');
+
+        $item = $this->await($store->item('m1'));
+        self::assertInstanceOf(MediaItem::class, $item, 'retry succeeds because in-flight was cleared');
+        self::assertSame(2, $transport->requestCount());
+    }
+
+    public function testInvalidateDropsCachedItems(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->itemResponse('m1'))
+            ->json(200, $this->itemResponse('m1'));
+        $store = new MediaStore(new ApiClient('https://srv', $transport), 60.0, static fn (): float => 1000.0);
+
+        $this->await($store->item('m1'));
+        $store->invalidate();
+        $this->await($store->item('m1'));
+
         self::assertSame(2, $transport->requestCount(), 'invalidate forces a refetch');
     }
 
