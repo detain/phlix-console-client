@@ -54,7 +54,7 @@ use SugarCraft\Sprinkles\Style;
  * above. Stable collaborators are readonly; mutable view state is private and
  * copied via clone-mutate (the established screen idiom).
  */
-final class DetailScreen implements Model
+final class DetailScreen implements Breadcrumbed
 {
     use SubscriptionCapable;
 
@@ -76,6 +76,8 @@ final class DetailScreen implements Model
     private ?MediaItem $item = null;
     private bool $loaded = false;
     private ?string $error = null;
+    /** @var list<string> */
+    private array $crumbs = [];
 
     // Leaf mode.
     private ?string $heroAnsi = null;
@@ -138,10 +140,10 @@ final class DetailScreen implements Model
     public function view(): string
     {
         if ($this->error !== null) {
-            return Chrome::frame($this->headerTitle(), "\n  {$this->error}", self::LOADING_HINT, $this->cols, $this->rows);
+            return Chrome::frame($this->headerTitle(), "\n  {$this->error}", self::LOADING_HINT, $this->cols, $this->rows, $this->crumbs);
         }
         if (!$this->loaded || $this->item === null) {
-            return Chrome::frame($this->headerTitle(), "\n  Loading…", self::LOADING_HINT, $this->cols, $this->rows);
+            return Chrome::frame($this->headerTitle(), "\n  Loading…", self::LOADING_HINT, $this->cols, $this->rows, $this->crumbs);
         }
         if ($this->childGrid !== null) {
             return $this->containerView($this->item, $this->childGrid);
@@ -151,7 +153,7 @@ final class DetailScreen implements Model
         $column = $this->metadataColumn($this->item);
         $body = Layout::joinHorizontalWithSpacing(0.0, self::COL_GAP, $hero, $column);
 
-        return Chrome::frame($this->headerTitle(), $body, self::HINT, $this->cols, $this->rows);
+        return Chrome::frame($this->headerTitle(), $body, self::HINT, $this->cols, $this->rows, $this->crumbs);
     }
 
     // ---- input ---------------------------------------------------------
@@ -415,7 +417,7 @@ final class DetailScreen implements Model
 
         $body = $header . "\n\n" . $grid->render(true);
 
-        return Chrome::frame($this->headerTitle(), $body, self::CONTAINER_HINT, $this->cols, $this->rows);
+        return Chrome::frame($this->headerTitle(), $body, self::CONTAINER_HINT, $this->cols, $this->rows, $this->crumbs);
     }
 
     /** "3 seasons" for a series, "12 episodes" for a season, else "N items". */
@@ -571,6 +573,21 @@ final class DetailScreen implements Model
     {
         $next = clone $this;
         $next->error = $error;
+
+        return $next;
+    }
+
+    // ---- breadcrumb ----------------------------------------------------
+
+    public function crumbLabel(): string
+    {
+        return $this->headerTitle();
+    }
+
+    public function withCrumbs(array $trail): static
+    {
+        $next = clone $this;
+        $next->crumbs = $trail;
 
         return $next;
     }

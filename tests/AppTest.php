@@ -263,6 +263,45 @@ final class AppTest extends TestCase
         self::assertInstanceOf(LibraryScreen::class, $back->screen());
     }
 
+    public function testBreadcrumbTrailIsRenderedInTheHeader(): void
+    {
+        // Browse → Movies → (a still-loading) detail; the header shows the path.
+        [$lib] = $this->browsing()->update(new OpenLibraryMsg('lib-a', 'Movies'));
+        [$detail] = $lib->update(new OpenDetailMsg('m1', 'The Matrix'));
+
+        $view = $detail->view();
+        self::assertStringContainsString('Home', $view);
+        self::assertStringContainsString('Movies', $view);
+        self::assertStringContainsString('The Matrix', $view);
+        self::assertStringContainsString('›', $view, 'the trail is joined with breadcrumb separators');
+    }
+
+    public function testLibraryHeaderShowsTheTrailToIt(): void
+    {
+        [$lib] = $this->browsing()->update(new OpenLibraryMsg('lib-a', 'Movies'));
+
+        $view = $lib->view();
+        self::assertStringContainsString('Home', $view);
+        self::assertStringContainsString('Movies', $view);
+        self::assertStringContainsString('›', $view);
+    }
+
+    public function testBrowseHomeShowsAHomeCrumbButNoSeparator(): void
+    {
+        $view = $this->browsing()->view();
+
+        self::assertStringContainsString('Home', $view);
+        self::assertStringNotContainsString('›', $view, 'a single-frame stack has nothing to separate');
+    }
+
+    public function testAuthScreensHaveNoBreadcrumb(): void
+    {
+        // The loading state (no screen) and the login screen carry no trail.
+        [$app] = $this->makeApp('https://srv', new FakeTransport());
+
+        self::assertStringNotContainsString('›', $app->view());
+    }
+
     public function testNestedDetailsStackForSeriesSeasonEpisode(): void
     {
         // Browse → series → season → episode, each a pushed DetailScreen.
