@@ -14,6 +14,7 @@ use Phlix\Console\Msg\LetterIndexLoadedMsg;
 use Phlix\Console\Msg\LibraryFailedMsg;
 use Phlix\Console\Msg\MediaRangeLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
+use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\SearchDebouncedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Store\MediaRange;
@@ -175,6 +176,14 @@ final class LibraryScreen implements Model
         }
         if ($msg->type === KeyType::Escape) {
             return [$this, Cmd::send(new NavigateBackMsg())];
+        }
+        if ($msg->type === KeyType::Enter) {
+            // Open the focused cell's detail (a no-op on a not-yet-loaded cell).
+            $card = $this->grid->cursorCard();
+
+            return $card !== null
+                ? [$this, Cmd::send(new OpenDetailMsg($card->id, $card->title))]
+                : [$this, null];
         }
         // '/' opens the filter/sort bar; other letters (and # / digit) jump A–Z.
         // (Quit is Ctrl-C globally, or Esc back to Browse — so letters are free.)
