@@ -43,7 +43,7 @@ use SugarCraft\Gallery\PosterGrid;
  * (the candy-core / sugar-gallery pattern) so the screen stays immutable without
  * a giant positional constructor.
  */
-final class LibraryScreen implements Model
+final class LibraryScreen implements Breadcrumbed
 {
     use SubscriptionCapable;
 
@@ -69,6 +69,8 @@ final class LibraryScreen implements Model
     private FilterBar $filterBar;
     private bool $filtering = false;
     private int $searchSeq = 0;
+    /** @var list<string> */
+    private array $crumbs = [];
 
     public function __construct(
         private readonly string $libraryId,
@@ -137,7 +139,7 @@ final class LibraryScreen implements Model
     public function view(): string
     {
         if ($this->error !== null) {
-            return Chrome::frame($this->name, "\n  {$this->error}", self::HINT, $this->cols, $this->rows);
+            return Chrome::frame($this->name, "\n  {$this->error}", self::HINT, $this->cols, $this->rows, $this->crumbs);
         }
 
         $total = $this->grid->total();
@@ -164,7 +166,7 @@ final class LibraryScreen implements Model
             ? $header . "\n" . $secondLine . "\n" . $this->grid->render(true)
             : $header . "\n\n" . $this->grid->render(true);
 
-        return Chrome::frame($this->name, $body, $this->filtering ? self::FILTER_HINT : self::HINT, $this->cols, $this->rows);
+        return Chrome::frame($this->name, $body, $this->filtering ? self::FILTER_HINT : self::HINT, $this->cols, $this->rows, $this->crumbs);
     }
 
     // ---- input ---------------------------------------------------------
@@ -488,6 +490,21 @@ final class LibraryScreen implements Model
         // two in-content lines above the grid (the count line + the A–Z rail, or
         // a blank spacer when the rail is hidden).
         return max(self::POSTER_HEIGHT + 2, $rows - 6);
+    }
+
+    // ---- breadcrumb ----------------------------------------------------
+
+    public function crumbLabel(): string
+    {
+        return $this->name;
+    }
+
+    public function withCrumbs(array $trail): static
+    {
+        $next = clone $this;
+        $next->crumbs = $trail;
+
+        return $next;
     }
 
     // ---- accessors (for tests) ----------------------------------------

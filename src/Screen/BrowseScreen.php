@@ -50,7 +50,7 @@ use SugarCraft\Sprinkles\Layout;
  *
  * @phpstan-type RailMap array<string, Rail>
  */
-final class BrowseScreen implements Model
+final class BrowseScreen implements Breadcrumbed
 {
     use SubscriptionCapable;
 
@@ -76,6 +76,8 @@ final class BrowseScreen implements Model
     private ?string $error = null;
     private FocusRing $focus;
     private Sidebar $sidebar;
+    /** @var list<string> */
+    private array $crumbs = [];
 
     public function __construct(
         private readonly AuthUser $user,
@@ -133,7 +135,7 @@ final class BrowseScreen implements Model
                 ? "\n  {$this->error}"
                 : "\n  Welcome, {$name}.\n\n  Loading your libraries…";
 
-            return Chrome::frame('Browse', $body, 'q  quit', $this->cols, $this->rows);
+            return Chrome::frame('Browse', $body, 'q  quit', $this->cols, $this->rows, $this->crumbs);
         }
 
         $railsFocused = $this->focus->isFocused(self::RAILS);
@@ -153,7 +155,7 @@ final class BrowseScreen implements Model
         $railsBody = $blocks === [] ? '' : Layout::joinVerticalWithSpacing(0.0, 1, ...$blocks);
         $body = Layout::joinHorizontalWithSpacing(0.0, self::SIDEBAR_GAP, $this->sidebar->render($this->contentHeight()), $railsBody);
 
-        return Chrome::frame('Browse', $body, $railsFocused ? self::RAILS_HINT : self::SIDEBAR_HINT, $this->cols, $this->rows);
+        return Chrome::frame('Browse', $body, $railsFocused ? self::RAILS_HINT : self::SIDEBAR_HINT, $this->cols, $this->rows, $this->crumbs);
     }
 
     // ---- data loading --------------------------------------------------
@@ -530,6 +532,21 @@ final class BrowseScreen implements Model
         $next = clone $this;
         $next->cols = $cols;
         $next->rows = $rows;
+
+        return $next;
+    }
+
+    // ---- breadcrumb ----------------------------------------------------
+
+    public function crumbLabel(): string
+    {
+        return 'Home';
+    }
+
+    public function withCrumbs(array $trail): static
+    {
+        $next = clone $this;
+        $next->crumbs = $trail;
 
         return $next;
     }
