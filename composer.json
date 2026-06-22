@@ -20,6 +20,7 @@
         "sugarcraft/candy-palette": "dev-master",
         "sugarcraft/candy-sprinkles": "dev-master",
         "sugarcraft/sugar-boxer": "dev-master",
+        "sugarcraft/sugar-gallery": "dev-master",
         "sugarcraft/sugar-reel": "dev-master"
     },
     "require-dev": {
@@ -32,6 +33,10 @@
         "psr-4": { "Phlix\\Console\\Tests\\": "tests/" }
     },
     "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/sugarcraft/sugar-gallery"
+        },
         {
             "type": "vcs",
             "url": "https://github.com/sugarcraft/sugar-reel"
