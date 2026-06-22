@@ -18,6 +18,7 @@ use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\SubmitLoginMsg;
 use Phlix\Console\Msg\SubmitServerMsg;
 use Phlix\Console\Media\PosterLoader;
+use Phlix\Console\Screen\Breadcrumbed;
 use Phlix\Console\Screen\BrowseScreen;
 use Phlix\Console\Screen\DetailScreen;
 use Phlix\Console\Screen\LibraryScreen;
@@ -144,12 +145,36 @@ final class App implements Model
     public function view(): string
     {
         $top = $this->topScreen();
+        // Hand the top screen the breadcrumb trail built from the whole stack
+        // (only the App knows it) just before it renders its chrome.
+        if ($top instanceof Breadcrumbed) {
+            return $top->withCrumbs($this->breadcrumbTrail())->view();
+        }
         if ($top !== null) {
             return $top->view();
         }
 
         // Loading: no active screen.
         return Chrome::frame('Connecting', "\n  Connecting to your Phlix server…", '', $this->cols, $this->rows);
+    }
+
+    /**
+     * The breadcrumb labels of the stacked breadcrumbed frames, root-first
+     * (Home › Movies › The Matrix › Season 1 › …).
+     *
+     * @return list<string>
+     */
+    private function breadcrumbTrail(): array
+    {
+        $trail = [];
+        foreach ($this->stack as $frame) {
+            $screen = $frame['screen'];
+            if ($screen instanceof Breadcrumbed) {
+                $trail[] = $screen->crumbLabel();
+            }
+        }
+
+        return $trail;
     }
 
     // ---- transitions ---------------------------------------------------
