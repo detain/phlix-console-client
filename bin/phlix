@@ -1,0 +1,89 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use Phlix\Console\App;
+use Phlix\Console\Capabilities;
+use Phlix\Console\Spike\PosterSpike;
+use Phlix\Console\Spike\VideoSpike;
+use SugarCraft\Core\Program;
+
+// Locate the Composer autoloader whether we run from the repo or as an
+// installed dependency in someone else's vendor/.
+foreach ([__DIR__ . '/../vendor/autoload.php', __DIR__ . '/../../../autoload.php'] as $autoload) {
+    if (is_file($autoload)) {
+        require $autoload;
+        break;
+    }
+}
+if (!class_exists(Program::class)) {
+    fwrite(STDERR, "Phlix: Composer autoloader not found — run `composer install`.\n");
+    exit(1);
+}
+
+$cmd = $argv[1] ?? 'help';
+
+/** Pull a --mode=… flag out of argv, if present. */
+$mode = null;
+foreach ($argv as $arg) {
+    if (is_string($arg) && str_starts_with($arg, '--mode=')) {
+        $mode = substr($arg, 7);
+    }
+}
+$intArg = static fn(int $i, int $default): int =>
+    isset($argv[$i]) && ctype_digit((string) $argv[$i]) ? (int) $argv[$i] : $default;
+
+try {
+    switch ($cmd) {
+        case 'doctor':
+            echo (new Capabilities())->report(), "\n";
+            break;
+
+        case 'poster':
+            $path = $argv[2] ?? null;
+            if ($path === null) {
+                fwrite(STDERR, "usage: phlix poster <image> [width] [height] [--mode=auto|sixel|kitty|iterm2|halfblock]\n");
+                exit(2);
+            }
+            echo (new PosterSpike())->render($path, $intArg(3, 40), isset($argv[4]) && ctype_digit((string) $argv[4]) ? (int) $argv[4] : null, $mode), "\n";
+            break;
+
+        case 'frame':
+            $src = $argv[2] ?? null;
+            if ($src === null) {
+                fwrite(STDERR, "usage: phlix frame <video|gif> [count] [cols] [rows] [--mode=auto|halfblock|sixel|kitty|ascii]\n");
+                exit(2);
+            }
+            $spike = new VideoSpike();
+            echo $spike->probeReport($src), "\n";
+            foreach ($spike->frames($src, $intArg(3, 1), $intArg(4, 60), $intArg(5, 20), $mode) as $i => $ansi) {
+                echo "--- frame {$i} ---\n", $ansi, "\n";
+            }
+            break;
+
+        case 'run':
+            (new Program(new App()))->run();
+            break;
+
+        case 'help':
+        default:
+            fwrite(STDOUT, <<<TXT
+phlix — Phlix console client (Phase 0 spike)
+
+usage:
+  phlix doctor                              report terminal graphics capabilities
+  phlix poster <image> [w] [h]              render an image at a cell size
+  phlix frame  <video|gif> [n] [cols] [rows]  decode N frames to ANSI
+  phlix run                                 launch the full-window app (needs a TTY)
+
+flags:
+  --mode=auto|sixel|kitty|iterm2|halfblock|ascii   force a render mode
+
+TXT);
+            break;
+    }
+} catch (\Throwable $e) {
+    fwrite(STDERR, 'Error: ' . $e->getMessage() . "\n");
+    exit(1);
+}

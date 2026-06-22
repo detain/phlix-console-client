@@ -1,0 +1,44 @@
+{
+    "name": "phlix/console-client",
+    "description": "Full-window terminal (TUI) client for Phlix — browse libraries and posters and play media in the terminal, rendered as sixel / kitty / iTerm2 / half-block ANSI via the SugarCraft stack.",
+    "type": "project",
+    "license": "MIT",
+    "keywords": ["phlix", "tui", "terminal", "media", "sugarcraft", "sixel", "kitty", "client"],
+    "authors": [
+        { "name": "Joe Huss", "email": "detain@interserver.net", "role": "Maintainer" }
+    ],
+    "bin": ["bin/phlix"],
+    "require": {
+        "php": ">=8.3",
+        "ext-gd": "*",
+        "sugarcraft/candy-core": "dev-master",
+        "sugarcraft/candy-sprinkles": "dev-master",
+        "sugarcraft/candy-palette": "dev-master",
+        "sugarcraft/candy-mosaic": "dev-master",
+        "sugarcraft/sugar-boxer": "dev-master",
+        "sugarcraft/sugar-reel": "dev-master",
+        "react/event-loop": "^1.5",
+        "react/promise": "^3.3"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.0"
+    },
+    "autoload": {
+        "psr-4": { "Phlix\\Console\\": "src/" }
+    },
+    "autoload-dev": {
+        "psr-4": { "Phlix\\Console\\Tests\\": "tests/" }
+    },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../../sugarcraft/*",
+            "options": { "symlink": true }
+        }
+    ],
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "config": {
+        "sort-packages": true
+    }
+}
