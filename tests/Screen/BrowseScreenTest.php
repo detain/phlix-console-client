@@ -14,6 +14,7 @@ use Phlix\Console\Msg\ContinueWatchingLoadedMsg;
 use Phlix\Console\Msg\LibrariesFailedMsg;
 use Phlix\Console\Msg\LibrariesLoadedMsg;
 use Phlix\Console\Msg\LibraryMediaLoadedMsg;
+use Phlix\Console\Msg\OpenLibraryMsg;
 use Phlix\Console\Msg\PosterLoadedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Screen\BrowseScreen;
@@ -236,6 +237,32 @@ final class BrowseScreenTest extends TestCase
 
         self::assertInstanceOf(QuitMsg::class, $q());
         self::assertInstanceOf(QuitMsg::class, $esc());
+    }
+
+    public function testEnterOnLibraryRailOpensThatLibrary(): void
+    {
+        $screen = $this->withLibraryMedia('lib-a', 'Movies', 'm1', 'm2');
+
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Enter));
+        $msg = $cmd?->__invoke();
+
+        self::assertInstanceOf(OpenLibraryMsg::class, $msg);
+        self::assertSame('lib-a', $msg->libraryId);
+        self::assertSame('Movies', $msg->name);
+    }
+
+    public function testEnterOnContinueWatchingRailDoesNotOpenALibrary(): void
+    {
+        $entry = ContinueWatchingItem::fromArray(['media_item_id' => 'cw', 'name' => 'X', 'position_ticks' => 1, 'duration_ticks' => 2]);
+        // Continue Watching prepends at index 0, where the cursor starts.
+        [$screen] = $this->screen()
+            ->update(new LibrariesLoadedMsg([$this->library('lib-a', 'Movies')]))[0]
+            ->update(new ContinueWatchingLoadedMsg([$entry]));
+        self::assertSame('continue', $screen->railIds()[$screen->railCursor()]);
+
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Enter));
+
+        self::assertNull($cmd, 'the continue-watching rail has no library grid to open');
     }
 
     public function testFailedLibrariesShowsError(): void

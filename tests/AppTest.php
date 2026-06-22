@@ -14,11 +14,14 @@ use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Msg\BootResolvedMsg;
 use Phlix\Console\Msg\LoginFailedMsg;
 use Phlix\Console\Msg\LoginSucceededMsg;
+use Phlix\Console\Msg\NavigateBackMsg;
+use Phlix\Console\Msg\OpenLibraryMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\SubmitLoginMsg;
 use Phlix\Console\Msg\SubmitServerMsg;
 use Phlix\Console\Route;
 use Phlix\Console\Screen\BrowseScreen;
+use Phlix\Console\Screen\LibraryScreen;
 use Phlix\Console\Screen\LoginScreen;
 use Phlix\Console\Screen\ServerScreen;
 use Phlix\Console\Store\AuthStore;
@@ -208,6 +211,86 @@ final class AppTest extends TestCase
         $screen = $next->screen();
         self::assertInstanceOf(LoginScreen::class, $screen);
         self::assertSame('Your session expired. Please sign in again.', $screen->error);
+    }
+
+    private function browsing(): App
+    {
+        [$app] = $this->makeApp('https://srv', new FakeTransport());
+        [$browse] = $app->update(new LoginSucceededMsg(AuthUser::fromArray(['id' => 'u1', 'username' => 'joe'])));
+
+        return $browse;
+    }
+
+    public function testOpenLibraryPushesLibraryScreen(): void
+    {
+        $browse = $this->browsing();
+        self::assertSame(1, $browse->stackDepth());
+
+        [$lib, $cmd] = $browse->update(new OpenLibraryMsg('lib-a', 'Movies'));
+
+        self::assertSame(Route::Library, $lib->route());
+        self::assertInstanceOf(LibraryScreen::class, $lib->screen());
+        self::assertSame(2, $lib->stackDepth(), 'library is pushed onto Browse');
+        self::assertInstanceOf(\Closure::class, $cmd, 'the library loads its first window on push');
+    }
+
+    public function testNavigateBackPopsToBrowse(): void
+    {
+        [$lib] = $this->browsing()->update(new OpenLibraryMsg('lib-a', 'Movies'));
+        self::assertSame(2, $lib->stackDepth());
+
+        [$back] = $lib->update(new NavigateBackMsg());
+
+        self::assertSame(1, $back->stackDepth());
+        self::assertSame(Route::Browse, $back->route());
+        self::assertInstanceOf(BrowseScreen::class, $back->screen());
+    }
+
+    public function testNavigateBackAtTheHomeScreenIsANoOp(): void
+    {
+        [$back] = $this->browsing()->update(new NavigateBackMsg());
+
+        self::assertSame(1, $back->stackDepth(), 'cannot pop below the home screen');
+        self::assertSame(Route::Browse, $back->route());
+    }
+
+    public function testWindowSizeReflowsEveryStackedFrame(): void
+    {
+        [$lib] = $this->browsing()->update(new OpenLibraryMsg('lib-a', 'Movies'));
+        $topBefore = $lib->screen();
+        self::assertInstanceOf(LibraryScreen::class, $topBefore);
+
+        [$resized] = $lib->update(new WindowSizeMsg(50, 24));
+
+        self::assertSame(2, $resized->stackDepth(), 'the stack survives a resize');
+        $topAfter = $resized->screen();
+        self::assertInstanceOf(LibraryScreen::class, $topAfter);
+        self::assertLessThan($topBefore->grid()->columns(), $topAfter->grid()->columns(), 'the top frame re-flowed narrower');
+
+        // The Browse frame beneath was also re-flowed and is intact on pop.
+        [$back] = $resized->update(new NavigateBackMsg());
+        self::assertInstanceOf(BrowseScreen::class, $back->screen());
+    }
+
+    public function testWidenResizeThreadsTheTopScreenFetchCmd(): void
+    {
+        // A library with a known total, so a grown viewport has cells to fetch.
+        $items = [];
+        for ($i = 0; $i < 50; $i++) {
+            $items[] = ['id' => (string) $i, 'name' => 'Item ' . $i, 'type' => 'movie'];
+        }
+        $transport = (new FakeTransport())->json(200, ['items' => $items, 'total' => 200, 'limit' => 50, 'offset' => 0]);
+        [$app] = $this->makeApp('https://srv', $transport);
+
+        [$browse] = $app->update(new LoginSucceededMsg(AuthUser::fromArray(['id' => 'u1', 'username' => 'joe'])));
+        [$lib, $initCmd] = $browse->update(new OpenLibraryMsg('lib-a', 'Movies'));
+        [$loaded] = $lib->update($this->runCmd($initCmd)); // feed the first window back
+
+        // Growing the viewport exposes cells the library must fetch; the App must
+        // thread that Cmd back rather than swallow it.
+        [, $cmd] = $loaded->update(new WindowSizeMsg(200, 60));
+
+        self::assertInstanceOf(\Closure::class, $cmd, 'the grid resize-fetch Cmd is threaded through the stack');
     }
 
     public function testLoadingViewRendersConnecting(): void
