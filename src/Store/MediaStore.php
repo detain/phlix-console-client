@@ -6,20 +6,30 @@ namespace Phlix\Console\Store;
 
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\Dto\ContinueWatchingItem;
+use Phlix\Console\Api\Dto\LetterIndex;
 use Phlix\Console\Api\Dto\MediaPage;
 use Phlix\Console\Api\MediaQuery;
+use React\Promise\Deferred;
 use React\Promise\PromiseInterface;
 
+use function React\Promise\all;
 use function React\Promise\resolve;
 
 /**
  * Caches media pages (keyed by query + paging) and the continue-watching list
- * over the {@see ApiClient} with a short TTL.
+ * over the {@see ApiClient} with a short TTL, and serves the library grid's
+ * sparse, absolute-index range fetches via {@see ensureRange()}.
  */
 final class MediaStore
 {
     /** @var array<string, array{page: MediaPage, at: float}> */
     private array $pages = [];
+
+    /** @var array<string, PromiseInterface<MediaPage>>  page key → in-flight fetch */
+    private array $inFlight = [];
+
+    /** @var array<string, array{index: LetterIndex, at: float}> */
+    private array $letterIndexes = [];
 
     /** @var array{items: list<ContinueWatchingItem>, at: float}|null */
     private ?array $continue = null;
@@ -43,17 +53,99 @@ final class MediaStore
      */
     public function page(MediaQuery $query, bool $force = false): PromiseInterface
     {
-        $key = $query->cacheKey() . ':' . $query->offset . ':' . $query->limit;
+        $key = $this->pageKey($query);
         $now = ($this->clock)();
 
         if (!$force && isset($this->pages[$key]) && ($now - $this->pages[$key]['at']) < $this->ttl) {
             return resolve($this->pages[$key]['page']);
         }
 
-        return $this->api->media($query)->then(function (MediaPage $page) use ($key, $now): MediaPage {
-            $this->pages[$key] = ['page' => $page, 'at' => $now];
+        // Coalesce concurrent fetches of the same page so a scroll that revisits
+        // an in-flight offset never doubles up the request. Drive a Deferred so
+        // the guard is registered before the inner request can settle (react may
+        // resolve synchronously) and cleared exactly once.
+        if (isset($this->inFlight[$key])) {
+            return $this->inFlight[$key];
+        }
 
-            return $page;
+        $deferred = new Deferred();
+        $this->inFlight[$key] = $deferred->promise();
+
+        $this->api->media($query)->then(
+            function (MediaPage $page) use ($key, $now, $deferred): void {
+                $this->pages[$key] = ['page' => $page, 'at' => $now];
+                unset($this->inFlight[$key]);
+                $deferred->resolve($page);
+            },
+            function (\Throwable $error) use ($key, $deferred): void {
+                unset($this->inFlight[$key]);
+                $deferred->reject($error);
+            },
+        );
+
+        return $deferred->promise();
+    }
+
+    /**
+     * Fetch the page(s) covering the absolute-index window [$start, $end] and
+     * resolve the items keyed by their ABSOLUTE index, plus the total. Pages are
+     * TTL-cached and de-duplicated, so the grid can call this freely on scroll.
+     *
+     * @return PromiseInterface<MediaRange>
+     */
+    public function ensureRange(MediaQuery $query, int $start, int $end): PromiseInterface
+    {
+        if ($end < 0 || $start > $end) {
+            return resolve(new MediaRange([], 0));
+        }
+
+        $start = max(0, $start);
+        $limit = max(1, $query->limit);
+        $firstOffset = intdiv($start, $limit) * $limit;
+        $lastOffset = intdiv($end, $limit) * $limit;
+
+        /** @var array<int, PromiseInterface<MediaPage>> $promises */
+        $promises = [];
+        for ($offset = $firstOffset; $offset <= $lastOffset; $offset += $limit) {
+            $promises[$offset] = $this->page($query->withOffset($offset));
+        }
+
+        return all($promises)->then(static function (array $pages) use ($start, $end): MediaRange {
+            $items = [];
+            $total = 0;
+            foreach ($pages as $offset => $page) {
+                $total = max($total, $page->total);
+                foreach ($page->items as $i => $item) {
+                    $absolute = $offset + $i;
+                    if ($absolute >= $start && $absolute <= $end) {
+                        $items[$absolute] = $item;
+                    }
+                }
+            }
+            ksort($items);
+
+            return new MediaRange($items, $total);
+        });
+    }
+
+    /**
+     * The A–Z jump index for a query's filters (paging-independent), TTL-cached.
+     *
+     * @return PromiseInterface<LetterIndex>
+     */
+    public function letterIndex(MediaQuery $query, bool $force = false): PromiseInterface
+    {
+        $key = $query->cacheKey();
+        $now = ($this->clock)();
+
+        if (!$force && isset($this->letterIndexes[$key]) && ($now - $this->letterIndexes[$key]['at']) < $this->ttl) {
+            return resolve($this->letterIndexes[$key]['index']);
+        }
+
+        return $this->api->letterIndex($query)->then(function (LetterIndex $index) use ($key, $now): LetterIndex {
+            $this->letterIndexes[$key] = ['index' => $index, 'at' => $now];
+
+            return $index;
         });
     }
 
@@ -78,6 +170,13 @@ final class MediaStore
     public function invalidate(): void
     {
         $this->pages = [];
+        $this->inFlight = [];
+        $this->letterIndexes = [];
         $this->continue = null;
+    }
+
+    private function pageKey(MediaQuery $query): string
+    {
+        return $query->cacheKey() . ':' . $query->offset . ':' . $query->limit;
     }
 }
