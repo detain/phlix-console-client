@@ -23,6 +23,7 @@ use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Store\LibrariesStore;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Ui\Chrome;
+use Phlix\Console\Ui\Sidebar;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Model;
@@ -30,15 +31,21 @@ use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\SubscriptionCapable;
+use SugarCraft\Focus\FocusRing;
 use SugarCraft\Gallery\Rail;
 use SugarCraft\Sprinkles\Layout;
 
 /**
- * Browse home — the Phase 1 deliverable. Loads Continue Watching plus one rail
- * per library, renders them as scrolling poster rails, and loads each poster
- * asynchronously (placeholder until ready). ↑/↓ move between rails, ←/→ within
- * a rail. A Browse-time auth failure emits {@see SessionExpiredMsg} (the App
- * returns to login).
+ * Browse home. Loads Continue Watching plus one rail per library and renders
+ * them as scrolling poster rails beside a {@see Sidebar} libraries left-nav,
+ * loading each poster asynchronously (placeholder until ready).
+ *
+ * Two focusable regions are held in an immutable {@see FocusRing}: the rails
+ * (default) and the sidebar. Tab / Shift-Tab move focus between them; the
+ * focused region takes the arrow keys and shows the accent. With the rails
+ * focused, ↑/↓ move between rails and ←/→ within one; with the sidebar focused,
+ * ↑/↓ move the library selection. Enter (either region) drills into the
+ * selected library; a Browse-time auth failure emits {@see SessionExpiredMsg}.
  *
  * @phpstan-type RailMap array<string, Rail>
  */
@@ -47,12 +54,18 @@ final class BrowseScreen implements Model
     use SubscriptionCapable;
 
     private const CONTINUE_ID = 'continue';
+    private const SIDEBAR = 'sidebar';
+    private const RAILS = 'rails';
+    private const SIDEBAR_WIDTH = 22;
+    private const SIDEBAR_GAP = 2;
     private const CARD_WIDTH = 14;
     private const POSTER_WIDTH = 14;
     private const POSTER_HEIGHT = 9;
     private const RAIL_HEIGHT = 12;        // estimate for vertical windowing
     private const PER_LIBRARY_LIMIT = 18;
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const RAILS_HINT = '↑↓  rails      ←→  items      ⏎  open      Tab  menu      q  quit';
+    private const SIDEBAR_HINT = '↑↓  library      ⏎  open      Tab  rails      q  quit';
 
     private ?Rail $continueRail = null;
     /** @var array<string, Rail> keyed by library id, in display order */
@@ -60,6 +73,8 @@ final class BrowseScreen implements Model
     private int $railCursor = 0;
     private int $railScroll = 0;
     private ?string $error = null;
+    private FocusRing $focus;
+    private Sidebar $sidebar;
 
     public function __construct(
         private readonly AuthUser $user,
@@ -69,6 +84,10 @@ final class BrowseScreen implements Model
         private int $cols = 80,
         private int $rows = 24,
     ) {
+        // Rails are focused first so the existing rail navigation works on load;
+        // Tab moves focus to the sidebar.
+        $this->focus = FocusRing::of(self::RAILS, self::SIDEBAR);
+        $this->sidebar = Sidebar::new(self::SIDEBAR_WIDTH);
     }
 
     public function init(): ?\Closure
@@ -116,6 +135,8 @@ final class BrowseScreen implements Model
             return Chrome::frame('Browse', $body, 'q  quit', $this->cols, $this->rows);
         }
 
+        $railsFocused = $this->focus->isFocused(self::RAILS);
+
         $railWidth = $this->railWidth();
         $visible = array_slice($ids, $this->railScroll, $this->visibleRailCount());
 
@@ -124,13 +145,14 @@ final class BrowseScreen implements Model
             $absolute = $this->railScroll + $offset;
             $rail = $this->railById($railId);
             if ($rail !== null) {
-                $blocks[] = $rail->render($railWidth, $absolute === $this->railCursor, self::CARD_WIDTH, self::POSTER_HEIGHT);
+                $blocks[] = $rail->render($railWidth, $railsFocused && $absolute === $this->railCursor, self::CARD_WIDTH, self::POSTER_HEIGHT);
             }
         }
 
-        $body = $blocks === [] ? '' : Layout::joinVerticalWithSpacing(0.0, 1, ...$blocks);
+        $railsBody = $blocks === [] ? '' : Layout::joinVerticalWithSpacing(0.0, 1, ...$blocks);
+        $body = Layout::joinHorizontalWithSpacing(0.0, self::SIDEBAR_GAP, $this->sidebar->render($this->contentHeight()), $railsBody);
 
-        return Chrome::frame('Browse', $body, '↑↓  rails      ←→  items      q  quit', $this->cols, $this->rows);
+        return Chrome::frame('Browse', $body, $railsFocused ? self::RAILS_HINT : self::SIDEBAR_HINT, $this->cols, $this->rows);
     }
 
     // ---- data loading --------------------------------------------------
@@ -203,6 +225,7 @@ final class BrowseScreen implements Model
         }
 
         $next = $this->withLibraryRails($rails);
+        $next = $next->withSidebar($next->sidebar->withEntries($next->sidebarEntries()));
 
         // Clamp the cursor in case a reload returned fewer rails than before.
         $count = count($next->orderedRailIds());
@@ -284,7 +307,35 @@ final class BrowseScreen implements Model
         if ($msg->type === KeyType::Escape || ($msg->type === KeyType::Char && $msg->rune === 'q')) {
             return [$this, Cmd::quit()];
         }
+        if ($msg->type === KeyType::Tab) {
+            return [$this->withFocus($msg->shift ? $this->focus->previous() : $this->focus->next()), null];
+        }
 
+        return $this->focus->isFocused(self::SIDEBAR)
+            ? $this->handleSidebarKey($msg)
+            : $this->handleRailsKey($msg);
+    }
+
+    private function handleSidebarKey(KeyMsg $msg): array
+    {
+        if ($this->sidebar->isEmpty()) {
+            return [$this, null];
+        }
+        if ($msg->type === KeyType::Up) {
+            return [$this->withSidebar($this->sidebar->up()), null];
+        }
+        if ($msg->type === KeyType::Down) {
+            return [$this->withSidebar($this->sidebar->down()), null];
+        }
+        if ($msg->type === KeyType::Enter) {
+            return $this->openLibrary($this->sidebar->selectedId());
+        }
+
+        return [$this, null];
+    }
+
+    private function handleRailsKey(KeyMsg $msg): array
+    {
         $ids = $this->orderedRailIds();
         $count = count($ids);
         if ($count === 0) {
@@ -292,14 +343,8 @@ final class BrowseScreen implements Model
         }
 
         if ($msg->type === KeyType::Enter) {
-            $railId = $ids[$this->railCursor] ?? null;
-            $rail = $railId !== null ? $this->railById($railId) : null;
-            // Drill into a library (the continue-watching rail has no grid).
-            if ($railId !== null && $railId !== self::CONTINUE_ID && $rail !== null) {
-                return [$this, Cmd::send(new OpenLibraryMsg($railId, $rail->title))];
-            }
-
-            return [$this, null];
+            // openLibrary() rejects the continue-watching rail (no grid).
+            return $this->openLibrary($ids[$this->railCursor] ?? null);
         }
 
         if ($msg->type === KeyType::Up) {
@@ -321,6 +366,17 @@ final class BrowseScreen implements Model
         }
 
         return [$this, null];
+    }
+
+    /** Open the given library id's grid (a no-op for an unknown/null id). */
+    private function openLibrary(?string $libraryId): array
+    {
+        $rail = $libraryId !== null ? $this->railById($libraryId) : null;
+        if ($libraryId === null || $libraryId === self::CONTINUE_ID || $rail === null) {
+            return [$this, null];
+        }
+
+        return [$this, Cmd::send(new OpenLibraryMsg($libraryId, $rail->title))];
     }
 
     private function moveRail(int $delta, int $count): self
@@ -354,6 +410,17 @@ final class BrowseScreen implements Model
         return $ids;
     }
 
+    /** @return list<array{id: string, label: string}> library rails as sidebar entries */
+    private function sidebarEntries(): array
+    {
+        $entries = [];
+        foreach ($this->libraryRails as $id => $rail) {
+            $entries[] = ['id' => $id, 'label' => $rail->title];
+        }
+
+        return $entries;
+    }
+
     private function railById(string $railId): ?Rail
     {
         return $railId === self::CONTINUE_ID
@@ -377,12 +444,19 @@ final class BrowseScreen implements Model
 
     private function railWidth(): int
     {
-        return max(10, $this->cols - 4);
+        // The sidebar takes a fixed left column; the rails get the rest.
+        return max(self::CARD_WIDTH, $this->cols - 4 - self::SIDEBAR_WIDTH - self::SIDEBAR_GAP);
     }
 
     private function visibleRailCount(): int
     {
         return max(1, intdiv(max(1, $this->rows - 4), self::RAIL_HEIGHT));
+    }
+
+    /** The vertical room for the content region (the sidebar fills this). */
+    private function contentHeight(): int
+    {
+        return max(self::POSTER_HEIGHT, $this->rows - 6);
     }
 
     private function displayName(): string
@@ -426,6 +500,24 @@ final class BrowseScreen implements Model
         return $next;
     }
 
+    /** Move focus, keeping the sidebar's accent in sync with the ring. */
+    private function withFocus(FocusRing $focus): self
+    {
+        $next = clone $this;
+        $next->focus = $focus;
+        $next->sidebar = $this->sidebar->withFocus($focus->isFocused(self::SIDEBAR));
+
+        return $next;
+    }
+
+    private function withSidebar(Sidebar $sidebar): self
+    {
+        $next = clone $this;
+        $next->sidebar = $sidebar;
+
+        return $next;
+    }
+
     private function resizedTo(int $cols, int $rows): self
     {
         $next = clone $this;
@@ -451,5 +543,16 @@ final class BrowseScreen implements Model
     public function railCursor(): int
     {
         return $this->railCursor;
+    }
+
+    /** The focused region id ('rails' or 'sidebar'). */
+    public function focusedRegion(): ?string
+    {
+        return $this->focus->current();
+    }
+
+    public function sidebar(): Sidebar
+    {
+        return $this->sidebar;
     }
 }
