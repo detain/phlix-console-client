@@ -7,6 +7,7 @@ namespace Phlix\Console\Store;
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\Dto\ContinueWatchingItem;
 use Phlix\Console\Api\Dto\LetterIndex;
+use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\Dto\MediaPage;
 use Phlix\Console\Api\MediaQuery;
 use React\Promise\Deferred;
@@ -30,6 +31,12 @@ final class MediaStore
 
     /** @var array<string, array{index: LetterIndex, at: float}> */
     private array $letterIndexes = [];
+
+    /** @var array<string, array{item: MediaItem, at: float}>  item id → cached detail */
+    private array $items = [];
+
+    /** @var array<string, PromiseInterface<MediaItem>>  item id → in-flight detail fetch */
+    private array $itemsInFlight = [];
 
     /** @var array{items: list<ContinueWatchingItem>, at: float}|null */
     private ?array $continue = null;
@@ -79,6 +86,43 @@ final class MediaStore
             },
             function (\Throwable $error) use ($key, $deferred): void {
                 unset($this->inFlight[$key]);
+                $deferred->reject($error);
+            },
+        );
+
+        return $deferred->promise();
+    }
+
+    /**
+     * Fetch a single item's full detail — the shaped detail endpoint, which adds
+     * the signed `stream_url` + `streams` the list shape omits — TTL-cached and
+     * de-duplicated like {@see page()} so the detail screen can refetch freely.
+     *
+     * @return PromiseInterface<MediaItem>
+     */
+    public function item(string $id, bool $force = false): PromiseInterface
+    {
+        $now = ($this->clock)();
+
+        if (!$force && isset($this->items[$id]) && ($now - $this->items[$id]['at']) < $this->ttl) {
+            return resolve($this->items[$id]['item']);
+        }
+
+        if (isset($this->itemsInFlight[$id])) {
+            return $this->itemsInFlight[$id];
+        }
+
+        $deferred = new Deferred();
+        $this->itemsInFlight[$id] = $deferred->promise();
+
+        $this->api->mediaItem($id)->then(
+            function (MediaItem $item) use ($id, $now, $deferred): void {
+                $this->items[$id] = ['item' => $item, 'at' => $now];
+                unset($this->itemsInFlight[$id]);
+                $deferred->resolve($item);
+            },
+            function (\Throwable $error) use ($id, $deferred): void {
+                unset($this->itemsInFlight[$id]);
                 $deferred->reject($error);
             },
         );
@@ -172,6 +216,8 @@ final class MediaStore
         $this->pages = [];
         $this->inFlight = [];
         $this->letterIndexes = [];
+        $this->items = [];
+        $this->itemsInFlight = [];
         $this->continue = null;
     }
 
