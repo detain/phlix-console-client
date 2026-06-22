@@ -38,10 +38,21 @@ final class ApiClient
     private ?PromiseInterface $refreshInFlight = null;
 
     public function __construct(
-        private readonly string $baseUrl,
+        private string $baseUrl,
         ?Transport $transport = null,
     ) {
         $this->transport = $transport ?? new BrowserTransport();
+    }
+
+    /** Point the client at a (different) server — set once the URL is known. */
+    public function setBaseUrl(string $baseUrl): void
+    {
+        $this->baseUrl = $baseUrl;
+    }
+
+    public function baseUrl(): string
+    {
+        return $this->baseUrl;
     }
 
     public function setToken(?TokenBundle $token): void
