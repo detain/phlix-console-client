@@ -10,9 +10,11 @@ use Phlix\Console\App;
 use Phlix\Console\Config\Config;
 use Phlix\Console\Config\TokenBundle;
 use Phlix\Console\Config\TokenStore;
+use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Msg\BootResolvedMsg;
 use Phlix\Console\Msg\LoginFailedMsg;
 use Phlix\Console\Msg\LoginSucceededMsg;
+use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\SubmitLoginMsg;
 use Phlix\Console\Msg\SubmitServerMsg;
 use Phlix\Console\Route;
@@ -20,11 +22,14 @@ use Phlix\Console\Screen\BrowseScreen;
 use Phlix\Console\Screen\LoginScreen;
 use Phlix\Console\Screen\ServerScreen;
 use Phlix\Console\Store\AuthStore;
+use Phlix\Console\Store\LibrariesStore;
+use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Tests\Api\FakeTransport;
 use PHPUnit\Framework\TestCase;
 use React\EventLoop\Loop;
 use React\Promise\PromiseInterface;
 use SugarCraft\Core\AsyncCmd;
+use SugarCraft\Mosaic\Mosaic;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg;
@@ -62,8 +67,11 @@ final class AppTest extends TestCase
         $config = new Config($server);
         $api = new ApiClient($server ?? '', $transport);
         $auth = new AuthStore($api, TokenStore::default());
+        $libraries = new LibrariesStore($api);
+        $media = new MediaStore($api);
+        $posters = new PosterLoader(Mosaic::halfBlock());
 
-        return [App::boot($config, $auth, $api), $auth, $api];
+        return [App::boot($config, $auth, $api, $libraries, $media, $posters), $auth, $api];
     }
 
     public function testFirstRunShowsServerWizard(): void
@@ -175,7 +183,7 @@ final class AppTest extends TestCase
 
         self::assertSame(Route::Browse, $next->route());
         self::assertInstanceOf(BrowseScreen::class, $next->screen());
-        self::assertNull($cmd, 'browse screen has no init Cmd');
+        self::assertInstanceOf(\Closure::class, $cmd, 'browse loads its data on enter');
     }
 
     public function testLoginFailedReturnsToLoginWithError(): void
@@ -188,6 +196,18 @@ final class AppTest extends TestCase
         $screen = $next->screen();
         self::assertInstanceOf(LoginScreen::class, $screen);
         self::assertSame('Account is pending approval', $screen->error);
+    }
+
+    public function testSessionExpiredReturnsToLogin(): void
+    {
+        [$app] = $this->makeApp('https://srv', new FakeTransport());
+
+        [$next] = $app->update(new SessionExpiredMsg('Your session expired. Please sign in again.'));
+
+        self::assertSame(Route::Login, $next->route());
+        $screen = $next->screen();
+        self::assertInstanceOf(LoginScreen::class, $screen);
+        self::assertSame('Your session expired. Please sign in again.', $screen->error);
     }
 
     public function testLoadingViewRendersConnecting(): void

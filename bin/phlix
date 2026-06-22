@@ -8,10 +8,15 @@ use Phlix\Console\App;
 use Phlix\Console\Capabilities;
 use Phlix\Console\Config\Config;
 use Phlix\Console\Config\TokenStore;
+use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Spike\PosterSpike;
 use Phlix\Console\Spike\VideoSpike;
 use Phlix\Console\Store\AuthStore;
+use Phlix\Console\Store\LibrariesStore;
+use Phlix\Console\Store\MediaStore;
 use SugarCraft\Core\Program;
+use SugarCraft\Mosaic\DiskCache;
+use SugarCraft\Mosaic\Mosaic;
 
 // Locate the Composer autoloader whether we run from the repo or as an
 // installed dependency in someone else's vendor/.
@@ -70,7 +75,10 @@ try {
             $config = Config::load();
             $api = new ApiClient($config->serverUrl ?? '');
             $auth = new AuthStore($api, TokenStore::default());
-            (new Program(App::boot($config, $auth, $api)))->run();
+            $libraries = new LibrariesStore($api);
+            $media = new MediaStore($api);
+            $posters = new PosterLoader(Mosaic::probe(), new DiskCache(Config::dir() . '/posters'));
+            (new Program(App::boot($config, $auth, $api, $libraries, $media, $posters)))->run();
             break;
 
         case 'help':
