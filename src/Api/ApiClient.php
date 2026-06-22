@@ -7,6 +7,7 @@ namespace Phlix\Console\Api;
 use Phlix\Console\Api\Dto\AuthUser;
 use Phlix\Console\Api\Dto\Coerce;
 use Phlix\Console\Api\Dto\ContinueWatchingItem;
+use Phlix\Console\Api\Dto\LetterIndex;
 use Phlix\Console\Api\Dto\Library;
 use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\Dto\MediaPage;
@@ -172,6 +173,18 @@ final class ApiClient
     {
         return $this->authed('GET', '/api/v1/media', $query->toParams())
             ->then(static fn (array $data): MediaPage => MediaPage::fromArray($data));
+    }
+
+    /**
+     * The A–Z jump index for the same filters as {@see media()} (paging is
+     * ignored server-side). Drives the LetterRail.
+     *
+     * @return PromiseInterface<LetterIndex>
+     */
+    public function letterIndex(MediaQuery $query): PromiseInterface
+    {
+        return $this->authed('GET', '/api/v1/media/letter-index', $query->toParams())
+            ->then(static fn (array $data): LetterIndex => LetterIndex::fromArray($data));
     }
 
     /** @return PromiseInterface<MediaItem> */
