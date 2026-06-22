@@ -11,11 +11,14 @@ use Phlix\Console\Config\Config;
 use Phlix\Console\Msg\BootResolvedMsg;
 use Phlix\Console\Msg\LoginFailedMsg;
 use Phlix\Console\Msg\LoginSucceededMsg;
+use Phlix\Console\Msg\NavigateBackMsg;
+use Phlix\Console\Msg\OpenLibraryMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\SubmitLoginMsg;
 use Phlix\Console\Msg\SubmitServerMsg;
 use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Screen\BrowseScreen;
+use Phlix\Console\Screen\LibraryScreen;
 use Phlix\Console\Screen\LoginScreen;
 use Phlix\Console\Screen\ServerScreen;
 use Phlix\Console\Store\AuthStore;
@@ -31,18 +34,25 @@ use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\SubscriptionCapable;
 
 /**
- * Root model: a hand-rolled router over the auth flow.
+ * Root model: a hand-rolled router over a screen STACK.
  *
- * Boot picks the entry screen — first-run server wizard, or a loading state
- * while a stored token is validated. App owns the shared services (Config,
- * ApiClient, AuthStore), runs the async login/restore Cmds, and routes input
- * to the active screen. Because Program only calls init() once on the root,
- * the App returns each new screen's focus-init Cmd when it transitions.
+ * The authenticated app is a stack of screens (Browse → Library → …) so the
+ * user can drill in and back out while each screen keeps its own state — which
+ * candy-core's ScreenStack cannot do (it writes back only the root's model).
+ * The auth flow (server wizard / loading / login) is a single-frame stack;
+ * logging in replaces the whole stack with Browse. App owns the shared services
+ * and runs the async login/restore Cmds. Because Program only calls init() once
+ * on the root, the App returns each pushed/replaced screen's focus-init Cmd.
+ *
+ * @phpstan-type Frame array{route: Route, screen: Model}
  */
 final class App implements Model
 {
     use SubscriptionCapable;
 
+    /**
+     * @param list<array{route: Route, screen: Model}> $stack top frame last; empty = the loading state
+     */
     public function __construct(
         private readonly Config $config,
         private readonly AuthStore $auth,
@@ -50,8 +60,7 @@ final class App implements Model
         private readonly LibrariesStore $libraries,
         private readonly MediaStore $media,
         private readonly PosterLoader $posters,
-        private readonly Route $route,
-        private readonly ?Model $screen,
+        private readonly array $stack,
         private readonly ?\Closure $bootCmd = null,
         private readonly int $cols = 80,
         private readonly int $rows = 24,
@@ -70,10 +79,10 @@ final class App implements Model
         if (!$config->hasServer()) {
             $screen = ServerScreen::create();
 
-            return new self($config, $auth, $api, $libraries, $media, $posters, Route::ServerSetup, $screen, $screen->init());
+            return new self($config, $auth, $api, $libraries, $media, $posters, [['route' => Route::ServerSetup, 'screen' => $screen]], $screen->init());
         }
 
-        return new self($config, $auth, $api, $libraries, $media, $posters, Route::Loading, null, self::restoreCmd($auth));
+        return new self($config, $auth, $api, $libraries, $media, $posters, [], self::restoreCmd($auth));
     }
 
     public function init(): ?\Closure
@@ -88,9 +97,7 @@ final class App implements Model
         }
 
         if ($msg instanceof WindowSizeMsg) {
-            $screen = $this->screen?->update($msg)[0] ?? null;
-
-            return [$this->resized($msg->cols, $msg->rows, $screen), null];
+            return $this->resized($msg->cols, $msg->rows);
         }
 
         if ($msg instanceof BootResolvedMsg) {
@@ -111,12 +118,19 @@ final class App implements Model
         if ($msg instanceof SessionExpiredMsg) {
             return $this->goLogin($msg->reason);
         }
+        if ($msg instanceof OpenLibraryMsg) {
+            return $this->openLibrary($msg->libraryId, $msg->name);
+        }
+        if ($msg instanceof NavigateBackMsg) {
+            return [$this->popScreen(), null];
+        }
 
-        // Anything else (keys, focus, async suggestions) → the active screen.
-        if ($this->screen !== null) {
-            [$screen, $cmd] = $this->screen->update($msg);
+        // Anything else (keys, focus, async results) → the active (top) screen.
+        $top = $this->topScreen();
+        if ($top !== null) {
+            [$screen, $cmd] = $top->update($msg);
 
-            return [$this->withScreen($screen), $cmd];
+            return [$this->withTopScreen($screen), $cmd];
         }
 
         return [$this, null];
@@ -124,8 +138,9 @@ final class App implements Model
 
     public function view(): string
     {
-        if ($this->screen !== null) {
-            return $this->screen->view();
+        $top = $this->topScreen();
+        if ($top !== null) {
+            return $top->view();
         }
 
         // Loading: no active screen.
@@ -148,14 +163,14 @@ final class App implements Model
         }
         $this->api->setBaseUrl($url);
 
-        return [$this->navigate(Route::Loading, null), self::restoreCmd($this->auth)];
+        return [$this->withStack([]), self::restoreCmd($this->auth)];
     }
 
     private function goServerSetup(?string $error): array
     {
         $screen = ServerScreen::create($error, $this->cols, $this->rows);
 
-        return [$this->navigate(Route::ServerSetup, $screen), $screen->init()];
+        return [$this->replace(Route::ServerSetup, $screen), $screen->init()];
     }
 
     private function onLoginSubmitted(string $username, string $password): array
@@ -180,14 +195,28 @@ final class App implements Model
             rows: $this->rows,
         );
 
-        return [$this->navigate(Route::Browse, $screen), $screen->init()];
+        return [$this->replace(Route::Browse, $screen), $screen->init()];
     }
 
     private function goLogin(?string $error): array
     {
         $screen = LoginScreen::create($error, $this->cols, $this->rows);
 
-        return [$this->navigate(Route::Login, $screen), $screen->init()];
+        return [$this->replace(Route::Login, $screen), $screen->init()];
+    }
+
+    private function openLibrary(string $libraryId, string $name): array
+    {
+        $screen = new LibraryScreen(
+            $libraryId,
+            $name,
+            $this->media,
+            $this->posters,
+            cols: $this->cols,
+            rows: $this->rows,
+        );
+
+        return [$this->push(Route::Library, $screen), $screen->init()];
     }
 
     // ---- helpers -------------------------------------------------------
@@ -219,38 +248,114 @@ final class App implements Model
         return $msg->type === KeyType::Char && $msg->rune === 'c' && $msg->ctrl;
     }
 
-    private function into(Route $route, ?Model $screen, int $cols, int $rows): self
+    // ---- stack ---------------------------------------------------------
+
+    /** @return array{route: Route, screen: Model}|null */
+    private function topFrame(): ?array
+    {
+        return $this->stack === [] ? null : $this->stack[count($this->stack) - 1];
+    }
+
+    private function topScreen(): ?Model
+    {
+        return $this->topFrame()['screen'] ?? null;
+    }
+
+    /** Replace the whole stack with a single frame (auth transitions). */
+    private function replace(Route $route, Model $screen): self
+    {
+        return $this->withStack([['route' => $route, 'screen' => $screen]]);
+    }
+
+    /** Push a frame on top (drill-in). */
+    private function push(Route $route, Model $screen): self
+    {
+        $stack = $this->stack;
+        $stack[] = ['route' => $route, 'screen' => $screen];
+
+        return $this->withStack($stack);
+    }
+
+    /** Pop the top frame, revealing the one beneath (never empties below 1). */
+    private function popScreen(): self
+    {
+        if (count($this->stack) <= 1) {
+            return $this;
+        }
+
+        $stack = $this->stack;
+        array_pop($stack);
+
+        return $this->withStack($stack);
+    }
+
+    private function withTopScreen(Model $screen): self
+    {
+        if ($this->stack === []) {
+            return $this;
+        }
+
+        $stack = $this->stack;
+        $top = count($stack) - 1;
+        $stack[$top] = ['route' => $stack[$top]['route'], 'screen' => $screen];
+
+        return $this->withStack($stack);
+    }
+
+    /**
+     * @param list<array{route: Route, screen: Model}> $stack
+     */
+    private function withStack(array $stack): self
     {
         return new self(
             $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
-            $route, $screen, null, $cols, $rows,
+            $stack, null, $this->cols, $this->rows,
         );
     }
 
-    private function navigate(Route $route, ?Model $screen): self
+    /**
+     * Re-flow every frame to the new size so a popped-to screen is already sized,
+     * threading back any Cmd a frame emits (e.g. a grid that grew must fetch the
+     * newly-revealed cells — dropping that Cmd would leave them skeletoned until
+     * the next keypress).
+     *
+     * @return array{App, ?\Closure}
+     */
+    private function resized(int $cols, int $rows): array
     {
-        return $this->into($route, $screen, $this->cols, $this->rows);
-    }
+        $msg = new WindowSizeMsg($cols, $rows);
+        $stack = [];
+        $cmds = [];
+        foreach ($this->stack as $frame) {
+            [$screen, $cmd] = $frame['screen']->update($msg);
+            $stack[] = ['route' => $frame['route'], 'screen' => $screen];
+            if ($cmd !== null) {
+                $cmds[] = $cmd;
+            }
+        }
 
-    private function withScreen(Model $screen): self
-    {
-        return $this->into($this->route, $screen, $this->cols, $this->rows);
-    }
+        $app = new self(
+            $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
+            $stack, null, $cols, $rows,
+        );
 
-    private function resized(int $cols, int $rows, ?Model $screen): self
-    {
-        return $this->into($this->route, $screen, $cols, $rows);
+        return [$app, $cmds === [] ? null : Cmd::batch(...$cmds)];
     }
 
     // ---- accessors (for tests) ----------------------------------------
 
     public function route(): Route
     {
-        return $this->route;
+        return $this->topFrame()['route'] ?? Route::Loading;
     }
 
     public function screen(): ?Model
     {
-        return $this->screen;
+        return $this->topScreen();
+    }
+
+    public function stackDepth(): int
+    {
+        return count($this->stack);
     }
 }

@@ -17,6 +17,7 @@ use Phlix\Console\Msg\ContinueWatchingLoadedMsg;
 use Phlix\Console\Msg\LibrariesFailedMsg;
 use Phlix\Console\Msg\LibrariesLoadedMsg;
 use Phlix\Console\Msg\LibraryMediaLoadedMsg;
+use Phlix\Console\Msg\OpenLibraryMsg;
 use Phlix\Console\Msg\PosterLoadedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Store\LibrariesStore;
@@ -288,6 +289,17 @@ final class BrowseScreen implements Model
         $ids = $this->orderedRailIds();
         $count = count($ids);
         if ($count === 0) {
+            return [$this, null];
+        }
+
+        if ($msg->type === KeyType::Enter) {
+            $railId = $ids[$this->railCursor] ?? null;
+            $rail = $railId !== null ? $this->railById($railId) : null;
+            // Drill into a library (the continue-watching rail has no grid).
+            if ($railId !== null && $railId !== self::CONTINUE_ID && $rail !== null) {
+                return [$this, Cmd::send(new OpenLibraryMsg($railId, $rail->title))];
+            }
+
             return [$this, null];
         }
 

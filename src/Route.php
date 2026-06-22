@@ -15,4 +15,5 @@ enum Route
     case Loading;
     case Login;
     case Browse;
+    case Library;
 }
