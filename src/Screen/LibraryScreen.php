@@ -14,10 +14,12 @@ use Phlix\Console\Msg\LetterIndexLoadedMsg;
 use Phlix\Console\Msg\LibraryFailedMsg;
 use Phlix\Console\Msg\MediaRangeLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
+use Phlix\Console\Msg\SearchDebouncedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Store\MediaRange;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Ui\Chrome;
+use Phlix\Console\Ui\FilterBar;
 use Phlix\Console\Ui\LetterRail;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
@@ -50,8 +52,10 @@ final class LibraryScreen implements Model
     private const V_SPACING = 1;
     private const PAGE_LIMIT = 50;
     private const OVERSCAN = 1;
+    private const SEARCH_DEBOUNCE = 0.3;
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
-    private const HINT = '↑↓←→  move      PgUp/PgDn  page      A–Z  jump      Esc  back';
+    private const HINT = '↑↓←→  move      A–Z  jump      /  filter      Esc  back';
+    private const FILTER_HINT = 'type to search      Tab  field      ←→  change      Esc  done';
 
     private MediaQuery $query;
     private PosterGrid $grid;
@@ -61,6 +65,9 @@ final class LibraryScreen implements Model
     private array $requestedRange;
     private ?LetterIndex $letterIndex = null;
     private ?string $error = null;
+    private FilterBar $filterBar;
+    private bool $filtering = false;
+    private int $searchSeq = 0;
 
     public function __construct(
         private readonly string $libraryId,
@@ -77,6 +84,7 @@ final class LibraryScreen implements Model
         // Seed the requested window to what init() fetches, so the first cursor
         // move inside it doesn't redundantly re-request the opening page.
         $this->requestedRange = [0, $this->initialWindowEnd()];
+        $this->filterBar = FilterBar::new();
     }
 
     public function init(): ?\Closure
@@ -103,6 +111,9 @@ final class LibraryScreen implements Model
         }
         if ($msg instanceof KeyMsg) {
             return $this->handleKey($msg);
+        }
+        if ($msg instanceof SearchDebouncedMsg) {
+            return $msg->seq === $this->searchSeq ? $this->applyFilters($this->filterBar) : [$this, null];
         }
         if ($msg instanceof MediaRangeLoadedMsg) {
             return $this->onRange($msg->range, $msg->generation);
@@ -136,29 +147,40 @@ final class LibraryScreen implements Model
         } else {
             $header = $total . ' items   ·   ' . ($this->grid->cursorIndex() + 1) . '/' . $total;
         }
-
-        $rail = '';
-        if ($this->letterIndex !== null && $this->isNameAscending()) {
-            $current = $this->letterIndex->letterAt($this->grid->cursorIndex());
-            $rail = (new LetterRail($this->letterIndex, $current))->render();
+        if ($this->hasActiveFilters()) {
+            $header .= '   (filtered)';
         }
 
-        $body = $rail !== ''
-            ? $header . "\n" . $rail . "\n" . $this->grid->render(true)
+        // Second line: the filter bar when filtering, else the A–Z rail.
+        $secondLine = '';
+        if ($this->filtering) {
+            $secondLine = $this->filterBar->render();
+        } elseif ($this->letterIndex !== null && $this->isNameAscending()) {
+            $secondLine = (new LetterRail($this->letterIndex, $this->letterIndex->letterAt($this->grid->cursorIndex())))->render();
+        }
+
+        $body = $secondLine !== ''
+            ? $header . "\n" . $secondLine . "\n" . $this->grid->render(true)
             : $header . "\n\n" . $this->grid->render(true);
 
-        return Chrome::frame($this->name, $body, self::HINT, $this->cols, $this->rows);
+        return Chrome::frame($this->name, $body, $this->filtering ? self::FILTER_HINT : self::HINT, $this->cols, $this->rows);
     }
 
     // ---- input ---------------------------------------------------------
 
     private function handleKey(KeyMsg $msg): array
     {
+        if ($this->filtering) {
+            return $this->handleFilterKey($msg);
+        }
         if ($msg->type === KeyType::Escape) {
             return [$this, Cmd::send(new NavigateBackMsg())];
         }
-        // Type-to-jump: a letter (or # / digit) scrolls the grid to that bucket.
+        // '/' opens the filter/sort bar; other letters (and # / digit) jump A–Z.
         // (Quit is Ctrl-C globally, or Esc back to Browse — so letters are free.)
+        if ($msg->type === KeyType::Char && $msg->rune === '/') {
+            return [$this->enterFilter(), null];
+        }
         if ($msg->type === KeyType::Char) {
             return $this->jumpToLetter($msg->rune);
         }
@@ -210,6 +232,90 @@ final class LibraryScreen implements Model
     {
         return in_array($this->query->sort, [null, 'name'], true)
             && in_array($this->query->order, [null, 'asc'], true);
+    }
+
+    private function hasActiveFilters(): bool
+    {
+        return $this->filterBar->isActive();
+    }
+
+    // ---- filter mode ---------------------------------------------------
+
+    private function enterFilter(): self
+    {
+        $next = clone $this;
+        $next->filtering = true;
+        $next->filterBar = $this->filterBar->focusSearch();
+
+        return $next;
+    }
+
+    private function handleFilterKey(KeyMsg $msg): array
+    {
+        if ($msg->type === KeyType::Escape) {
+            $next = clone $this;
+            $next->filtering = false;
+
+            return [$next, null];
+        }
+        if ($msg->type === KeyType::Tab) {
+            $next = clone $this;
+            $next->filterBar = $msg->shift ? $this->filterBar->prev() : $this->filterBar->next();
+
+            return [$next, null];
+        }
+
+        $bar = $this->filterBar->handleKey($msg);
+        if ($bar === $this->filterBar) {
+            return [$this, null];
+        }
+
+        // A search edit debounces; a sort/order change applies at once.
+        if ($bar->search !== $this->filterBar->search) {
+            $next = clone $this;
+            $next->filterBar = $bar;
+            $next->searchSeq = $this->searchSeq + 1;
+            $seq = $next->searchSeq;
+
+            return [$next, Cmd::tick(self::SEARCH_DEBOUNCE, static fn (): Msg => new SearchDebouncedMsg($seq))];
+        }
+
+        return $this->applyFilters($bar);
+    }
+
+    /**
+     * Rebuild the query from the filter bar, reset the grid, bump the generation
+     * (so in-flight results from the old query are dropped), and refetch.
+     */
+    private function applyFilters(FilterBar $bar): array
+    {
+        $next = clone $this;
+        $next->filterBar = $bar;
+        $next->query = $this->buildQuery($bar);
+        $next->generation = $this->generation + 1;
+        $next->grid = $this->grid->reset(0);
+        $next->loaded = false;
+        $next->letterIndex = null;
+        $next->requestedRange = [0, $next->initialWindowEnd()];
+
+        $cmds = [$next->fetchRange(0, $next->initialWindowEnd())];
+        if ($next->isNameAscending()) {
+            $cmds[] = $next->fetchLetterIndex();
+        }
+
+        return [$next, Cmd::batch(...$cmds)];
+    }
+
+    private function buildQuery(FilterBar $bar): MediaQuery
+    {
+        return new MediaQuery(
+            libraryId: $this->libraryId,
+            search: $bar->search !== '' ? $bar->search : null,
+            topLevel: true,
+            sort: $bar->sort,
+            order: $bar->order,
+            limit: self::PAGE_LIMIT,
+        );
     }
 
     private function onResize(int $cols, int $rows): array
@@ -400,5 +506,20 @@ final class LibraryScreen implements Model
     public function letterIndex(): ?LetterIndex
     {
         return $this->letterIndex;
+    }
+
+    public function isFiltering(): bool
+    {
+        return $this->filtering;
+    }
+
+    public function filterBar(): FilterBar
+    {
+        return $this->filterBar;
+    }
+
+    public function query(): MediaQuery
+    {
+        return $this->query;
     }
 }

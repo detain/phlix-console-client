@@ -10,7 +10,9 @@ use Phlix\Console\Msg\GridPosterLoadedMsg;
 use Phlix\Console\Msg\LibraryFailedMsg;
 use Phlix\Console\Msg\MediaRangeLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
+use Phlix\Console\Msg\SearchDebouncedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
+use Phlix\Console\Store\MediaRange;
 use Phlix\Console\Screen\LibraryScreen;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Tests\Api\FakeTransport;
@@ -271,6 +273,87 @@ final class LibraryScreenTest extends TestCase
         $loaded = $this->loadedScreen(200); // range only, no letter index fed
 
         self::assertNull($loaded->letterIndex());
+    }
+
+    // ---- filter mode ---------------------------------------------------
+
+    public function testSlashEntersFilterMode(): void
+    {
+        [$filtering] = $this->loadedScreen(200)->update(new KeyMsg(KeyType::Char, '/'));
+
+        self::assertTrue($filtering->isFiltering());
+        self::assertStringContainsString('Search:', $filtering->view());
+    }
+
+    public function testSlashEntersFilterRatherThanJumping(): void
+    {
+        [$filtering] = $this->loadedWithIndex()->update(new KeyMsg(KeyType::Char, '/'));
+
+        self::assertTrue($filtering->isFiltering());
+        self::assertSame(0, $filtering->grid()->cursorIndex(), 'slash did not move the grid');
+    }
+
+    public function testSearchDebouncesThenAppliesOnTheMatchingSeq(): void
+    {
+        [$filtering] = $this->loadedScreen(200)->update(new KeyMsg(KeyType::Char, '/'));
+        [$typed, $cmd] = $filtering->update(new KeyMsg(KeyType::Char, 'm'));
+
+        self::assertSame('m', $typed->filterBar()->search);
+        self::assertNull($typed->query()->search, 'search is not applied until the debounce fires');
+        self::assertInstanceOf(\Closure::class, $cmd, 'a debounce tick is scheduled');
+
+        [$applied, $fetch] = $typed->update(new SearchDebouncedMsg(1)); // seq 1 after one keystroke
+        self::assertSame('m', $applied->query()->search);
+        self::assertFalse($applied->isLoaded(), 'the grid is reset for the new query');
+        self::assertInstanceOf(\Closure::class, $fetch);
+
+        [, $none] = $applied->update(new SearchDebouncedMsg(0)); // stale
+        self::assertNull($none);
+    }
+
+    public function testSortChangeAppliesImmediately(): void
+    {
+        [$filtering] = $this->loadedScreen(200)->update(new KeyMsg(KeyType::Char, '/'));
+        [$onSort] = $filtering->update(new KeyMsg(KeyType::Tab));        // focus Sort
+        [$sorted, $cmd] = $onSort->update(new KeyMsg(KeyType::Right));   // name → year
+
+        self::assertSame('year', $sorted->query()->sort);
+        self::assertFalse($sorted->isLoaded(), 'grid reset for the new sort');
+        self::assertInstanceOf(\Closure::class, $cmd);
+    }
+
+    public function testFilterChangeBumpsGenerationDroppingStaleRanges(): void
+    {
+        [$filtering] = $this->loadedScreen(200)->update(new KeyMsg(KeyType::Char, '/'));
+        [$onSort] = $filtering->update(new KeyMsg(KeyType::Tab));
+        [$sorted] = $onSort->update(new KeyMsg(KeyType::Right)); // applyFilters → generation 1
+
+        // A late range from the pre-filter query (generation 0) must be dropped.
+        [$next] = $sorted->update(new MediaRangeLoadedMsg(new MediaRange([], 999), 0));
+
+        self::assertFalse($next->isLoaded());
+        self::assertSame(0, $next->grid()->total());
+    }
+
+    public function testEscExitsFilterModeKeepingTheFilter(): void
+    {
+        [$filtering] = $this->loadedScreen(200)->update(new KeyMsg(KeyType::Char, '/'));
+        [$typed] = $filtering->update(new KeyMsg(KeyType::Char, 'm'));
+        [$exited] = $typed->update(new KeyMsg(KeyType::Escape));
+
+        self::assertFalse($exited->isFiltering());
+        self::assertSame('m', $exited->filterBar()->search, 'the typed filter is retained');
+        self::assertStringContainsString('(filtered)', $exited->view());
+    }
+
+    public function testTabCyclesControlsWithoutChangingTheQuery(): void
+    {
+        [$filtering] = $this->loadedScreen(200)->update(new KeyMsg(KeyType::Char, '/'));
+
+        [$next, $cmd] = $filtering->update(new KeyMsg(KeyType::Tab));
+
+        self::assertSame(1, $next->filterBar()->active, 'Tab moved focus to Sort');
+        self::assertNull($cmd, 'moving focus issues no fetch');
     }
 
     public function testFailureBeforeLoadShowsError(): void
