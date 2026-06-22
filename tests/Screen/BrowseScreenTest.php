@@ -230,6 +230,21 @@ final class BrowseScreenTest extends TestCase
         self::assertSame(1, $right->rail('lib-a')?->cursor);
     }
 
+    public function testUpdateDoesNotMutateTheOriginalScreen(): void
+    {
+        $screen = $this->screen()->update(new LibrariesLoadedMsg([
+            $this->library('a', 'A'),
+            $this->library('b', 'B'),
+        ]))[0];
+        self::assertSame(0, $screen->railCursor());
+
+        // Deriving a moved copy must leave the source screen untouched — the
+        // clone-mutate immutability contract this screen now relies on.
+        [$moved] = $screen->update(new KeyMsg(KeyType::Down));
+        self::assertSame(1, $moved->railCursor());
+        self::assertSame(0, $screen->railCursor(), 'the original screen is unchanged');
+    }
+
     public function testQuitKeys(): void
     {
         [, $q] = $this->screen()->update(new KeyMsg(KeyType::Char, 'q'));
