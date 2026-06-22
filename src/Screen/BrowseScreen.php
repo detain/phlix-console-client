@@ -11,6 +11,7 @@ use Phlix\Console\Api\Dto\Library;
 use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\Dto\MediaPage;
 use Phlix\Console\Api\MediaQuery;
+use Phlix\Console\Media\PosterCardFactory;
 use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Msg\ContinueWatchingLoadedMsg;
 use Phlix\Console\Msg\LibrariesFailedMsg;
@@ -21,8 +22,6 @@ use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Store\LibrariesStore;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Ui\Chrome;
-use Phlix\Console\Widget\PosterCard;
-use Phlix\Console\Widget\Rail;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Model;
@@ -30,6 +29,7 @@ use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\SubscriptionCapable;
+use SugarCraft\Gallery\Rail;
 use SugarCraft\Sprinkles\Layout;
 
 /**
@@ -222,7 +222,7 @@ final class BrowseScreen implements Model
         $cards = [];
         foreach ($items as $entry) {
             if ($entry instanceof ContinueWatchingItem) {
-                $cards[] = PosterCard::fromMediaItem($entry->item, $entry->progress());
+                $cards[] = PosterCardFactory::fromMediaItem($entry->item, $entry->progress());
             }
         }
         if ($cards === []) {
@@ -251,7 +251,7 @@ final class BrowseScreen implements Model
         $cards = [];
         foreach ($page->items as $item) {
             if ($item instanceof MediaItem) {
-                $cards[] = PosterCard::fromMediaItem($item);
+                $cards[] = PosterCardFactory::fromMediaItem($item);
             }
         }
 
