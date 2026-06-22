@@ -163,6 +163,29 @@ final class ApiClientTest extends TestCase
         self::assertStringContainsString('offset=0', $url);
     }
 
+    public function testLetterIndexHitsEndpointWithFiltersAndMaps(): void
+    {
+        $t = (new FakeTransport())->json(200, [
+            'letters' => [
+                ['letter' => '#', 'offset' => 0, 'count' => 2],
+                ['letter' => 'A', 'offset' => 2, 'count' => 5],
+                ['letter' => 'B', 'offset' => 7, 'count' => 0],
+            ],
+            'total' => 7,
+        ]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $index = $this->await($client->letterIndex(MediaQuery::forLibrary('lib-7')));
+
+        self::assertSame(7, $index->total);
+        self::assertSame(2, $index->offsetFor('A'));
+        self::assertSame(['#', 'A'], $index->enabledLetters());
+        $url = $t->requestAt(0)['url'];
+        self::assertStringContainsString('/api/v1/media/letter-index?', $url);
+        self::assertStringContainsString('libraryId=lib-7', $url);
+    }
+
     public function testMediaItemMapsSingleItem(): void
     {
         $t = (new FakeTransport())->json(200, ['item' => ['id' => 'm1', 'name' => 'Matrix', 'type' => 'movie', 'stream_url' => 'https://s/x?sig=1']]);
