@@ -71,7 +71,7 @@ final class LibraryScreenTest extends TestCase
         return ['items' => $items, 'total' => $total, 'limit' => $limit, 'offset' => $offset];
     }
 
-    /** Build a screen whose initial window has loaded $total items. */
+    /** Build a screen whose initial window has loaded $total items (range only). */
     private function loadedScreen(int $total = 200, bool $posters = false): LibraryScreen
     {
         $transport = (new FakeTransport())->json(200, $this->pageResponse(0, 50, $total, 50, $posters));
@@ -80,6 +80,37 @@ final class LibraryScreenTest extends TestCase
         self::assertInstanceOf(MediaRangeLoadedMsg::class, $range);
 
         return $screen->update($range)[0];
+    }
+
+    /** An A–Z index where #=0/10, A=10/90, M=100/100 (the rest empty), total 200. */
+    private function letterIndexResponse(): array
+    {
+        $letters = [['letter' => '#', 'offset' => 0, 'count' => 10]];
+        foreach (range('A', 'Z') as $letter) {
+            if ($letter === 'A') {
+                $letters[] = ['letter' => 'A', 'offset' => 10, 'count' => 90];
+            } elseif ($letter === 'M') {
+                $letters[] = ['letter' => 'M', 'offset' => 100, 'count' => 100];
+            } else {
+                $letters[] = ['letter' => $letter, 'offset' => 200, 'count' => 0];
+            }
+        }
+
+        return ['letters' => $letters, 'total' => 200];
+    }
+
+    /** Build a screen with both the first window and the A–Z index loaded. */
+    private function loadedWithIndex(): LibraryScreen
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->pageResponse(0, 50, 200, 50))
+            ->json(200, $this->letterIndexResponse());
+        $screen = $this->screenWith($transport);
+        foreach ($this->runBatch($screen->init()) as $msg) {
+            [$screen] = $screen->update($msg);
+        }
+
+        return $screen;
     }
 
     public function testInitFetchesTheFirstWindowClippedToTheViewport(): void
@@ -171,11 +202,75 @@ final class LibraryScreenTest extends TestCase
         self::assertInstanceOf(NavigateBackMsg::class, $cmd?->__invoke());
     }
 
-    public function testQuitKey(): void
+    public function testLetterKeyIsAJumpNotAQuit(): void
     {
+        // In a library, letters jump (quit is Ctrl-C / Esc-then-Browse), so 'q'
+        // must NOT quit. With no index loaded it is simply consumed.
         [, $cmd] = $this->loadedScreen()->update(new KeyMsg(KeyType::Char, 'q'));
 
-        self::assertInstanceOf(QuitMsg::class, $cmd?->__invoke());
+        self::assertNotInstanceOf(QuitMsg::class, $cmd?->__invoke());
+    }
+
+    public function testInitFetchesTheLetterIndex(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->pageResponse(0, 50, 200, 50))
+            ->json(200, $this->letterIndexResponse());
+
+        $msgs = $this->runBatch($this->screenWith($transport)->init());
+        $types = array_map('get_class', $msgs);
+
+        self::assertContains(MediaRangeLoadedMsg::class, $types);
+        self::assertContains(\Phlix\Console\Msg\LetterIndexLoadedMsg::class, $types);
+    }
+
+    public function testLetterKeyJumpsTheGridToThatBucket(): void
+    {
+        $screen = $this->loadedWithIndex();
+        self::assertSame(0, $screen->grid()->cursorIndex());
+
+        [$jumped] = $screen->update(new KeyMsg(KeyType::Char, 'm'));
+        self::assertSame(100, $jumped->grid()->cursorIndex(), 'M begins at offset 100');
+
+        [$back] = $jumped->update(new KeyMsg(KeyType::Char, 'a'));
+        self::assertSame(10, $back->grid()->cursorIndex(), 'A begins at offset 10');
+    }
+
+    public function testDigitJumpsToTheNonAlphabeticBucket(): void
+    {
+        $screen = $this->loadedWithIndex()->update(new KeyMsg(KeyType::Char, 'm'))[0]; // cursor 100
+        [$hash] = $screen->update(new KeyMsg(KeyType::Char, '7'));
+
+        self::assertSame(0, $hash->grid()->cursorIndex(), 'digits jump to the # bucket at offset 0');
+    }
+
+    public function testDisabledLetterDoesNotJump(): void
+    {
+        $screen = $this->loadedWithIndex();
+
+        [$next, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'z')); // Z has no items
+
+        self::assertSame(0, $next->grid()->cursorIndex());
+        self::assertNull($cmd);
+    }
+
+    public function testLetterRailRendersInTheView(): void
+    {
+        // The rail dims disabled letters (faint SGR). A screen whose index hasn't
+        // loaded shows no rail, so no such styling. (Exact bytes aren't asserted —
+        // sugar-boxer re-flows the content box's ANSI.)
+        $withRail = $this->loadedWithIndex()->view();
+        $withoutRail = $this->loadedScreen(200)->view();
+
+        self::assertStringContainsString("\033[2m", $withRail, 'the A–Z rail dims its empty letters');
+        self::assertStringNotContainsString("\033[2m", $withoutRail);
+    }
+
+    public function testNoRailBeforeTheIndexLoads(): void
+    {
+        $loaded = $this->loadedScreen(200); // range only, no letter index fed
+
+        self::assertNull($loaded->letterIndex());
     }
 
     public function testFailureBeforeLoadShowsError(): void
