@@ -33,7 +33,12 @@ use SugarCraft\Gallery\PosterGrid;
  * whole result set. It fetches only the visible window (plus a row of overscan)
  * via {@see MediaStore::ensureRange()} and splices items in at their absolute
  * index, so even a 5,000-item library scrolls smoothly. ↑↓←→ move, PgUp/PgDn
- * page, Home/End jump, Esc returns to the previous screen.
+ * page, Home/End jump, a letter jumps A–Z, Esc returns to the previous screen.
+ *
+ * Stable collaborators (library id/name + stores) are readonly constructor
+ * properties; the mutable view state is private and copied via clone-mutate
+ * (the candy-core / sugar-gallery pattern) so the screen stays immutable without
+ * a giant positional constructor.
  */
 final class LibraryScreen implements Model
 {
@@ -48,33 +53,30 @@ final class LibraryScreen implements Model
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
     private const HINT = '↑↓←→  move      PgUp/PgDn  page      A–Z  jump      Esc  back';
 
-    private readonly MediaQuery $query;
-    private readonly PosterGrid $grid;
+    private MediaQuery $query;
+    private PosterGrid $grid;
+    private bool $loaded = false;
+    private int $generation = 0;
     /** @var array{0:int,1:int} the last absolute window requested (dedups fetches) */
-    private readonly array $requestedRange;
+    private array $requestedRange;
+    private ?LetterIndex $letterIndex = null;
+    private ?string $error = null;
 
     public function __construct(
         private readonly string $libraryId,
         private readonly string $name,
         private readonly MediaStore $media,
         private readonly PosterLoader $posters,
-        ?MediaQuery $query = null,
-        ?PosterGrid $grid = null,
-        private readonly bool $loaded = false,
-        private readonly int $generation = 0,
-        ?array $requestedRange = null,
-        private readonly ?LetterIndex $letterIndex = null,
-        private readonly ?string $error = null,
-        private readonly int $cols = 80,
-        private readonly int $rows = 24,
+        private int $cols = 80,
+        private int $rows = 24,
     ) {
         // topLevel: a library grid shows movies + series, not seasons/episodes.
-        $this->query = $query ?? new MediaQuery(libraryId: $libraryId, topLevel: true, limit: self::PAGE_LIMIT);
-        $this->grid = $grid ?? PosterGrid::new(self::CARD_WIDTH, self::POSTER_HEIGHT, self::H_SPACING, self::V_SPACING)
+        $this->query = new MediaQuery(libraryId: $libraryId, topLevel: true, limit: self::PAGE_LIMIT);
+        $this->grid = PosterGrid::new(self::CARD_WIDTH, self::POSTER_HEIGHT, self::H_SPACING, self::V_SPACING)
             ->withViewport(self::viewportCols($cols), self::viewportRows($rows));
         // Seed the requested window to what init() fetches, so the first cursor
         // move inside it doesn't redundantly re-request the opening page.
-        $this->requestedRange = $requestedRange ?? [0, $this->initialWindowEnd()];
+        $this->requestedRange = [0, $this->initialWindowEnd()];
     }
 
     public function init(): ?\Closure
@@ -213,10 +215,11 @@ final class LibraryScreen implements Model
     private function onResize(int $cols, int $rows): array
     {
         $grid = $this->grid->withViewport(self::viewportCols($cols), self::viewportRows($rows));
-        $next = new self(
-            $this->libraryId, $this->name, $this->media, $this->posters,
-            $this->query, $grid, $this->loaded, $this->generation, $this->requestedRange, $this->letterIndex, $this->error, $cols, $rows,
-        );
+
+        $next = clone $this;
+        $next->cols = $cols;
+        $next->rows = $rows;
+        $next->grid = $grid;
 
         return $next->afterGridChange($grid);
     }
@@ -242,10 +245,9 @@ final class LibraryScreen implements Model
             $cmds[] = $posterCmd;
         }
 
-        $next = new self(
-            $this->libraryId, $this->name, $this->media, $this->posters,
-            $this->query, $grid, $this->loaded, $this->generation, $requested, $this->letterIndex, $this->error, $this->cols, $this->rows,
-        );
+        $next = clone $this;
+        $next->grid = $grid;
+        $next->requestedRange = $requested;
 
         return [$next, $cmds === [] ? null : Cmd::batch(...$cmds)];
     }
@@ -259,10 +261,9 @@ final class LibraryScreen implements Model
         $grid = $this->loaded ? $this->grid->withTotal($range->total) : $this->grid->reset($range->total);
         $grid = $grid->withItems($this->cards($range->items));
 
-        $next = new self(
-            $this->libraryId, $this->name, $this->media, $this->posters,
-            $this->query, $grid, true, $this->generation, $this->requestedRange, $this->letterIndex, $this->error, $this->cols, $this->rows,
-        );
+        $next = clone $this;
+        $next->grid = $grid;
+        $next->loaded = true;
 
         [$start, $end] = $grid->visibleRange(self::OVERSCAN);
 
@@ -335,30 +336,30 @@ final class LibraryScreen implements Model
         return $cards;
     }
 
-    // ---- immutable copies ----------------------------------------------
+    // ---- immutable copies (clone-mutate) -------------------------------
 
     private function withGrid(PosterGrid $grid): self
     {
-        return new self(
-            $this->libraryId, $this->name, $this->media, $this->posters,
-            $this->query, $grid, $this->loaded, $this->generation, $this->requestedRange, $this->letterIndex, $this->error, $this->cols, $this->rows,
-        );
+        $next = clone $this;
+        $next->grid = $grid;
+
+        return $next;
     }
 
     private function withLetterIndex(LetterIndex $index): self
     {
-        return new self(
-            $this->libraryId, $this->name, $this->media, $this->posters,
-            $this->query, $this->grid, $this->loaded, $this->generation, $this->requestedRange, $index, $this->error, $this->cols, $this->rows,
-        );
+        $next = clone $this;
+        $next->letterIndex = $index;
+
+        return $next;
     }
 
     private function withError(string $error): self
     {
-        return new self(
-            $this->libraryId, $this->name, $this->media, $this->posters,
-            $this->query, $this->grid, $this->loaded, $this->generation, $this->requestedRange, $this->letterIndex, $error, $this->cols, $this->rows,
-        );
+        $next = clone $this;
+        $next->error = $error;
+
+        return $next;
     }
 
     private static function viewportCols(int $cols): int
@@ -372,11 +373,6 @@ final class LibraryScreen implements Model
         // two in-content lines above the grid (the count line + the A–Z rail, or
         // a blank spacer when the rail is hidden).
         return max(self::POSTER_HEIGHT + 2, $rows - 6);
-    }
-
-    public function letterIndex(): ?LetterIndex
-    {
-        return $this->letterIndex;
     }
 
     // ---- accessors (for tests) ----------------------------------------
@@ -399,5 +395,10 @@ final class LibraryScreen implements Model
     public function error(): ?string
     {
         return $this->error;
+    }
+
+    public function letterIndex(): ?LetterIndex
+    {
+        return $this->letterIndex;
     }
 }
