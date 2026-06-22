@@ -31,9 +31,8 @@
     },
     "repositories": [
         {
-            "type": "path",
-            "url": "../../sugarcraft/*",
-            "options": { "symlink": true }
+            "type": "vcs",
+            "url": "https://github.com/sugarcraft/sugar-reel"
         }
     ],
     "minimum-stability": "dev",

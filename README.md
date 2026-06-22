@@ -19,13 +19,29 @@ command palette, and an in-terminal video player. Posters and video render as
 - A terminal with **sixel** or the **kitty**/**iTerm2** graphics protocol is
   recommended; **half-block** is the universal fallback.
 
-## Install (local dev)
+## Install
 
-The SugarCraft libraries are resolved from the sibling monorepo checkout at
-`../../sugarcraft/*` via symlinked Composer `path` repositories.
+The SugarCraft libraries are normal Composer dependencies, pulled from
+Packagist (`sugarcraft/*`, currently tracking `dev-master`).
 
 ```sh
 composer install
+```
+
+> **Temporary:** `sugarcraft/sugar-reel` is not yet registered on Packagist
+> (its repo lives at `github.com/sugarcraft/sugar-reel`), so `composer.json`
+> carries a single `vcs` repository entry for it. Once it's submitted to
+> Packagist, delete that `repositories` entry — nothing else changes.
+
+### Developing against unreleased library changes
+
+To test the client against local, unmerged SugarCraft changes, add a path
+repository **without committing it**:
+
+```sh
+composer config repositories.sugarcraft path '../../sugarcraft/*'
+composer update 'sugarcraft/*'
+# revert before committing:  git checkout composer.json
 ```
 
 ## Try the Phase 0 spike
