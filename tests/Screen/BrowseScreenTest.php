@@ -151,6 +151,26 @@ final class BrowseScreenTest extends TestCase
         self::assertSame([], $next->railIds());
     }
 
+    public function testContinueWatchingWithNoValidItemsAddsNoRail(): void
+    {
+        // Non-ContinueWatchingItem entries are skipped; if none remain, no rail.
+        [$next] = $this->screen()->update(new ContinueWatchingLoadedMsg(['garbage']));
+
+        self::assertSame([], $next->railIds());
+        self::assertNull($next->rail('continue'));
+    }
+
+    public function testNonLibraryEntriesAreSkipped(): void
+    {
+        [$next] = $this->screen()->update(new LibrariesLoadedMsg([
+            $this->library('a', 'A'),
+            'not-a-library',
+            $this->library('b', 'B'),
+        ]));
+
+        self::assertSame(['a', 'b'], $next->railIds());
+    }
+
     public function testContinueWatchingPrependKeepsTheFocusedRail(): void
     {
         // Libraries load first; the user moves focus to the second library.
@@ -243,6 +263,211 @@ final class BrowseScreenTest extends TestCase
         [$moved] = $screen->update(new KeyMsg(KeyType::Down));
         self::assertSame(1, $moved->railCursor());
         self::assertSame(0, $screen->railCursor(), 'the original screen is unchanged');
+    }
+
+    // ---- sidebar + focus ring -----------------------------------------
+
+    public function testDefaultFocusIsTheRails(): void
+    {
+        self::assertSame('rails', $this->screen()->focusedRegion());
+    }
+
+    public function testTabSwitchesFocusBetweenRailsAndSidebar(): void
+    {
+        $screen = $this->screen();
+        self::assertFalse($screen->sidebar()->focused);
+
+        [$toSidebar] = $screen->update(new KeyMsg(KeyType::Tab));
+        self::assertSame('sidebar', $toSidebar->focusedRegion());
+        self::assertTrue($toSidebar->sidebar()->focused, 'the sidebar accent follows the focus ring');
+
+        [$backToRails] = $toSidebar->update(new KeyMsg(KeyType::Tab));
+        self::assertSame('rails', $backToRails->focusedRegion());
+        self::assertFalse($backToRails->sidebar()->focused);
+    }
+
+    public function testShiftTabSwitchesFocusBackwards(): void
+    {
+        // Two regions, so Shift-Tab from the rails also lands on the sidebar.
+        [$next] = $this->screen()->update(new KeyMsg(KeyType::Tab, shift: true));
+        self::assertSame('sidebar', $next->focusedRegion());
+    }
+
+    public function testLibrariesPopulateTheSidebar(): void
+    {
+        [$next] = $this->screen()->update(new LibrariesLoadedMsg([
+            $this->library('lib-a', 'Movies'),
+            $this->library('lib-b', 'TV'),
+        ]));
+
+        self::assertFalse($next->sidebar()->isEmpty());
+        self::assertSame('lib-a', $next->sidebar()->selectedId());
+    }
+
+    public function testReloadingFewerLibrariesClampsTheSidebar(): void
+    {
+        $screen = $this->screen()->update(new LibrariesLoadedMsg([
+            $this->library('a', 'A'),
+            $this->library('b', 'B'),
+            $this->library('c', 'C'),
+        ]))[0];
+        $screen = $screen->update(new KeyMsg(KeyType::Tab))[0];
+        [$screen] = $screen->update(new KeyMsg(KeyType::Down));
+        [$screen] = $screen->update(new KeyMsg(KeyType::Down));
+        self::assertSame('c', $screen->sidebar()->selectedId());
+
+        [$reloaded] = $screen->update(new LibrariesLoadedMsg([$this->library('a', 'A')]));
+        self::assertSame('a', $reloaded->sidebar()->selectedId(), 'sidebar selection clamped into the smaller set');
+    }
+
+    public function testSidebarFocusedArrowsMoveTheSidebarNotTheRails(): void
+    {
+        $screen = $this->screen()->update(new LibrariesLoadedMsg([
+            $this->library('lib-a', 'Movies'),
+            $this->library('lib-b', 'TV'),
+        ]))[0];
+
+        [$screen] = $screen->update(new KeyMsg(KeyType::Tab));   // focus the sidebar
+        [$screen] = $screen->update(new KeyMsg(KeyType::Down));  // move the sidebar
+
+        self::assertSame('lib-b', $screen->sidebar()->selectedId());
+        self::assertSame(0, $screen->railCursor(), 'the rails cursor is untouched while the sidebar has focus');
+    }
+
+    public function testSidebarEnterOpensTheSelectedLibrary(): void
+    {
+        $screen = $this->screen()->update(new LibrariesLoadedMsg([
+            $this->library('lib-a', 'Movies'),
+            $this->library('lib-b', 'TV'),
+        ]))[0];
+
+        [$screen] = $screen->update(new KeyMsg(KeyType::Tab));
+        [$screen] = $screen->update(new KeyMsg(KeyType::Down));
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Enter));
+        $msg = $cmd?->__invoke();
+
+        self::assertInstanceOf(OpenLibraryMsg::class, $msg);
+        self::assertSame('lib-b', $msg->libraryId);
+        self::assertSame('TV', $msg->name);
+    }
+
+    public function testSidebarEnterWithNoLibrariesDoesNothing(): void
+    {
+        [$screen] = $this->screen()->update(new KeyMsg(KeyType::Tab));   // sidebar focus, but empty
+        [$next, $cmd] = $screen->update(new KeyMsg(KeyType::Enter));
+
+        self::assertNull($cmd);
+        self::assertSame('sidebar', $next->focusedRegion());
+    }
+
+    public function testFocusSwitchIsReflectedInTheView(): void
+    {
+        $screen = $this->screen()->update(new LibrariesLoadedMsg([$this->library('lib-a', 'Movies')]))[0];
+
+        // (sugar-boxer collapses the hint's alignment spaces, so key off the
+        // distinguishing word "menu", which only the rails-focused hint shows.)
+        $railsView = $screen->view();
+        self::assertStringContainsString('Libraries', $railsView, 'the sidebar is shown beside the rails');
+        self::assertStringContainsString('menu', $railsView, 'the rails-focused hint offers Tab → menu');
+
+        [$sidebar] = $screen->update(new KeyMsg(KeyType::Tab));
+        $sidebarView = $sidebar->view();
+        self::assertStringNotContainsString('menu', $sidebarView, 'the hint switched when focus moved to the sidebar');
+        self::assertNotSame($railsView, $sidebarView, 'moving focus visibly changes the view');
+    }
+
+    public function testSidebarUpMovesTheSelectionBack(): void
+    {
+        $screen = $this->screen()->update(new LibrariesLoadedMsg([
+            $this->library('a', 'A'),
+            $this->library('b', 'B'),
+        ]))[0];
+
+        [$screen] = $screen->update(new KeyMsg(KeyType::Tab));
+        [$screen] = $screen->update(new KeyMsg(KeyType::Down));
+        self::assertSame('b', $screen->sidebar()->selectedId());
+
+        [$screen] = $screen->update(new KeyMsg(KeyType::Up));
+        self::assertSame('a', $screen->sidebar()->selectedId());
+    }
+
+    public function testSidebarFocusedIgnoresHorizontalKeys(): void
+    {
+        $screen = $this->screen()->update(new LibrariesLoadedMsg([
+            $this->library('a', 'A'),
+            $this->library('b', 'B'),
+        ]))[0];
+        [$screen] = $screen->update(new KeyMsg(KeyType::Tab));
+
+        [$next, $cmd] = $screen->update(new KeyMsg(KeyType::Left));
+
+        self::assertNull($cmd);
+        self::assertSame('a', $next->sidebar()->selectedId(), '←/→ do nothing in the vertical sidebar');
+    }
+
+    public function testArrowWithNoRailsIsANoOp(): void
+    {
+        // Rails focused by default, nothing loaded yet.
+        [$next, $cmd] = $this->screen()->update(new KeyMsg(KeyType::Down));
+
+        self::assertNull($cmd);
+        self::assertSame(0, $next->railCursor());
+    }
+
+    public function testUnhandledRailsKeyIsIgnored(): void
+    {
+        $screen = $this->withLibraryMedia('lib-a', 'Movies', 'm1');
+
+        [$next, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'x'));
+
+        self::assertNull($cmd);
+        self::assertSame('lib-a', $next->railIds()[$next->railCursor()]);
+    }
+
+    public function testUnhandledMessageIsIgnored(): void
+    {
+        // A Msg this screen does not handle (it's emitted, not consumed, here).
+        [$next, $cmd] = $this->screen()->update(new SessionExpiredMsg('not handled here'));
+
+        self::assertInstanceOf(BrowseScreen::class, $next);
+        self::assertNull($cmd);
+    }
+
+    public function testPosterLoadedFillsTheContinueRailCard(): void
+    {
+        $entry = ContinueWatchingItem::fromArray([
+            'media_item_id' => 'cw1', 'name' => 'Show', 'position_ticks' => 3, 'duration_ticks' => 10,
+            'metadata' => ['poster_url' => 'https://p/cw.jpg'],
+        ]);
+        [$screen] = $this->screen()->update(new ContinueWatchingLoadedMsg([$entry]));
+        $cardId = $screen->rail('continue')?->cards[0]->id ?? '';
+
+        [$next] = $screen->update(new PosterLoadedMsg('continue', $cardId, 'POSTER-ANSI'));
+
+        self::assertTrue($next->rail('continue')?->cards[0]->hasPoster());
+    }
+
+    public function testNavigatingManyRailsScrollsBothWays(): void
+    {
+        $libs = [];
+        for ($i = 0; $i < 6; $i++) {
+            $libs[] = $this->library("l{$i}", "Lib {$i}");
+        }
+        $screen = $this->screen()->update(new LibrariesLoadedMsg($libs))[0];
+
+        // Down past the visible window scrolls the rails to follow the cursor.
+        for ($i = 0; $i < 5; $i++) {
+            [$screen] = $screen->update(new KeyMsg(KeyType::Down));
+        }
+        self::assertSame(5, $screen->railCursor());
+        self::assertIsString($screen->view());
+
+        // Back up to the top scrolls the other way.
+        for ($i = 0; $i < 5; $i++) {
+            [$screen] = $screen->update(new KeyMsg(KeyType::Up));
+        }
+        self::assertSame(0, $screen->railCursor());
+        self::assertIsString($screen->view());
     }
 
     public function testQuitKeys(): void
