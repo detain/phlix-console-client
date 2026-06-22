@@ -54,21 +54,20 @@ final class BrowseScreen implements Model
     private const PER_LIBRARY_LIMIT = 18;
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
 
-    /**
-     * @param array<string, Rail> $libraryRails  keyed by library id, in display order
-     */
+    private ?Rail $continueRail = null;
+    /** @var array<string, Rail> keyed by library id, in display order */
+    private array $libraryRails = [];
+    private int $railCursor = 0;
+    private int $railScroll = 0;
+    private ?string $error = null;
+
     public function __construct(
         private readonly AuthUser $user,
         private readonly LibrariesStore $libraries,
         private readonly MediaStore $media,
         private readonly PosterLoader $posters,
-        private readonly ?Rail $continueRail = null,
-        private readonly array $libraryRails = [],
-        private readonly int $railCursor = 0,
-        private readonly int $railScroll = 0,
-        private readonly ?string $error = null,
-        private readonly int $cols = 80,
-        private readonly int $rows = 24,
+        private int $cols = 80,
+        private int $rows = 24,
     ) {
     }
 
@@ -391,32 +390,49 @@ final class BrowseScreen implements Model
         return $this->user->displayName !== '' ? $this->user->displayName : $this->user->username;
     }
 
-    // ---- immutable copies ----------------------------------------------
+    // ---- immutable copies (clone-mutate) -------------------------------
 
     private function withContinueRail(Rail $rail): self
     {
-        return new self($this->user, $this->libraries, $this->media, $this->posters, $rail, $this->libraryRails, $this->railCursor, $this->railScroll, $this->error, $this->cols, $this->rows);
+        $next = clone $this;
+        $next->continueRail = $rail;
+
+        return $next;
     }
 
     /** @param array<string, Rail> $rails */
     private function withLibraryRails(array $rails): self
     {
-        return new self($this->user, $this->libraries, $this->media, $this->posters, $this->continueRail, $rails, $this->railCursor, $this->railScroll, $this->error, $this->cols, $this->rows);
+        $next = clone $this;
+        $next->libraryRails = $rails;
+
+        return $next;
     }
 
     private function withCursor(int $cursor, int $scroll): self
     {
-        return new self($this->user, $this->libraries, $this->media, $this->posters, $this->continueRail, $this->libraryRails, $cursor, $scroll, $this->error, $this->cols, $this->rows);
+        $next = clone $this;
+        $next->railCursor = $cursor;
+        $next->railScroll = $scroll;
+
+        return $next;
     }
 
     private function withError(string $error): self
     {
-        return new self($this->user, $this->libraries, $this->media, $this->posters, $this->continueRail, $this->libraryRails, $this->railCursor, $this->railScroll, $error, $this->cols, $this->rows);
+        $next = clone $this;
+        $next->error = $error;
+
+        return $next;
     }
 
     private function resizedTo(int $cols, int $rows): self
     {
-        return new self($this->user, $this->libraries, $this->media, $this->posters, $this->continueRail, $this->libraryRails, $this->railCursor, $this->railScroll, $this->error, $cols, $rows);
+        $next = clone $this;
+        $next->cols = $cols;
+        $next->rows = $rows;
+
+        return $next;
     }
 
     // ---- accessors (for tests) ----------------------------------------
