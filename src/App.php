@@ -11,12 +11,16 @@ use Phlix\Console\Config\Config;
 use Phlix\Console\Msg\BootResolvedMsg;
 use Phlix\Console\Msg\LoginFailedMsg;
 use Phlix\Console\Msg\LoginSucceededMsg;
+use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\SubmitLoginMsg;
 use Phlix\Console\Msg\SubmitServerMsg;
+use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Screen\BrowseScreen;
 use Phlix\Console\Screen\LoginScreen;
 use Phlix\Console\Screen\ServerScreen;
 use Phlix\Console\Store\AuthStore;
+use Phlix\Console\Store\LibrariesStore;
+use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Ui\Chrome;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
@@ -43,6 +47,9 @@ final class App implements Model
         private readonly Config $config,
         private readonly AuthStore $auth,
         private readonly ApiClient $api,
+        private readonly LibrariesStore $libraries,
+        private readonly MediaStore $media,
+        private readonly PosterLoader $posters,
         private readonly Route $route,
         private readonly ?Model $screen,
         private readonly ?\Closure $bootCmd = null,
@@ -52,15 +59,21 @@ final class App implements Model
     }
 
     /** Pick the entry screen from persisted config. */
-    public static function boot(Config $config, AuthStore $auth, ApiClient $api): self
-    {
+    public static function boot(
+        Config $config,
+        AuthStore $auth,
+        ApiClient $api,
+        LibrariesStore $libraries,
+        MediaStore $media,
+        PosterLoader $posters,
+    ): self {
         if (!$config->hasServer()) {
             $screen = ServerScreen::create();
 
-            return new self($config, $auth, $api, Route::ServerSetup, $screen, $screen->init());
+            return new self($config, $auth, $api, $libraries, $media, $posters, Route::ServerSetup, $screen, $screen->init());
         }
 
-        return new self($config, $auth, $api, Route::Loading, null, self::restoreCmd($auth));
+        return new self($config, $auth, $api, $libraries, $media, $posters, Route::Loading, null, self::restoreCmd($auth));
     }
 
     public function init(): ?\Closure
@@ -93,6 +106,9 @@ final class App implements Model
             return $this->goBrowse($msg->user);
         }
         if ($msg instanceof LoginFailedMsg) {
+            return $this->goLogin($msg->reason);
+        }
+        if ($msg instanceof SessionExpiredMsg) {
             return $this->goLogin($msg->reason);
         }
 
@@ -155,7 +171,14 @@ final class App implements Model
 
     private function goBrowse(AuthUser $user): array
     {
-        $screen = new BrowseScreen($user, $this->cols, $this->rows);
+        $screen = new BrowseScreen(
+            $user,
+            $this->libraries,
+            $this->media,
+            $this->posters,
+            cols: $this->cols,
+            rows: $this->rows,
+        );
 
         return [$this->navigate(Route::Browse, $screen), $screen->init()];
     }
@@ -196,19 +219,27 @@ final class App implements Model
         return $msg->type === KeyType::Char && $msg->rune === 'c' && $msg->ctrl;
     }
 
+    private function into(Route $route, ?Model $screen, int $cols, int $rows): self
+    {
+        return new self(
+            $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
+            $route, $screen, null, $cols, $rows,
+        );
+    }
+
     private function navigate(Route $route, ?Model $screen): self
     {
-        return new self($this->config, $this->auth, $this->api, $route, $screen, null, $this->cols, $this->rows);
+        return $this->into($route, $screen, $this->cols, $this->rows);
     }
 
     private function withScreen(Model $screen): self
     {
-        return new self($this->config, $this->auth, $this->api, $this->route, $screen, null, $this->cols, $this->rows);
+        return $this->into($this->route, $screen, $this->cols, $this->rows);
     }
 
     private function resized(int $cols, int $rows, ?Model $screen): self
     {
-        return new self($this->config, $this->auth, $this->api, $this->route, $screen, null, $cols, $rows);
+        return $this->into($this->route, $screen, $cols, $rows);
     }
 
     // ---- accessors (for tests) ----------------------------------------
