@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Phlix\Console\Screen;
 
 use Phlix\Console\Api\AuthError;
+use Phlix\Console\Api\Dto\LetterIndex;
 use Phlix\Console\Api\MediaQuery;
 use Phlix\Console\Media\PosterCardFactory;
 use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Msg\GridPosterLoadedMsg;
+use Phlix\Console\Msg\LetterIndexLoadedMsg;
 use Phlix\Console\Msg\LibraryFailedMsg;
 use Phlix\Console\Msg\MediaRangeLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
@@ -16,6 +18,7 @@ use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Store\MediaRange;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Ui\Chrome;
+use Phlix\Console\Ui\LetterRail;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Model;
@@ -43,7 +46,7 @@ final class LibraryScreen implements Model
     private const PAGE_LIMIT = 50;
     private const OVERSCAN = 1;
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
-    private const HINT = '↑↓←→  move      PgUp/PgDn  page      Home/End  ends      Esc  back      q  quit';
+    private const HINT = '↑↓←→  move      PgUp/PgDn  page      A–Z  jump      Esc  back';
 
     private readonly MediaQuery $query;
     private readonly PosterGrid $grid;
@@ -60,6 +63,7 @@ final class LibraryScreen implements Model
         private readonly bool $loaded = false,
         private readonly int $generation = 0,
         ?array $requestedRange = null,
+        private readonly ?LetterIndex $letterIndex = null,
         private readonly ?string $error = null,
         private readonly int $cols = 80,
         private readonly int $rows = 24,
@@ -75,8 +79,14 @@ final class LibraryScreen implements Model
 
     public function init(): ?\Closure
     {
-        // Before the total is known, fetch a viewport-sized window from offset 0.
-        return $this->fetchRange(0, $this->initialWindowEnd());
+        // Before the total is known, fetch a viewport-sized window from offset 0,
+        // plus the A–Z index (only valid for the default name-ascending sort).
+        $cmds = [$this->fetchRange(0, $this->initialWindowEnd())];
+        if ($this->isNameAscending()) {
+            $cmds[] = $this->fetchLetterIndex();
+        }
+
+        return Cmd::batch(...$cmds);
     }
 
     private function initialWindowEnd(): int
@@ -94,6 +104,9 @@ final class LibraryScreen implements Model
         }
         if ($msg instanceof MediaRangeLoadedMsg) {
             return $this->onRange($msg->range, $msg->generation);
+        }
+        if ($msg instanceof LetterIndexLoadedMsg) {
+            return [$msg->generation === $this->generation ? $this->withLetterIndex($msg->index) : $this, null];
         }
         if ($msg instanceof GridPosterLoadedMsg) {
             return [$this->onPoster($msg->index, $msg->ansi), null];
@@ -122,7 +135,15 @@ final class LibraryScreen implements Model
             $header = $total . ' items   ·   ' . ($this->grid->cursorIndex() + 1) . '/' . $total;
         }
 
-        $body = $header . "\n\n" . $this->grid->render(true);
+        $rail = '';
+        if ($this->letterIndex !== null && $this->isNameAscending()) {
+            $current = $this->letterIndex->letterAt($this->grid->cursorIndex());
+            $rail = (new LetterRail($this->letterIndex, $current))->render();
+        }
+
+        $body = $rail !== ''
+            ? $header . "\n" . $rail . "\n" . $this->grid->render(true)
+            : $header . "\n\n" . $this->grid->render(true);
 
         return Chrome::frame($this->name, $body, self::HINT, $this->cols, $this->rows);
     }
@@ -134,8 +155,10 @@ final class LibraryScreen implements Model
         if ($msg->type === KeyType::Escape) {
             return [$this, Cmd::send(new NavigateBackMsg())];
         }
-        if ($msg->type === KeyType::Char && $msg->rune === 'q') {
-            return [$this, Cmd::quit()];
+        // Type-to-jump: a letter (or # / digit) scrolls the grid to that bucket.
+        // (Quit is Ctrl-C globally, or Esc back to Browse — so letters are free.)
+        if ($msg->type === KeyType::Char) {
+            return $this->jumpToLetter($msg->rune);
         }
 
         $grid = match ($msg->type) {
@@ -157,12 +180,42 @@ final class LibraryScreen implements Model
         return $this->afterGridChange($grid);
     }
 
+    /** Jump the grid to the bucket for a typed letter (`#`/digits → non-alpha). */
+    private function jumpToLetter(string $rune): array
+    {
+        if ($this->letterIndex === null || !$this->isNameAscending()) {
+            return [$this, null];
+        }
+
+        $letter = ctype_alpha($rune)
+            ? strtoupper($rune)
+            : ((ctype_digit($rune) || $rune === '#') ? '#' : null);
+
+        if ($letter === null || !in_array($letter, $this->letterIndex->enabledLetters(), true)) {
+            return [$this, null];
+        }
+
+        $offset = $this->letterIndex->offsetFor($letter);
+        $grid = $offset !== null ? $this->grid->moveTo($offset) : $this->grid;
+        if ($grid === $this->grid) {
+            return [$this, null];
+        }
+
+        return $this->afterGridChange($grid);
+    }
+
+    private function isNameAscending(): bool
+    {
+        return in_array($this->query->sort, [null, 'name'], true)
+            && in_array($this->query->order, [null, 'asc'], true);
+    }
+
     private function onResize(int $cols, int $rows): array
     {
         $grid = $this->grid->withViewport(self::viewportCols($cols), self::viewportRows($rows));
         $next = new self(
             $this->libraryId, $this->name, $this->media, $this->posters,
-            $this->query, $grid, $this->loaded, $this->generation, $this->requestedRange, $this->error, $cols, $rows,
+            $this->query, $grid, $this->loaded, $this->generation, $this->requestedRange, $this->letterIndex, $this->error, $cols, $rows,
         );
 
         return $next->afterGridChange($grid);
@@ -191,7 +244,7 @@ final class LibraryScreen implements Model
 
         $next = new self(
             $this->libraryId, $this->name, $this->media, $this->posters,
-            $this->query, $grid, $this->loaded, $this->generation, $requested, $this->error, $this->cols, $this->rows,
+            $this->query, $grid, $this->loaded, $this->generation, $requested, $this->letterIndex, $this->error, $this->cols, $this->rows,
         );
 
         return [$next, $cmds === [] ? null : Cmd::batch(...$cmds)];
@@ -208,7 +261,7 @@ final class LibraryScreen implements Model
 
         $next = new self(
             $this->libraryId, $this->name, $this->media, $this->posters,
-            $this->query, $grid, true, $this->generation, $this->requestedRange, $this->error, $this->cols, $this->rows,
+            $this->query, $grid, true, $this->generation, $this->requestedRange, $this->letterIndex, $this->error, $this->cols, $this->rows,
         );
 
         [$start, $end] = $grid->visibleRange(self::OVERSCAN);
@@ -235,6 +288,16 @@ final class LibraryScreen implements Model
             static fn (\Throwable $e): Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(self::SESSION_EXPIRED)
                 : new LibraryFailedMsg('Could not load this library.'),
+        ));
+    }
+
+    private function fetchLetterIndex(): \Closure
+    {
+        $generation = $this->generation;
+
+        return Cmd::promise(fn () => $this->media->letterIndex($this->query)->then(
+            static fn (LetterIndex $index): ?Msg => new LetterIndexLoadedMsg($index, $generation),
+            static fn (\Throwable $e): ?Msg => null, // the A–Z rail is optional; fail quietly
         ));
     }
 
@@ -278,7 +341,15 @@ final class LibraryScreen implements Model
     {
         return new self(
             $this->libraryId, $this->name, $this->media, $this->posters,
-            $this->query, $grid, $this->loaded, $this->generation, $this->requestedRange, $this->error, $this->cols, $this->rows,
+            $this->query, $grid, $this->loaded, $this->generation, $this->requestedRange, $this->letterIndex, $this->error, $this->cols, $this->rows,
+        );
+    }
+
+    private function withLetterIndex(LetterIndex $index): self
+    {
+        return new self(
+            $this->libraryId, $this->name, $this->media, $this->posters,
+            $this->query, $this->grid, $this->loaded, $this->generation, $this->requestedRange, $index, $this->error, $this->cols, $this->rows,
         );
     }
 
@@ -286,7 +357,7 @@ final class LibraryScreen implements Model
     {
         return new self(
             $this->libraryId, $this->name, $this->media, $this->posters,
-            $this->query, $this->grid, $this->loaded, $this->generation, $this->requestedRange, $error, $this->cols, $this->rows,
+            $this->query, $this->grid, $this->loaded, $this->generation, $this->requestedRange, $this->letterIndex, $error, $this->cols, $this->rows,
         );
     }
 
@@ -297,9 +368,15 @@ final class LibraryScreen implements Model
 
     private static function viewportRows(int $rows): int
     {
-        // Reserve the frame chrome (header/status/borders) + the in-content
-        // count line + a spacer.
+        // Reserve the frame chrome (header + status + content border = 4) and the
+        // two in-content lines above the grid (the count line + the A–Z rail, or
+        // a blank spacer when the rail is hidden).
         return max(self::POSTER_HEIGHT + 2, $rows - 6);
+    }
+
+    public function letterIndex(): ?LetterIndex
+    {
+        return $this->letterIndex;
     }
 
     // ---- accessors (for tests) ----------------------------------------

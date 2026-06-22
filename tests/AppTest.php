@@ -14,6 +14,7 @@ use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Msg\BootResolvedMsg;
 use Phlix\Console\Msg\LoginFailedMsg;
 use Phlix\Console\Msg\LoginSucceededMsg;
+use Phlix\Console\Msg\MediaRangeLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenLibraryMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
@@ -26,6 +27,7 @@ use Phlix\Console\Screen\LoginScreen;
 use Phlix\Console\Screen\ServerScreen;
 use Phlix\Console\Store\AuthStore;
 use Phlix\Console\Store\LibrariesStore;
+use Phlix\Console\Store\MediaRange;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Tests\Api\FakeTransport;
 use PHPUnit\Framework\TestCase;
@@ -274,17 +276,10 @@ final class AppTest extends TestCase
 
     public function testWidenResizeThreadsTheTopScreenFetchCmd(): void
     {
-        // A library with a known total, so a grown viewport has cells to fetch.
-        $items = [];
-        for ($i = 0; $i < 50; $i++) {
-            $items[] = ['id' => (string) $i, 'name' => 'Item ' . $i, 'type' => 'movie'];
-        }
-        $transport = (new FakeTransport())->json(200, ['items' => $items, 'total' => 200, 'limit' => 50, 'offset' => 0]);
-        [$app] = $this->makeApp('https://srv', $transport);
-
-        [$browse] = $app->update(new LoginSucceededMsg(AuthUser::fromArray(['id' => 'u1', 'username' => 'joe'])));
-        [$lib, $initCmd] = $browse->update(new OpenLibraryMsg('lib-a', 'Movies'));
-        [$loaded] = $lib->update($this->runCmd($initCmd)); // feed the first window back
+        [$lib] = $this->browsing()->update(new OpenLibraryMsg('lib-a', 'Movies'));
+        // Simulate the library's first window arriving (total known), so a grown
+        // viewport has cells to fetch.
+        [$loaded] = $lib->update(new MediaRangeLoadedMsg(new MediaRange([], 200), 0));
 
         // Growing the viewport exposes cells the library must fetch; the App must
         // thread that Cmd back rather than swallow it.
