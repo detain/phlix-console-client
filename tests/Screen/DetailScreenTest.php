@@ -6,12 +6,17 @@ namespace Phlix\Console\Tests\Screen;
 
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Media\PosterLoader;
+use Phlix\Console\Msg\ChildPosterLoadedMsg;
+use Phlix\Console\Msg\ChildrenFailedMsg;
+use Phlix\Console\Msg\ChildrenLoadedMsg;
 use Phlix\Console\Msg\DetailFailedMsg;
 use Phlix\Console\Msg\DetailLoadedMsg;
 use Phlix\Console\Msg\DetailPosterLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
+use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Screen\DetailScreen;
+use Phlix\Console\Store\MediaRange;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Tests\Api\FakeTransport;
 use PHPUnit\Framework\TestCase;
@@ -265,6 +270,235 @@ final class DetailScreenTest extends TestCase
         [$next] = $this->loaded()->update(new WindowSizeMsg(60, 20));
 
         self::assertIsString($next->view());
+    }
+
+    public function testLeafEnterIsANoOp(): void
+    {
+        // A movie has no children — Enter does nothing (only containers drill).
+        $loaded = $this->loaded();
+        [$same, $cmd] = $loaded->update(new KeyMsg(KeyType::Enter));
+
+        self::assertSame($loaded, $same);
+        self::assertFalse($same->isContainer());
+        self::assertNull($cmd);
+    }
+
+    // ---- container mode: series → season → episode ---------------------
+
+    /**
+     * Load a container item (series/season) and its first window of children.
+     *
+     * @param list<array<string,mixed>> $childRows
+     */
+    private function loadedContainer(string $type, array $childRows): DetailScreen
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->detailResponse(['type' => $type, 'name' => 'My Show']))
+            ->json(200, ['items' => $childRows, 'total' => count($childRows), 'limit' => 50, 'offset' => 0]);
+        $screen = $this->screenWith($transport);
+
+        $itemMsg = $this->runBatch($screen->init())[0];
+        self::assertInstanceOf(DetailLoadedMsg::class, $itemMsg);
+        [$screen, $childCmd] = $screen->update($itemMsg);
+        self::assertTrue($screen->isContainer(), 'a series/season loads as a container');
+        self::assertInstanceOf(\Closure::class, $childCmd, 'a container fetches its children on load');
+
+        $rangeMsg = $this->runBatch($childCmd)[0];
+        self::assertInstanceOf(ChildrenLoadedMsg::class, $rangeMsg);
+
+        return $screen->update($rangeMsg)[0];
+    }
+
+    public function testSeriesRendersAsASeasonGrid(): void
+    {
+        $screen = $this->loadedContainer('series', [
+            ['id' => 's1', 'name' => 'Season 1', 'type' => 'season'],
+            ['id' => 's2', 'name' => 'Season 2', 'type' => 'season'],
+        ]);
+
+        self::assertTrue($screen->isContainer());
+        self::assertSame(2, $screen->childGrid()?->total());
+
+        $view = $screen->view();
+        self::assertStringContainsString('My Show', $view);
+        self::assertStringContainsString('2 seasons', $view);
+        self::assertStringContainsString('Season 1', $view, 'the season cards render');
+    }
+
+    public function testSeasonContainerLabelsEpisodesAndIsSingularForOne(): void
+    {
+        $view = $this->loadedContainer('season', [
+            ['id' => 'e1', 'name' => 'Pilot', 'type' => 'episode'],
+        ])->view();
+
+        self::assertStringContainsString('1 episode', $view);
+        self::assertStringNotContainsString('1 episodes', $view, 'singular when there is one child');
+    }
+
+    public function testEnterOnAChildOpensItsDetail(): void
+    {
+        $screen = $this->loadedContainer('series', [
+            ['id' => 's1', 'name' => 'Season 1', 'type' => 'season'],
+        ]);
+
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Enter));
+        $msg = $cmd?->__invoke();
+
+        self::assertInstanceOf(OpenDetailMsg::class, $msg, 'a season drills into its episodes');
+        self::assertSame('s1', $msg->id);
+        self::assertSame('Season 1', $msg->name);
+    }
+
+    public function testArrowMovesTheChildCursor(): void
+    {
+        $screen = $this->loadedContainer('series', [
+            ['id' => 's1', 'name' => 'Season 1', 'type' => 'season'],
+            ['id' => 's2', 'name' => 'Season 2', 'type' => 'season'],
+            ['id' => 's3', 'name' => 'Season 3', 'type' => 'season'],
+        ]);
+        self::assertSame(0, $screen->childGrid()?->cursorIndex());
+
+        [$moved] = $screen->update(new KeyMsg(KeyType::Right));
+
+        self::assertSame(1, $moved->childGrid()?->cursorIndex());
+    }
+
+    public function testContainerGridNavigationKeys(): void
+    {
+        // Enough children to span several rows so the movement keys actually move.
+        $rows = [];
+        for ($i = 0; $i < 40; $i++) {
+            $rows[] = ['id' => "e{$i}", 'name' => "Ep {$i}", 'type' => 'episode'];
+        }
+        $screen = $this->loadedContainer('season', $rows);
+
+        foreach ([KeyType::Down, KeyType::Right, KeyType::End, KeyType::PageUp, KeyType::Home, KeyType::PageDown, KeyType::Up, KeyType::Left] as $key) {
+            [$screen] = $screen->update(new KeyMsg($key));
+            self::assertInstanceOf(DetailScreen::class, $screen);
+        }
+
+        // A key the grid doesn't consume is a no-op.
+        [$same, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'z'));
+        self::assertSame($screen, $same);
+        self::assertNull($cmd);
+    }
+
+    public function testChildPosterForAnUnknownCellIsDropped(): void
+    {
+        $screen = $this->loadedContainer('series', [
+            ['id' => 's1', 'name' => 'Season 1', 'type' => 'season'],
+        ]);
+
+        [$after] = $screen->update(new ChildPosterLoadedMsg('m1', 999, 'POSTER'));
+
+        self::assertSame($screen, $after, 'a poster for a non-existent cell is dropped');
+    }
+
+    public function testEnterOnAnEmptyContainerIsANoOp(): void
+    {
+        $screen = $this->loadedContainer('series', []);
+
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Enter));
+
+        self::assertNull($cmd);
+        self::assertStringContainsString('0 seasons', $screen->view());
+    }
+
+    public function testChildrenForADifferentParentAreIgnored(): void
+    {
+        // A late result tagged for another stacked DetailScreen must not touch
+        // this grid (series → season → episode all reuse this screen).
+        $screen = $this->loadedContainer('series', [
+            ['id' => 's1', 'name' => 'Season 1', 'type' => 'season'],
+        ]);
+
+        [$after] = $screen->update(new ChildrenLoadedMsg('SOME-OTHER-ID', new MediaRange([], 99)));
+
+        self::assertSame($screen, $after, 'a mismatched parentId is ignored');
+        self::assertSame(1, $after->childGrid()?->total(), 'the grid is unchanged');
+    }
+
+    public function testChildPosterForADifferentParentIsIgnored(): void
+    {
+        $screen = $this->loadedContainer('series', [
+            ['id' => 's1', 'name' => 'Season 1', 'type' => 'season', 'poster_url' => 'https://p/s1.jpg'],
+        ]);
+
+        [$after] = $screen->update(new ChildPosterLoadedMsg('SOME-OTHER-ID', 0, 'ANSI'));
+
+        self::assertSame($screen, $after, 'a mismatched poster is ignored');
+        self::assertFalse($after->childGrid()?->item(0)?->hasPoster() ?? true, 'the cell keeps its skeleton');
+    }
+
+    public function testChildPosterPopulatesTheCorrectCell(): void
+    {
+        // The series id is 'm1' (the detailResponse default), so a poster tagged
+        // 'm1' belongs to this screen.
+        $screen = $this->loadedContainer('series', [
+            ['id' => 's1', 'name' => 'Season 1', 'type' => 'season', 'poster_url' => 'https://p/s1.jpg'],
+        ]);
+
+        [$withPoster] = $screen->update(new ChildPosterLoadedMsg('m1', 0, 'POSTER-ANSI'));
+
+        self::assertTrue($withPoster->childGrid()?->item(0)?->hasPoster() ?? false);
+    }
+
+    public function testContainerChildrenFailureShowsError(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->detailResponse(['type' => 'series']))
+            ->fail(new \RuntimeException('boom'));
+        $screen = $this->screenWith($transport);
+
+        $itemMsg = $this->runBatch($screen->init())[0];
+        [$screen, $childCmd] = $screen->update($itemMsg);
+        $failMsg = $this->runBatch($childCmd)[0];
+        self::assertInstanceOf(ChildrenFailedMsg::class, $failMsg);
+
+        [$failed] = $screen->update($failMsg);
+        self::assertStringContainsString('Could not load', $failed->view());
+    }
+
+    public function testChildrenAuthErrorBecomesSessionExpired(): void
+    {
+        // The item loads, but the children fetch 401s (session expired mid-drill).
+        $transport = (new FakeTransport())
+            ->json(200, $this->detailResponse(['type' => 'series']))
+            ->json(401, ['error' => 'unauthorized']);
+        $screen = $this->screenWith($transport);
+
+        $itemMsg = $this->runBatch($screen->init())[0];
+        [, $childCmd] = $screen->update($itemMsg);
+        $childMsg = $this->runBatch($childCmd)[0];
+
+        self::assertInstanceOf(SessionExpiredMsg::class, $childMsg);
+    }
+
+    public function testScrollingRevealsAndLoadsMoreChildPosters(): void
+    {
+        // A container with many poster-bearing children; jumping to the end
+        // reveals cells beyond the first window that must be fetched + rendered.
+        $rows = [];
+        for ($i = 0; $i < 40; $i++) {
+            $rows[] = ['id' => "e{$i}", 'name' => "Ep {$i}", 'type' => 'episode', 'poster_url' => "https://p/e{$i}.jpg"];
+        }
+        $screen = $this->loadedContainer('season', $rows);
+
+        [$moved, $cmd] = $screen->update(new KeyMsg(KeyType::End));
+
+        self::assertSame(39, $moved->childGrid()?->cursorIndex());
+        self::assertInstanceOf(\Closure::class, $cmd, 'the newly revealed window fetches range + posters');
+    }
+
+    public function testContainerResizeStillRenders(): void
+    {
+        $screen = $this->loadedContainer('series', [
+            ['id' => 's1', 'name' => 'Season 1', 'type' => 'season'],
+        ]);
+
+        [$resized] = $screen->update(new WindowSizeMsg(60, 20));
+
+        self::assertIsString($resized->view());
     }
 
     // ---- harness (mirrors LibraryScreenTest) ---------------------------

@@ -263,6 +263,22 @@ final class AppTest extends TestCase
         self::assertInstanceOf(LibraryScreen::class, $back->screen());
     }
 
+    public function testNestedDetailsStackForSeriesSeasonEpisode(): void
+    {
+        // Browse → series → season → episode, each a pushed DetailScreen.
+        [$series] = $this->browsing()->update(new OpenDetailMsg('series-1', 'My Show'));
+        [$season] = $series->update(new OpenDetailMsg('season-1', 'Season 1'));
+        [$episode] = $season->update(new OpenDetailMsg('ep-1', 'S01E01'));
+
+        self::assertSame(4, $episode->stackDepth());
+        self::assertSame(Route::Detail, $episode->route());
+
+        // Backing out reveals each parent in turn.
+        [$backToSeason] = $episode->update(new NavigateBackMsg());
+        self::assertSame(3, $backToSeason->stackDepth());
+        self::assertInstanceOf(DetailScreen::class, $backToSeason->screen());
+    }
+
     public function testNavigateBackPopsToBrowse(): void
     {
         [$lib] = $this->browsing()->update(new OpenLibraryMsg('lib-a', 'Movies'));

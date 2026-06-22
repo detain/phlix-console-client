@@ -6,12 +6,19 @@ namespace Phlix\Console\Screen;
 
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\MediaItem;
+use Phlix\Console\Api\MediaQuery;
+use Phlix\Console\Media\PosterCardFactory;
 use Phlix\Console\Media\PosterLoader;
+use Phlix\Console\Msg\ChildPosterLoadedMsg;
+use Phlix\Console\Msg\ChildrenFailedMsg;
+use Phlix\Console\Msg\ChildrenLoadedMsg;
 use Phlix\Console\Msg\DetailFailedMsg;
 use Phlix\Console\Msg\DetailLoadedMsg;
 use Phlix\Console\Msg\DetailPosterLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
+use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
+use Phlix\Console\Store\MediaRange;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Ui\Chrome;
 use SugarCraft\Core\Cmd;
@@ -22,22 +29,30 @@ use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\SubscriptionCapable;
 use SugarCraft\Core\Util\Width;
+use SugarCraft\Gallery\PosterGrid;
 use SugarCraft\Shine\Renderer;
 use SugarCraft\Sprinkles\Layout;
 use SugarCraft\Sprinkles\Style;
 
 /**
- * A single item's detail: a hero poster beside its metadata (title, year /
- * rating / runtime, genres, director, cast) and a {@see Renderer candy-shine}
- * rendered synopsis, plus a Play entry-point and Back. The full item (with the
- * signed `stream_url`) is fetched via {@see MediaStore::item()}; the poster is
- * rendered asynchronously so the screen appears instantly with a placeholder.
+ * A single item's detail, in one of two modes decided by the loaded item:
  *
- * Play is wired but inert in Phase 3 — pressing `p` shows that direct-play
- * arrives with the sugar-reel player in Phase 4; the action is the seam.
+ * - **Leaf** (movie / episode): a hero poster beside its metadata (title,
+ *   year / rating / runtime, genres, director, cast) and a {@see Renderer
+ *   candy-shine} rendered, ↑/↓-scrollable synopsis, plus a Play entry-point.
+ *   Play is wired but inert in Phase 3 — `p` shows that direct-play arrives with
+ *   the sugar-reel player in Phase 4; the action is the seam.
+ * - **Container** (series / season): a header plus a 2-D virtualized grid of the
+ *   item's children (the seasons of a series, the episodes of a season), fetched
+ *   by `parentId`. Enter opens the focused child's detail — so series → season →
+ *   episode is just nested DetailScreens on the stack.
  *
- * Stable collaborators (id/name + stores) are readonly; the mutable view state
- * is private and copied via clone-mutate (the established screen idiom).
+ * The full item (leaf carries the signed `stream_url`) is fetched via
+ * {@see MediaStore::item()}; posters render asynchronously so the screen appears
+ * instantly with placeholders. Async child messages are tagged with the owning
+ * `parentId` so a late result can't land on a *different* DetailScreen stacked
+ * above. Stable collaborators are readonly; mutable view state is private and
+ * copied via clone-mutate (the established screen idiom).
  */
 final class DetailScreen implements Model
 {
@@ -46,17 +61,33 @@ final class DetailScreen implements Model
     private const HERO_WIDTH = 26;
     private const HERO_HEIGHT = 16;
     private const COL_GAP = 3;
+    private const CARD_WIDTH = 14;
+    private const POSTER_HEIGHT = 9;
+    private const H_SPACING = 2;
+    private const V_SPACING = 1;
+    private const PAGE_LIMIT = 50;
+    private const OVERSCAN = 1;
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
     private const PLAY_NOTICE = '▶  Direct-play arrives in Phase 4 (the sugar-reel player).';
     private const HINT = '↑↓  scroll synopsis      p  play      Esc  back';
+    private const CONTAINER_HINT = '↑↓←→  move      ⏎  open      Esc  back';
     private const LOADING_HINT = 'Esc  back';
 
     private ?MediaItem $item = null;
     private bool $loaded = false;
-    private ?string $heroAnsi = null;
     private ?string $error = null;
+
+    // Leaf mode.
+    private ?string $heroAnsi = null;
     private bool $playNotice = false;
     private int $synopsisScroll = 0;
+
+    // Container mode (null until a loaded item proves to be a series/season).
+    private ?PosterGrid $childGrid = null;
+    private ?MediaQuery $childQuery = null;
+    private bool $childLoaded = false;
+    /** @var array{0:int,1:int} the last child window requested (dedups fetches) */
+    private array $childRequested = [0, -1];
 
     public function __construct(
         private readonly string $id,
@@ -76,11 +107,7 @@ final class DetailScreen implements Model
     public function update(Msg $msg): array
     {
         if ($msg instanceof WindowSizeMsg) {
-            $next = clone $this;
-            $next->cols = $msg->cols;
-            $next->rows = $msg->rows;
-
-            return [$next, null];
+            return $this->onResize($msg->cols, $msg->rows);
         }
         if ($msg instanceof KeyMsg) {
             return $this->handleKey($msg);
@@ -94,6 +121,16 @@ final class DetailScreen implements Model
         if ($msg instanceof DetailFailedMsg) {
             return [$this->withError($msg->reason), null];
         }
+        if ($msg instanceof ChildrenLoadedMsg) {
+            return $this->onChildren($msg->parentId, $msg->range);
+        }
+        if ($msg instanceof ChildPosterLoadedMsg) {
+            return [$this->onChildPoster($msg->parentId, $msg->index, $msg->ansi), null];
+        }
+        if ($msg instanceof ChildrenFailedMsg) {
+            // Only a failure that blocked the first child load is surfaced.
+            return [$msg->parentId === $this->id && !$this->childLoaded ? $this->withError($msg->reason) : $this, null];
+        }
 
         return [$this, null];
     }
@@ -105,6 +142,9 @@ final class DetailScreen implements Model
         }
         if (!$this->loaded || $this->item === null) {
             return Chrome::frame($this->headerTitle(), "\n  Loading…", self::LOADING_HINT, $this->cols, $this->rows);
+        }
+        if ($this->childGrid !== null) {
+            return $this->containerView($this->item, $this->childGrid);
         }
 
         $hero = $this->heroAnsi ?? $this->heroPlaceholder();
@@ -121,6 +161,11 @@ final class DetailScreen implements Model
         if ($msg->type === KeyType::Escape) {
             return [$this, Cmd::send(new NavigateBackMsg())];
         }
+        if ($this->childGrid !== null) {
+            return $this->handleContainerKey($msg, $this->childGrid);
+        }
+
+        // Leaf: Play (inert in Phase 3) + synopsis scroll.
         if ($msg->type === KeyType::Char && ($msg->rune === 'p' || $msg->rune === 'P')) {
             $next = clone $this;
             $next->playNotice = true;
@@ -137,6 +182,35 @@ final class DetailScreen implements Model
         return [$this, null];
     }
 
+    private function handleContainerKey(KeyMsg $msg, PosterGrid $grid): array
+    {
+        if ($msg->type === KeyType::Enter) {
+            $card = $grid->cursorCard();
+
+            return $card !== null
+                ? [$this, Cmd::send(new OpenDetailMsg($card->id, $card->title))]
+                : [$this, null];
+        }
+
+        $moved = match ($msg->type) {
+            KeyType::Left => $grid->left(),
+            KeyType::Right => $grid->right(),
+            KeyType::Up => $grid->up(),
+            KeyType::Down => $grid->down(),
+            KeyType::PageUp => $grid->pageUp(),
+            KeyType::PageDown => $grid->pageDown(),
+            KeyType::Home => $grid->home(),
+            KeyType::End => $grid->end(),
+            default => $grid,
+        };
+
+        if ($moved === $grid) {
+            return [$this, null];
+        }
+
+        return $this->afterChildGridChange($moved);
+    }
+
     private function scrollSynopsis(int $delta): self
     {
         $scroll = max(0, $this->synopsisScroll + $delta);
@@ -149,7 +223,22 @@ final class DetailScreen implements Model
         return $next;
     }
 
-    // ---- data ----------------------------------------------------------
+    private function onResize(int $cols, int $rows): array
+    {
+        $next = clone $this;
+        $next->cols = $cols;
+        $next->rows = $rows;
+
+        if ($this->childGrid !== null) {
+            $grid = $this->childGrid->withViewport($this->containerViewportCols($cols), $this->containerViewportRows($rows));
+
+            return $next->afterChildGridChange($grid);
+        }
+
+        return [$next, null];
+    }
+
+    // ---- data: the item ------------------------------------------------
 
     private function fetchItem(): \Closure
     {
@@ -167,6 +256,19 @@ final class DetailScreen implements Model
         $next->item = $item;
         $next->loaded = true;
 
+        if ($item->isContainer()) {
+            $grid = PosterGrid::new(self::CARD_WIDTH, self::POSTER_HEIGHT, self::H_SPACING, self::V_SPACING)
+                ->withViewport($this->containerViewportCols($this->cols), $this->containerViewportRows($this->rows));
+            $end = $this->windowEnd($grid);
+
+            $next->childGrid = $grid;
+            $next->childQuery = new MediaQuery(parentId: $this->id, limit: self::PAGE_LIMIT);
+            $next->childRequested = [0, $end];
+
+            return [$next, $next->fetchChildren(0, $end)];
+        }
+
+        // Leaf: load the hero poster (if any).
         $cmd = $item->posterUrl !== null ? $next->fetchHero($item->posterUrl) : null;
 
         return [$next, $cmd];
@@ -180,7 +282,167 @@ final class DetailScreen implements Model
         ));
     }
 
-    // ---- rendering -----------------------------------------------------
+    // ---- data: the children grid (container mode) ----------------------
+
+    private function fetchChildren(int $start, int $end): \Closure
+    {
+        $parentId = $this->id;
+        $query = $this->childQuery ?? new MediaQuery(parentId: $parentId, limit: self::PAGE_LIMIT);
+
+        return Cmd::promise(fn () => $this->media->ensureRange($query, $start, $end)->then(
+            static fn (MediaRange $range): Msg => new ChildrenLoadedMsg($parentId, $range),
+            static fn (\Throwable $e): Msg => $e instanceof AuthError
+                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                : new ChildrenFailedMsg($parentId, 'Could not load this content.'),
+        ));
+    }
+
+    private function onChildren(string $parentId, MediaRange $range): array
+    {
+        if ($parentId !== $this->id || $this->childGrid === null) {
+            return [$this, null]; // a result for a different stacked DetailScreen
+        }
+
+        $grid = $this->childLoaded ? $this->childGrid->withTotal($range->total) : $this->childGrid->reset($range->total);
+        $grid = $grid->withItems($this->childCards($range->items));
+
+        $next = clone $this;
+        $next->childGrid = $grid;
+        $next->childLoaded = true;
+
+        [$start, $end] = $grid->visibleRange(self::OVERSCAN);
+
+        return [$next, $next->loadChildPostersIn($grid, $start, $end)];
+    }
+
+    private function onChildPoster(string $parentId, int $index, string $ansi): self
+    {
+        if ($parentId !== $this->id || $this->childGrid === null) {
+            return $this;
+        }
+        $card = $this->childGrid->item($index);
+        if ($card === null) {
+            return $this;
+        }
+
+        $next = clone $this;
+        $next->childGrid = $this->childGrid->withItem($index, $card->withPoster($ansi));
+
+        return $next;
+    }
+
+    /**
+     * After the child grid's cursor/viewport moved: fetch the newly visible
+     * window (if not already covered) and load posters for the cells on screen.
+     */
+    private function afterChildGridChange(PosterGrid $grid): array
+    {
+        [$start, $end] = $grid->visibleRange(self::OVERSCAN);
+
+        $cmds = [];
+        $requested = $this->childRequested;
+        if ($end >= $start && !($start >= $requested[0] && $end <= $requested[1])) {
+            $cmds[] = $this->fetchChildren($start, $end);
+            $requested = [$start, $end];
+        }
+        $posterCmd = $this->loadChildPostersIn($grid, $start, $end);
+        if ($posterCmd !== null) {
+            $cmds[] = $posterCmd;
+        }
+
+        $next = clone $this;
+        $next->childGrid = $grid;
+        $next->childRequested = $requested;
+
+        return [$next, $cmds === [] ? null : Cmd::batch(...$cmds)];
+    }
+
+    /** Batch poster loads for the loaded, poster-less child cells in [start, end]. */
+    private function loadChildPostersIn(PosterGrid $grid, int $start, int $end): ?\Closure
+    {
+        $parentId = $this->id;
+        $cmds = [];
+        for ($i = max(0, $start); $i <= $end; $i++) {
+            $card = $grid->item($i);
+            if ($card === null || $card->posterUrl === null || $card->hasPoster()) {
+                continue;
+            }
+            $url = $card->posterUrl;
+            $index = $i;
+            $cmds[] = Cmd::promise(fn () => $this->posters->load($url, self::CARD_WIDTH, self::POSTER_HEIGHT)->then(
+                static fn (string $ansi): Msg => new ChildPosterLoadedMsg($parentId, $index, $ansi),
+                static fn (\Throwable $e): ?Msg => null, // a broken poster keeps its skeleton
+            ));
+        }
+
+        return $cmds === [] ? null : Cmd::batch(...$cmds);
+    }
+
+    /**
+     * @param array<int, MediaItem> $items
+     * @return array<int, \SugarCraft\Gallery\PosterCard>
+     */
+    private function childCards(array $items): array
+    {
+        $cards = [];
+        foreach ($items as $index => $item) {
+            $cards[$index] = PosterCardFactory::fromMediaItem($item);
+        }
+
+        return $cards;
+    }
+
+    private function windowEnd(PosterGrid $grid): int
+    {
+        return max(0, $grid->columns() * ($grid->visibleRows() + self::OVERSCAN) - 1);
+    }
+
+    // ---- rendering: container ------------------------------------------
+
+    private function containerView(MediaItem $item, PosterGrid $grid): string
+    {
+        // The item name is already in the Chrome title bar, so the content header
+        // is a single meta line (count · year · genres) — matching LibraryScreen's
+        // one-line-plus-blank layout so the grid (incl. card titles) is not clipped.
+        $parts = [$this->childLoaded ? $this->childKindLabel($grid->total()) : 'Loading…'];
+        if ($item->year !== null) {
+            $parts[] = (string) $item->year;
+        }
+        if ($item->genres !== []) {
+            $parts[] = implode(', ', $item->genres);
+        }
+        $header = Width::truncate(implode('   ·   ', $parts), max(1, $this->cols - 4));
+
+        $body = $header . "\n\n" . $grid->render(true);
+
+        return Chrome::frame($this->headerTitle(), $body, self::CONTAINER_HINT, $this->cols, $this->rows);
+    }
+
+    /** "3 seasons" for a series, "12 episodes" for a season, else "N items". */
+    private function childKindLabel(int $count): string
+    {
+        $noun = match ($this->item?->type) {
+            'series' => 'season',
+            'season' => 'episode',
+            default => 'item',
+        };
+
+        return $count . ' ' . $noun . ($count === 1 ? '' : 's');
+    }
+
+    private function containerViewportCols(int $cols): int
+    {
+        return max(self::CARD_WIDTH, $cols - 4);
+    }
+
+    private function containerViewportRows(int $rows): int
+    {
+        // Reserve the frame chrome (4) plus the meta line + blank (2), matching
+        // LibraryScreen so a full grid of children renders without clipping.
+        return max(self::POSTER_HEIGHT + 2, $rows - 6);
+    }
+
+    // ---- rendering: leaf -----------------------------------------------
 
     private function metadataColumn(MediaItem $item): string
     {
@@ -338,5 +600,16 @@ final class DetailScreen implements Model
     public function showsPlayNotice(): bool
     {
         return $this->playNotice;
+    }
+
+    /** Whether this detail rendered as a container (series/season) grid. */
+    public function isContainer(): bool
+    {
+        return $this->childGrid !== null;
+    }
+
+    public function childGrid(): ?PosterGrid
+    {
+        return $this->childGrid;
     }
 }
