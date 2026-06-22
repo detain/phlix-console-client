@@ -17,6 +17,7 @@ use Phlix\Console\Msg\ContinueWatchingLoadedMsg;
 use Phlix\Console\Msg\LibrariesFailedMsg;
 use Phlix\Console\Msg\LibrariesLoadedMsg;
 use Phlix\Console\Msg\LibraryMediaLoadedMsg;
+use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\OpenLibraryMsg;
 use Phlix\Console\Msg\PosterLoadedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
@@ -343,8 +344,14 @@ final class BrowseScreen implements Model
         }
 
         if ($msg->type === KeyType::Enter) {
-            // openLibrary() rejects the continue-watching rail (no grid).
-            return $this->openLibrary($ids[$this->railCursor] ?? null);
+            // A poster opens the focused card's detail (the sidebar opens the
+            // whole library). A rail whose cards haven't loaded yet is a no-op.
+            $rail = $this->railById($ids[$this->railCursor] ?? '');
+            $card = $rail?->focusedCard();
+
+            return $card !== null
+                ? [$this, Cmd::send(new OpenDetailMsg($card->id, $card->title))]
+                : [$this, null];
         }
 
         if ($msg->type === KeyType::Up) {

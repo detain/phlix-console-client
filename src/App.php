@@ -12,12 +12,14 @@ use Phlix\Console\Msg\BootResolvedMsg;
 use Phlix\Console\Msg\LoginFailedMsg;
 use Phlix\Console\Msg\LoginSucceededMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
+use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\OpenLibraryMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\SubmitLoginMsg;
 use Phlix\Console\Msg\SubmitServerMsg;
 use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Screen\BrowseScreen;
+use Phlix\Console\Screen\DetailScreen;
 use Phlix\Console\Screen\LibraryScreen;
 use Phlix\Console\Screen\LoginScreen;
 use Phlix\Console\Screen\ServerScreen;
@@ -121,6 +123,9 @@ final class App implements Model
         if ($msg instanceof OpenLibraryMsg) {
             return $this->openLibrary($msg->libraryId, $msg->name);
         }
+        if ($msg instanceof OpenDetailMsg) {
+            return $this->openDetail($msg->id, $msg->name);
+        }
         if ($msg instanceof NavigateBackMsg) {
             return [$this->popScreen(), null];
         }
@@ -217,6 +222,20 @@ final class App implements Model
         );
 
         return [$this->push(Route::Library, $screen), $screen->init()];
+    }
+
+    private function openDetail(string $id, string $name): array
+    {
+        $screen = new DetailScreen(
+            $id,
+            $name,
+            $this->media,
+            $this->posters,
+            cols: $this->cols,
+            rows: $this->rows,
+        );
+
+        return [$this->push(Route::Detail, $screen), $screen->init()];
     }
 
     // ---- helpers -------------------------------------------------------
