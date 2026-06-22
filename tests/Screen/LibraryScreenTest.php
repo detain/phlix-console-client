@@ -10,6 +10,7 @@ use Phlix\Console\Msg\GridPosterLoadedMsg;
 use Phlix\Console\Msg\LibraryFailedMsg;
 use Phlix\Console\Msg\MediaRangeLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
+use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\SearchDebouncedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Store\MediaRange;
@@ -202,6 +203,28 @@ final class LibraryScreenTest extends TestCase
         [, $cmd] = $this->loadedScreen()->update(new KeyMsg(KeyType::Escape));
 
         self::assertInstanceOf(NavigateBackMsg::class, $cmd?->__invoke());
+    }
+
+    public function testEnterOpensTheFocusedCellDetail(): void
+    {
+        // loadedScreen() seeds items whose id == their absolute index; the cursor
+        // starts on the first cell.
+        [, $cmd] = $this->loadedScreen()->update(new KeyMsg(KeyType::Enter));
+        $msg = $cmd?->__invoke();
+
+        self::assertInstanceOf(OpenDetailMsg::class, $msg);
+        self::assertSame('0', $msg->id);
+        self::assertSame('Item 0', $msg->name);
+    }
+
+    public function testEnterOnAnUnloadedCellIsANoOp(): void
+    {
+        // A fresh screen before any range resolves has only skeleton cells.
+        $screen = $this->screenWith((new FakeTransport())->pending());
+
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Enter));
+
+        self::assertNull($cmd, 'no detail opens for a not-yet-loaded cell');
     }
 
     public function testLetterKeyIsAJumpNotAQuit(): void

@@ -14,6 +14,7 @@ use Phlix\Console\Msg\ContinueWatchingLoadedMsg;
 use Phlix\Console\Msg\LibrariesFailedMsg;
 use Phlix\Console\Msg\LibrariesLoadedMsg;
 use Phlix\Console\Msg\LibraryMediaLoadedMsg;
+use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\OpenLibraryMsg;
 use Phlix\Console\Msg\PosterLoadedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
@@ -479,19 +480,21 @@ final class BrowseScreenTest extends TestCase
         self::assertInstanceOf(QuitMsg::class, $esc());
     }
 
-    public function testEnterOnLibraryRailOpensThatLibrary(): void
+    public function testEnterOnALibraryRailOpensTheFocusedCardDetail(): void
     {
         $screen = $this->withLibraryMedia('lib-a', 'Movies', 'm1', 'm2');
 
         [, $cmd] = $screen->update(new KeyMsg(KeyType::Enter));
         $msg = $cmd?->__invoke();
 
-        self::assertInstanceOf(OpenLibraryMsg::class, $msg);
-        self::assertSame('lib-a', $msg->libraryId);
-        self::assertSame('Movies', $msg->name);
+        // A poster opens the item's detail (the sidebar opens the whole library);
+        // the cursor starts on the first card.
+        self::assertInstanceOf(OpenDetailMsg::class, $msg);
+        self::assertSame('m1', $msg->id);
+        self::assertSame('Item m1', $msg->name);
     }
 
-    public function testEnterOnContinueWatchingRailDoesNotOpenALibrary(): void
+    public function testEnterOnContinueWatchingRailOpensThatItemDetail(): void
     {
         $entry = ContinueWatchingItem::fromArray(['media_item_id' => 'cw', 'name' => 'X', 'position_ticks' => 1, 'duration_ticks' => 2]);
         // Continue Watching prepends at index 0, where the cursor starts.
@@ -501,8 +504,10 @@ final class BrowseScreenTest extends TestCase
         self::assertSame('continue', $screen->railIds()[$screen->railCursor()]);
 
         [, $cmd] = $screen->update(new KeyMsg(KeyType::Enter));
+        $msg = $cmd?->__invoke();
 
-        self::assertNull($cmd, 'the continue-watching rail has no library grid to open');
+        self::assertInstanceOf(OpenDetailMsg::class, $msg, 'a continue-watching card opens its detail');
+        self::assertSame('cw', $msg->id);
     }
 
     public function testFailedLibrariesShowsError(): void

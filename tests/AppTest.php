@@ -16,12 +16,14 @@ use Phlix\Console\Msg\LoginFailedMsg;
 use Phlix\Console\Msg\LoginSucceededMsg;
 use Phlix\Console\Msg\MediaRangeLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
+use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\OpenLibraryMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\SubmitLoginMsg;
 use Phlix\Console\Msg\SubmitServerMsg;
 use Phlix\Console\Route;
 use Phlix\Console\Screen\BrowseScreen;
+use Phlix\Console\Screen\DetailScreen;
 use Phlix\Console\Screen\LibraryScreen;
 use Phlix\Console\Screen\LoginScreen;
 use Phlix\Console\Screen\ServerScreen;
@@ -234,6 +236,31 @@ final class AppTest extends TestCase
         self::assertInstanceOf(LibraryScreen::class, $lib->screen());
         self::assertSame(2, $lib->stackDepth(), 'library is pushed onto Browse');
         self::assertInstanceOf(\Closure::class, $cmd, 'the library loads its first window on push');
+    }
+
+    public function testOpenDetailPushesDetailScreen(): void
+    {
+        $browse = $this->browsing();
+
+        [$detail, $cmd] = $browse->update(new OpenDetailMsg('m1', 'The Matrix'));
+
+        self::assertSame(Route::Detail, $detail->route());
+        self::assertInstanceOf(DetailScreen::class, $detail->screen());
+        self::assertSame(2, $detail->stackDepth(), 'detail is pushed onto Browse');
+        self::assertInstanceOf(\Closure::class, $cmd, 'the detail fetches its item on push');
+    }
+
+    public function testDetailCanBePushedOntoALibraryAndPoppedBack(): void
+    {
+        // Browse → Library → Detail, then back out one frame at a time.
+        [$lib] = $this->browsing()->update(new OpenLibraryMsg('lib-a', 'Movies'));
+        [$detail] = $lib->update(new OpenDetailMsg('m1', 'The Matrix'));
+        self::assertSame(3, $detail->stackDepth());
+        self::assertSame(Route::Detail, $detail->route());
+
+        [$back] = $detail->update(new NavigateBackMsg());
+        self::assertSame(Route::Library, $back->route(), 'popping detail reveals the library beneath');
+        self::assertInstanceOf(LibraryScreen::class, $back->screen());
     }
 
     public function testNavigateBackPopsToBrowse(): void
