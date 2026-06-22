@@ -3,10 +3,14 @@
 
 declare(strict_types=1);
 
+use Phlix\Console\Api\ApiClient;
 use Phlix\Console\App;
 use Phlix\Console\Capabilities;
+use Phlix\Console\Config\Config;
+use Phlix\Console\Config\TokenStore;
 use Phlix\Console\Spike\PosterSpike;
 use Phlix\Console\Spike\VideoSpike;
+use Phlix\Console\Store\AuthStore;
 use SugarCraft\Core\Program;
 
 // Locate the Composer autoloader whether we run from the repo or as an
@@ -63,7 +67,10 @@ try {
             break;
 
         case 'run':
-            (new Program(new App()))->run();
+            $config = Config::load();
+            $api = new ApiClient($config->serverUrl ?? '');
+            $auth = new AuthStore($api, TokenStore::default());
+            (new Program(App::boot($config, $auth, $api)))->run();
             break;
 
         case 'help':

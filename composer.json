@@ -15,6 +15,7 @@
         "react/http": "^1.11",
         "react/promise": "^3.3",
         "sugarcraft/candy-core": "dev-master",
+        "sugarcraft/candy-forms": "dev-master",
         "sugarcraft/candy-mosaic": "dev-master",
         "sugarcraft/candy-palette": "dev-master",
         "sugarcraft/candy-sprinkles": "dev-master",
