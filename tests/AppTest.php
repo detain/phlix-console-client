@@ -56,6 +56,7 @@ use Phlix\Console\Screen\Teardownable;
 use Phlix\Console\Store\AuthStore;
 use Phlix\Console\Store\LibrariesStore;
 use Phlix\Console\Store\MediaRange;
+use Phlix\Console\Store\AudiobooksStore;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Tests\Api\FakeTransport;
 use Phlix\Console\Tests\Reel\FakeAudioPlayer;
@@ -63,6 +64,7 @@ use PHPUnit\Framework\TestCase;
 use React\EventLoop\Loop;
 use React\Promise\PromiseInterface;
 use SugarCraft\Core\AsyncCmd;
+use SugarCraft\Core\BatchMsg;
 use SugarCraft\Mosaic\Mosaic;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Model;
@@ -387,7 +389,46 @@ final class AppTest extends TestCase
         self::assertSame(Route::AudiobookDetail, $detail->route());
         self::assertInstanceOf(AudiobookDetailScreen::class, $detail->screen());
         self::assertSame(2, $detail->stackDepth(), 'the audiobook detail is pushed on top, not replaced');
-        self::assertInstanceOf(\Closure::class, $cmd, 'the audiobook detail fetches its detail + chapters on push');
+        self::assertInstanceOf(\Closure::class, $cmd, 'the audiobook detail fetches its detail + chapters + progress on push');
+
+        // The pushed AudiobookDetailScreen is now audio-capable (Teardownable).
+        self::assertInstanceOf(Teardownable::class, $detail->screen());
+    }
+
+    public function testPlayingAnAudiobookThenNavigatingBackTearsDownTheAudio(): void
+    {
+        // A real audio-capable AudiobookDetailScreen on the stack, wired to a
+        // recording audio factory so no ffplay is spawned. Playing then popping
+        // the frame (NavigateBack) must stop the audio — proving the App's
+        // discard-teardown wiring covers the audiobook screen too.
+        $player = null;
+        $transport = (new FakeTransport())
+            ->json(200, ['audiobook' => ['id' => 'ab1', 'title' => 'Dune', 'duration_ms' => 600_000, 'stream_url' => 'https://srv/s/ab1']])
+            ->json(200, ['chapters' => []])
+            ->json(200, ['progress' => ['audiobook_id' => 'ab1', 'user_id' => 'u1', 'position_ms' => 0, 'current_chapter_index' => 0, 'completed_chapters' => [], 'percent_complete' => 0.0, 'last_played_at' => null]]);
+        $api = new ApiClient('https://srv', $transport);
+        $factory = function (string $url, ?int $startMs) use (&$player): FakeAudioPlayer {
+            return $player = new FakeAudioPlayer($url);
+        };
+        $screen = new AudiobookDetailScreen(new AudiobooksStore($api), 'https://srv', $factory, 'ab1', 'Dune', cols: 80, rows: 24);
+        foreach ($this->runBatchMsgs($screen->init()) as $msg) {
+            [$screen] = $screen->update($msg);
+        }
+
+        // Enter plays synchronously (the stream URL is already loaded).
+        [$playing] = $screen->update(new KeyMsg(KeyType::Enter));
+        self::assertNotNull($player);
+        self::assertSame(1, $player->startCalls, 'the audiobook started playing');
+
+        // Pop the frame (a root beneath so the audiobook can actually pop).
+        $deeper = $this->appWithStack([
+            ['route' => Route::Browse, 'screen' => new SpyTeardownScreen()],
+            ['route' => Route::AudiobookDetail, 'screen' => $playing],
+        ]);
+        [$popped] = $deeper->update(new NavigateBackMsg());
+
+        self::assertSame(1, $popped->stackDepth(), 'the audiobook frame was popped');
+        self::assertSame(1, $player->stopCalls, 'popping the audiobook stops the audio (no leaked ffplay)');
     }
 
     public function testOpenAlbumPushesTheAlbumScreen(): void
@@ -1098,6 +1139,33 @@ final class AppTest extends TestCase
         self::assertInstanceOf(OpenSearchMsg::class, $this->runCmd($cmd));
     }
 
+    /**
+     * Resolve a batched init Cmd into the list of Msgs its children produce
+     * (each child awaited). Used to drive a screen's three-fetch init().
+     *
+     * @return list<Msg>
+     */
+    private function runBatchMsgs(?\Closure $cmd): array
+    {
+        if ($cmd === null) {
+            return [];
+        }
+        $result = $cmd();
+        if ($result instanceof BatchMsg) {
+            $msgs = [];
+            foreach ($result->cmds as $child) {
+                $msg = $this->runCmd($child);
+                if ($msg !== null) {
+                    $msgs[] = $msg;
+                }
+            }
+
+            return $msgs;
+        }
+
+        return $result instanceof Msg ? [$result] : [];
+    }
+
     private function runCmd(?\Closure $cmd): ?Msg
     {
         if ($cmd === null) {
@@ -1128,7 +1196,15 @@ final class AppTest extends TestCase
             },
         );
 
-        if (!$state['done']) {
+        if ($state['done']) {
+            // The promise settled synchronously (a store wraps the sync
+            // FakeTransport in a Deferred). React may still have enqueued the
+            // Deferred's handler on the loop's futureTick queue — flush it with a
+            // single immediate tick so no residual work leaks into a later test's
+            // Loop::run(); a futureTick stop returns at once (no blocking wait).
+            Loop::futureTick(static fn () => Loop::stop());
+            Loop::run();
+        } else {
             $timer = Loop::addTimer($timeout, static fn () => Loop::stop());
             Loop::run();
             Loop::cancelTimer($timer);
