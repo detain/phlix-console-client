@@ -17,6 +17,7 @@ use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\Dto\MediaPage;
 use Phlix\Console\Api\Dto\PlaybackInfo;
 use Phlix\Console\Api\Dto\PlaybackMarkers;
+use Phlix\Console\Api\Dto\SubtitleTrack;
 use Phlix\Console\Config\TokenBundle;
 use PHPUnit\Framework\TestCase;
 use React\EventLoop\Loop;
@@ -290,6 +291,48 @@ final class ApiClientTest extends TestCase
         $req = $t->requestAt(0);
         self::assertSame('DELETE', $req['method']);
         self::assertStringEndsWith('/api/v1/sessions/sess-9', $req['url']);
+    }
+
+    public function testSubtitleTracksMapsRows(): void
+    {
+        $t = (new FakeTransport())->json(200, ['tracks' => [
+            ['index' => 0, 'language' => 'eng', 'label' => 'English', 'default' => true, 'codec' => 'subrip'],
+            ['index' => 1, 'language' => 'fra', 'label' => 'French', 'default' => false, 'codec' => 'ass'],
+        ]]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $tracks = $this->await($client->subtitleTracks('m1'));
+
+        self::assertCount(2, $tracks);
+        self::assertInstanceOf(SubtitleTrack::class, $tracks[0]);
+        self::assertSame('eng', $tracks[0]->language);
+        self::assertTrue($tracks[0]->default);
+        self::assertSame(1, $tracks[1]->index);
+        self::assertStringEndsWith('/api/v1/media/m1/subtitles', $t->requestAt(0)['url']);
+    }
+
+    public function testSubtitleVttReturnsTheRawBody(): void
+    {
+        $vtt = "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nHi";
+        $t = (new FakeTransport())->raw(200, $vtt);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $body = $this->await($client->subtitleVtt('m1', 2));
+
+        self::assertSame($vtt, $body);
+        self::assertStringEndsWith('/api/v1/media/m1/subtitles/2', $t->requestAt(0)['url']);
+    }
+
+    public function testSubtitleVttThrowsOnNon2xx(): void
+    {
+        $t = (new FakeTransport())->raw(404, 'nope');
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $this->expectException(ApiError::class);
+        $this->await($client->subtitleVtt('m1', 0));
     }
 
     // ---- 401 refresh-and-retry ----------------------------------------

@@ -472,6 +472,100 @@ final class PlayerScreenTest extends TestCase
         self::assertNull($cmd);
     }
 
+    // ---- captions ------------------------------------------------------
+
+    /**
+     * A ready screen with captions toggled on and a track loaded.
+     *
+     * @param list<array<string,mixed>> $tracks
+     */
+    private function readyWithCaptions(array $tracks, string $vtt): PlayerScreen
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->markersResponse())  // 1: markers (init)
+            ->json(200, $this->continueWatching())  // 2: resume (init)
+            ->json(200, ['tracks' => $tracks])      // 3: subtitle tracks (on `c`)
+            ->raw(200, $vtt);                        // 4: the WebVTT body
+        [$screen] = $this->screen(transport: $transport);
+        $ready = $this->ready($screen);
+
+        [$on, $cmd] = $ready->update(new KeyMsg(KeyType::Char, 'c'));
+        foreach ($this->runBatch($cmd) as $msg) {
+            [$on] = $on->update($msg);
+        }
+
+        return $on;
+    }
+
+    public function testCaptionToggleFetchesAndShowsTheActiveCue(): void
+    {
+        $on = $this->readyWithCaptions(
+            [['index' => 0, 'default' => true, 'language' => 'eng', 'label' => 'English', 'codec' => 'subrip']],
+            "WEBVTT\n\n00:00:00.000 --> 00:00:20.000\nHello caption",
+        );
+
+        self::assertTrue($on->captionsOn());
+        self::assertTrue($on->hasCaptions());
+        self::assertStringContainsString('Hello caption', $on->view(), 'the active cue is shown at position 0');
+        self::assertStringContainsString('cc✓', $on->view(), 'the status hint marks captions on');
+    }
+
+    public function testCaptionToggleOffHidesTheCue(): void
+    {
+        $on = $this->readyWithCaptions(
+            [['index' => 0, 'default' => true, 'language' => 'eng', 'label' => 'English', 'codec' => 'subrip']],
+            "WEBVTT\n\n00:00:00.000 --> 00:00:20.000\nHello caption",
+        );
+
+        [$off] = $on->update(new KeyMsg(KeyType::Char, 'c'));
+
+        self::assertFalse($off->captionsOn());
+        self::assertStringNotContainsString('Hello caption', $off->view());
+    }
+
+    public function testNoCaptionShownInACueGap(): void
+    {
+        $on = $this->readyWithCaptions(
+            [['index' => 0, 'default' => true, 'language' => 'eng', 'label' => 'English', 'codec' => 'subrip']],
+            "WEBVTT\n\n00:00:05.000 --> 00:00:08.000\nLater caption",
+        );
+
+        // Position 0 is before the only cue (5–8s) → nothing shown, but captions are on.
+        self::assertTrue($on->captionsOn());
+        self::assertStringNotContainsString('Later caption', $on->view());
+    }
+
+    public function testNoSubtitleTracksLeavesCaptionsOff(): void
+    {
+        $on = $this->readyWithCaptions([], 'unused');
+
+        self::assertFalse($on->captionsOn(), 'nothing to show → captions stay off');
+        self::assertFalse($on->hasCaptions());
+
+        // A second `c` after the empty fetch is a no-op (doesn't refetch).
+        [$same, $cmd] = $on->update(new KeyMsg(KeyType::Char, 'c'));
+        self::assertSame($on, $same);
+        self::assertNull($cmd);
+    }
+
+    public function testCaptionFetchFailureIsSwallowed(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->markersResponse())
+            ->json(200, $this->continueWatching())
+            ->fail(new \RuntimeException('boom')); // subtitle-tracks fetch fails
+        [$screen] = $this->screen(transport: $transport);
+        $ready = $this->ready($screen);
+
+        [$on, $cmd] = $ready->update(new KeyMsg(KeyType::Char, 'c'));
+        foreach ($this->runBatch($cmd) as $msg) {
+            [$on] = $on->update($msg);
+        }
+
+        self::assertFalse($on->captionsOn(), 'a failed fetch leaves captions off');
+        self::assertFalse($on->hasCaptions());
+    }
+
     // ---- up-next (episode queue) ---------------------------------------
 
     private function episodeItem(string $id): MediaItem

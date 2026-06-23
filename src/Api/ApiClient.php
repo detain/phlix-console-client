@@ -13,6 +13,7 @@ use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\Dto\MediaPage;
 use Phlix\Console\Api\Dto\PlaybackInfo;
 use Phlix\Console\Api\Dto\PlaybackMarkers;
+use Phlix\Console\Api\Dto\SubtitleTrack;
 use Phlix\Console\Config\TokenBundle;
 use Psr\Http\Message\ResponseInterface;
 use React\Promise\Deferred;
@@ -232,6 +233,56 @@ final class ApiClient
     {
         return $this->authed('DELETE', '/api/v1/sessions/' . rawurlencode($sessionId))
             ->then(static fn (array $data): bool => true);
+    }
+
+    // ---- subtitles -----------------------------------------------------
+
+    /**
+     * List an item's text subtitle tracks (for the player's caption toggle).
+     *
+     * @return PromiseInterface<list<SubtitleTrack>>
+     */
+    public function subtitleTracks(string $id): PromiseInterface
+    {
+        return $this->authed('GET', '/api/v1/media/' . rawurlencode($id) . '/subtitles')->then(static function (array $data): array {
+            $tracks = [];
+            foreach (Coerce::map($data['tracks'] ?? null) as $row) {
+                if (is_array($row)) {
+                    $tracks[] = SubtitleTrack::fromArray($row);
+                }
+            }
+
+            return $tracks;
+        });
+    }
+
+    /**
+     * Fetch one subtitle track as raw WebVTT text (a `text/vtt` body, not JSON).
+     * Best-effort — no refresh-and-retry; a failure just leaves captions off.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function subtitleVtt(string $id, int $index): PromiseInterface
+    {
+        $headers = ['Accept' => 'text/vtt'];
+        if ($this->token !== null) {
+            $headers['Authorization'] = $this->token->authorizationHeader();
+        }
+        $url = $this->url('/api/v1/media/' . rawurlencode($id) . '/subtitles/' . $index, []);
+
+        return $this->transport->send('GET', $url, $headers, '')->then(
+            static function (ResponseInterface $response): string {
+                $status = $response->getStatusCode();
+                if ($status < 200 || $status >= 300) {
+                    throw new ApiError("Subtitle fetch failed (HTTP {$status})", $status);
+                }
+
+                return (string) $response->getBody();
+            },
+            static fn (\Throwable $error): never => throw $error instanceof ApiError
+                ? $error
+                : new NetworkError('Could not reach the server: ' . $error->getMessage(), 0, null, $error),
+        );
     }
 
     /** @return PromiseInterface<list<ContinueWatchingItem>> */

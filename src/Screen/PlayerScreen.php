@@ -9,6 +9,7 @@ use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\Dto\MediaPage;
 use Phlix\Console\Api\Dto\PlaybackMarkers;
+use Phlix\Console\Api\Dto\SubtitleTrack;
 use Phlix\Console\Api\MediaQuery;
 use Phlix\Console\Config\Config;
 use Phlix\Console\Msg\NavigateBackMsg;
@@ -21,6 +22,7 @@ use Phlix\Console\Msg\ResumeInfoMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\SessionStartedMsg;
 use Phlix\Console\Msg\SiblingsLoadedMsg;
+use Phlix\Console\Msg\SubtitleVttLoadedMsg;
 use Phlix\Console\Msg\UpNextTickMsg;
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\Scrubber;
@@ -65,8 +67,8 @@ final class PlayerScreen implements Model, Teardownable
 {
     use SubscriptionCapable;
 
-    /** Rows reserved below the video: the scrubber + status line + 1 slack for the inner player's own status line. */
-    private const CHROME_ROWS = 3;
+    /** Rows reserved below the video: caption + scrubber + status line + 1 slack for the inner player's own status line. */
+    private const CHROME_ROWS = 4;
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
     /** Jellyfin-style 100ns ticks per second (the server's progress unit). */
     private const TICKS_PER_SECOND = 10_000_000;
@@ -92,6 +94,11 @@ final class PlayerScreen implements Model, Teardownable
     private int $currentIndex = -1;
     /** Remaining seconds on the end-of-episode up-next countdown, or null when inactive. */
     private ?int $upNext = null;
+    /** The parsed caption track, once fetched (null = none / not yet loaded). */
+    private ?\SugarCraft\Reel\Subtitle\WebVtt $captions = null;
+    private bool $captionsOn = false;
+    /** True once a caption fetch has been kicked off (so `c` doesn't refetch). */
+    private bool $captionsFetched = false;
 
     /**
      * @param \Closure(string $url, int $cols, int $rows): Player $playerFactory
@@ -166,6 +173,15 @@ final class PlayerScreen implements Model, Teardownable
         if ($msg instanceof UpNextTickMsg) {
             return $this->onUpNextTick();
         }
+        if ($msg instanceof SubtitleVttLoadedMsg) {
+            $next = clone $this;
+            $next->captions = $msg->captions;
+            if ($msg->captions === null) {
+                $next->captionsOn = false; // nothing to show
+            }
+
+            return [$next, null];
+        }
         if ($msg instanceof SessionStartedMsg) {
             return $this->onSessionStarted($msg->sessionId);
         }
@@ -197,7 +213,10 @@ final class PlayerScreen implements Model, Teardownable
             return $frame;
         }
 
-        return $frame . "\n" . $this->scrubberLine($this->inner) . "\n" . $this->statusLine($this->inner);
+        return $frame
+            . "\n" . $this->captionLine($this->inner)
+            . "\n" . $this->scrubberLine($this->inner)
+            . "\n" . $this->statusLine($this->inner);
     }
 
     // ---- lifecycle -----------------------------------------------------
@@ -401,6 +420,74 @@ final class PlayerScreen implements Model, Teardownable
         return Cmd::tick(1.0, static fn (): Msg => new UpNextTickMsg());
     }
 
+    // ---- captions ------------------------------------------------------
+
+    /**
+     * Toggle captions. The track is fetched lazily on first enable (tracks →
+     * default track → WebVTT, in one Cmd); afterwards `c` just flips visibility.
+     */
+    private function toggleCaptions(): array
+    {
+        // Already loaded → flip visibility.
+        if ($this->captions !== null) {
+            $next = clone $this;
+            $next->captionsOn = !$this->captionsOn;
+
+            return [$next, null];
+        }
+        // Fetched once and found nothing → nothing to toggle.
+        if ($this->captionsFetched) {
+            return [$this, null];
+        }
+
+        // First enable: optimistically on, kick off the fetch.
+        $next = clone $this;
+        $next->captionsFetched = true;
+        $next->captionsOn = true;
+
+        return [$next, $this->fetchCaptionsCmd()];
+    }
+
+    /**
+     * Fetch the subtitle tracks, pick the default (or first), fetch + parse its
+     * WebVTT → SubtitleVttLoadedMsg(?WebVtt). Any failure / no track → null.
+     */
+    private function fetchCaptionsCmd(): \Closure
+    {
+        $id = $this->item->id;
+
+        return Cmd::promise(fn (): PromiseInterface => $this->api->subtitleTracks($id)->then(
+            function (array $tracks) use ($id): PromiseInterface {
+                $track = $this->pickDefaultTrack($tracks);
+                if ($track === null) {
+                    return resolve(new SubtitleVttLoadedMsg(null));
+                }
+
+                return $this->api->subtitleVtt($id, $track->index)->then(
+                    static fn (string $vtt): Msg => new SubtitleVttLoadedMsg(\SugarCraft\Reel\Subtitle\WebVtt::parse($vtt)),
+                    static fn (\Throwable $e): Msg => new SubtitleVttLoadedMsg(null),
+                );
+            },
+            static fn (\Throwable $e): Msg => new SubtitleVttLoadedMsg(null),
+        ));
+    }
+
+    /**
+     * The default track (or the first) from a track list, or null when empty.
+     *
+     * @param list<SubtitleTrack> $tracks
+     */
+    private function pickDefaultTrack(array $tracks): ?SubtitleTrack
+    {
+        foreach ($tracks as $track) {
+            if ($track->default) {
+                return $track;
+            }
+        }
+
+        return $tracks[0] ?? null;
+    }
+
     // ---- progress reporting --------------------------------------------
 
     /** Open a playback session; on success → SessionStartedMsg. Failure is swallowed. */
@@ -589,6 +676,11 @@ final class PlayerScreen implements Model, Teardownable
             return $this->startOver();
         }
 
+        // c → toggle captions (lazily fetching the track on first enable).
+        if ($msg->type === KeyType::Char && ($msg->rune === 'c' || $msg->rune === 'C')) {
+            return $this->toggleCaptions();
+        }
+
         // n / p → next / previous episode (manual binge nav).
         if ($msg->type === KeyType::Char && ($msg->rune === 'n' || $msg->rune === 'N')) {
             $next = $this->nextItem();
@@ -666,6 +758,23 @@ final class PlayerScreen implements Model, Teardownable
 
     // ---- rendering -----------------------------------------------------
 
+    /** The active caption, centered, while captions are on — else a blank line. */
+    private function captionLine(Player $inner): string
+    {
+        if (!$this->captionsOn || $this->captions === null) {
+            return '';
+        }
+        $text = $this->captions->cueAt($inner->position());
+        if ($text === null || $text === '') {
+            return '';
+        }
+
+        $text = Width::truncate(str_replace("\n", '  ', $text), max(1, $this->cols - 2));
+        $pad = max(0, intdiv($this->cols - Width::of($text), 2));
+
+        return str_repeat(' ', $pad) . Style::new()->bold()->render($text);
+    }
+
     /** The progress bar with chapter ticks. */
     private function scrubberLine(Player $inner): string
     {
@@ -685,7 +794,8 @@ final class PlayerScreen implements Model, Teardownable
         // A live resume hint wins over the skip prompt (resume usually clears the intro).
         $prompt = $this->resumeHint($inner) ?? $this->skipPrompt($inner);
         $nav = $this->nextItem() !== null ? '  n next' : '';
-        $hint = 'Space ⏯  ←→ ±10s  [ ] speed  m mode' . $nav . '  q back';
+        $cc = $this->captionsOn ? '  c cc✓' : '  c cc';
+        $hint = 'Space ⏯  ←→ ±10s  [ ] speed  m mode' . $cc . $nav . '  q back';
 
         $title = Width::truncate($this->item->name, max(8, $this->cols - 60));
         $line = sprintf('%s %s%s   ·   %s', $glyph, $title, $prompt, $hint);
@@ -851,5 +961,15 @@ final class PlayerScreen implements Model, Teardownable
     public function hasPrev(): bool
     {
         return $this->prevItem() !== null;
+    }
+
+    public function captionsOn(): bool
+    {
+        return $this->captionsOn;
+    }
+
+    public function hasCaptions(): bool
+    {
+        return $this->captions !== null;
     }
 }
