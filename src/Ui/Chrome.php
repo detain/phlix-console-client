@@ -34,6 +34,39 @@ final class Chrome
         return $b->render($root, max(1, $cols), max(1, $rows));
     }
 
+    /** @var array<string,int> */
+    private static array $contentHeightCache = [];
+
+    /**
+     * How many body lines the bordered content region can actually show at a
+     * given terminal size.
+     *
+     * sugar-boxer's vertical split distributes height by weight, so the content
+     * region is only a fraction of $rows — NOT `rows - chrome`. A screen that
+     * sizes a scrolling body (a grid window, a table viewport) must clamp it to
+     * THIS height, or its lower rows — including the selected one — get clipped
+     * by the frame. Measured by probing the real frame once per size (memoized,
+     * deterministic).
+     */
+    public static function contentHeight(int $cols, int $rows): int
+    {
+        $key = $cols . ':' . $rows;
+        if (isset(self::$contentHeightCache[$key])) {
+            return self::$contentHeightCache[$key];
+        }
+
+        // A tall body of uniquely-tagged lines; count how many survive the frame.
+        $lines = [];
+        for ($i = 1, $n = max(1, $rows); $i <= $n; $i++) {
+            $lines[] = "\x01" . $i . "\x01";
+        }
+        $rendered = self::frame('', implode("\n", $lines), '', $cols, $rows);
+        $stripped = preg_replace('/\e\[[0-9;]*m/', '', $rendered) ?? $rendered;
+        preg_match_all('/\x01\d+\x01/', $stripped, $matches);
+
+        return self::$contentHeightCache[$key] = max(1, count(array_unique($matches[0])));
+    }
+
     /**
      * @param list<string> $trail
      */

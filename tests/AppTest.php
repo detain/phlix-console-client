@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Phlix\Console\Tests;
 
 use Phlix\Console\Api\ApiClient;
+use Phlix\Console\Api\Dto\Album;
 use Phlix\Console\Api\Dto\AuthUser;
 use Phlix\Console\Api\Dto\Library;
 use Phlix\Console\Api\Dto\MediaItem;
@@ -19,6 +20,7 @@ use Phlix\Console\Msg\LoginFailedMsg;
 use Phlix\Console\Msg\LoginSucceededMsg;
 use Phlix\Console\Msg\MediaRangeLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
+use Phlix\Console\Msg\OpenAlbumMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\OpenLibraryMsg;
 use Phlix\Console\Msg\OpenSearchMsg;
@@ -33,11 +35,13 @@ use Phlix\Console\Msg\SubmitLoginMsg;
 use Phlix\Console\Msg\SubmitServerMsg;
 use Phlix\Console\Msg\ToastTickMsg;
 use Phlix\Console\Route;
+use Phlix\Console\Screen\AlbumScreen;
 use Phlix\Console\Screen\BrowseScreen;
 use Phlix\Console\Screen\CapturesSlash;
 use Phlix\Console\Screen\DetailScreen;
 use Phlix\Console\Screen\LibraryScreen;
 use Phlix\Console\Screen\LoginScreen;
+use Phlix\Console\Screen\MusicScreen;
 use Phlix\Console\Screen\PlayerScreen;
 use Phlix\Console\Screen\SearchScreen;
 use Phlix\Console\Screen\ServerScreen;
@@ -283,6 +287,47 @@ final class AppTest extends TestCase
         self::assertInstanceOf(LibraryScreen::class, $lib->screen());
         self::assertSame(2, $lib->stackDepth(), 'library is pushed onto Browse');
         self::assertInstanceOf(\Closure::class, $cmd, 'the library loads its first window on push');
+    }
+
+    public function testOpenAMusicLibraryPushesTheMusicScreen(): void
+    {
+        $browse = $this->browsing();
+
+        [$music, $cmd] = $browse->update(new OpenLibraryMsg('lib-music', 'Tunes', 'music'));
+
+        self::assertSame(Route::Music, $music->route());
+        self::assertInstanceOf(MusicScreen::class, $music->screen());
+        self::assertSame(2, $music->stackDepth(), 'music is pushed onto Browse');
+        self::assertInstanceOf(\Closure::class, $cmd, 'the music screen fetches its albums on push');
+    }
+
+    public function testANonMusicLibraryStillPushesTheLibraryScreen(): void
+    {
+        $browse = $this->browsing();
+
+        [$lib] = $browse->update(new OpenLibraryMsg('lib-a', 'Movies', 'movie'));
+
+        self::assertSame(Route::Library, $lib->route());
+        self::assertInstanceOf(LibraryScreen::class, $lib->screen());
+    }
+
+    public function testOpenAlbumPushesTheAlbumScreen(): void
+    {
+        $browse = $this->browsing();
+        $album = Album::fromArray([
+            'name' => 'Abbey Road',
+            'artist' => 'The Beatles',
+            'year' => 1969,
+            'track_count' => 1,
+            'tracks' => [['id' => 't1', 'metadata' => ['title' => 'Come Together']]],
+        ]);
+
+        [$albumScreen, $cmd] = $browse->update(new OpenAlbumMsg($album));
+
+        self::assertSame(Route::Album, $albumScreen->route());
+        self::assertInstanceOf(AlbumScreen::class, $albumScreen->screen());
+        self::assertSame(2, $albumScreen->stackDepth(), 'the album is pushed on top, not replaced');
+        self::assertNull($cmd, 'the album carries its tracks, so there is nothing to fetch');
     }
 
     public function testOpenDetailPushesDetailScreen(): void
@@ -781,6 +826,26 @@ final class AppTest extends TestCase
         $msg = $this->runCmd($cmd);
         self::assertInstanceOf(OpenLibraryMsg::class, $msg);
         self::assertSame('lib1', $msg->libraryId);
+        self::assertSame('movie', $msg->type, 'the palette action carries the library type');
+    }
+
+    public function testPaletteGoToAMusicLibraryCarriesTheMusicType(): void
+    {
+        [$open] = $this->paletteApp()->update($this->ctrlK());
+        $libs = [Library::fromArray(['id' => 'lib2', 'name' => 'Music', 'type' => 'music'])];
+        [$augmented] = $open->update(new PaletteLibrariesLoadedMsg($libs));
+
+        // Rank "Go to Music" and open it → OpenLibraryMsg with type 'music'.
+        $typed = $augmented;
+        foreach (['m', 'u', 's', 'i', 'c'] as $rune) {
+            [$typed] = $typed->update(new KeyMsg(KeyType::Char, $rune));
+        }
+        [, $cmd] = $typed->update(new KeyMsg(KeyType::Enter));
+
+        $msg = $this->runCmd($cmd);
+        self::assertInstanceOf(OpenLibraryMsg::class, $msg);
+        self::assertSame('lib2', $msg->libraryId);
+        self::assertSame('music', $msg->type);
     }
 
     public function testPaletteLibrariesIgnoredWhenPaletteClosed(): void

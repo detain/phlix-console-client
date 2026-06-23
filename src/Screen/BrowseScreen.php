@@ -71,6 +71,8 @@ final class BrowseScreen implements Breadcrumbed
     private ?Rail $continueRail = null;
     /** @var array<string, Rail> keyed by library id, in display order */
     private array $libraryRails = [];
+    /** @var array<string, string> library id → type (drives type-aware opening) */
+    private array $libraryTypes = [];
     private int $railCursor = 0;
     private int $railScroll = 0;
     private ?string $error = null;
@@ -216,6 +218,7 @@ final class BrowseScreen implements Breadcrumbed
     private function onLibraries(array $libraries): array
     {
         $rails = [];
+        $types = [];
         $cmds = [];
         foreach ($libraries as $library) {
             // Skip the (production-impossible) id that collides with the
@@ -224,10 +227,12 @@ final class BrowseScreen implements Breadcrumbed
                 continue;
             }
             $rails[$library->id] = new Rail($library->name);
+            $types[$library->id] = $library->type;
             $cmds[] = $this->fetchLibraryMedia($library->id);
         }
 
         $next = $this->withLibraryRails($rails);
+        $next->libraryTypes = $types;
         $next = $next->withSidebar($next->sidebar->withEntries($next->sidebarEntries()));
 
         // Clamp the cursor in case a reload returned fewer rails than before.
@@ -385,7 +390,7 @@ final class BrowseScreen implements Breadcrumbed
             return [$this, null];
         }
 
-        return [$this, Cmd::send(new OpenLibraryMsg($libraryId, $rail->title))];
+        return [$this, Cmd::send(new OpenLibraryMsg($libraryId, $rail->title, $this->libraryTypes[$libraryId] ?? ''))];
     }
 
     private function moveRail(int $delta, int $count): self

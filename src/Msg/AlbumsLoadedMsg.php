@@ -1,0 +1,20 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Phlix\Console\Msg;
+
+use Phlix\Console\Api\Dto\Album;
+use SugarCraft\Core\Msg;
+
+/** The music library's album list arrived — the MusicScreen fills its table. */
+final readonly class AlbumsLoadedMsg implements Msg
+{
+    /**
+     * @param list<Album> $albums
+     */
+    public function __construct(
+        public array $albums,
+    ) {
+    }
+}
