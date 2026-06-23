@@ -13,7 +13,7 @@ use Phlix\Console\Msg\OpenAlbumMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Store\MusicStore;
 use Phlix\Console\Ui\Chrome;
-use Phlix\Console\Ui\TableView;
+use Phlix\Console\Ui\Table;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Msg;
@@ -22,9 +22,10 @@ use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\SubscriptionCapable;
 
 /**
- * A music library's album list, rendered as a plain-text {@see TableView}
- * (Album · Artist · Year · Tracks). Music has no cover art server-side, so the
- * screen is text-forward. ↑/↓ move the selection, Enter opens the album's track
+ * A music library's album list, rendered as a borderless sugar-table via
+ * {@see Table} (Album · Artist · Year · Tracks) with reverse-video row
+ * selection. Music has no cover art server-side, so the screen is text-forward.
+ * ↑/↓ move the selection, Enter opens the album's track
  * list (an {@see OpenAlbumMsg} the App turns into an AlbumScreen), Esc/q go back.
  *
  * The album list is fetched once via {@see MusicStore::albums()} (the server
@@ -153,7 +154,7 @@ final class MusicScreen implements Breadcrumbed
             ];
         }
 
-        return TableView::render([
+        return Table::render([
             ['title' => 'Album', 'width' => 0],
             ['title' => 'Artist', 'width' => self::ARTIST_WIDTH],
             ['title' => 'Year', 'width' => self::YEAR_WIDTH, 'align' => 'right'],
