@@ -51,6 +51,22 @@ final class Coerce
         return self::nint($value) ?? $default;
     }
 
+    /** Coerce a numeric value to float, or null when absent/non-numeric. */
+    public static function nfloat(mixed $value): ?float
+    {
+        if ($value === null || $value === '' || !is_numeric($value)) {
+            return null;
+        }
+
+        return (float) $value;
+    }
+
+    /** Coerce a numeric value to float with a default (e.g. marker seconds). */
+    public static function float(mixed $value, float $default = 0.0): float
+    {
+        return self::nfloat($value) ?? $default;
+    }
+
     /** Coerce assorted truthy encodings (bool, 0|1, "0"|"1", "true") to bool. */
     public static function bool(mixed $value): bool
     {

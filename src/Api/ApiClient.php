@@ -12,6 +12,7 @@ use Phlix\Console\Api\Dto\Library;
 use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\Dto\MediaPage;
 use Phlix\Console\Api\Dto\PlaybackInfo;
+use Phlix\Console\Api\Dto\PlaybackMarkers;
 use Phlix\Console\Config\TokenBundle;
 use Psr\Http\Message\ResponseInterface;
 use React\Promise\Deferred;
@@ -214,6 +215,21 @@ final class ApiClient
     {
         return $this->authed('GET', '/api/v1/media/' . rawurlencode($id) . '/playback')
             ->then(static fn (array $data): PlaybackInfo => PlaybackInfo::fromArray(Coerce::map($data['playback_info'] ?? null)));
+    }
+
+    /**
+     * Intro/outro skip markers + chapters for the player's scrubber.
+     *
+     * A SEPARATE endpoint from {@see playbackInfo()} (which returns media
+     * sources): `/playback-info` is a flat `{item_id, intro_marker, outro_marker,
+     * chapters, skip_button_spec}` object served by the Application router.
+     *
+     * @return PromiseInterface<PlaybackMarkers>
+     */
+    public function playbackMarkers(string $id): PromiseInterface
+    {
+        return $this->authed('GET', '/api/v1/media/' . rawurlencode($id) . '/playback-info')
+            ->then(static fn (array $data): PlaybackMarkers => PlaybackMarkers::fromArray($data));
     }
 
     // ---- internals -----------------------------------------------------
