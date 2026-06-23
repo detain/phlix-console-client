@@ -5,18 +5,22 @@ declare(strict_types=1);
 namespace Phlix\Console;
 
 use Phlix\Console\Api\ApiClient;
+use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Album;
 use Phlix\Console\Api\Dto\AuthUser;
 use Phlix\Console\Api\Dto\Library;
 use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\Dto\PhotoAlbum;
 use Phlix\Console\Api\NetworkError;
+use Phlix\Console\Audio\NowPlaying;
 use Phlix\Console\Config\Config;
+use Phlix\Console\Msg\AudioSkipMsg;
 use Phlix\Console\Msg\BootResolvedMsg;
 use Phlix\Console\Msg\GoHomeMsg;
 use Phlix\Console\Msg\LoginFailedMsg;
 use Phlix\Console\Msg\LoginSucceededMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
+use Phlix\Console\Msg\NowPlayingTickMsg;
 use Phlix\Console\Msg\OpenAlbumMsg;
 use Phlix\Console\Msg\OpenAudiobookMsg;
 use Phlix\Console\Msg\OpenBookMsg;
@@ -29,14 +33,18 @@ use Phlix\Console\Msg\OpenSettingsMsg;
 use Phlix\Console\Msg\PaletteLibrariesLoadedMsg;
 use Phlix\Console\Msg\PlayNextMsg;
 use Phlix\Console\Msg\PlayRequestedMsg;
+use Phlix\Console\Msg\PlayTrackMsg;
 use Phlix\Console\Msg\RequestLogoutMsg;
 use Phlix\Console\Msg\RequestQuitMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\SettingsSavedMsg;
 use Phlix\Console\Msg\ShowToastMsg;
+use Phlix\Console\Msg\StopAudioMsg;
 use Phlix\Console\Msg\SubmitLoginMsg;
 use Phlix\Console\Msg\SubmitServerMsg;
 use Phlix\Console\Msg\ToastTickMsg;
+use Phlix\Console\Msg\ToggleAudioMsg;
+use Phlix\Console\Msg\TrackResolvedMsg;
 use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Screen\AlbumScreen;
 use Phlix\Console\Screen\AudiobookDetailScreen;
@@ -68,8 +76,10 @@ use Phlix\Console\Store\MusicStore;
 use Phlix\Console\Store\PhotosStore;
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\CommandPalette;
+use Phlix\Console\Ui\NowPlayingBar;
 use Phlix\Console\Ui\PaletteAction;
 use Phlix\Console\Ui\Theme;
+use React\Promise\PromiseInterface;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Model;
@@ -77,6 +87,7 @@ use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\SubscriptionCapable;
+use SugarCraft\Core\Util\Width;
 use SugarCraft\Toast\Position;
 use SugarCraft\Toast\Toast;
 
@@ -107,10 +118,20 @@ final class App implements Model
     private readonly Theme $theme;
 
     /**
+     * Builds the audio player for a resolved music stream URL — injected so tests
+     * use a recording fake instead of spawning ffplay/mpv.
+     *
+     * @var \Closure(string $url, ?int $startMs=): \SugarCraft\Reel\AudioPlayer
+     */
+    private readonly \Closure $audioFactory;
+
+    /**
      * @param list<array{route: Route, screen: Model}> $stack top frame last; empty = the loading state
      * @param bool $toastTicking whether a prune tick is already in flight (so a burst of toasts doesn't stack ticks)
      * @param ?CommandPalette $palette the open command palette overlay, or null when closed
      * @param ?Theme $theme the active theme; null defaults to {@see Theme::nocturne()} (the identity look)
+     * @param ?NowPlaying $nowPlaying the App-owned music session (persists across navigation), or null when nothing plays
+     * @param ?(\Closure(string, ?int): \SugarCraft\Reel\AudioPlayer) $audioFactory builds the player for a stream URL; null defaults to the production ffplay/mpv factory
      */
     public function __construct(
         private readonly Config $config,
@@ -127,9 +148,12 @@ final class App implements Model
         private readonly bool $toastTicking = false,
         private readonly ?CommandPalette $palette = null,
         ?Theme $theme = null,
+        private readonly ?NowPlaying $nowPlaying = null,
+        ?\Closure $audioFactory = null,
     ) {
         $this->toast = $toast ?? self::defaultToast();
         $this->theme = $theme ?? Theme::nocturne();
+        $this->audioFactory = $audioFactory ?? NowPlaying::productionAudioFactory();
     }
 
     private static function defaultToast(): Toast
@@ -137,7 +161,11 @@ final class App implements Model
         return Toast::new()->withPosition(Position::TopRight)->withDuration(self::TOAST_DURATION);
     }
 
-    /** Pick the entry screen from persisted config. */
+    /**
+     * Pick the entry screen from persisted config.
+     *
+     * @param ?(\Closure(string, ?int): \SugarCraft\Reel\AudioPlayer) $audioFactory the music-player factory (a recording fake in tests); null = the production ffplay/mpv factory
+     */
     public static function boot(
         Config $config,
         AuthStore $auth,
@@ -145,6 +173,7 @@ final class App implements Model
         LibrariesStore $libraries,
         MediaStore $media,
         PosterLoader $posters,
+        ?\Closure $audioFactory = null,
     ): self {
         // The persisted theme name (if any) maps to a preset; an absent / unknown
         // name falls back to Nocturne (the identity look) via Theme::byName().
@@ -153,10 +182,10 @@ final class App implements Model
         if (!$config->hasServer()) {
             $screen = ServerScreen::create();
 
-            return new self($config, $auth, $api, $libraries, $media, $posters, [['route' => Route::ServerSetup, 'screen' => $screen]], $screen->init(), theme: $theme);
+            return new self($config, $auth, $api, $libraries, $media, $posters, [['route' => Route::ServerSetup, 'screen' => $screen]], $screen->init(), theme: $theme, audioFactory: $audioFactory);
         }
 
-        return new self($config, $auth, $api, $libraries, $media, $posters, [], self::restoreCmd($auth), theme: $theme);
+        return new self($config, $auth, $api, $libraries, $media, $posters, [], self::restoreCmd($auth), theme: $theme, audioFactory: $audioFactory);
     }
 
     public function init(): ?\Closure
@@ -173,6 +202,8 @@ final class App implements Model
             if ($top instanceof Teardownable) {
                 $top->teardown();
             }
+            // The App owns the music audio now, so leaving stops ffplay/mpv too.
+            $this->nowPlaying?->teardown();
 
             return [$this, Cmd::quit()];
         }
@@ -246,6 +277,24 @@ final class App implements Model
         if ($msg instanceof SettingsSavedMsg) {
             return $this->saveSettings($msg->themeName, $msg->slideshowInterval);
         }
+        if ($msg instanceof PlayTrackMsg) {
+            return $this->playTrack($msg->album, $msg->index);
+        }
+        if ($msg instanceof TrackResolvedMsg) {
+            return $this->onTrackResolved($msg->album, $msg->index, $msg->url);
+        }
+        if ($msg instanceof NowPlayingTickMsg) {
+            return $this->onNowPlayingTick($msg->epoch);
+        }
+        if ($msg instanceof ToggleAudioMsg) {
+            return $this->toggleAudio();
+        }
+        if ($msg instanceof AudioSkipMsg) {
+            return $this->skipAudio($msg->delta);
+        }
+        if ($msg instanceof StopAudioMsg) {
+            return $this->stopAudio();
+        }
         if ($msg instanceof PlayRequestedMsg) {
             return $this->openPlayer($msg->item);
         }
@@ -291,6 +340,13 @@ final class App implements Model
     public function view(): string
     {
         $view = $this->baseView();
+        // The App owns the music audio, so a persistent now-playing bar is
+        // composited onto the bottom row of every screen (replacing the chrome's
+        // last line) — playback stays visible as the user navigates. The palette
+        // + toasts then layer ON TOP of the bar.
+        if ($this->nowPlaying !== null) {
+            $view = $this->compositeNowPlayingBar($view, $this->nowPlaying);
+        }
         // The command palette dims + centers its box over the screen; toasts then
         // float over everything (palette included).
         if ($this->palette !== null) {
@@ -300,6 +356,24 @@ final class App implements Model
         // Toast::View is a no-op (returns the background unchanged) when nothing
         // is queued.
         return $this->toast->View($view, max(1, $this->cols), max(1, $this->rows));
+    }
+
+    /**
+     * Replace the bottom row of $view with $nowPlaying's bar, ANSI-safe. The
+     * chrome renders exactly $rows lines, so the last line is the status row; we
+     * swap just that one line and leave every line above untouched (a precise,
+     * non-corrupting line-replace — overlays composite over the result).
+     * `explode("\n", …)` always yields at least one element, so the last-line
+     * index is always valid.
+     */
+    private function compositeNowPlayingBar(string $view, NowPlaying $nowPlaying): string
+    {
+        $bar = NowPlayingBar::render($nowPlaying, max(1, $this->cols), $this->theme);
+
+        $lines = explode("\n", $view);
+        $lines[count($lines) - 1] = $bar;
+
+        return implode("\n", $lines);
     }
 
     private function baseView(): string
@@ -393,6 +467,8 @@ final class App implements Model
             $ticking,
             $this->palette,
             $this->theme,
+            $this->nowPlaying,
+            $this->audioFactory,
         );
     }
 
@@ -453,13 +529,25 @@ final class App implements Model
     /** @return list<PaletteAction> */
     private function staticActions(): array
     {
-        return [
+        $actions = [
             new PaletteAction('Search', new OpenSearchMsg()),
             new PaletteAction('Home', new GoHomeMsg()),
             new PaletteAction('Settings', new OpenSettingsMsg()),
-            new PaletteAction('Log out', new RequestLogoutMsg()),
-            new PaletteAction('Quit', new RequestQuitMsg()),
         ];
+        // Music controls are universal (no key conflict) — surfaced in the palette
+        // only while a session is playing, so they reach the App-owned audio from
+        // any screen.
+        if ($this->nowPlaying !== null) {
+            $actions[] = new PaletteAction(
+                $this->nowPlaying->paused() ? 'Resume playback' : 'Pause playback',
+                new ToggleAudioMsg(),
+            );
+            $actions[] = new PaletteAction('Stop playback', new StopAudioMsg());
+        }
+        $actions[] = new PaletteAction('Log out', new RequestLogoutMsg());
+        $actions[] = new PaletteAction('Quit', new RequestQuitMsg());
+
+        return $actions;
     }
 
     private function isSearchKey(KeyMsg $msg): bool
@@ -518,6 +606,8 @@ final class App implements Model
             $this->toastTicking,
             $palette,
             $this->theme,
+            $this->nowPlaying,
+            $this->audioFactory,
         );
     }
 
@@ -606,6 +696,8 @@ final class App implements Model
         if ($top instanceof Teardownable) {
             $top->teardown();
         }
+        // The App owns the music audio now, so leaving stops ffplay/mpv too.
+        $this->nowPlaying?->teardown();
 
         return [$this, Cmd::quit()];
     }
@@ -681,14 +773,10 @@ final class App implements Model
 
     private function openAlbum(Album $album): array
     {
-        $screen = new AlbumScreen(
-            $album,
-            $this->media,
-            $this->api->baseUrl(),
-            AlbumScreen::productionAudioFactory(),
-            cols: $this->cols,
-            rows: $this->rows,
-        );
+        // The AlbumScreen is now a pure list that EMITS play/control Msgs; the
+        // App owns the music audio (NowPlaying), so the screen needs no store /
+        // base URL / audio factory.
+        $screen = new AlbumScreen($album, cols: $this->cols, rows: $this->rows);
 
         return [$this->push(Route::Album, $screen), $screen->init()];
     }
@@ -822,6 +910,179 @@ final class App implements Model
         return [$this->popScreen()->withConfig($newConfig)->withTheme($newTheme), null];
     }
 
+    // ---- music audio (App-owned session) -------------------------------
+    //
+    // The music audio lives on the App (not the AlbumScreen) so playback
+    // persists across navigation, shown by the NowPlayingBar. The epoch
+    // discipline is relocated VERBATIM from the old AlbumScreen: every (re)start
+    // of the heartbeat bumps {@see NowPlaying::epoch()} so a tick from a
+    // superseded chain is dropped as stale — never two heartbeats at once.
+
+    /** A toast shown when a track can't be resolved/played. */
+    private const PLAY_TRACK_FAILED = 'Could not play this track';
+
+    /**
+     * Start playing track $index of $album: resolve its signed stream URL
+     * ({@see MediaStore::item}), then → {@see TrackResolvedMsg} which spawns the
+     * player. An out-of-range index is a no-op. If a session is already playing,
+     * its heartbeat is superseded (epoch bumped) so the outgoing track can't keep
+     * ticking/auto-advancing while the new track resolves — exactly as the old
+     * AlbumScreen::play did.
+     */
+    private function playTrack(Album $album, int $index): array
+    {
+        $track = $album->tracks[$index] ?? null;
+        if ($track === null) {
+            return [$this, null];
+        }
+
+        $app = $this->nowPlaying !== null
+            ? $this->withNowPlaying($this->nowPlaying->withEpoch($this->nowPlaying->epoch() + 1))
+            : $this;
+
+        return [$app, $app->fetchTrackCmd($album, $index, $track->id)];
+    }
+
+    /**
+     * Resolve track $index's signed stream URL via the detail endpoint, then →
+     * {@see TrackResolvedMsg}. A missing/empty URL or a non-auth error becomes an
+     * error toast (current playback untouched); an auth failure surfaces as a
+     * session expiry. Mirrors the old AlbumScreen::fetchStreamCmd + resolveUrl.
+     */
+    private function fetchTrackCmd(Album $album, int $index, string $trackId): \Closure
+    {
+        return Cmd::promise(fn (): PromiseInterface => $this->media->item($trackId)->then(
+            function (MediaItem $item) use ($album, $index): Msg {
+                $url = $item->streamUrl;
+                if ($url === null || $url === '') {
+                    return ShowToastMsg::error(self::PLAY_TRACK_FAILED);
+                }
+
+                return new TrackResolvedMsg($album, $index, $this->resolveUrl($url));
+            },
+            static fn (\Throwable $e): Msg => $e instanceof AuthError
+                ? new SessionExpiredMsg('Your session expired. Please sign in again.')
+                : ShowToastMsg::error(self::PLAY_TRACK_FAILED),
+        ));
+    }
+
+    /**
+     * The stream URL resolved — stop any current player, spawn the new one, open
+     * (or replace) the App's now-playing session, and arm the 1-second heartbeat
+     * under a fresh epoch. Mirrors the old AlbumScreen::onAudioStarted.
+     */
+    private function onTrackResolved(Album $album, int $index, string $url): array
+    {
+        $prevEpoch = $this->nowPlaying?->epoch() ?? 0;
+        $this->nowPlaying?->teardown();
+
+        $player = ($this->audioFactory)($url, null);
+        $player->start();
+
+        $epoch = $prevEpoch + 1;
+        $nowPlaying = new NowPlaying($player, $album, $index, paused: false, positionSecs: 0, epoch: $epoch);
+
+        return [$this->withNowPlaying($nowPlaying), $this->nowPlayingTickCmd($epoch)];
+    }
+
+    /**
+     * One playback second elapsed: advance the estimated position and re-arm the
+     * tick. At/after the track's known duration, auto-advance to the next track
+     * (re-resolve + play, bumping the epoch) or stop at the last one. A tick from
+     * a superseded heartbeat — or while nothing plays / paused — is dropped.
+     * Mirrors the old AlbumScreen::onAudioTick EXACTLY.
+     */
+    private function onNowPlayingTick(int $epoch): array
+    {
+        $np = $this->nowPlaying;
+        if ($np === null || $epoch !== $np->epoch() || $np->paused()) {
+            return [$this, null];
+        }
+
+        $advanced = $np->withPositionSecs($np->positionSecs() + 1);
+
+        $duration = $np->durationSecs();
+        if ($duration !== null && $advanced->positionSecs() >= $duration) {
+            // Track finished — advance to the next, or stop at the end.
+            $nextIndex = $np->trackIndex() + 1;
+            if ($nextIndex < count($np->album()->tracks)) {
+                return $this->playTrack($np->album(), $nextIndex);
+            }
+            $np->teardown();
+
+            return [$this->withNowPlaying(null), null];
+        }
+
+        // Continue the SAME generation (no epoch bump here).
+        return [$this->withNowPlaying($advanced), $this->nowPlayingTickCmd($epoch)];
+    }
+
+    /**
+     * Toggle pause/resume on the active session. Bumps the epoch either way:
+     * pausing invalidates the in-flight tick (no re-arm); resuming starts a fresh
+     * heartbeat no leftover tick can double. Mirrors the old AlbumScreen::togglePause.
+     */
+    private function toggleAudio(): array
+    {
+        $np = $this->nowPlaying;
+        if ($np === null) {
+            return [$this, null];
+        }
+
+        $epoch = $np->epoch() + 1;
+        if (!$np->paused()) {
+            $np->player()->pause();
+
+            return [$this->withNowPlaying($np->withPaused(true)->withEpoch($epoch)), null];
+        }
+
+        $np->player()->resume();
+
+        return [$this->withNowPlaying($np->withPaused(false)->withEpoch($epoch)), $this->nowPlayingTickCmd($epoch)];
+    }
+
+    /**
+     * Move the session to the track $delta away (next/prev), if in range — the
+     * resolve→onTrackResolved chain bumps the epoch (and playTrack supersedes the
+     * current heartbeat). A no-op when nothing plays or the move runs off an end.
+     */
+    private function skipAudio(int $delta): array
+    {
+        $np = $this->nowPlaying;
+        if ($np === null) {
+            return [$this, null];
+        }
+        $target = $np->trackIndex() + $delta;
+        if ($target < 0 || $target >= count($np->album()->tracks)) {
+            return [$this, null];
+        }
+
+        return $this->playTrack($np->album(), $target);
+    }
+
+    /** Stop + clear the active session (tears the player down; bar disappears). */
+    private function stopAudio(): array
+    {
+        $this->nowPlaying?->teardown();
+
+        return [$this->withNowPlaying(null), null];
+    }
+
+    private function nowPlayingTickCmd(int $epoch): \Closure
+    {
+        return Cmd::tick(1.0, static fn (): Msg => new NowPlayingTickMsg($epoch));
+    }
+
+    /** Resolve a (possibly relative) URL against the server base; absolute/empty pass through. */
+    private function resolveUrl(string $url): string
+    {
+        if ($url === '' || preg_match('#^https?://#i', $url) === 1) {
+            return $url; // empty, or already absolute (signed URLs are absolute)
+        }
+
+        return rtrim($this->api->baseUrl(), '/') . '/' . ltrim($url, '/');
+    }
+
     private function openPlayer(MediaItem $item): array
     {
         $screen = new PlayerScreen(
@@ -952,6 +1213,7 @@ final class App implements Model
         return new self(
             $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
             $stack, null, $this->cols, $this->rows, $this->toast, $this->toastTicking, $this->palette, $this->theme,
+            $this->nowPlaying, $this->audioFactory,
         );
     }
 
@@ -979,6 +1241,7 @@ final class App implements Model
         $app = new self(
             $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
             $stack, null, $cols, $rows, $this->toast, $this->toastTicking, $this->palette?->resizedTo($cols, $rows), $this->theme,
+            $this->nowPlaying, $this->audioFactory,
         );
 
         return [$app, $cmds === [] ? null : Cmd::batch(...$cmds)];
@@ -1023,6 +1286,12 @@ final class App implements Model
         return $this->config;
     }
 
+    /** The App's active music session, or null when nothing is playing. */
+    public function nowPlaying(): ?NowPlaying
+    {
+        return $this->nowPlaying;
+    }
+
     /**
      * A copy switched to $theme (T2 uses this to apply a live theme change). The
      * theme is applied transiently to the top screen on the next render, so the
@@ -1033,6 +1302,7 @@ final class App implements Model
         return new self(
             $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
             $this->stack, null, $this->cols, $this->rows, $this->toast, $this->toastTicking, $this->palette, $theme,
+            $this->nowPlaying, $this->audioFactory,
         );
     }
 
@@ -1046,6 +1316,37 @@ final class App implements Model
         return new self(
             $config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
             $this->stack, null, $this->cols, $this->rows, $this->toast, $this->toastTicking, $this->palette, $this->theme,
+            $this->nowPlaying, $this->audioFactory,
+        );
+    }
+
+    /**
+     * A copy carrying the App's active music session $nowPlaying (or null to
+     * clear it). Every other field is preserved. Internal: audio transitions
+     * route through here so the now-playing bar follows the session.
+     */
+    private function withNowPlaying(?NowPlaying $nowPlaying): self
+    {
+        return new self(
+            $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
+            $this->stack, null, $this->cols, $this->rows, $this->toast, $this->toastTicking, $this->palette, $this->theme,
+            $nowPlaying, $this->audioFactory,
+        );
+    }
+
+    /**
+     * A copy whose music-player factory is $audioFactory (a recording fake in
+     * tests). Every other field is preserved. The test seam for the App's
+     * audio session (so AppTest can capture stream URLs without spawning ffplay).
+     *
+     * @param \Closure(string, ?int): \SugarCraft\Reel\AudioPlayer $audioFactory
+     */
+    public function withAudioFactory(\Closure $audioFactory): self
+    {
+        return new self(
+            $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
+            $this->stack, null, $this->cols, $this->rows, $this->toast, $this->toastTicking, $this->palette, $this->theme,
+            $this->nowPlaying, $audioFactory,
         );
     }
 }
