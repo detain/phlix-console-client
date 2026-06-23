@@ -13,8 +13,8 @@ use SugarCraft\Core\Msg;
  * position by counting these 1-second ticks while the book plays (re-arming
  * each tick) — and reports/persists progress off that count.
  *
- * A DEDICATED tick Msg (NOT the AlbumScreen {@see AudioTickMsg}) so the two
- * screens never cross-fire a tick if both ever coexist on the stack.
+ * A DEDICATED tick Msg (distinct from the App's music {@see NowPlayingTickMsg})
+ * so the two never cross-fire a tick.
  *
  * Carries the audio epoch it was armed under: any state change that
  * (re)starts the heartbeat (play, chapter-seek, resume) bumps the epoch, so a
