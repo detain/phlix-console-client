@@ -17,6 +17,7 @@ use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\SearchDebouncedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
+use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Store\MediaRange;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Ui\Chrome;
@@ -55,6 +56,7 @@ final class LibraryScreen implements Breadcrumbed
     private const OVERSCAN = 1;
     private const SEARCH_DEBOUNCE = 0.3;
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const LOAD_MORE_FAILED = "Couldn't load more items.";
     private const HINT = '↑↓←→  move      A–Z  jump      /  filter      Esc  back';
     private const FILTER_HINT = 'type to search      Tab  field      ←→  change      Esc  done';
 
@@ -128,9 +130,12 @@ final class LibraryScreen implements Breadcrumbed
             return [$this->onPoster($msg->index, $msg->ansi), null];
         }
         if ($msg instanceof LibraryFailedMsg) {
-            // Only surface a failure that blocked the first load; ignore a
-            // transient scroll-time error once the grid is populated.
-            return [$this->loaded ? $this : $this->withError($msg->reason), null];
+            // A failure that blocked the first load replaces the screen body; a
+            // transient scroll-time error keeps the populated grid and surfaces a
+            // toast (it was previously swallowed in silence).
+            return $this->loaded
+                ? [$this, Cmd::send(ShowToastMsg::error(self::LOAD_MORE_FAILED))]
+                : [$this->withError($msg->reason), null];
         }
 
         return [$this, null];
