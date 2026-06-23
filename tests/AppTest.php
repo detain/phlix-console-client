@@ -14,14 +14,16 @@ use Phlix\Console\App;
 use Phlix\Console\Config\Config;
 use Phlix\Console\Config\TokenBundle;
 use Phlix\Console\Config\TokenStore;
+use Phlix\Console\Audio\NowPlaying;
 use Phlix\Console\Media\PosterLoader;
-use Phlix\Console\Msg\AudioStartedMsg;
+use Phlix\Console\Msg\AudioSkipMsg;
 use Phlix\Console\Msg\BootResolvedMsg;
 use Phlix\Console\Msg\GoHomeMsg;
 use Phlix\Console\Msg\LoginFailedMsg;
 use Phlix\Console\Msg\LoginSucceededMsg;
 use Phlix\Console\Msg\MediaRangeLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
+use Phlix\Console\Msg\NowPlayingTickMsg;
 use Phlix\Console\Msg\OpenAlbumMsg;
 use Phlix\Console\Msg\OpenAudiobookMsg;
 use Phlix\Console\Msg\OpenBookMsg;
@@ -34,14 +36,18 @@ use Phlix\Console\Msg\OpenSettingsMsg;
 use Phlix\Console\Msg\PaletteLibrariesLoadedMsg;
 use Phlix\Console\Msg\PlayNextMsg;
 use Phlix\Console\Msg\PlayRequestedMsg;
+use Phlix\Console\Msg\PlayTrackMsg;
 use Phlix\Console\Msg\RequestLogoutMsg;
 use Phlix\Console\Msg\RequestQuitMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\SettingsSavedMsg;
 use Phlix\Console\Msg\ShowToastMsg;
+use Phlix\Console\Msg\StopAudioMsg;
 use Phlix\Console\Msg\SubmitLoginMsg;
 use Phlix\Console\Msg\SubmitServerMsg;
 use Phlix\Console\Msg\ToastTickMsg;
+use Phlix\Console\Msg\ToggleAudioMsg;
+use Phlix\Console\Msg\TrackResolvedMsg;
 use Phlix\Console\Route;
 use Phlix\Console\Screen\AlbumScreen;
 use Phlix\Console\Screen\AudiobookDetailScreen;
@@ -528,47 +534,9 @@ final class AppTest extends TestCase
         self::assertSame(2, $albumScreen->stackDepth(), 'the album is pushed on top, not replaced');
         self::assertNull($cmd, 'the album carries its tracks, so there is nothing to fetch');
 
-        // The pushed AlbumScreen is now audio-capable (Teardownable).
-        self::assertInstanceOf(Teardownable::class, $albumScreen->screen());
-    }
-
-    public function testPlayingAnAlbumTrackThenNavigatingBackTearsDownTheAudio(): void
-    {
-        // A real audio-capable AlbumScreen on the stack, wired to a recording
-        // audio factory so no ffplay is spawned. Playing a track then popping the
-        // frame (NavigateBack) must stop the audio.
-        $player = null;
-        $album = Album::fromArray([
-            'name' => 'Abbey Road',
-            'tracks' => [['id' => 't1', 'metadata' => ['title' => 'Come Together', 'duration_secs' => 100]]],
-        ]);
-        $transport = (new FakeTransport())->json(200, ['item' => ['id' => 't1', 'name' => 'Come Together', 'type' => 'music', 'stream_url' => 'https://srv/s/t1']]);
-        $media = new MediaStore(new ApiClient('https://srv', $transport));
-        $factory = function (string $url) use (&$player): FakeAudioPlayer {
-            return $player = new FakeAudioPlayer($url);
-        };
-        $screen = new AlbumScreen($album, $media, 'https://srv', $factory, cols: 80, rows: 24);
-        $app = $this->appWithStack([['route' => Route::Album, 'screen' => $screen]]);
-
-        // Enter → the App routes the key to the AlbumScreen, which fetches the URL.
-        [$loading, $cmd] = $app->update(new KeyMsg(KeyType::Enter));
-        $started = $this->runCmd($cmd);
-        self::assertInstanceOf(AudioStartedMsg::class, $started);
-        [$playing] = $loading->update($started);
-        self::assertNotNull($player);
-        self::assertSame(1, $player->startCalls, 'the track started playing');
-
-        // NavigateBack would pop the only frame (no-op below depth 1) — but the
-        // App still routes the pop through teardown when a frame is discarded.
-        // Push a root beneath so the album can actually pop.
-        $deeper = $this->appWithStack([
-            ['route' => Route::Browse, 'screen' => new SpyTeardownScreen()],
-            ['route' => Route::Album, 'screen' => $playing->screen()],
-        ]);
-        [$popped] = $deeper->update(new NavigateBackMsg());
-
-        self::assertSame(1, $popped->stackDepth(), 'the album frame was popped');
-        self::assertSame(1, $player->stopCalls, 'popping the album stops the audio (no leaked ffplay)');
+        // The AlbumScreen is a pure list now (the App owns the music audio), so it
+        // is NOT Teardownable — leaving it does not stop playback.
+        self::assertNotInstanceOf(Teardownable::class, $albumScreen->screen());
     }
 
     public function testOpenDetailPushesDetailScreen(): void
@@ -1465,6 +1433,494 @@ final class AppTest extends TestCase
         self::assertSame(4, $browse->config()->slideshowInterval, 'the original app config is unchanged');
         self::assertSame(30, $next->config()->slideshowInterval);
         self::assertSame($browse->stackDepth(), $next->stackDepth(), 'the screen stack is preserved');
+    }
+
+    // ---- music audio (App-owned session) -------------------------------
+    //
+    // The music audio MOVED from AlbumScreen to the App, so playback persists
+    // across navigation, shown by the NowPlayingBar. These tests are the relocated
+    // audio suite, driven with a recording FakeAudioPlayer factory (capturing
+    // URLs) over a FakeTransport serving /media/{id}.
+
+    private const STREAM = 'https://srv/media/t1/stream?exp=1&sig=abc';
+
+    /** The most recent fake audio player the App's factory produced. */
+    private ?FakeAudioPlayer $lastAudioPlayer = null;
+    /** Every URL the App's audio factory was handed (in order). @var list<string> */
+    private array $audioUrls = [];
+
+    private function audioAlbum(): Album
+    {
+        return Album::fromArray([
+            'name' => 'Abbey Road',
+            'artist' => 'The Beatles',
+            'year' => 1969,
+            'track_count' => 2,
+            'tracks' => [
+                ['id' => 't1', 'metadata' => ['title' => 'Come Together', 'track_number' => 1, 'duration_secs' => 259]],
+                ['id' => 't2', 'metadata' => ['title' => 'Something', 'track_number' => 2, 'duration_secs' => 182]],
+            ],
+        ]);
+    }
+
+    /** A `/media/{id}` detail response carrying a (signed) stream URL. */
+    private function itemResponse(?string $streamUrl): array
+    {
+        return ['item' => ['id' => 't1', 'name' => 'Come Together', 'type' => 'music', 'stream_url' => $streamUrl]];
+    }
+
+    /**
+     * An App over a single Browse-like frame, wired to a real MediaStore (the
+     * given FakeTransport, defaulting to a /media response with a signed URL) and
+     * a recording audio factory (capturing URLs, no ffplay). The App owns the
+     * music session, so the stack is irrelevant to playback.
+     */
+    private function audioApp(?FakeTransport $transport = null): App
+    {
+        $transport ??= (new FakeTransport())->json(200, $this->itemResponse(self::STREAM));
+        $api = new ApiClient('https://srv', $transport);
+        $factory = function (string $url, ?int $startMs = null): FakeAudioPlayer {
+            $this->audioUrls[] = $url;
+
+            return $this->lastAudioPlayer = new FakeAudioPlayer($url);
+        };
+
+        $app = new App(
+            new Config('https://srv'),
+            new AuthStore($api, TokenStore::default()),
+            $api,
+            new LibrariesStore($api),
+            new MediaStore($api),
+            new PosterLoader(Mosaic::halfBlock()),
+            [['route' => Route::Browse, 'screen' => new SpyTeardownScreen()]],
+        );
+
+        return $app->withAudioFactory($factory);
+    }
+
+    /** Drive PlayTrack → resolve → TrackResolved and return the now-playing App. */
+    private function startPlaying(App $app, ?Album $album = null, int $index = 0): App
+    {
+        [$app2, $cmd] = $app->update(new PlayTrackMsg($album ?? $this->audioAlbum(), $index));
+        $resolved = $this->runCmd($cmd);
+        self::assertInstanceOf(TrackResolvedMsg::class, $resolved);
+        [$playing] = $app2->update($resolved);
+
+        return $playing;
+    }
+
+    public function testPlayTrackResolvesTheUrlSpawnsThePlayerAndShowsTheBar(): void
+    {
+        $app = $this->audioApp();
+
+        // PlayTrack fetches the signed URL; the resolved Msg spawns the player.
+        [$resolving, $cmd] = $app->update(new PlayTrackMsg($this->audioAlbum(), 0));
+        $resolved = $this->runCmd($cmd);
+        self::assertInstanceOf(TrackResolvedMsg::class, $resolved);
+        self::assertSame(0, $resolved->index);
+        self::assertSame(self::STREAM, $resolved->url, 'the signed absolute URL is used verbatim');
+
+        [$playing, $tick] = $resolving->update($resolved);
+
+        self::assertNotNull($this->lastAudioPlayer);
+        self::assertSame(1, $this->lastAudioPlayer->startCalls, 'the player was started');
+        self::assertNotNull($tick, 'the position heartbeat is armed');
+        // Cmd::tick returns a TickRequest carrying the producer of the heartbeat Msg.
+        $request = $tick();
+        self::assertInstanceOf(\SugarCraft\Core\TickRequest::class, $request);
+        self::assertInstanceOf(NowPlayingTickMsg::class, ($request->produce)());
+
+        // The now-playing bar appears on the bottom row of the view.
+        $view = $playing->view();
+        self::assertStringContainsString('▶ Come Together', $view);
+        self::assertStringContainsString('Abbey Road · The Beatles', $view);
+        self::assertStringContainsString('0:00 / 4:19', $view);
+    }
+
+    public function testPlayTrackWithAnOutOfRangeIndexIsANoOp(): void
+    {
+        $app = $this->audioApp();
+
+        [$same, $cmd] = $app->update(new PlayTrackMsg($this->audioAlbum(), 99));
+
+        self::assertSame($app, $same, 'an out-of-range track index does nothing');
+        self::assertNull($cmd, 'no fetch is fired');
+        self::assertNull($app->nowPlaying());
+    }
+
+    public function testARelativeStreamUrlIsResolvedAgainstTheServerBase(): void
+    {
+        $app = $this->audioApp((new FakeTransport())->json(200, $this->itemResponse('/media/t1/stream?sig=x')));
+
+        [, $cmd] = $app->update(new PlayTrackMsg($this->audioAlbum(), 0));
+        $resolved = $this->runCmd($cmd);
+
+        self::assertInstanceOf(TrackResolvedMsg::class, $resolved);
+        self::assertSame('https://srv/media/t1/stream?sig=x', $resolved->url);
+    }
+
+    public function testToggleAudioPausesAndResumes(): void
+    {
+        $playing = $this->startPlaying($this->audioApp());
+        self::assertStringContainsString('▶ Come Together', $playing->view());
+
+        // Pause: the glyph flips, the player is paused, the tick stops.
+        [$paused, $pauseCmd] = $playing->update(new ToggleAudioMsg());
+        self::assertSame(1, $this->lastAudioPlayer?->pauseCalls);
+        self::assertNull($pauseCmd, 'pausing stops the heartbeat');
+        self::assertStringContainsString('⏸ Come Together', $paused->view());
+
+        // Resume: the player resumes and a fresh heartbeat re-arms.
+        [$resumed, $resumeCmd] = $paused->update(new ToggleAudioMsg());
+        self::assertSame(1, $this->lastAudioPlayer?->resumeCalls);
+        self::assertNotNull($resumeCmd, 'resuming re-arms the heartbeat');
+        self::assertStringContainsString('▶ Come Together', $resumed->view());
+    }
+
+    public function testToggleAudioWithNothingPlayingIsANoOp(): void
+    {
+        $app = $this->audioApp();
+
+        [$same, $cmd] = $app->update(new ToggleAudioMsg());
+
+        self::assertSame($app, $same);
+        self::assertNull($cmd);
+    }
+
+    public function testNowPlayingTickAdvancesTheEstimatedPosition(): void
+    {
+        $cur = $this->startPlaying($this->audioApp());
+        for ($i = 0; $i < 5; $i++) {
+            [$cur, $cmd] = $cur->update(new NowPlayingTickMsg($this->epochOf($cur)));
+            self::assertNotNull($cmd, 'each playing tick re-arms the next');
+        }
+
+        self::assertStringContainsString('0:05 / 4:19', $cur->view(), 'position renders as m:ss');
+    }
+
+    public function testATickWhilePausedDoesNotAdvanceOrRearm(): void
+    {
+        $playing = $this->startPlaying($this->audioApp());
+        [$paused] = $playing->update(new ToggleAudioMsg());
+
+        [$same, $cmd] = $paused->update(new NowPlayingTickMsg($this->epochOf($paused)));
+
+        self::assertNull($cmd, 'no re-arm while paused');
+        self::assertStringContainsString('0:00 /', $same->view(), 'the position did not advance');
+    }
+
+    public function testATickWithNothingPlayingIsANoOp(): void
+    {
+        $app = $this->audioApp();
+
+        [$same, $cmd] = $app->update(new NowPlayingTickMsg(0));
+
+        self::assertSame($app, $same);
+        self::assertNull($cmd);
+    }
+
+    public function testAStaleTickFromASupersededGenerationIsDropped(): void
+    {
+        // Regression (relocated from AlbumScreen): a leftover tick from a previous
+        // heartbeat must NOT advance the position or arm a second heartbeat (which
+        // would double playback speed + auto-advance early). Reproduced via a
+        // pause/resume cycle, which supersedes the running chain.
+        $cur = $this->startPlaying($this->audioApp());
+        $staleEpoch = $this->epochOf($cur);
+        [$cur] = $cur->update(new NowPlayingTickMsg($this->epochOf($cur))); // position 1, same generation
+
+        [$paused] = $cur->update(new ToggleAudioMsg());   // bump epoch, pause
+        [$resumed, $arm] = $paused->update(new ToggleAudioMsg()); // bump epoch, resume + new heartbeat
+        self::assertNotNull($arm, 'resume arms a fresh heartbeat');
+        self::assertNotSame($staleEpoch, $this->epochOf($resumed), 'the generation advanced');
+
+        $beforePos = $this->positionOf($resumed);
+
+        // The leftover tick from the original generation is ignored.
+        [$afterStale, $staleCmd] = $resumed->update(new NowPlayingTickMsg($staleEpoch));
+        self::assertSame($beforePos, $this->positionOf($afterStale), 'a stale tick does not advance the position');
+        self::assertNull($staleCmd, 'a stale tick does not arm a second heartbeat');
+
+        // The live generation's tick still advances exactly once (+1, not +2).
+        [$afterLive] = $resumed->update(new NowPlayingTickMsg($this->epochOf($resumed)));
+        self::assertSame($beforePos + 1, $this->positionOf($afterLive));
+    }
+
+    public function testReachingTheDurationAutoAdvancesToTheNextTrack(): void
+    {
+        // A 2-second track followed by another, so the tick reaches the duration fast.
+        $album = Album::fromArray([
+            'name' => 'Short',
+            'tracks' => [
+                ['id' => 't1', 'metadata' => ['title' => 'One', 'duration_secs' => 2]],
+                ['id' => 't2', 'metadata' => ['title' => 'Two', 'duration_secs' => 5]],
+            ],
+        ]);
+        // Two item fetches: the first track (on PlayTrack) then the second (on advance).
+        $transport = (new FakeTransport())
+            ->json(200, ['item' => ['id' => 't1', 'name' => 'One', 'type' => 'music', 'stream_url' => 'https://srv/s/t1']])
+            ->json(200, ['item' => ['id' => 't2', 'name' => 'Two', 'type' => 'music', 'stream_url' => 'https://srv/s/t2']]);
+        $cur = $this->startPlaying($this->audioApp($transport), $album, 0);
+        $firstPlayer = $this->lastAudioPlayer;
+        self::assertStringContainsString('▶ One', $cur->view());
+
+        // Tick to 2s == duration → auto-advance fetch fires.
+        [$cur] = $cur->update(new NowPlayingTickMsg($this->epochOf($cur))); // 1
+        [$advancing, $advanceCmd] = $cur->update(new NowPlayingTickMsg($this->epochOf($cur))); // 2 == duration → advance
+        $next = $this->runCmd($advanceCmd);
+        self::assertInstanceOf(TrackResolvedMsg::class, $next, 'reaching the duration starts the next track');
+        self::assertSame(1, $next->index);
+
+        [$onTwo] = $advancing->update($next);
+        self::assertNotNull($firstPlayer);
+        self::assertSame(1, $firstPlayer->stopCalls, 'the previous player was stopped');
+        self::assertStringContainsString('▶ Two', $onTwo->view());
+        self::assertStringContainsString('0:00 / 0:05', $onTwo->view(), 'position resets on the new track');
+    }
+
+    public function testReachingTheDurationOnTheLastTrackStopsPlayback(): void
+    {
+        $album = Album::fromArray([
+            'name' => 'Solo',
+            'tracks' => [['id' => 't1', 'metadata' => ['title' => 'Only', 'duration_secs' => 2]]],
+        ]);
+        $transport = (new FakeTransport())->json(200, ['item' => ['id' => 't1', 'name' => 'Only', 'type' => 'music', 'stream_url' => 'https://srv/s/t1']]);
+        $cur = $this->startPlaying($this->audioApp($transport), $album, 0);
+        $player = $this->lastAudioPlayer;
+
+        [$cur] = $cur->update(new NowPlayingTickMsg($this->epochOf($cur))); // 1
+        [$stopped, $cmd] = $cur->update(new NowPlayingTickMsg($this->epochOf($cur))); // 2 == duration, no next → stop
+
+        self::assertNull($cmd, 'no further tick once stopped');
+        self::assertSame(1, $player?->stopCalls);
+        // The now-playing bar is gone — there is no glyph left in the view.
+        self::assertStringNotContainsString('▶', $stopped->view());
+        self::assertStringNotContainsString('⏸', $stopped->view());
+    }
+
+    public function testAnUnknownDurationTrackNeverAutoAdvances(): void
+    {
+        $album = Album::fromArray([
+            'name' => 'Live',
+            'tracks' => [
+                ['id' => 't1', 'metadata' => ['title' => 'Jam']], // no duration_secs
+                ['id' => 't2', 'metadata' => ['title' => 'Next', 'duration_secs' => 3]],
+            ],
+        ]);
+        $cur = $this->startPlaying($this->audioApp(), $album, 0);
+
+        for ($i = 0; $i < 50; $i++) {
+            [$cur, $cmd] = $cur->update(new NowPlayingTickMsg($this->epochOf($cur)));
+            self::assertNotNull($cmd, 'an unknown-duration track keeps ticking');
+        }
+
+        self::assertStringContainsString('▶ Jam', $cur->view(), 'still on the first track');
+        self::assertStringContainsString('0:50 / —', $cur->view(), 'unknown duration shows a dash');
+    }
+
+    public function testAudioSkipNextAndPrevious(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, ['item' => ['id' => 't1', 'name' => 'Come Together', 'type' => 'music', 'stream_url' => 'https://srv/s/t1']])
+            ->json(200, ['item' => ['id' => 't2', 'name' => 'Something', 'type' => 'music', 'stream_url' => 'https://srv/s/t2']])
+            ->json(200, ['item' => ['id' => 't1', 'name' => 'Come Together', 'type' => 'music', 'stream_url' => 'https://srv/s/t1']]);
+        $cur = $this->startPlaying($this->audioApp($transport));
+        self::assertStringContainsString('▶ Come Together', $cur->view());
+
+        // n → next track.
+        [$skipping, $cmd] = $cur->update(new AudioSkipMsg(1));
+        $next = $this->runCmd($cmd);
+        self::assertInstanceOf(TrackResolvedMsg::class, $next);
+        self::assertSame(1, $next->index);
+        [$onTwo] = $skipping->update($next);
+        self::assertStringContainsString('▶ Something', $onTwo->view());
+
+        // p → previous track.
+        [$back, $backCmd] = $onTwo->update(new AudioSkipMsg(-1));
+        $prev = $this->runCmd($backCmd);
+        self::assertInstanceOf(TrackResolvedMsg::class, $prev);
+        self::assertSame(0, $prev->index);
+    }
+
+    public function testAudioSkipPastTheEndsIsANoOp(): void
+    {
+        // Playing the (last) second track: skipping forward is a no-op.
+        $cur = $this->startPlaying($this->audioApp(), $this->audioAlbum(), 1);
+        self::assertStringContainsString('▶ Something', $cur->view());
+
+        [$same, $cmd] = $cur->update(new AudioSkipMsg(1));
+        self::assertSame($cur, $same, 'no next track to skip to');
+        self::assertNull($cmd);
+
+        // And from the first track, skipping backward is a no-op too.
+        $first = $this->startPlaying($this->audioApp(), $this->audioAlbum(), 0);
+        [$same2, $cmd2] = $first->update(new AudioSkipMsg(-1));
+        self::assertSame($first, $same2);
+        self::assertNull($cmd2);
+    }
+
+    public function testAudioSkipWithNothingPlayingIsANoOp(): void
+    {
+        $app = $this->audioApp();
+
+        [$same, $cmd] = $app->update(new AudioSkipMsg(1));
+
+        self::assertSame($app, $same);
+        self::assertNull($cmd);
+    }
+
+    public function testStopAudioClearsTheSessionAndStopsThePlayer(): void
+    {
+        $playing = $this->startPlaying($this->audioApp());
+        $player = $this->lastAudioPlayer;
+        self::assertStringContainsString('▶ Come Together', $playing->view());
+
+        [$stopped, $cmd] = $playing->update(new StopAudioMsg());
+
+        self::assertNull($cmd);
+        self::assertSame(1, $player?->stopCalls, 'stop tears the player down');
+        self::assertStringNotContainsString('▶ Come Together', $stopped->view(), 'the bar is gone');
+    }
+
+    public function testAMissingStreamUrlSurfacesAToastAndDoesNotDisturbPlayback(): void
+    {
+        // Already playing the first track; a later failed start must not stop it.
+        $transport = (new FakeTransport())
+            ->json(200, $this->itemResponse(self::STREAM))      // first play OK
+            ->json(200, $this->itemResponse(null));             // second play: no URL
+        $playing = $this->startPlaying($this->audioApp($transport));
+        $livePlayer = $this->lastAudioPlayer;
+
+        // Try to play a track whose detail has no stream URL.
+        [$app2, $cmd] = $playing->update(new PlayTrackMsg($this->audioAlbum(), 1));
+        $failMsg = $this->runCmd($cmd);
+        self::assertInstanceOf(ShowToastMsg::class, $failMsg);
+        self::assertSame(ToastType::Error, $failMsg->type);
+        self::assertStringContainsString('Could not play', $failMsg->message);
+
+        // The original track is still playing (its player was never stopped).
+        self::assertSame(0, $livePlayer?->stopCalls ?? -1, 'the live player was not stopped');
+        self::assertStringContainsString('▶ Come Together', $app2->view());
+    }
+
+    public function testAFetchFailureSurfacesAToast(): void
+    {
+        $app = $this->audioApp((new FakeTransport())->fail(new \RuntimeException('network')));
+
+        [, $cmd] = $app->update(new PlayTrackMsg($this->audioAlbum(), 0));
+
+        $msg = $this->runCmd($cmd);
+        self::assertInstanceOf(ShowToastMsg::class, $msg);
+        self::assertStringContainsString('Could not play', $msg->message);
+    }
+
+    public function testAnAuthErrorBecomesSessionExpired(): void
+    {
+        $app = $this->audioApp((new FakeTransport())->json(401, ['error' => 'unauthorized']));
+
+        [, $cmd] = $app->update(new PlayTrackMsg($this->audioAlbum(), 0));
+
+        self::assertInstanceOf(SessionExpiredMsg::class, $this->runCmd($cmd));
+    }
+
+    public function testPlayingATrackThenNavigatingAwayKeepsTheAudio(): void
+    {
+        // THE persist-across-navigation proof: play a track on top of a deeper
+        // stack, then NavigateBack — the session (and the bar) survive the pop.
+        $api = new ApiClient('https://srv', (new FakeTransport())->json(200, $this->itemResponse(self::STREAM)));
+        $factory = function (string $url, ?int $startMs = null): FakeAudioPlayer {
+            return $this->lastAudioPlayer = new FakeAudioPlayer($url);
+        };
+        $app = (new App(
+            new Config('https://srv'),
+            new AuthStore($api, TokenStore::default()),
+            $api,
+            new LibrariesStore($api),
+            new MediaStore($api),
+            new PosterLoader(Mosaic::halfBlock()),
+            [
+                ['route' => Route::Browse, 'screen' => new SpyTeardownScreen()],
+                ['route' => Route::Album, 'screen' => new AlbumScreen($this->audioAlbum(), cols: 80, rows: 24)],
+            ],
+        ))->withAudioFactory($factory);
+
+        $playing = $this->startPlaying($app);
+        self::assertSame(2, $playing->stackDepth());
+        self::assertStringContainsString('▶ Come Together', $playing->view());
+
+        // Leave the album.
+        [$back] = $playing->update(new NavigateBackMsg());
+
+        self::assertSame(1, $back->stackDepth(), 'the album frame was popped');
+        self::assertSame(Route::Browse, $back->route());
+        self::assertSame(0, $this->lastAudioPlayer?->stopCalls, 'leaving the album does NOT stop the audio');
+        self::assertStringContainsString('▶ Come Together', $back->view(), 'the now-playing bar persists on the screen beneath');
+    }
+
+    public function testCtrlCTearsDownTheActiveAudio(): void
+    {
+        $playing = $this->startPlaying($this->audioApp());
+        $player = $this->lastAudioPlayer;
+
+        [, $cmd] = $playing->update(new KeyMsg(KeyType::Char, 'c', ctrl: true));
+
+        self::assertInstanceOf(QuitMsg::class, $cmd?->__invoke());
+        self::assertSame(1, $player?->stopCalls, 'Ctrl-C stops the music (no leaked ffplay)');
+    }
+
+    public function testRequestQuitTearsDownTheActiveAudio(): void
+    {
+        $playing = $this->startPlaying($this->audioApp());
+        $player = $this->lastAudioPlayer;
+
+        [, $cmd] = $playing->update(new RequestQuitMsg());
+
+        self::assertInstanceOf(QuitMsg::class, $cmd?->__invoke());
+        self::assertSame(1, $player?->stopCalls, 'quitting stops the music');
+    }
+
+    public function testThePaletteGainsPauseAndStopActionsWhilePlaying(): void
+    {
+        $playing = $this->startPlaying($this->audioApp());
+
+        [$open] = $playing->update($this->ctrlK());
+        $labels = array_map(static fn ($a): string => $a->label, $open->palette()->actions());
+
+        self::assertContains('Pause playback', $labels, 'a playing session adds a Pause action');
+        self::assertContains('Stop playback', $labels);
+    }
+
+    public function testThePalettePauseActionBecomesResumeWhenPaused(): void
+    {
+        $playing = $this->startPlaying($this->audioApp());
+        [$paused] = $playing->update(new ToggleAudioMsg());
+
+        [$open] = $paused->update($this->ctrlK());
+        $labels = array_map(static fn ($a): string => $a->label, $open->palette()->actions());
+
+        self::assertContains('Resume playback', $labels);
+        self::assertNotContains('Pause playback', $labels);
+    }
+
+    public function testThePaletteHasNoAudioActionsWhenNothingPlays(): void
+    {
+        [$open] = $this->audioApp()->update($this->ctrlK());
+
+        $labels = array_map(static fn ($a): string => $a->label, $open->palette()->actions());
+        self::assertNotContains('Pause playback', $labels);
+        self::assertNotContains('Stop playback', $labels);
+        self::assertNotContains('Resume playback', $labels);
+    }
+
+    /** The active session's epoch (read off the now-playing bar via the App view is fragile, so go through a tick probe). */
+    private function epochOf(App $app): int
+    {
+        return $app->nowPlaying()?->epoch() ?? 0;
+    }
+
+    private function positionOf(App $app): int
+    {
+        return $app->nowPlaying()?->positionSecs() ?? 0;
     }
 }
 
