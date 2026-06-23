@@ -13,6 +13,7 @@ use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\SearchDebouncedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
+use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Store\MediaRange;
 use Phlix\Console\Screen\LibraryScreen;
 use Phlix\Console\Store\MediaStore;
@@ -32,6 +33,7 @@ use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\QuitMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Mosaic\Mosaic;
+use SugarCraft\Toast\ToastType;
 
 final class LibraryScreenTest extends TestCase
 {
@@ -393,6 +395,21 @@ final class LibraryScreenTest extends TestCase
         [$next] = $loaded->update(new LibraryFailedMsg('blip'));
 
         self::assertNull($next->error(), 'a scroll-time error does not blow away a populated grid');
+        self::assertStringContainsString('200 items', $next->view());
+    }
+
+    public function testTransientFailureAfterLoadSurfacesAToast(): void
+    {
+        $loaded = $this->loadedScreen(200);
+
+        [$next, $cmd] = $loaded->update(new LibraryFailedMsg('blip'));
+
+        $toast = $this->runCmd($cmd);
+        self::assertInstanceOf(ShowToastMsg::class, $toast, 'the previously-silent error is now surfaced');
+        self::assertSame(ToastType::Error, $toast->type);
+        self::assertStringContainsString('load more', $toast->message);
+        // ... and the populated grid is left intact.
+        self::assertNull($next->error());
         self::assertStringContainsString('200 items', $next->view());
     }
 

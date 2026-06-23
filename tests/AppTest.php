@@ -22,8 +22,10 @@ use Phlix\Console\Msg\OpenLibraryMsg;
 use Phlix\Console\Msg\PlayNextMsg;
 use Phlix\Console\Msg\PlayRequestedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
+use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Msg\SubmitLoginMsg;
 use Phlix\Console\Msg\SubmitServerMsg;
+use Phlix\Console\Msg\ToastTickMsg;
 use Phlix\Console\Route;
 use Phlix\Console\Screen\BrowseScreen;
 use Phlix\Console\Screen\DetailScreen;
@@ -48,6 +50,9 @@ use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\QuitMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
+use SugarCraft\Toast\Position;
+use SugarCraft\Toast\Toast;
+use SugarCraft\Toast\ToastType;
 
 final class AppTest extends TestCase
 {
@@ -93,7 +98,7 @@ final class AppTest extends TestCase
      *
      * @param list<array{route: Route, screen: Model}> $stack
      */
-    private function appWithStack(array $stack): App
+    private function appWithStack(array $stack, ?Toast $toast = null): App
     {
         $api = new ApiClient('https://srv', new FakeTransport());
 
@@ -105,7 +110,14 @@ final class AppTest extends TestCase
             new MediaStore($api),
             new PosterLoader(Mosaic::halfBlock()),
             $stack,
+            toast: $toast,
         );
+    }
+
+    /** A toast pre-loaded with one alert at the given absolute expiry. */
+    private function toastExpiringAt(string $message, float $expiresAt, ToastType $type = ToastType::Info): Toast
+    {
+        return Toast::new()->withPosition(Position::TopRight)->alert($type, $message, $expiresAt);
     }
 
     public function testFirstRunShowsServerWizard(): void
@@ -523,6 +535,91 @@ final class AppTest extends TestCase
     }
 
     /** Invoke a Cmd, awaiting the inner promise when it's async. */
+    // ---- toasts --------------------------------------------------------
+
+    public function testShowToastAddsAnAlertAndArmsTheTick(): void
+    {
+        $app = $this->appWithStack([]);
+        self::assertFalse($app->toast()->hasActiveAlert());
+
+        [$next, $cmd] = $app->update(ShowToastMsg::error('Something broke'));
+
+        self::assertTrue($next->toast()->hasActiveAlert(), 'the alert is queued');
+        self::assertInstanceOf(\Closure::class, $cmd, 'a prune tick is armed');
+    }
+
+    public function testASecondToastWhileTickingDoesNotStackAnotherTick(): void
+    {
+        [$first] = $this->appWithStack([])->update(ShowToastMsg::error('one'));
+
+        [$second, $cmd] = $first->update(ShowToastMsg::info('two'));
+
+        self::assertNull($cmd, 'the in-flight tick covers the new alert');
+        self::assertTrue($second->toast()->hasActiveAlert());
+    }
+
+    public function testToastTickPrunesAnExpiredAlertAndStops(): void
+    {
+        $app = $this->appWithStack([], $this->toastExpiringAt('old', microtime(true) - 10.0));
+
+        [$next, $cmd] = $app->update(new ToastTickMsg());
+
+        self::assertFalse($next->toast()->hasActiveAlert(), 'the expired alert is gone');
+        self::assertNull($cmd, 'with nothing left to expire the loop stops');
+    }
+
+    public function testToastTickReschedulesWhileAFreshAlertRemains(): void
+    {
+        $toast = $this->toastExpiringAt('old', microtime(true) - 10.0)
+            ->alert(ToastType::Info, 'fresh', microtime(true) + 60.0);
+        $app = $this->appWithStack([], $toast);
+
+        [$next, $cmd] = $app->update(new ToastTickMsg());
+
+        self::assertTrue($next->toast()->hasActiveAlert(), 'the fresh alert stays');
+        self::assertInstanceOf(\Closure::class, $cmd, 'the tick reschedules for the remaining alert');
+    }
+
+    public function testViewCompositesAnActiveToastOverTheScreen(): void
+    {
+        $stack = [['route' => Route::Login, 'screen' => LoginScreen::create(null, 80, 24)]];
+        $app = $this->appWithStack($stack, $this->toastExpiringAt('UPNEXT_TOAST', microtime(true) + 60.0));
+
+        self::assertStringContainsString('UPNEXT_TOAST', $app->view(), 'the toast floats over the login screen');
+    }
+
+    public function testViewWithoutToastsIsLeftUnchanged(): void
+    {
+        $stack = [['route' => Route::Login, 'screen' => LoginScreen::create(null, 80, 24)]];
+
+        $plain = $this->appWithStack($stack)->view();
+        $bare = LoginScreen::create(null, 80, 24)->view();
+
+        self::assertSame($bare, $plain, 'an empty toast host is a pure pass-through');
+    }
+
+    public function testToastSurvivesAStackReplace(): void
+    {
+        $app = $this->appWithStack(
+            [['route' => Route::Login, 'screen' => LoginScreen::create(null, 80, 24)]],
+            $this->toastExpiringAt('keep me', microtime(true) + 60.0),
+        );
+
+        [$next] = $app->update(new SessionExpiredMsg('bounce'));
+
+        self::assertSame(Route::Login, $next->route());
+        self::assertTrue($next->toast()->hasActiveAlert(), 'the toast queue survives goLogin/replace');
+    }
+
+    public function testToastSurvivesAResize(): void
+    {
+        $app = $this->appWithStack([], $this->toastExpiringAt('keep me', microtime(true) + 60.0));
+
+        [$resized] = $app->update(new WindowSizeMsg(120, 40));
+
+        self::assertTrue($resized->toast()->hasActiveAlert(), 'the toast queue survives a resize');
+    }
+
     private function runCmd(?\Closure $cmd): ?Msg
     {
         if ($cmd === null) {

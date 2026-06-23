@@ -24,7 +24,8 @@
         "sugarcraft/sugar-boxer": "dev-master",
         "sugarcraft/sugar-crumbs": "dev-master",
         "sugarcraft/sugar-gallery": "dev-master",
-        "sugarcraft/sugar-reel": "dev-master"
+        "sugarcraft/sugar-reel": "dev-master",
+        "sugarcraft/sugar-toast": "dev-master"
     },
     "require-dev": {
         "phpunit/phpunit": "^11.0"

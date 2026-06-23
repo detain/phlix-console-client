@@ -18,8 +18,10 @@ use Phlix\Console\Msg\OpenLibraryMsg;
 use Phlix\Console\Msg\PlayNextMsg;
 use Phlix\Console\Msg\PlayRequestedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
+use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Msg\SubmitLoginMsg;
 use Phlix\Console\Msg\SubmitServerMsg;
+use Phlix\Console\Msg\ToastTickMsg;
 use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Screen\Breadcrumbed;
 use Phlix\Console\Screen\BrowseScreen;
@@ -40,6 +42,8 @@ use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\SubscriptionCapable;
+use SugarCraft\Toast\Position;
+use SugarCraft\Toast\Toast;
 
 /**
  * Root model: a hand-rolled router over a screen STACK.
@@ -58,8 +62,15 @@ final class App implements Model
 {
     use SubscriptionCapable;
 
+    /** Seconds a toast stays up before it auto-dismisses. */
+    private const TOAST_DURATION = 4.0;
+
+    /** The single toast host, floating above whatever screen is on top. */
+    private readonly Toast $toast;
+
     /**
      * @param list<array{route: Route, screen: Model}> $stack top frame last; empty = the loading state
+     * @param bool $toastTicking whether a prune tick is already in flight (so a burst of toasts doesn't stack ticks)
      */
     public function __construct(
         private readonly Config $config,
@@ -72,7 +83,15 @@ final class App implements Model
         private readonly ?\Closure $bootCmd = null,
         private readonly int $cols = 80,
         private readonly int $rows = 24,
+        ?Toast $toast = null,
+        private readonly bool $toastTicking = false,
     ) {
+        $this->toast = $toast ?? self::defaultToast();
+    }
+
+    private static function defaultToast(): Toast
+    {
+        return Toast::new()->withPosition(Position::TopRight)->withDuration(self::TOAST_DURATION);
     }
 
     /** Pick the entry screen from persisted config. */
@@ -151,6 +170,12 @@ final class App implements Model
         if ($msg instanceof NavigateBackMsg) {
             return [$this->popScreen(), null];
         }
+        if ($msg instanceof ShowToastMsg) {
+            return $this->showToast($msg);
+        }
+        if ($msg instanceof ToastTickMsg) {
+            return $this->onToastTick();
+        }
 
         // Anything else (keys, focus, async results) → the active (top) screen.
         $top = $this->topScreen();
@@ -164,6 +189,13 @@ final class App implements Model
     }
 
     public function view(): string
+    {
+        // Float any active toasts over the top screen's render. Toast::View is a
+        // no-op (returns the background unchanged) when nothing is queued.
+        return $this->toast->View($this->baseView(), max(1, $this->cols), max(1, $this->rows));
+    }
+
+    private function baseView(): string
     {
         $top = $this->topScreen();
         // Hand the top screen the breadcrumb trail built from the whole stack
@@ -196,6 +228,56 @@ final class App implements Model
         }
 
         return $trail;
+    }
+
+    // ---- toasts --------------------------------------------------------
+
+    private function showToast(ShowToastMsg $msg): array
+    {
+        $toast = $this->toast->alert($msg->type, $msg->message);
+        // A burst of toasts shares one prune loop: only arm a tick if none is
+        // already in flight (the pending tick reschedules from the full queue).
+        $cmd = $this->toastTicking ? null : $this->toastTickCmd($toast);
+
+        return [$this->withToast($toast, true), $cmd];
+    }
+
+    private function onToastTick(): array
+    {
+        $toast = $this->toast->pruneExpired();
+        if ($toast->secondsUntilNextExpiry() !== null) {
+            return [$this->withToast($toast, true), $this->toastTickCmd($toast)];
+        }
+
+        // Nothing left to expire — stop the loop (a later toast re-arms it).
+        return [$this->withToast($toast, false), null];
+    }
+
+    private function toastTickCmd(Toast $toast): \Closure
+    {
+        // An active queue always reports an expiry (every toast is added with the
+        // host's default duration); TOAST_DURATION is a defensive fallback only.
+        $delay = $toast->secondsUntilNextExpiry() ?? self::TOAST_DURATION;
+
+        return Cmd::tick($delay, static fn (): Msg => new ToastTickMsg());
+    }
+
+    private function withToast(Toast $toast, bool $ticking): self
+    {
+        return new self(
+            $this->config,
+            $this->auth,
+            $this->api,
+            $this->libraries,
+            $this->media,
+            $this->posters,
+            $this->stack,
+            null,
+            $this->cols,
+            $this->rows,
+            $toast,
+            $ticking,
+        );
     }
 
     // ---- transitions ---------------------------------------------------
@@ -413,7 +495,7 @@ final class App implements Model
     {
         return new self(
             $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
-            $stack, null, $this->cols, $this->rows,
+            $stack, null, $this->cols, $this->rows, $this->toast, $this->toastTicking,
         );
     }
 
@@ -440,7 +522,7 @@ final class App implements Model
 
         $app = new self(
             $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
-            $stack, null, $cols, $rows,
+            $stack, null, $cols, $rows, $this->toast, $this->toastTicking,
         );
 
         return [$app, $cmds === [] ? null : Cmd::batch(...$cmds)];
@@ -461,5 +543,10 @@ final class App implements Model
     public function stackDepth(): int
     {
         return count($this->stack);
+    }
+
+    public function toast(): Toast
+    {
+        return $this->toast;
     }
 }
