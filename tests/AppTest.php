@@ -6,6 +6,7 @@ namespace Phlix\Console\Tests;
 
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\Dto\AuthUser;
+use Phlix\Console\Api\Dto\Library;
 use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\App;
 use Phlix\Console\Config\Config;
@@ -13,14 +14,18 @@ use Phlix\Console\Config\TokenBundle;
 use Phlix\Console\Config\TokenStore;
 use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Msg\BootResolvedMsg;
+use Phlix\Console\Msg\GoHomeMsg;
 use Phlix\Console\Msg\LoginFailedMsg;
 use Phlix\Console\Msg\LoginSucceededMsg;
 use Phlix\Console\Msg\MediaRangeLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\OpenLibraryMsg;
+use Phlix\Console\Msg\PaletteLibrariesLoadedMsg;
 use Phlix\Console\Msg\PlayNextMsg;
 use Phlix\Console\Msg\PlayRequestedMsg;
+use Phlix\Console\Msg\RequestLogoutMsg;
+use Phlix\Console\Msg\RequestQuitMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Msg\SubmitLoginMsg;
@@ -618,6 +623,193 @@ final class AppTest extends TestCase
         [$resized] = $app->update(new WindowSizeMsg(120, 40));
 
         self::assertTrue($resized->toast()->hasActiveAlert(), 'the toast queue survives a resize');
+    }
+
+    // ---- command palette -----------------------------------------------
+
+    private function ctrlK(): KeyMsg
+    {
+        return new KeyMsg(KeyType::Char, 'k', ctrl: true);
+    }
+
+    /** An App over a single browse-like frame (a teardown spy stands in). */
+    private function paletteApp(): App
+    {
+        return $this->appWithStack([['route' => Route::Browse, 'screen' => new SpyTeardownScreen()]]);
+    }
+
+    public function testCtrlKOpensThePaletteWithStaticActionsAndFetchesLibraries(): void
+    {
+        $app = $this->paletteApp();
+        self::assertNull($app->palette());
+
+        [$next, $cmd] = $app->update($this->ctrlK());
+
+        self::assertNotNull($next->palette());
+        self::assertInstanceOf(\Closure::class, $cmd, 'opening fires the libraries fetch');
+        $labels = array_map(static fn ($a): string => $a->label, $next->palette()->actions());
+        self::assertSame(['Home', 'Log out', 'Quit'], $labels);
+    }
+
+    public function testCtrlKTogglesThePaletteClosed(): void
+    {
+        [$open] = $this->paletteApp()->update($this->ctrlK());
+        [$closed] = $open->update($this->ctrlK());
+
+        self::assertNull($closed->palette());
+    }
+
+    public function testEscapeClosesThePalette(): void
+    {
+        [$open] = $this->paletteApp()->update($this->ctrlK());
+        [$closed] = $open->update(new KeyMsg(KeyType::Escape));
+
+        self::assertNull($closed->palette());
+    }
+
+    public function testPaletteTypingRanksTheMatchingAction(): void
+    {
+        [$open] = $this->paletteApp()->update($this->ctrlK());
+
+        [$typed] = $open->update(new KeyMsg(KeyType::Char, 'q'));
+
+        self::assertSame('q', $typed->palette()->filterText());
+        self::assertSame('Quit', $typed->palette()->visibleLabels()[0]);
+    }
+
+    public function testPaletteUpDownMoveTheSelection(): void
+    {
+        [$open] = $this->paletteApp()->update($this->ctrlK());
+
+        [$down] = $open->update(new KeyMsg(KeyType::Down));
+        self::assertSame('Log out', $down->palette()->selectedAction()?->label);
+
+        [$up] = $down->update(new KeyMsg(KeyType::Up));
+        self::assertSame('Home', $up->palette()->selectedAction()?->label);
+    }
+
+    public function testPaletteBackspaceAndSpaceEditTheQuery(): void
+    {
+        [$open] = $this->paletteApp()->update($this->ctrlK());
+
+        [$typed] = $open->update(new KeyMsg(KeyType::Char, 'q'));
+        [$back] = $typed->update(new KeyMsg(KeyType::Backspace));
+        self::assertSame('', $back->palette()->filterText());
+
+        [$space] = $open->update(new KeyMsg(KeyType::Space));
+        self::assertSame(' ', $space->palette()->filterText());
+    }
+
+    public function testPaletteSwallowsUnhandledKeys(): void
+    {
+        [$open] = $this->paletteApp()->update($this->ctrlK());
+
+        [$next, $cmd] = $open->update(new KeyMsg(KeyType::Tab));
+
+        self::assertNotNull($next->palette(), 'the palette stays open and modal');
+        self::assertNull($cmd);
+        self::assertSame('', $next->palette()->filterText());
+    }
+
+    public function testPaletteEnterDispatchesTheSelectedActionAndCloses(): void
+    {
+        [$open] = $this->paletteApp()->update($this->ctrlK());
+        [$typed] = $open->update(new KeyMsg(KeyType::Char, 'q')); // ranks "Quit"
+
+        [$next, $cmd] = $typed->update(new KeyMsg(KeyType::Enter));
+
+        self::assertNull($next->palette(), 'selecting closes the palette');
+        self::assertInstanceOf(RequestQuitMsg::class, $this->runCmd($cmd));
+    }
+
+    public function testPaletteEnterWithNoMatchClosesWithoutDispatch(): void
+    {
+        [$open] = $this->paletteApp()->update($this->ctrlK());
+        // none of Home / Log out / Quit contains a 'z'.
+        [$typed] = $open->update(new KeyMsg(KeyType::Char, 'z'));
+        self::assertNull($typed->palette()->selectedAction());
+
+        [$next, $cmd] = $typed->update(new KeyMsg(KeyType::Enter));
+
+        self::assertNull($next->palette());
+        self::assertNull($cmd);
+    }
+
+    public function testPaletteLibrariesAugmentTheRegistryAndOpenALibrary(): void
+    {
+        [$open] = $this->paletteApp()->update($this->ctrlK());
+
+        $libs = [
+            Library::fromArray(['id' => 'lib1', 'name' => 'Movies', 'type' => 'movie']),
+            Library::fromArray(['id' => 'lib2', 'name' => 'Music', 'type' => 'music']),
+        ];
+        [$augmented] = $open->update(new PaletteLibrariesLoadedMsg($libs));
+
+        $labels = array_map(static fn ($a): string => $a->label, $augmented->palette()->actions());
+        self::assertContains('Go to Movies', $labels);
+        self::assertContains('Go to Music', $labels);
+
+        // Rank "Go to Movies" and select it → OpenLibraryMsg for that library.
+        $typed = $augmented;
+        foreach (['m', 'o', 'v', 'i', 'e'] as $rune) {
+            [$typed] = $typed->update(new KeyMsg(KeyType::Char, $rune));
+        }
+        [, $cmd] = $typed->update(new KeyMsg(KeyType::Enter));
+        $msg = $this->runCmd($cmd);
+        self::assertInstanceOf(OpenLibraryMsg::class, $msg);
+        self::assertSame('lib1', $msg->libraryId);
+    }
+
+    public function testPaletteLibrariesIgnoredWhenPaletteClosed(): void
+    {
+        $app = $this->paletteApp();
+
+        [$next] = $app->update(new PaletteLibrariesLoadedMsg([Library::fromArray(['id' => 'x', 'name' => 'X', 'type' => 'movie'])]));
+
+        self::assertNull($next->palette(), 'a late libraries result is dropped when the palette is closed');
+    }
+
+    public function testViewCompositesTheOpenPalette(): void
+    {
+        $stack = [['route' => Route::Login, 'screen' => LoginScreen::create(null, 80, 24)]];
+        [$open] = $this->appWithStack($stack)->update($this->ctrlK());
+
+        self::assertStringContainsString('Quit', $open->view(), 'the palette box floats over the screen');
+    }
+
+    public function testGoHomePopsTheStackToItsRoot(): void
+    {
+        $app = $this->appWithStack([
+            ['route' => Route::Browse, 'screen' => new SpyTeardownScreen()],
+            ['route' => Route::Library, 'screen' => new SpyTeardownScreen()],
+            ['route' => Route::Detail, 'screen' => new SpyTeardownScreen()],
+        ]);
+        self::assertSame(3, $app->stackDepth());
+
+        [$home] = $app->update(new GoHomeMsg());
+
+        self::assertSame(1, $home->stackDepth());
+        self::assertSame(Route::Browse, $home->route());
+    }
+
+    public function testRequestQuitTearsDownTheTopScreenAndQuits(): void
+    {
+        $player = new SpyTeardownScreen();
+        $app = $this->appWithStack([['route' => Route::Player, 'screen' => $player]]);
+
+        [, $cmd] = $app->update(new RequestQuitMsg());
+
+        self::assertInstanceOf(QuitMsg::class, $cmd?->__invoke());
+        self::assertSame(1, $player->teardownCalls);
+    }
+
+    public function testRequestLogoutReturnsToLogin(): void
+    {
+        $app = $this->appWithStack([['route' => Route::Browse, 'screen' => new SpyTeardownScreen()]]);
+
+        [$next] = $app->update(new RequestLogoutMsg());
+
+        self::assertSame(Route::Login, $next->route());
     }
 
     private function runCmd(?\Closure $cmd): ?Msg

@@ -6,17 +6,22 @@ namespace Phlix\Console;
 
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\Dto\AuthUser;
+use Phlix\Console\Api\Dto\Library;
 use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\NetworkError;
 use Phlix\Console\Config\Config;
 use Phlix\Console\Msg\BootResolvedMsg;
+use Phlix\Console\Msg\GoHomeMsg;
 use Phlix\Console\Msg\LoginFailedMsg;
 use Phlix\Console\Msg\LoginSucceededMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\OpenLibraryMsg;
+use Phlix\Console\Msg\PaletteLibrariesLoadedMsg;
 use Phlix\Console\Msg\PlayNextMsg;
 use Phlix\Console\Msg\PlayRequestedMsg;
+use Phlix\Console\Msg\RequestLogoutMsg;
+use Phlix\Console\Msg\RequestQuitMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Msg\SubmitLoginMsg;
@@ -35,6 +40,8 @@ use Phlix\Console\Store\AuthStore;
 use Phlix\Console\Store\LibrariesStore;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Ui\Chrome;
+use Phlix\Console\Ui\CommandPalette;
+use Phlix\Console\Ui\PaletteAction;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Model;
@@ -71,6 +78,7 @@ final class App implements Model
     /**
      * @param list<array{route: Route, screen: Model}> $stack top frame last; empty = the loading state
      * @param bool $toastTicking whether a prune tick is already in flight (so a burst of toasts doesn't stack ticks)
+     * @param ?CommandPalette $palette the open command palette overlay, or null when closed
      */
     public function __construct(
         private readonly Config $config,
@@ -85,6 +93,7 @@ final class App implements Model
         private readonly int $rows = 24,
         ?Toast $toast = null,
         private readonly bool $toastTicking = false,
+        private readonly ?CommandPalette $palette = null,
     ) {
         $this->toast = $toast ?? self::defaultToast();
     }
@@ -134,6 +143,16 @@ final class App implements Model
             return $this->resized($msg->cols, $msg->rows);
         }
 
+        // While the command palette is open it captures all keystrokes (it is a
+        // modal); non-key messages (async results, ticks) still flow through.
+        if ($this->palette !== null && $msg instanceof KeyMsg) {
+            return $this->handlePaletteKey($this->palette, $msg);
+        }
+        // Ctrl-K opens the palette from any screen.
+        if ($msg instanceof KeyMsg && $this->isPaletteToggle($msg)) {
+            return $this->openPalette();
+        }
+
         if ($msg instanceof BootResolvedMsg) {
             return $msg->user !== null ? $this->goBrowse($msg->user) : $this->goLogin(null);
         }
@@ -170,6 +189,18 @@ final class App implements Model
         if ($msg instanceof NavigateBackMsg) {
             return [$this->popScreen(), null];
         }
+        if ($msg instanceof GoHomeMsg) {
+            return $this->goHome();
+        }
+        if ($msg instanceof RequestLogoutMsg) {
+            return $this->requestLogout();
+        }
+        if ($msg instanceof RequestQuitMsg) {
+            return $this->requestQuit();
+        }
+        if ($msg instanceof PaletteLibrariesLoadedMsg) {
+            return $this->onPaletteLibraries($msg->libraries);
+        }
         if ($msg instanceof ShowToastMsg) {
             return $this->showToast($msg);
         }
@@ -190,9 +221,16 @@ final class App implements Model
 
     public function view(): string
     {
-        // Float any active toasts over the top screen's render. Toast::View is a
-        // no-op (returns the background unchanged) when nothing is queued.
-        return $this->toast->View($this->baseView(), max(1, $this->cols), max(1, $this->rows));
+        $view = $this->baseView();
+        // The command palette dims + centers its box over the screen; toasts then
+        // float over everything (palette included).
+        if ($this->palette !== null) {
+            $view = $this->palette->render($view);
+        }
+
+        // Toast::View is a no-op (returns the background unchanged) when nothing
+        // is queued.
+        return $this->toast->View($view, max(1, $this->cols), max(1, $this->rows));
     }
 
     private function baseView(): string
@@ -277,6 +315,113 @@ final class App implements Model
             $this->rows,
             $toast,
             $ticking,
+            $this->palette,
+        );
+    }
+
+    // ---- command palette -----------------------------------------------
+
+    private function isPaletteToggle(KeyMsg $msg): bool
+    {
+        return $msg->type === KeyType::Char && $msg->rune === 'k' && $msg->ctrl;
+    }
+
+    private function openPalette(): array
+    {
+        $palette = CommandPalette::open($this->staticActions(), $this->cols, $this->rows);
+
+        // Augment with a "Go to <library>" action per library once they load.
+        return [$this->withPalette($palette), $this->fetchPaletteLibraries()];
+    }
+
+    private function handlePaletteKey(CommandPalette $palette, KeyMsg $msg): array
+    {
+        if ($this->isPaletteToggle($msg) || $msg->type === KeyType::Escape) {
+            return [$this->withPalette(null), null];
+        }
+        if ($msg->type === KeyType::Enter) {
+            $action = $palette->selectedAction();
+            $closed = $this->withPalette(null);
+
+            return $action !== null ? [$closed, Cmd::send($action->msg)] : [$closed, null];
+        }
+        if ($msg->type === KeyType::Up) {
+            return [$this->withPalette($palette->up()), null];
+        }
+        if ($msg->type === KeyType::Down) {
+            return [$this->withPalette($palette->down()), null];
+        }
+        if ($msg->type === KeyType::Backspace) {
+            return [$this->withPalette($palette->backspace()), null];
+        }
+        if ($msg->type === KeyType::Space) {
+            return [$this->withPalette($palette->type(' ')), null];
+        }
+        if ($msg->type === KeyType::Char && $msg->rune !== '') {
+            return [$this->withPalette($palette->type($msg->rune)), null];
+        }
+
+        // Any other key is swallowed — the palette is modal while open.
+        return [$this, null];
+    }
+
+    /** @return list<PaletteAction> */
+    private function staticActions(): array
+    {
+        return [
+            new PaletteAction('Home', new GoHomeMsg()),
+            new PaletteAction('Log out', new RequestLogoutMsg()),
+            new PaletteAction('Quit', new RequestQuitMsg()),
+        ];
+    }
+
+    private function fetchPaletteLibraries(): \Closure
+    {
+        return Cmd::promise(fn () => $this->libraries->all()->then(
+            static fn (array $libraries): ?Msg => new PaletteLibrariesLoadedMsg($libraries),
+            // Best-effort: a failure just leaves the static actions in place.
+            static fn (\Throwable $e): ?Msg => null,
+        ));
+    }
+
+    /**
+     * @param list<Library> $libraries
+     */
+    private function onPaletteLibraries(array $libraries): array
+    {
+        if ($this->palette === null) {
+            return [$this, null]; // the palette was closed before the fetch resolved
+        }
+
+        $actions = [];
+        foreach ($libraries as $library) {
+            if ($library instanceof Library) {
+                $actions[] = new PaletteAction('Go to ' . $library->name, new OpenLibraryMsg($library->id, $library->name));
+            }
+        }
+        foreach ($this->staticActions() as $action) {
+            $actions[] = $action;
+        }
+
+        return [$this->withPalette($this->palette->withActions($actions)), null];
+    }
+
+    private function withPalette(?CommandPalette $palette): self
+    {
+        return new self(
+            $this->config,
+            $this->auth,
+            $this->api,
+            $this->libraries,
+            $this->media,
+            $this->posters,
+            $this->stack,
+            null,
+            $this->cols,
+            $this->rows,
+            $this->toast,
+            $this->toastTicking,
+            $palette,
         );
     }
 
@@ -336,6 +481,37 @@ final class App implements Model
         $screen = LoginScreen::create($error, $this->cols, $this->rows);
 
         return [$this->replace(Route::Login, $screen), $screen->init()];
+    }
+
+    /** Pop the stack back to its root (the browse home). */
+    private function goHome(): array
+    {
+        $app = $this;
+        while ($app->stackDepth() > 1) {
+            $app = $app->popScreen();
+        }
+
+        return [$app, null];
+    }
+
+    private function requestLogout(): array
+    {
+        // Drop the stored token so the next launch shows login, then go there.
+        $this->auth->logout();
+
+        return $this->goLogin(null);
+    }
+
+    private function requestQuit(): array
+    {
+        // Mirror the Ctrl-C path: tear down a Teardownable top screen (the
+        // player's ffmpeg/ffplay) before quitting so nothing leaks.
+        $top = $this->topScreen();
+        if ($top instanceof Teardownable) {
+            $top->teardown();
+        }
+
+        return [$this, Cmd::quit()];
     }
 
     private function openLibrary(string $libraryId, string $name): array
@@ -495,7 +671,7 @@ final class App implements Model
     {
         return new self(
             $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
-            $stack, null, $this->cols, $this->rows, $this->toast, $this->toastTicking,
+            $stack, null, $this->cols, $this->rows, $this->toast, $this->toastTicking, $this->palette,
         );
     }
 
@@ -522,7 +698,7 @@ final class App implements Model
 
         $app = new self(
             $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
-            $stack, null, $cols, $rows, $this->toast, $this->toastTicking,
+            $stack, null, $cols, $rows, $this->toast, $this->toastTicking, $this->palette?->resizedTo($cols, $rows),
         );
 
         return [$app, $cmds === [] ? null : Cmd::batch(...$cmds)];
@@ -548,5 +724,10 @@ final class App implements Model
     public function toast(): Toast
     {
         return $this->toast;
+    }
+
+    public function palette(): ?CommandPalette
+    {
+        return $this->palette;
     }
 }
