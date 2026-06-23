@@ -14,6 +14,7 @@ use Phlix\Console\Msg\PlaybackMarkersLoadedMsg;
 use Phlix\Console\Msg\PlayerPrepareFailedMsg;
 use Phlix\Console\Msg\PlayerReadyMsg;
 use Phlix\Console\Msg\ProgressTickMsg;
+use Phlix\Console\Msg\ResumeInfoMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\SessionStartedMsg;
 use Phlix\Console\Ui\Chrome;
@@ -66,6 +67,10 @@ final class PlayerScreen implements Model, Teardownable
     private const TICKS_PER_SECOND = 10_000_000;
     /** Seconds between throttled progress reports. */
     private const PROGRESS_INTERVAL = 10.0;
+    /** Below this, a saved position isn't worth resuming from. */
+    private const RESUME_FLOOR = 5.0;
+    /** Hide the "Resumed from …" hint once the user is this far past the resume point. */
+    private const RESUME_HINT_WINDOW = 45.0;
 
     private ?Player $inner = null;
     private ?string $error = null;
@@ -73,6 +78,8 @@ final class PlayerScreen implements Model, Teardownable
     private bool $tornDown = false;
     private ?PlaybackMarkers $markers = null;
     private ?string $sessionId = null;
+    private ?float $resumeSeconds = null;
+    private bool $resumeApplied = false;
 
     /**
      * @param \Closure(string $url, int $cols, int $rows): Player $playerFactory
@@ -103,10 +110,11 @@ final class PlayerScreen implements Model, Teardownable
 
     public function init(): ?\Closure
     {
-        // Build the player and fetch its scrubber markers concurrently.
+        // Build the player and fetch its markers + resume position concurrently.
         return Cmd::batch(
             Cmd::promise(fn (): PromiseInterface => $this->buildPlayer()),
             $this->fetchMarkers(),
+            $this->fetchResume(),
         );
     }
 
@@ -126,6 +134,9 @@ final class PlayerScreen implements Model, Teardownable
             $next->markers = $msg->markers;
 
             return [$next, null];
+        }
+        if ($msg instanceof ResumeInfoMsg) {
+            return $this->onResumeInfo($msg->seconds);
         }
         if ($msg instanceof SessionStartedMsg) {
             return $this->onSessionStarted($msg->sessionId);
@@ -225,6 +236,48 @@ final class PlayerScreen implements Model, Teardownable
         return [$next, $wasEnded ? $this->tickCmd($seeked) : null];
     }
 
+    /** Restart playback from the beginning and dismiss the resume hint. */
+    private function startOver(): array
+    {
+        $inner = $this->inner;
+        if ($inner === null) {
+            return [$this, null];
+        }
+
+        $wasEnded = $inner->ended;
+        $seeked = $inner->seekToSeconds(0.0);
+
+        $next = clone $this;
+        $next->inner = $seeked;
+        $next->resumeSeconds = null; // hide the "Resumed from …" hint
+
+        return [$next, $wasEnded ? $this->tickCmd($seeked) : null];
+    }
+
+    // ---- resume --------------------------------------------------------
+
+    /**
+     * Look up this item's saved position in continue-watching → ResumeInfoMsg
+     * (null when absent / near-complete / on any error — best-effort).
+     */
+    private function fetchResume(): \Closure
+    {
+        $id = $this->item->id;
+
+        return Cmd::promise(fn (): PromiseInterface => $this->api->continueWatching()->then(
+            static function (array $items) use ($id): Msg {
+                foreach ($items as $cw) {
+                    if ($cw->item->id === $id && $cw->positionTicks > 0 && $cw->progress() < 0.95) {
+                        return new ResumeInfoMsg($cw->positionTicks / self::TICKS_PER_SECOND);
+                    }
+                }
+
+                return new ResumeInfoMsg(null);
+            },
+            static fn (\Throwable $e): Msg => new ResumeInfoMsg(null),
+        ));
+    }
+
     // ---- progress reporting --------------------------------------------
 
     /** Open a playback session; on success → SessionStartedMsg. Failure is swallowed. */
@@ -319,8 +372,38 @@ final class PlayerScreen implements Model, Teardownable
 
         $next = clone $this;
         $next->inner = $started instanceof Player ? $started : $player;
+        // If the resume position resolved before the player was ready, apply it now.
+        $next->applyResumeInPlace();
 
         return [$next, Cmd::batch($tick, $this->createSessionCmd())];
+    }
+
+    /**
+     * The saved resume position arrived. Seek the (playing) video to it once,
+     * unless it's trivial or the player isn't ready yet (then onReady applies it).
+     */
+    private function onResumeInfo(?float $seconds): array
+    {
+        $next = clone $this;
+        $next->resumeSeconds = $seconds;
+        $next->applyResumeInPlace();
+
+        return [$next, null];
+    }
+
+    /**
+     * Seek the player to the saved resume position if one is known, the player
+     * is ready, and we haven't already resumed. Operates on the current
+     * instance — only ever called on a freshly cloned screen.
+     */
+    private function applyResumeInPlace(): void
+    {
+        if ($this->inner === null || $this->resumeApplied
+            || $this->resumeSeconds === null || $this->resumeSeconds < self::RESUME_FLOOR) {
+            return;
+        }
+        $this->inner = $this->inner->seekToSeconds($this->resumeSeconds);
+        $this->resumeApplied = true;
     }
 
     public function teardown(): void
@@ -376,6 +459,11 @@ final class PlayerScreen implements Model, Teardownable
         // s → skip the intro/outro segment under the playhead (if any).
         if ($msg->type === KeyType::Char && ($msg->rune === 's' || $msg->rune === 'S')) {
             return $this->skipMarker();
+        }
+
+        // o → start over from the beginning (offered after an auto-resume).
+        if ($msg->type === KeyType::Char && ($msg->rune === 'o' || $msg->rune === 'O')) {
+            return $this->startOver();
         }
 
         // Everything else the inner player handles (Space, [ , ] , m, 0–9) → forward.
@@ -441,18 +529,51 @@ final class PlayerScreen implements Model, Teardownable
         return Scrubber::of($inner->position(), $inner->duration(), $this->cols, $this->chapters())->render();
     }
 
-    /** play/pause glyph + title + a contextual skip prompt + the key hints. */
+    /** play/pause glyph + title + a contextual resume/skip prompt + the key hints. */
     private function statusLine(Player $inner): string
     {
         $glyph = $inner->paused ? '⏸' : '▶';
-        $skip = $this->markers?->skipLabel($inner->position());
-        $skipPrompt = $skip !== null ? "   s {$skip}" : '';
+        // A live resume hint wins over the skip prompt (resume usually clears the intro).
+        $prompt = $this->resumeHint($inner) ?? $this->skipPrompt($inner);
         $hint = 'Space ⏯  ←→ ±10s  [ ] speed  m mode  f full  q back';
 
         $title = Width::truncate($this->item->name, max(8, $this->cols - 56));
-        $line = sprintf('%s %s%s   ·   %s', $glyph, $title, $skipPrompt, $hint);
+        $line = sprintf('%s %s%s   ·   %s', $glyph, $title, $prompt, $hint);
 
         return Style::new()->bold()->render(Width::truncate($line, max(1, $this->cols)));
+    }
+
+    /** "   s Skip Intro/Outro" when the playhead is in a skip window, else ''. */
+    private function skipPrompt(Player $inner): string
+    {
+        $skip = $this->markers?->skipLabel($inner->position());
+
+        return $skip !== null ? "   s {$skip}" : '';
+    }
+
+    /** "   ↺ Resumed from m:ss · o start over" for a while after an auto-resume, else ''. */
+    private function resumeHint(Player $inner): ?string
+    {
+        if (!$this->resumeApplied || $this->resumeSeconds === null) {
+            return null;
+        }
+        // Dismiss once the viewer is well past the resume point.
+        if ($inner->position() > $this->resumeSeconds + self::RESUME_HINT_WINDOW) {
+            return null;
+        }
+
+        return '   ↺ Resumed from ' . self::clock($this->resumeSeconds) . ' · o start over';
+    }
+
+    /** Seconds → "m:ss" (or "h:mm:ss" past an hour). */
+    private static function clock(float $seconds): string
+    {
+        $s = max(0, (int) round($seconds));
+        $h = intdiv($s, 3600);
+        $m = intdiv($s % 3600, 60);
+        $sec = $s % 60;
+
+        return $h > 0 ? sprintf('%d:%02d:%02d', $h, $m, $sec) : sprintf('%d:%02d', $m, $sec);
     }
 
     /** @return list<\Phlix\Console\Api\Dto\Chapter> */
@@ -532,5 +653,15 @@ final class PlayerScreen implements Model, Teardownable
     public function sessionId(): ?string
     {
         return $this->sessionId;
+    }
+
+    public function resumeSeconds(): ?float
+    {
+        return $this->resumeSeconds;
+    }
+
+    public function isResumed(): bool
+    {
+        return $this->resumeApplied;
     }
 }
