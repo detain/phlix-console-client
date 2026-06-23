@@ -282,6 +282,7 @@ final class App implements Model
         $screen = new PlayerScreen(
             $item,
             $this->api->baseUrl(),
+            $this->api,
             PlayerScreen::productionFactory(),
             cols: $this->cols,
             rows: $this->rows,
