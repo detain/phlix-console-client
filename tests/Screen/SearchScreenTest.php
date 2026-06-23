@@ -87,6 +87,29 @@ final class SearchScreenTest extends TestCase
         self::assertStringNotContainsString('1 results', $screen->view());
     }
 
+    public function testMatchingResultTitlesAreFuzzyHighlighted(): void
+    {
+        // Titles are 'Item 0', 'Item 1', … so searching 'Item' matches the run.
+        $screen = $this->runSearch('Item', 3);
+        $card = $screen->grid()->item(0);
+
+        self::assertNotNull($card);
+        self::assertNotNull($card->styledTitle, 'a matching result carries a highlighted title');
+        self::assertStringContainsString("\e[1m", $card->styledTitle, 'the matched run is styled (bold)');
+        self::assertStringContainsString('Item', $card->styledTitle);
+        self::assertSame('Item 0', $card->title, 'the plain title is kept for identity/sort');
+    }
+
+    public function testNonMatchingTitlesAreLeftPlain(): void
+    {
+        // 'zzzz' has no alignment in 'Item N' → no fuzzy match → no styled title.
+        $screen = $this->runSearch('zzzz', 2);
+        $card = $screen->grid()->item(0);
+
+        self::assertNotNull($card);
+        self::assertNull($card->styledTitle, 'an unmatched title is left plain');
+    }
+
     public function testNoResultsShowsTheEmptyState(): void
     {
         $screen = $this->runSearch('zzzz', 0);
