@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace Phlix\Console\Config;
 
 /**
- * Client configuration — currently the (configurable, never hard-coded) Phlix
- * server URL, persisted as JSON under the user's config directory.
+ * Client configuration — the (configurable, never hard-coded) Phlix server URL
+ * and the chosen UI theme name, persisted as JSON under the user's config
+ * directory.
  *
  * Honours `XDG_CONFIG_HOME`, falling back to `~/.config/phlix`.
  */
@@ -14,6 +15,7 @@ final class Config
 {
     public function __construct(
         public readonly ?string $serverUrl = null,
+        public readonly ?string $theme = null,
     ) {
     }
 
@@ -54,8 +56,12 @@ final class Config
         }
 
         $url = $data['server_url'] ?? null;
+        $theme = $data['theme'] ?? null;
 
-        return new self(serverUrl: (is_string($url) && $url !== '') ? $url : null);
+        return new self(
+            serverUrl: (is_string($url) && $url !== '') ? $url : null,
+            theme: (is_string($theme) && $theme !== '') ? $theme : null,
+        );
     }
 
     /**
@@ -73,7 +79,7 @@ final class Config
         }
 
         $json = json_encode(
-            ['server_url' => $this->serverUrl],
+            ['server_url' => $this->serverUrl, 'theme' => $this->theme],
             JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES,
         );
 
@@ -84,10 +90,16 @@ final class Config
         @chmod($path, 0o600);
     }
 
-    /** Return a copy with the given (normalised) server URL. */
+    /** Return a copy with the given (normalised) server URL, preserving the theme. */
     public function withServerUrl(string $url): self
     {
-        return new self(serverUrl: self::normalizeUrl($url));
+        return new self(serverUrl: self::normalizeUrl($url), theme: $this->theme);
+    }
+
+    /** Return a copy with the given theme name, preserving the server URL. */
+    public function withTheme(string $name): self
+    {
+        return new self(serverUrl: $this->serverUrl, theme: $name);
     }
 
     public function hasServer(): bool

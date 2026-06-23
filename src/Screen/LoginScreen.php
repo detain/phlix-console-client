@@ -22,9 +22,10 @@ use SugarCraft\Forms\Form;
  * As with {@see ServerScreen}, the embedded Form's submit/abort Cmd::quit() is
  * intercepted and replaced with a navigation intent.
  */
-final class LoginScreen implements Model
+final class LoginScreen implements Model, Themed
 {
     use SubscriptionCapable;
+    use ThemedScreen;
 
     public function __construct(
         public readonly Form $form,
@@ -91,6 +92,6 @@ final class LoginScreen implements Model
         }
         $body = implode("\n", $lines) . $this->form->view();
 
-        return Chrome::frame('Login', $body, 'Tab  next      Enter  sign in      Esc  quit', $this->cols, $this->rows);
+        return Chrome::frame('Login', $body, 'Tab  next      Enter  sign in      Esc  quit', $this->cols, $this->rows, theme: $this->theme());
     }
 }

@@ -41,9 +41,10 @@ use SugarCraft\Gallery\PosterGrid;
  * Stable collaborators are readonly; mutable view state is private and copied via
  * clone-mutate (the established screen idiom).
  */
-final class PhotosScreen implements Breadcrumbed
+final class PhotosScreen implements Breadcrumbed, Themed
 {
     use SubscriptionCapable;
+    use ThemedScreen;
 
     private const CARD_WIDTH = 14;
     private const POSTER_HEIGHT = 9;
@@ -108,7 +109,7 @@ final class PhotosScreen implements Breadcrumbed
     public function view(): string
     {
         if ($this->error !== null) {
-            return Chrome::frame($this->name, "\n  {$this->error}", self::HINT, $this->cols, $this->rows, $this->crumbs);
+            return Chrome::frame($this->name, "\n  {$this->error}", self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
         }
 
         $total = $this->grid->total();
@@ -122,7 +123,7 @@ final class PhotosScreen implements Breadcrumbed
 
         $body = $header . "\n\n" . $this->grid->render(true);
 
-        return Chrome::frame($this->name, $body, self::HINT, $this->cols, $this->rows, $this->crumbs);
+        return Chrome::frame($this->name, $body, self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
     }
 
     // ---- input ---------------------------------------------------------

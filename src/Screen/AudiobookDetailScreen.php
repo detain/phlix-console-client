@@ -62,9 +62,10 @@ use SugarCraft\Reel\AudioPlayer;
  * clone-mutate — only {@see teardown()} and {@see stopPlaybackInPlace()} mutate
  * `$this` in place (the player lifecycle, exactly like AlbumScreen).
  */
-final class AudiobookDetailScreen implements Breadcrumbed, Teardownable
+final class AudiobookDetailScreen implements Breadcrumbed, Teardownable, Themed
 {
     use SubscriptionCapable;
+    use ThemedScreen;
 
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
     private const PLAY_FAILED = 'Cannot play this audiobook';
@@ -168,13 +169,13 @@ final class AudiobookDetailScreen implements Breadcrumbed, Teardownable
     public function view(): string
     {
         if ($this->error !== null) {
-            return Chrome::frame($this->headerTitle(), "\n  {$this->error}", self::HINT, $this->cols, $this->rows, $this->crumbs);
+            return Chrome::frame($this->headerTitle(), "\n  {$this->error}", self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
         }
         if (!$this->loaded || $this->audiobook === null) {
-            return Chrome::frame($this->headerTitle(), "\n  Loading…", self::HINT, $this->cols, $this->rows, $this->crumbs);
+            return Chrome::frame($this->headerTitle(), "\n  Loading…", self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
         }
 
-        return Chrome::frame($this->headerTitle(), $this->body($this->audiobook), self::HINT, $this->cols, $this->rows, $this->crumbs);
+        return Chrome::frame($this->headerTitle(), $this->body($this->audiobook), self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
     }
 
     // ---- data ----------------------------------------------------------

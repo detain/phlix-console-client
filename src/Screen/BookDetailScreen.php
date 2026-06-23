@@ -38,9 +38,10 @@ use SugarCraft\Sprinkles\Style;
  * clone-mutate (the established screen idiom). A leaf screen: there is nothing to
  * play, so `p`/Enter do nothing special.
  */
-final class BookDetailScreen implements Breadcrumbed
+final class BookDetailScreen implements Breadcrumbed, Themed
 {
     use SubscriptionCapable;
+    use ThemedScreen;
 
     private const HERO_WIDTH = 26;
     private const HERO_HEIGHT = 16;
@@ -105,17 +106,17 @@ final class BookDetailScreen implements Breadcrumbed
     public function view(): string
     {
         if ($this->error !== null) {
-            return Chrome::frame($this->headerTitle(), "\n  {$this->error}", self::HINT, $this->cols, $this->rows, $this->crumbs);
+            return Chrome::frame($this->headerTitle(), "\n  {$this->error}", self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
         }
         if (!$this->loaded || $this->book === null) {
-            return Chrome::frame($this->headerTitle(), "\n  Loading…", self::HINT, $this->cols, $this->rows, $this->crumbs);
+            return Chrome::frame($this->headerTitle(), "\n  Loading…", self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
         }
 
         $hero = $this->heroAnsi ?? $this->heroPlaceholder();
         $column = $this->metadataColumn($this->book);
         $body = Layout::joinHorizontalWithSpacing(0.0, self::COL_GAP, $hero, $column);
 
-        return Chrome::frame($this->headerTitle(), $body, self::HINT, $this->cols, $this->rows, $this->crumbs);
+        return Chrome::frame($this->headerTitle(), $body, self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
     }
 
     // ---- data ----------------------------------------------------------

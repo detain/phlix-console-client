@@ -57,9 +57,10 @@ use SugarCraft\Sprinkles\Style;
  * Stable collaborators are readonly; mutable view state is private and copied
  * via clone-mutate (the established screen idiom) — never mutated in place.
  */
-final class PhotoViewerScreen implements Breadcrumbed
+final class PhotoViewerScreen implements Breadcrumbed, Themed
 {
     use SubscriptionCapable;
+    use ThemedScreen;
 
     private const SLIDE_INTERVAL = 4.0;
     private const EXIF_WIDTH = 30;
@@ -124,7 +125,7 @@ final class PhotoViewerScreen implements Breadcrumbed
     {
         $photo = $this->currentPhoto();
         if ($photo === null) {
-            return Chrome::frame($this->album->date, "\n  No photos.", self::HINT, $this->cols, $this->rows, $this->crumbs);
+            return Chrome::frame($this->album->date, "\n  No photos.", self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
         }
 
         $caption = Width::truncate($this->captionText($photo), max(1, $this->cols - 4));
@@ -133,7 +134,7 @@ final class PhotoViewerScreen implements Breadcrumbed
             ? Layout::joinHorizontalWithSpacing(0.0, self::COL_GAP, $image, $this->exifColumn())
             : $image;
 
-        return Chrome::frame($photo->name, $caption . "\n\n" . $body, self::HINT, $this->cols, $this->rows, $this->crumbs);
+        return Chrome::frame($photo->name, $caption . "\n\n" . $body, self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
     }
 
     /** The photo at the current index, or null when the album is empty. */

@@ -38,9 +38,10 @@ use SugarCraft\Gallery\PosterGrid;
  * Stable collaborators are readonly; mutable view state is private and copied via
  * clone-mutate (the established screen idiom).
  */
-final class PhotoAlbumScreen implements Breadcrumbed
+final class PhotoAlbumScreen implements Breadcrumbed, Themed
 {
     use SubscriptionCapable;
+    use ThemedScreen;
 
     private const CARD_WIDTH = 14;
     private const POSTER_HEIGHT = 9;
@@ -104,7 +105,7 @@ final class PhotoAlbumScreen implements Breadcrumbed
 
         $body = $header . "\n\n" . $this->grid->render(true);
 
-        return Chrome::frame($this->album->date, $body, self::HINT, $this->cols, $this->rows, $this->crumbs);
+        return Chrome::frame($this->album->date, $body, self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
     }
 
     // ---- input ---------------------------------------------------------
