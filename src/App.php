@@ -9,6 +9,7 @@ use Phlix\Console\Api\Dto\Album;
 use Phlix\Console\Api\Dto\AuthUser;
 use Phlix\Console\Api\Dto\Library;
 use Phlix\Console\Api\Dto\MediaItem;
+use Phlix\Console\Api\Dto\PhotoAlbum;
 use Phlix\Console\Api\NetworkError;
 use Phlix\Console\Config\Config;
 use Phlix\Console\Msg\BootResolvedMsg;
@@ -21,6 +22,7 @@ use Phlix\Console\Msg\OpenAudiobookMsg;
 use Phlix\Console\Msg\OpenBookMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\OpenLibraryMsg;
+use Phlix\Console\Msg\OpenPhotoAlbumMsg;
 use Phlix\Console\Msg\OpenSearchMsg;
 use Phlix\Console\Msg\PaletteLibrariesLoadedMsg;
 use Phlix\Console\Msg\PlayNextMsg;
@@ -45,6 +47,8 @@ use Phlix\Console\Screen\LibraryScreen;
 use Phlix\Console\Screen\LoginScreen;
 use Phlix\Console\Screen\MusicScreen;
 use Phlix\Console\Screen\CapturesSlash;
+use Phlix\Console\Screen\PhotoAlbumScreen;
+use Phlix\Console\Screen\PhotosScreen;
 use Phlix\Console\Screen\PlayerScreen;
 use Phlix\Console\Screen\SearchScreen;
 use Phlix\Console\Screen\ServerScreen;
@@ -55,6 +59,7 @@ use Phlix\Console\Store\BooksStore;
 use Phlix\Console\Store\LibrariesStore;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Store\MusicStore;
+use Phlix\Console\Store\PhotosStore;
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\CommandPalette;
 use Phlix\Console\Ui\PaletteAction;
@@ -205,6 +210,9 @@ final class App implements Model
         }
         if ($msg instanceof OpenAudiobookMsg) {
             return $this->openAudiobook($msg->id, $msg->title);
+        }
+        if ($msg instanceof OpenPhotoAlbumMsg) {
+            return $this->openPhotoAlbum($msg->album);
         }
         if ($msg instanceof OpenDetailMsg) {
             return $this->openDetail($msg->id, $msg->name);
@@ -606,6 +614,22 @@ final class App implements Model
 
             return [$this->push(Route::Audiobooks, $screen), $screen->init()];
         }
+        if ($type === 'photo') {
+            // A PhotosStore is built locally (the App holds no photos field, like
+            // BooksStore); the store fetches every album (each with its photos and
+            // signed thumbnails) in one call, so the screen needs no item count.
+            $screen = new PhotosScreen(
+                new PhotosStore($this->api),
+                $this->posters,
+                $this->api->baseUrl(),
+                $libraryId,
+                $name,
+                cols: $this->cols,
+                rows: $this->rows,
+            );
+
+            return [$this->push(Route::Photos, $screen), $screen->init()];
+        }
 
         $screen = new LibraryScreen(
             $libraryId,
@@ -666,6 +690,21 @@ final class App implements Model
         );
 
         return [$this->push(Route::AudiobookDetail, $screen), $screen->init()];
+    }
+
+    private function openPhotoAlbum(PhotoAlbum $album): array
+    {
+        // The album carries its photos (each with a signed thumbnail), so the
+        // screen builds its grid from them with no further fetch.
+        $screen = new PhotoAlbumScreen(
+            $album,
+            $this->posters,
+            $this->api->baseUrl(),
+            cols: $this->cols,
+            rows: $this->rows,
+        );
+
+        return [$this->push(Route::PhotoAlbum, $screen), $screen->init()];
     }
 
     private function openDetail(string $id, string $name): array
