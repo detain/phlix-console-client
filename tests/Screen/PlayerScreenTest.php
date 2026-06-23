@@ -11,6 +11,7 @@ use Phlix\Console\Msg\PlaybackMarkersLoadedMsg;
 use Phlix\Console\Msg\PlayerPrepareFailedMsg;
 use Phlix\Console\Msg\PlayerReadyMsg;
 use Phlix\Console\Msg\ProgressTickMsg;
+use Phlix\Console\Msg\ResumeInfoMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Screen\PlayerScreen;
 use Phlix\Console\Tests\Api\FakeTransport;
@@ -66,6 +67,25 @@ final class PlayerScreenTest extends TestCase
             ],
             'skip_button_spec' => ['skip_intro_start' => 5.0, 'skip_intro_end' => 30.0, 'skip_outro_start' => 90.0, 'skip_outro_end' => 100.0],
         ], $overrides);
+    }
+
+    /** A continue-watching response (default: no items → nothing to resume). */
+    private function continueWatching(array $items = []): array
+    {
+        return ['items' => $items];
+    }
+
+    /** A single continue-watching row for $id at $positionTicks / $durationTicks. */
+    private function watchedRow(string $id, int $positionTicks, int $durationTicks): array
+    {
+        return [
+            'media_item_id' => $id,
+            'name' => 'The Matrix',
+            'type' => 'movie',
+            'position_ticks' => $positionTicks,
+            'duration_ticks' => $durationTicks,
+            'playback_status' => 'in_progress',
+        ];
     }
 
     /**
@@ -450,18 +470,127 @@ final class PlayerScreenTest extends TestCase
         self::assertNull($cmd);
     }
 
+    // ---- resume --------------------------------------------------------
+
+    /** A ready screen whose continue-watching says this item is $atSeconds into a 100s clip. */
+    private function readyResumed(float $atSeconds): PlayerScreen
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->markersResponse())
+            ->json(200, $this->continueWatching([
+                $this->watchedRow('m1', (int) ($atSeconds * 10_000_000), 100 * 10_000_000),
+            ]));
+        [$screen] = $this->screen(transport: $transport);
+
+        return $this->ready($screen);
+    }
+
+    public function testResumeSeeksToTheSavedPositionAndShowsTheHint(): void
+    {
+        $resumed = $this->readyResumed(60.0);
+
+        self::assertTrue($resumed->isResumed());
+        self::assertSame(60.0, $resumed->position());
+        self::assertSame(60.0, $resumed->resumeSeconds());
+        self::assertStringContainsString('Resumed from 1:00', $resumed->view());
+        self::assertStringContainsString('start over', $resumed->view());
+    }
+
+    public function testNoResumeWithoutASavedPosition(): void
+    {
+        // The default screen()'s continue-watching call returns {} → no items.
+        $ready = $this->ready($this->screen()[0]);
+
+        self::assertFalse($ready->isResumed());
+        self::assertSame(0.0, $ready->position());
+    }
+
+    public function testNoResumeWhenNearlyComplete(): void
+    {
+        // 98s of 100s → 98% > 95% → not resumable.
+        $resumed = $this->readyResumed(98.0);
+
+        self::assertFalse($resumed->isResumed());
+        self::assertSame(0.0, $resumed->position());
+    }
+
+    public function testNoResumeBelowTheFloor(): void
+    {
+        // 3s in → below the 5s floor → not worth resuming.
+        $resumed = $this->readyResumed(3.0);
+
+        self::assertFalse($resumed->isResumed());
+        self::assertSame(0.0, $resumed->position());
+    }
+
+    public function testStartOverSeeksToZeroAndDismissesTheHint(): void
+    {
+        $resumed = $this->readyResumed(60.0);
+        self::assertTrue($resumed->isResumed());
+
+        [$over] = $resumed->update(new KeyMsg(KeyType::Char, 'o'));
+
+        self::assertSame(0.0, $over->position());
+        self::assertNull($over->resumeSeconds(), 'the resume hint is dismissed');
+        self::assertStringNotContainsString('Resumed from', $over->view());
+    }
+
+    public function testResumeHintAutoDismissesAfterWatchingPast(): void
+    {
+        $resumed = $this->readyResumed(20.0);
+        self::assertStringContainsString('Resumed from', $resumed->view());
+
+        // Seek well past the resume point + its hint window (20 + 45s).
+        $cur = $resumed;
+        for ($i = 0; $i < 6; $i++) {
+            [$cur] = $cur->update(new KeyMsg(KeyType::Right)); // +10s each → 80s
+        }
+
+        self::assertSame(80.0, $cur->position());
+        self::assertStringNotContainsString('Resumed from', $cur->view(), 'the hint auto-dismisses');
+        self::assertTrue($cur->isResumed(), 'still flagged resumed; only the hint is gone');
+    }
+
+    public function testResumeFetchFailureIsSwallowed(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->markersResponse())
+            ->fail(new \RuntimeException('boom')); // continue-watching fails
+        [$screen] = $this->screen(transport: $transport);
+
+        $ready = $this->ready($screen);
+
+        self::assertFalse($ready->isResumed());
+        self::assertSame(0.0, $ready->position(), 'plays from the start');
+    }
+
+    public function testResumeAppliesEvenIfInfoArrivesBeforeReady(): void
+    {
+        // Order the messages by hand: ResumeInfo first, then PlayerReady.
+        [$screen, $decoder] = $this->screen();
+        [$withResume] = $screen->update(new ResumeInfoMsg(42.0));
+        self::assertFalse($withResume->isResumed(), 'cannot resume until the player exists');
+
+        $player = Player::openForTest($decoder, fps: 24.0, totalFrames: 2400, cellsW: 80, cellsH: 18, videoPath: '/fake', paused: true);
+        [$ready] = $withResume->update(new PlayerReadyMsg($player));
+
+        self::assertTrue($ready->isResumed());
+        self::assertSame(42.0, $ready->position(), 'onReady applies the pending resume');
+    }
+
     // ---- progress reporting / session lifecycle ------------------------
 
     public function testPlaybackOpensASessionWithTheDeviceId(): void
     {
         $transport = (new FakeTransport())
             ->json(200, $this->markersResponse())
+            ->json(200, $this->continueWatching())
             ->json(201, ['session_id' => 'sess-1']);
 
         $ready = $this->readyWithSession($transport);
 
         self::assertSame('sess-1', $ready->sessionId());
-        $sessionReq = $transport->requestAt(1); // 0 = markers, 1 = session
+        $sessionReq = $transport->requestAt(2); // 0 = markers, 1 = continue-watching, 2 = session
         self::assertSame('POST', $sessionReq['method']);
         self::assertStringContainsString('/api/v1/sessions', $sessionReq['url']);
         self::assertStringContainsString('device_id', $sessionReq['body']);
@@ -471,6 +600,7 @@ final class PlayerScreenTest extends TestCase
     {
         $transport = (new FakeTransport())
             ->json(200, $this->markersResponse())
+            ->json(200, $this->continueWatching())
             ->json(201, ['session_id' => 'sess-1'])
             ->json(200, ['message' => 'ok']);
         $ready = $this->readyWithSession($transport);
@@ -491,7 +621,8 @@ final class PlayerScreenTest extends TestCase
     {
         $transport = (new FakeTransport())
             ->json(200, $this->markersResponse())
-            ->fail(new \RuntimeException('boom'));
+            ->json(200, $this->continueWatching())
+            ->fail(new \RuntimeException('boom')); // session create fails
 
         $ready = $this->readyWithSession($transport);
 
@@ -503,6 +634,7 @@ final class PlayerScreenTest extends TestCase
     {
         $transport = (new FakeTransport())
             ->json(200, $this->markersResponse())
+            ->json(200, $this->continueWatching())
             ->json(201, ['session_id' => 'sess-1'])
             ->json(200, ['message' => 'ok'])     // final progress
             ->json(200, ['message' => 'ended']); // endSession
