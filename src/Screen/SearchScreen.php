@@ -25,7 +25,10 @@ use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\SubscriptionCapable;
+use SugarCraft\Fuzzy\Highlighter;
+use SugarCraft\Fuzzy\Matcher\SmithWatermanMatcher;
 use SugarCraft\Gallery\PosterGrid;
+use SugarCraft\Sprinkles\Style;
 
 /**
  * Global search: a persistent debounced query box over a 2-D virtualized
@@ -309,14 +312,32 @@ final class SearchScreen implements Breadcrumbed, CapturesSlash
     }
 
     /**
+     * Build the grid cards for a page of results, fuzzy-highlighting the matched
+     * characters of each title against the query that produced them (so the user
+     * sees *why* a result matched). The plain title is kept for identity/sort.
+     *
      * @param array<int, \Phlix\Console\Api\Dto\MediaItem> $items
      * @return array<int, \SugarCraft\Gallery\PosterCard>
      */
     private function cards(array $items): array
     {
+        $query = (string) $this->query->search;
+        $matcher = new SmithWatermanMatcher();
+        $highlighter = new Highlighter();
+
         $cards = [];
         foreach ($items as $index => $item) {
-            $cards[$index] = PosterCardFactory::fromMediaItem($item);
+            $card = PosterCardFactory::fromMediaItem($item);
+
+            $match = $matcher->match($query, $card->title);
+            if ($match !== null && !$match->isEmpty()) {
+                $card = $card->withStyledTitle($highlighter->highlight(
+                    $match,
+                    static fn (string $matched): string => Style::new()->bold()->render($matched),
+                ));
+            }
+
+            $cards[$index] = $card;
         }
 
         return $cards;
