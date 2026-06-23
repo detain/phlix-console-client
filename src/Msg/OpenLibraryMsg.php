@@ -13,6 +13,7 @@ final readonly class OpenLibraryMsg implements Msg
         public string $libraryId,
         public string $name,
         public string $type = '',
+        public int $itemCount = 0,
     ) {
     }
 }
