@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace Phlix\Console\Api;
 
 use Phlix\Console\Api\Dto\Album;
+use Phlix\Console\Api\Dto\Audiobook;
+use Phlix\Console\Api\Dto\AudiobookChapter;
+use Phlix\Console\Api\Dto\AudiobookPage;
+use Phlix\Console\Api\Dto\AudiobookProgress;
 use Phlix\Console\Api\Dto\AuthUser;
 use Phlix\Console\Api\Dto\Book;
 use Phlix\Console\Api\Dto\BookPage;
@@ -263,6 +267,97 @@ final class ApiClient
     {
         return $this->authed('GET', '/api/v1/books/' . rawurlencode($id))
             ->then(static fn (array $data): Book => Book::fromArray(Coerce::map($data['book'] ?? null)));
+    }
+
+    // ---- audiobooks ----------------------------------------------------
+
+    /**
+     * A page of audiobooks — scoped to a library when `$libraryId` is given,
+     * otherwise across all audiobook libraries. The server caps the page at 100
+     * and sends no total.
+     *
+     * @return PromiseInterface<AudiobookPage>
+     */
+    public function audiobooks(?string $libraryId, int $limit = 50, int $offset = 0): PromiseInterface
+    {
+        $query = array_filter(
+            ['library_id' => $libraryId, 'limit' => $limit, 'offset' => $offset],
+            static fn (mixed $value): bool => $value !== null,
+        );
+
+        return $this->authed('GET', '/api/v1/audiobooks', $query)
+            ->then(static fn (array $data): AudiobookPage => AudiobookPage::fromArray($data));
+    }
+
+    /**
+     * A single audiobook's detail — the flat shape that adds the signed
+     * `stream_url` the list omits.
+     *
+     * @return PromiseInterface<Audiobook>
+     */
+    public function audiobook(string $id): PromiseInterface
+    {
+        return $this->authed('GET', '/api/v1/audiobooks/' . rawurlencode($id))
+            ->then(static fn (array $data): Audiobook => Audiobook::fromArray(Coerce::map($data['audiobook'] ?? null)));
+    }
+
+    /**
+     * The formatted chapter list for an audiobook. Each row already carries an
+     * `index`; a missing one falls back to its position in the list.
+     *
+     * @return PromiseInterface<list<AudiobookChapter>>
+     */
+    public function audiobookChapters(string $id): PromiseInterface
+    {
+        return $this->authed('GET', '/api/v1/audiobooks/' . rawurlencode($id) . '/chapters')
+            ->then(static function (array $data): array {
+                $chapters = [];
+                $ordinal = 0;
+                foreach (Coerce::map($data['chapters'] ?? null) as $row) {
+                    if (is_array($row)) {
+                        $chapters[] = AudiobookChapter::fromArray($row, $ordinal);
+                    }
+                    $ordinal++;
+                }
+
+                return $chapters;
+            });
+    }
+
+    /**
+     * The current listener's progress through an audiobook (position in ms,
+     * current/completed chapters, percent complete).
+     *
+     * @return PromiseInterface<AudiobookProgress>
+     */
+    public function audiobookProgress(string $id): PromiseInterface
+    {
+        return $this->authed('GET', '/api/v1/audiobooks/' . rawurlencode($id) . '/progress')
+            ->then(static fn (array $data): AudiobookProgress => AudiobookProgress::fromArray(Coerce::map($data['progress'] ?? null)));
+    }
+
+    /**
+     * Persist the listener's progress through an audiobook (position in ms,
+     * current chapter, optionally the completed-chapter set and percent), and
+     * return the saved progress.
+     *
+     * @param list<int> $completedChapters
+     *
+     * @return PromiseInterface<AudiobookProgress>
+     */
+    public function saveAudiobookProgress(
+        string $id,
+        int $positionMs,
+        int $currentChapterIndex,
+        array $completedChapters = [],
+        float $percentComplete = 0.0,
+    ): PromiseInterface {
+        return $this->authed('POST', '/api/v1/audiobooks/' . rawurlencode($id) . '/progress', [], [
+            'position_ms' => $positionMs,
+            'current_chapter_index' => $currentChapterIndex,
+            'completed_chapters' => array_values($completedChapters),
+            'percent_complete' => $percentComplete,
+        ])->then(static fn (array $data): AudiobookProgress => AudiobookProgress::fromArray(Coerce::map($data['progress'] ?? null)));
     }
 
     // ---- playback sessions / progress ---------------------------------
