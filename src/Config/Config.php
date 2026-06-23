@@ -96,6 +96,21 @@ final class Config
     }
 
     /**
+     * A stable, non-empty device id for playback-session tracking — derived from
+     * the host and config location so it is consistent across runs without
+     * needing to be persisted.
+     */
+    public static function deviceId(): string
+    {
+        $host = gethostname();
+        if (!is_string($host) || $host === '') {
+            $host = 'host';
+        }
+
+        return 'phlix-console-' . substr(sha1($host . '|' . self::dir()), 0, 16);
+    }
+
+    /**
      * Normalise a user-entered server URL: trim, default to https://, and
      * strip any trailing slash. Returns '' for blank input.
      */
