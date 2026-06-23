@@ -37,6 +37,7 @@ use Phlix\Console\Msg\OpenPhotoAlbumMsg;
 use Phlix\Console\Msg\OpenPhotoMsg;
 use Phlix\Console\Msg\OpenSearchMsg;
 use Phlix\Console\Msg\OpenSettingsMsg;
+use Phlix\Console\Msg\OpenStatsMsg;
 use Phlix\Console\Msg\PaletteLibrariesLoadedMsg;
 use Phlix\Console\Msg\PlayAudiobookMsg;
 use Phlix\Console\Msg\PlayNextMsg;
@@ -73,6 +74,7 @@ use Phlix\Console\Screen\PlayerScreen;
 use Phlix\Console\Screen\SearchScreen;
 use Phlix\Console\Screen\ServerScreen;
 use Phlix\Console\Screen\SettingsScreen;
+use Phlix\Console\Screen\StatsScreen;
 use Phlix\Console\Screen\Teardownable;
 use Phlix\Console\Store\AuthStore;
 use Phlix\Console\Store\LibrariesStore;
@@ -887,7 +889,7 @@ final class AppTest extends TestCase
         self::assertNotNull($next->palette());
         self::assertInstanceOf(\Closure::class, $cmd, 'opening fires the libraries fetch');
         $labels = array_map(static fn ($a): string => $a->label, $next->palette()->actions());
-        self::assertSame(['Search', 'Home', 'Settings', 'Show metrics', 'Log out', 'Quit'], $labels);
+        self::assertSame(['Search', 'Home', 'Settings', 'Stats', 'Show metrics', 'Log out', 'Quit'], $labels);
     }
 
     public function testCtrlKTogglesThePaletteClosed(): void
@@ -1388,6 +1390,29 @@ final class AppTest extends TestCase
         self::assertSame(4, $browse->config()->slideshowInterval, 'the original app config is unchanged');
         self::assertSame(30, $next->config()->slideshowInterval);
         self::assertSame($browse->stackDepth(), $next->stackDepth(), 'the screen stack is preserved');
+    }
+
+    // ---- stats -----------------------------------------------------------
+
+    public function testTheStaticPaletteActionsIncludeStats(): void
+    {
+        [$open] = $this->paletteApp()->update($this->ctrlK());
+
+        $labels = array_map(static fn ($a): string => $a->label, $open->palette()->actions());
+        self::assertContains('Stats', $labels, 'the command palette offers a Stats action');
+    }
+
+    public function testOpenStatsPushesTheStatsScreenWithAFetchCmd(): void
+    {
+        $browse = $this->browsing();
+        self::assertSame(1, $browse->stackDepth());
+
+        [$stats, $cmd] = $browse->update(new OpenStatsMsg());
+
+        self::assertSame(Route::Stats, $stats->route());
+        self::assertInstanceOf(StatsScreen::class, $stats->screen());
+        self::assertSame(2, $stats->stackDepth(), 'stats is pushed onto Browse');
+        self::assertInstanceOf(\Closure::class, $cmd, 'the stats screen fetches the libraries on push');
     }
 
     // ---- music audio (App-owned session) -------------------------------

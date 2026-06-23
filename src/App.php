@@ -35,6 +35,7 @@ use Phlix\Console\Msg\OpenPhotoAlbumMsg;
 use Phlix\Console\Msg\OpenPhotoMsg;
 use Phlix\Console\Msg\OpenSearchMsg;
 use Phlix\Console\Msg\OpenSettingsMsg;
+use Phlix\Console\Msg\OpenStatsMsg;
 use Phlix\Console\Msg\PaletteLibrariesLoadedMsg;
 use Phlix\Console\Msg\PlayAudiobookMsg;
 use Phlix\Console\Msg\PlayNextMsg;
@@ -72,6 +73,7 @@ use Phlix\Console\Screen\PlayerScreen;
 use Phlix\Console\Screen\SearchScreen;
 use Phlix\Console\Screen\ServerScreen;
 use Phlix\Console\Screen\SettingsScreen;
+use Phlix\Console\Screen\StatsScreen;
 use Phlix\Console\Screen\Teardownable;
 use Phlix\Console\Screen\Themed;
 use Phlix\Console\Store\AudiobooksStore;
@@ -283,6 +285,9 @@ final class App implements Model
         }
         if ($msg instanceof OpenSettingsMsg) {
             return $this->openSettings();
+        }
+        if ($msg instanceof OpenStatsMsg) {
+            return $this->openStats();
         }
         if ($msg instanceof SettingsSavedMsg) {
             return $this->saveSettings($msg->themeName, $msg->slideshowInterval);
@@ -607,6 +612,7 @@ final class App implements Model
             new PaletteAction('Search', new OpenSearchMsg()),
             new PaletteAction('Home', new GoHomeMsg()),
             new PaletteAction('Settings', new OpenSettingsMsg()),
+            new PaletteAction('Stats', new OpenStatsMsg()),
             // The metrics / HUD overlay is toggled from the palette (no global key,
             // so no conflict); the label flips with the current visibility.
             new PaletteAction($this->metricsVisible ? 'Hide metrics' : 'Show metrics', new ToggleMetricsMsg()),
@@ -964,6 +970,16 @@ final class App implements Model
         );
 
         return [$this->push(Route::Settings, $screen), $screen->init()];
+    }
+
+    private function openStats(): array
+    {
+        // The stats panel aggregates the libraries the App already fetches, so it
+        // reuses the App's LibrariesStore (the same cache the browse home + palette
+        // use) — no new store instance.
+        $screen = new StatsScreen($this->libraries, $this->cols, $this->rows);
+
+        return [$this->push(Route::Stats, $screen), $screen->init()];
     }
 
     /**

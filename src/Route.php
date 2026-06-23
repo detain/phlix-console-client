@@ -20,6 +20,7 @@ enum Route
     case Player;
     case Search;
     case Settings;
+    case Stats;
     case Music;
     case Album;
     case Books;
