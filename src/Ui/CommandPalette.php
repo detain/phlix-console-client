@@ -16,10 +16,10 @@ use SugarCraft\Veil\Veil;
  * an action registry, and composites the list box centered above a sugar-veil
  * dimmed backdrop.
  *
- * Immutable (clone-mutate). The box is rendered without per-character match
- * highlighting on purpose: candy-hermit's View() is ANSI-width-unaware, so an
- * ANSI-styled item line is corrupted by the compositor's width math — a plain
- * box composites cleanly. (Fuzzy *ranking* is unaffected and is the point.)
+ * Immutable (clone-mutate). The box renders the fuzzy-matched characters of each
+ * action in bold and pops as a bright modal over a dimmed backdrop: candy-hermit's
+ * View() and sugar-veil's composite() are both ANSI-width-aware, so the styled
+ * (highlighted) item lines survive the width math and compositing intact.
  *
  * @phpstan-type Actions list<PaletteAction>
  */
@@ -164,6 +164,7 @@ final class CommandPalette
         return Hermit::new(self::items($actions))
             ->setRanker(new SmithWatermanMatcher())
             ->setPrompt('› ')
+            ->setMatchStyle("\e[1m") // bold the fuzzy-matched runes (ANSI-safe now)
             ->setItemFormatter(static fn (string $value, bool $selected): string => ($selected ? '▶ ' : '  ') . $value)
             ->setWindowWidth($winWidth)
             ->setWindowHeight($winHeight)
