@@ -9,7 +9,7 @@ use Phlix\Console\Media\PhotoCardFactory;
 use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Msg\GridPosterLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
-use Phlix\Console\Msg\ShowToastMsg;
+use Phlix\Console\Msg\OpenPhotoMsg;
 use Phlix\Console\Ui\Chrome;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
@@ -31,8 +31,9 @@ use SugarCraft\Gallery\PosterGrid;
  * thumbnail keeps its placeholder. Thumbnail loading is strictly best-effort:
  * any fetch/render failure leaves the placeholder, never crashing.
  *
- * Enter is INERT this PR — it surfaces an informational toast; the fullscreen
- * photo viewer arrives in the next update (P3), which rewires Enter to push it.
+ * Enter opens the fullscreen photo viewer at the cursor's photo — it emits an
+ * {@see OpenPhotoMsg} carrying the whole album + the cursor index, which the App
+ * turns into a pushed {@see PhotoViewerScreen}. A no-op when the album is empty.
  *
  * Stable collaborators are readonly; mutable view state is private and copied via
  * clone-mutate (the established screen idiom).
@@ -47,7 +48,6 @@ final class PhotoAlbumScreen implements Breadcrumbed
     private const V_SPACING = 1;
     private const OVERSCAN = 1;
     private const HINT = '↑↓←→  move      ⏎  view      Esc  back';
-    private const VIEWER_SOON = 'Photo viewer arrives in the next update';
 
     private PosterGrid $grid;
     /** @var list<string> */
@@ -115,10 +115,10 @@ final class PhotoAlbumScreen implements Breadcrumbed
             return [$this, Cmd::send(new NavigateBackMsg())];
         }
         if ($msg->type === KeyType::Enter) {
-            // INERT this PR: surface a toast rather than open a viewer (P3 rewires
-            // this to push the fullscreen viewer). A no-op when the album is empty.
+            // Open the fullscreen viewer at the cursor's photo (the App pushes a
+            // PhotoViewerScreen). A no-op when the album is empty.
             return $this->album->photos !== [] && $this->grid->cursorCard() !== null
-                ? [$this, Cmd::send(ShowToastMsg::info(self::VIEWER_SOON))]
+                ? [$this, Cmd::send(new OpenPhotoMsg($this->album, $this->grid->cursorIndex()))]
                 : [$this, null];
         }
 
