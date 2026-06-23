@@ -16,6 +16,7 @@ use Phlix\Console\Api\Dto\Library;
 use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\Dto\MediaPage;
 use Phlix\Console\Api\Dto\PlaybackInfo;
+use Phlix\Console\Api\Dto\PlaybackMarkers;
 use Phlix\Console\Config\TokenBundle;
 use PHPUnit\Framework\TestCase;
 use React\EventLoop\Loop;
@@ -225,6 +226,26 @@ final class ApiClientTest extends TestCase
 
         self::assertInstanceOf(PlaybackInfo::class, $info);
         self::assertStringEndsWith('/api/v1/media/m1/playback', $t->requestAt(0)['url']);
+    }
+
+    public function testPlaybackMarkersMapsTheFlatShape(): void
+    {
+        $t = (new FakeTransport())->json(200, [
+            'item_id' => 'm1',
+            'intro_marker' => ['start_seconds' => 5, 'end_seconds' => 30],
+            'outro_marker' => null,
+            'chapters' => [['start_seconds' => 0, 'end_seconds' => 50, 'title' => 'One']],
+        ]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $markers = $this->await($client->playbackMarkers('m1'));
+
+        self::assertInstanceOf(PlaybackMarkers::class, $markers);
+        self::assertSame(5.0, $markers->intro?->start);
+        self::assertNull($markers->outro);
+        self::assertCount(1, $markers->chapters);
+        self::assertStringEndsWith('/api/v1/media/m1/playback-info', $t->requestAt(0)['url']);
     }
 
     // ---- 401 refresh-and-retry ----------------------------------------

@@ -4,11 +4,17 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Screen;
 
+use Phlix\Console\Api\ApiClient;
+use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\MediaItem;
+use Phlix\Console\Api\Dto\PlaybackMarkers;
 use Phlix\Console\Msg\NavigateBackMsg;
+use Phlix\Console\Msg\PlaybackMarkersLoadedMsg;
 use Phlix\Console\Msg\PlayerPrepareFailedMsg;
 use Phlix\Console\Msg\PlayerReadyMsg;
+use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Ui\Chrome;
+use Phlix\Console\Ui\Scrubber;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Model;
@@ -50,13 +56,15 @@ final class PlayerScreen implements Model, Teardownable
 {
     use SubscriptionCapable;
 
-    /** Rows reserved below the video: the transport line + 1 slack for the inner player's own status line. */
-    private const CHROME_ROWS = 2;
+    /** Rows reserved below the video: the scrubber + status line + 1 slack for the inner player's own status line. */
+    private const CHROME_ROWS = 3;
+    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
 
     private ?Player $inner = null;
     private ?string $error = null;
     private bool $chromeHidden = false;
     private bool $tornDown = false;
+    private ?PlaybackMarkers $markers = null;
 
     /**
      * @param \Closure(string $url, int $cols, int $rows): Player $playerFactory
@@ -66,6 +74,7 @@ final class PlayerScreen implements Model, Teardownable
     public function __construct(
         private readonly MediaItem $item,
         private readonly string $baseUrl,
+        private readonly ApiClient $api,
         private readonly \Closure $playerFactory,
         private int $cols = 80,
         private int $rows = 24,
@@ -86,7 +95,11 @@ final class PlayerScreen implements Model, Teardownable
 
     public function init(): ?\Closure
     {
-        return Cmd::promise(fn (): PromiseInterface => $this->buildPlayer());
+        // Build the player and fetch its scrubber markers concurrently.
+        return Cmd::batch(
+            Cmd::promise(fn (): PromiseInterface => $this->buildPlayer()),
+            $this->fetchMarkers(),
+        );
     }
 
     public function update(Msg $msg): array
@@ -99,6 +112,12 @@ final class PlayerScreen implements Model, Teardownable
         }
         if ($msg instanceof PlayerPrepareFailedMsg) {
             return [$this->withError($msg->reason), null];
+        }
+        if ($msg instanceof PlaybackMarkersLoadedMsg) {
+            $next = clone $this;
+            $next->markers = $msg->markers;
+
+            return [$next, null];
         }
         if ($msg instanceof KeyMsg) {
             return $this->handleKey($msg);
@@ -125,7 +144,7 @@ final class PlayerScreen implements Model, Teardownable
             return $frame;
         }
 
-        return $frame . "\n" . $this->transportLine($this->inner);
+        return $frame . "\n" . $this->scrubberLine($this->inner) . "\n" . $this->statusLine($this->inner);
     }
 
     // ---- lifecycle -----------------------------------------------------
@@ -152,6 +171,44 @@ final class PlayerScreen implements Model, Teardownable
         } catch (\Throwable $e) {
             return resolve(new PlayerPrepareFailedMsg('Could not start playback: ' . $e->getMessage()));
         }
+    }
+
+    /**
+     * Fetch the intro/outro markers + chapters (optional — a failure leaves the
+     * scrubber plain; only an auth failure surfaces, as a session expiry, so the
+     * App can re-authenticate and tear this player down).
+     */
+    private function fetchMarkers(): \Closure
+    {
+        $id = $this->item->id;
+
+        return Cmd::promise(fn (): PromiseInterface => $this->api->playbackMarkers($id)->then(
+            static fn (PlaybackMarkers $markers): Msg => new PlaybackMarkersLoadedMsg($markers),
+            static fn (\Throwable $e): ?Msg => $e instanceof AuthError
+                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                : null,
+        ));
+    }
+
+    /** Skip the intro/outro segment under the playhead by seeking to its end. */
+    private function skipMarker(): array
+    {
+        $inner = $this->inner;
+        if ($inner === null || $this->markers === null) {
+            return [$this, null];
+        }
+        $skip = $this->markers->activeSkip($inner->position());
+        if ($skip === null) {
+            return [$this, null];
+        }
+
+        $wasEnded = $inner->ended;
+        $seeked = $inner->seekToSeconds($skip->end);
+
+        $next = clone $this;
+        $next->inner = $seeked;
+
+        return [$next, $wasEnded ? $this->tickCmd($seeked) : null];
     }
 
     private function onReady(Player $player): array
@@ -208,6 +265,11 @@ final class PlayerScreen implements Model, Teardownable
         }
         if ($msg->type === KeyType::Right) {
             return $this->seekBy(10.0);
+        }
+
+        // s → skip the intro/outro segment under the playhead (if any).
+        if ($msg->type === KeyType::Char && ($msg->rune === 's' || $msg->rune === 'S')) {
+            return $this->skipMarker();
         }
 
         // Everything else the inner player handles (Space, [ , ] , m, 0–9) → forward.
@@ -267,28 +329,30 @@ final class PlayerScreen implements Model, Teardownable
 
     // ---- rendering -----------------------------------------------------
 
-    private function transportLine(Player $inner): string
+    /** The progress bar with chapter ticks. */
+    private function scrubberLine(Player $inner): string
+    {
+        return Scrubber::of($inner->position(), $inner->duration(), $this->cols, $this->chapters())->render();
+    }
+
+    /** play/pause glyph + title + a contextual skip prompt + the key hints. */
+    private function statusLine(Player $inner): string
     {
         $glyph = $inner->paused ? '⏸' : '▶';
-        $pos = self::clock($inner->position());
-        $dur = $inner->duration() > 0.0 ? self::clock($inner->duration()) : '--:--';
+        $skip = $this->markers?->skipLabel($inner->position());
+        $skipPrompt = $skip !== null ? "   s {$skip}" : '';
         $hint = 'Space ⏯  ←→ ±10s  [ ] speed  m mode  f full  q back';
 
-        $title = Width::truncate($this->item->name, max(8, $this->cols - 52));
-        $line = sprintf('%s %s   %s / %s   ·   %s', $glyph, $title, $pos, $dur, $hint);
+        $title = Width::truncate($this->item->name, max(8, $this->cols - 56));
+        $line = sprintf('%s %s%s   ·   %s', $glyph, $title, $skipPrompt, $hint);
 
         return Style::new()->bold()->render(Width::truncate($line, max(1, $this->cols)));
     }
 
-    /** Seconds → "m:ss" (or "h:mm:ss" past an hour). */
-    private static function clock(float $seconds): string
+    /** @return list<\Phlix\Console\Api\Dto\Chapter> */
+    private function chapters(): array
     {
-        $s = max(0, (int) round($seconds));
-        $h = intdiv($s, 3600);
-        $m = intdiv($s % 3600, 60);
-        $sec = $s % 60;
-
-        return $h > 0 ? sprintf('%d:%02d:%02d', $h, $m, $sec) : sprintf('%d:%02d', $m, $sec);
+        return $this->markers?->chapters ?? [];
     }
 
     /** Resolve the item's signed stream URL against the server base (handles a relative path). */
@@ -352,5 +416,10 @@ final class PlayerScreen implements Model, Teardownable
     public function player(): ?Player
     {
         return $this->inner;
+    }
+
+    public function markers(): ?PlaybackMarkers
+    {
+        return $this->markers;
     }
 }

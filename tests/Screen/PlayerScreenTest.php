@@ -4,16 +4,21 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Tests\Screen;
 
+use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Msg\NavigateBackMsg;
+use Phlix\Console\Msg\PlaybackMarkersLoadedMsg;
 use Phlix\Console\Msg\PlayerPrepareFailedMsg;
 use Phlix\Console\Msg\PlayerReadyMsg;
+use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Screen\PlayerScreen;
+use Phlix\Console\Tests\Api\FakeTransport;
 use Phlix\Console\Tests\Reel\FakePlayerDecoder;
 use PHPUnit\Framework\TestCase;
 use React\EventLoop\Loop;
 use React\Promise\PromiseInterface;
 use SugarCraft\Core\AsyncCmd;
+use SugarCraft\Core\BatchMsg;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg;
@@ -47,9 +52,25 @@ final class PlayerScreenTest extends TestCase
         return $frames;
     }
 
+    /** The `/playback-info` shape (intro 5–30s, outro 90–100s, two chapters at 0/50). */
+    private function markersResponse(array $overrides = []): array
+    {
+        return array_merge([
+            'item_id' => 'm1',
+            'intro_marker' => ['start_seconds' => 5.0, 'end_seconds' => 30.0],
+            'outro_marker' => ['start_seconds' => 90.0, 'end_seconds' => 100.0],
+            'chapters' => [
+                ['start_seconds' => 0.0, 'end_seconds' => 50.0, 'title' => 'Part 1'],
+                ['start_seconds' => 50.0, 'end_seconds' => 100.0, 'title' => 'Part 2'],
+            ],
+            'skip_button_spec' => ['skip_intro_start' => 5.0, 'skip_intro_end' => 30.0, 'skip_outro_start' => 90.0, 'skip_outro_end' => 100.0],
+        ], $overrides);
+    }
+
     /**
      * Build a screen whose factory produces a fake-decoder-backed Player; expose
-     * the decoder (to assert teardown) and the URLs the factory was handed.
+     * the decoder (to assert teardown) and the URLs the factory was handed. The
+     * markers transport defaults to the standard `/playback-info` response.
      *
      * @param list<string> $captured
      * @return array{PlayerScreen, FakePlayerDecoder}
@@ -60,6 +81,7 @@ final class PlayerScreenTest extends TestCase
         array &$captured = [],
         int $cols = 80,
         int $rows = 24,
+        ?FakeTransport $transport = null,
     ): array {
         $decoder = new FakePlayerDecoder($this->frames());
         $factory = function (string $url, int $c, int $r) use ($decoder, &$captured): Player {
@@ -68,18 +90,26 @@ final class PlayerScreenTest extends TestCase
             // totalFrames 2400 @ 24fps = a 100s clip, so ±10s seeks aren't clamped.
             return Player::openForTest($decoder, fps: 24.0, totalFrames: 2400, cellsW: $c, cellsH: $r, videoPath: '/fake', paused: true);
         };
-        $screen = new PlayerScreen($this->item($streamUrl), $base, $factory, cols: $cols, rows: $rows);
+        $transport ??= (new FakeTransport())->json(200, $this->markersResponse());
+        $api = new ApiClient($base, $transport);
+        $screen = new PlayerScreen($this->item($streamUrl), $base, $api, $factory, cols: $cols, rows: $rows);
 
         return [$screen, $decoder];
     }
 
-    /** Init → run the build Cmd → feed the resulting Msg → the ready (auto-playing) screen. */
+    /**
+     * Init (build player + fetch markers concurrently) → feed every resulting
+     * Msg → the ready (auto-playing, markers-loaded) screen.
+     */
     private function ready(PlayerScreen $screen): PlayerScreen
     {
-        $msg = $this->runCmd($screen->init());
-        self::assertInstanceOf(PlayerReadyMsg::class, $msg);
+        $cur = $screen;
+        foreach ($this->runBatch($screen->init()) as $msg) {
+            [$cur] = $cur->update($msg);
+        }
+        self::assertTrue($cur->isReady());
 
-        return $screen->update($msg)[0];
+        return $cur;
     }
 
     // ---- build / direct-play -------------------------------------------
@@ -119,7 +149,7 @@ final class PlayerScreenTest extends TestCase
     {
         [$screen] = $this->screen(streamUrl: null);
 
-        $msg = $this->runCmd($screen->init());
+        $msg = $this->firstOfType($this->runBatch($screen->init()), PlayerPrepareFailedMsg::class);
 
         self::assertInstanceOf(PlayerPrepareFailedMsg::class, $msg);
         [$failed] = $screen->update($msg);
@@ -131,9 +161,10 @@ final class PlayerScreenTest extends TestCase
     public function testFactoryFailureBecomesAPrepareFailure(): void
     {
         $factory = static fn (string $url, int $c, int $r): Player => throw new \RuntimeException('ffmpeg missing');
-        $screen = new PlayerScreen($this->item(), 'https://srv', $factory, cols: 80, rows: 24);
+        $api = new ApiClient('https://srv', (new FakeTransport())->json(200, $this->markersResponse()));
+        $screen = new PlayerScreen($this->item(), 'https://srv', $api, $factory, cols: 80, rows: 24);
 
-        $msg = $this->runCmd($screen->init());
+        $msg = $this->firstOfType($this->runBatch($screen->init()), PlayerPrepareFailedMsg::class);
 
         self::assertInstanceOf(PlayerPrepareFailedMsg::class, $msg);
         self::assertStringContainsString('ffmpeg missing', $msg->reason);
@@ -301,9 +332,10 @@ final class PlayerScreenTest extends TestCase
             self::assertFileExists($clip);
 
             $item = MediaItem::fromArray(['id' => 'm1', 'name' => 'Clip', 'type' => 'movie', 'stream_url' => $clip]);
-            $screen = new PlayerScreen($item, '', PlayerScreen::productionFactory(), cols: 60, rows: 20);
+            $api = new ApiClient('https://srv', (new FakeTransport())->json(200, $this->markersResponse()));
+            $screen = new PlayerScreen($item, '', $api, PlayerScreen::productionFactory(), cols: 60, rows: 20);
 
-            $msg = $this->runCmd($screen->init());
+            $msg = $this->firstOfType($this->runBatch($screen->init()), PlayerReadyMsg::class);
             self::assertInstanceOf(PlayerReadyMsg::class, $msg);
             [$ready] = $screen->update($msg);
 
@@ -322,6 +354,77 @@ final class PlayerScreenTest extends TestCase
                 @unlink($clip);
             }
         }
+    }
+
+    // ---- markers / scrubber / skip -------------------------------------
+
+    public function testReadyLoadsTheMarkers(): void
+    {
+        $ready = $this->ready($this->screen()[0]);
+
+        $markers = $ready->markers();
+        self::assertNotNull($markers);
+        self::assertNotNull($markers->intro);
+        self::assertCount(2, $markers->chapters);
+    }
+
+    public function testScrubberAndClockRenderInTheView(): void
+    {
+        $view = $this->ready($this->screen()[0])->view();
+
+        self::assertStringContainsString('0:00', $view, 'position clock');
+        self::assertStringContainsString('1:40', $view, '2400 frames @ 24fps = 100s = 1:40');
+        self::assertStringContainsString('░', $view, 'the progress bar renders');
+        self::assertStringContainsString('│', $view, 'a chapter tick renders');
+    }
+
+    public function testSkipIntroSeeksToTheIntroEnd(): void
+    {
+        $ready = $this->ready($this->screen()[0]);
+
+        // → moves to 10s, inside the intro window [5, 30).
+        [$inIntro] = $ready->update(new KeyMsg(KeyType::Right));
+        self::assertSame(10.0, $inIntro->position());
+        self::assertStringContainsString('Skip Intro', $inIntro->view(), 'the skip prompt shows in-range');
+
+        [$skipped] = $inIntro->update(new KeyMsg(KeyType::Char, 's'));
+
+        self::assertSame(30.0, $skipped->position(), 's seeks to the intro end');
+    }
+
+    public function testSkipWithNoActiveMarkerIsANoOp(): void
+    {
+        // Position 0 is outside the intro [5, 30) and outro [90, 100) windows.
+        $ready = $this->ready($this->screen()[0]);
+
+        [$same, $cmd] = $ready->update(new KeyMsg(KeyType::Char, 's'));
+
+        self::assertSame($ready, $same);
+        self::assertNull($cmd);
+    }
+
+    public function testMarkersAuthErrorBecomesSessionExpired(): void
+    {
+        [$screen] = $this->screen(transport: (new FakeTransport())->json(401, ['error' => 'unauthorized']));
+
+        $msgs = $this->runBatch($screen->init());
+
+        self::assertNotNull($this->firstOfType($msgs, SessionExpiredMsg::class), 'a markers 401 surfaces as session expiry');
+    }
+
+    public function testMarkersFetchFailureLeavesAPlainScrubber(): void
+    {
+        [$screen] = $this->screen(transport: (new FakeTransport())->fail(new \RuntimeException('boom')));
+
+        $ready = $this->ready($screen);
+
+        self::assertNull($ready->markers(), 'a non-auth markers failure is swallowed');
+        self::assertStringContainsString('░', $ready->view(), 'the scrubber still renders without ticks');
+
+        // s does nothing when there are no markers to skip.
+        [$same, $cmd] = $ready->update(new KeyMsg(KeyType::Char, 's'));
+        self::assertSame($ready, $same);
+        self::assertNull($cmd);
     }
 
     // ---- before-ready guards + ended-seek edge -------------------------
@@ -371,6 +474,49 @@ final class PlayerScreenTest extends TestCase
     }
 
     // ---- harness (mirrors DetailScreenTest) ----------------------------
+
+    /**
+     * @param list<Msg> $msgs
+     * @param class-string $class
+     */
+    private function firstOfType(array $msgs, string $class): ?Msg
+    {
+        foreach ($msgs as $msg) {
+            if ($msg instanceof $class) {
+                return $msg;
+            }
+        }
+
+        return null;
+    }
+
+    /** @return list<Msg> the settled Msgs of a (possibly batched) Cmd */
+    private function runBatch(?\Closure $cmd): array
+    {
+        if ($cmd === null) {
+            return [];
+        }
+        $result = $cmd();
+
+        if ($result instanceof BatchMsg) {
+            $msgs = [];
+            foreach ($result->cmds as $child) {
+                $msg = $this->runCmd($child);
+                if ($msg !== null) {
+                    $msgs[] = $msg;
+                }
+            }
+
+            return $msgs;
+        }
+        if ($result instanceof AsyncCmd) {
+            $msg = $this->await($result->promise);
+
+            return $msg instanceof Msg ? [$msg] : [];
+        }
+
+        return $result instanceof Msg ? [$result] : [];
+    }
 
     private function runCmd(?\Closure $cmd): ?Msg
     {

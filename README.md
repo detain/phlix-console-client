@@ -6,14 +6,15 @@ command palette, and an in-terminal video player. Posters and video render as
 **sixel / kitty / iTerm2 / half-block ANSI** via the
 [SugarCraft](https://sugarcraft.github.io/) stack.
 
-> **Status: Phases 0–3 complete.** The build plan is
+> **Status: Phases 0–3 complete; Phase 4 player (direct-play) core landed.** The
+> build plan is
 > [`../phlix_console_client.md`](../phlix_console_client.md). Working today: log
 > in, browse your libraries as poster rails beside a sidebar, open a library into
 > a virtualized poster grid (scroll, filter, sort, A–Z jump), open any poster
 > into a **detail screen** (hero poster, metadata, synopsis), and drill
-> **series → season → episode**, with a **breadcrumb trail** in the header. The
-> in-terminal **player** (direct-play via ffmpeg) is Phase 4 — the detail screen
-> already shows the Play entry-point. Search, the command palette, and
+> **series → season → episode**, with a **breadcrumb trail** in the header. Press
+> `p` on a detail screen to launch the in-terminal **player** (direct-play via
+> ffmpeg) — the Phase 4 core. Search, the command palette, and
 > music/books/photos land in later phases.
 
 ## Requirements
@@ -61,7 +62,7 @@ bin/phlix run
 ```
 
 Keys: `↑↓←→` move · `⏎` open · `/` filter (in a grid) · A–Z jump · `p` play
-(Phase 4) · `Tab` switch focus on the home screen · `Esc` back · `Ctrl-C` quit.
+· `Tab` switch focus on the home screen · `Esc` back · `Ctrl-C` quit.
 
 ### Render diagnostics
 
