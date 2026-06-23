@@ -67,7 +67,7 @@ use function React\Promise\resolve;
  * {@see Teardownable} so leaving it — by Esc, or a global Ctrl-C quit — stops
  * the ffmpeg/ffplay subprocesses rather than leaking them.
  */
-final class PlayerScreen implements Model, Teardownable
+final class PlayerScreen implements Model, Teardownable, CapturesSlash
 {
     use SubscriptionCapable;
 

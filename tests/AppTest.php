@@ -21,6 +21,7 @@ use Phlix\Console\Msg\MediaRangeLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\OpenLibraryMsg;
+use Phlix\Console\Msg\OpenSearchMsg;
 use Phlix\Console\Msg\PaletteLibrariesLoadedMsg;
 use Phlix\Console\Msg\PlayNextMsg;
 use Phlix\Console\Msg\PlayRequestedMsg;
@@ -33,10 +34,12 @@ use Phlix\Console\Msg\SubmitServerMsg;
 use Phlix\Console\Msg\ToastTickMsg;
 use Phlix\Console\Route;
 use Phlix\Console\Screen\BrowseScreen;
+use Phlix\Console\Screen\CapturesSlash;
 use Phlix\Console\Screen\DetailScreen;
 use Phlix\Console\Screen\LibraryScreen;
 use Phlix\Console\Screen\LoginScreen;
 use Phlix\Console\Screen\PlayerScreen;
+use Phlix\Console\Screen\SearchScreen;
 use Phlix\Console\Screen\ServerScreen;
 use Phlix\Console\Screen\Teardownable;
 use Phlix\Console\Store\AuthStore;
@@ -648,7 +651,7 @@ final class AppTest extends TestCase
         self::assertNotNull($next->palette());
         self::assertInstanceOf(\Closure::class, $cmd, 'opening fires the libraries fetch');
         $labels = array_map(static fn ($a): string => $a->label, $next->palette()->actions());
-        self::assertSame(['Home', 'Log out', 'Quit'], $labels);
+        self::assertSame(['Search', 'Home', 'Log out', 'Quit'], $labels);
     }
 
     public function testCtrlKTogglesThePaletteClosed(): void
@@ -657,6 +660,26 @@ final class AppTest extends TestCase
         [$closed] = $open->update($this->ctrlK());
 
         self::assertNull($closed->palette());
+    }
+
+    public function testColonOpensThePaletteOnANonCapturingScreen(): void
+    {
+        $app = $this->appWithStack([['route' => Route::Browse, 'screen' => new SpyTeardownScreen()]]);
+
+        [$next] = $app->update(new KeyMsg(KeyType::Char, ':'));
+
+        self::assertNotNull($next->palette());
+    }
+
+    public function testColonIsDelegatedWhenTheTopScreenCapturesSlash(): void
+    {
+        $spy = new SlashCapturingScreen();
+        $app = $this->appWithStack([['route' => Route::Library, 'screen' => $spy]]);
+
+        [$next] = $app->update(new KeyMsg(KeyType::Char, ':'));
+
+        self::assertNull($next->palette(), 'a text-capturing screen keeps the : key');
+        self::assertSame(1, $spy->keyCalls);
     }
 
     public function testEscapeClosesThePalette(): void
@@ -682,10 +705,10 @@ final class AppTest extends TestCase
         [$open] = $this->paletteApp()->update($this->ctrlK());
 
         [$down] = $open->update(new KeyMsg(KeyType::Down));
-        self::assertSame('Log out', $down->palette()->selectedAction()?->label);
+        self::assertSame('Home', $down->palette()->selectedAction()?->label);
 
         [$up] = $down->update(new KeyMsg(KeyType::Up));
-        self::assertSame('Home', $up->palette()->selectedAction()?->label);
+        self::assertSame('Search', $up->palette()->selectedAction()?->label);
     }
 
     public function testPaletteBackspaceAndSpaceEditTheQuery(): void
@@ -812,6 +835,49 @@ final class AppTest extends TestCase
         self::assertSame(Route::Login, $next->route());
     }
 
+    // ---- global search -------------------------------------------------
+
+    public function testSlashOpensGlobalSearchOnANonCapturingScreen(): void
+    {
+        $app = $this->appWithStack([['route' => Route::Browse, 'screen' => new SpyTeardownScreen()]]);
+
+        [$next] = $app->update(new KeyMsg(KeyType::Char, '/'));
+
+        self::assertSame(Route::Search, $next->route());
+        self::assertInstanceOf(SearchScreen::class, $next->screen());
+    }
+
+    public function testSlashIsDelegatedWhenTheTopScreenCapturesIt(): void
+    {
+        $spy = new SlashCapturingScreen();
+        $app = $this->appWithStack([['route' => Route::Library, 'screen' => $spy]]);
+
+        [$next] = $app->update(new KeyMsg(KeyType::Char, '/'));
+
+        self::assertSame(Route::Library, $next->route(), 'a CapturesSlash screen keeps the / key');
+        self::assertSame(1, $spy->keyCalls, 'the key reached the screen');
+    }
+
+    public function testOpenSearchMsgPushesTheSearchScreen(): void
+    {
+        $app = $this->appWithStack([['route' => Route::Browse, 'screen' => new SpyTeardownScreen()]]);
+
+        [$next] = $app->update(new OpenSearchMsg());
+
+        self::assertSame(Route::Search, $next->route());
+        self::assertSame(2, $next->stackDepth(), 'search is pushed on top, not replaced');
+    }
+
+    public function testPaletteSearchActionDispatchesOpenSearch(): void
+    {
+        // "Search" is the first (default-selected) palette action.
+        [$open] = $this->paletteApp()->update($this->ctrlK());
+
+        [, $cmd] = $open->update(new KeyMsg(KeyType::Enter));
+
+        self::assertInstanceOf(OpenSearchMsg::class, $this->runCmd($cmd));
+    }
+
     private function runCmd(?\Closure $cmd): ?Msg
     {
         if ($cmd === null) {
@@ -888,5 +954,38 @@ final class SpyTeardownScreen implements Model, Teardownable
     public function teardown(): void
     {
         $this->teardownCalls++;
+    }
+}
+
+/**
+ * A {@see CapturesSlash} screen that records how many keys it received — used to
+ * prove the App delegates `/` to a capturing screen instead of opening search.
+ */
+final class SlashCapturingScreen implements Model, CapturesSlash
+{
+    public int $keyCalls = 0;
+
+    public function init(): ?\Closure
+    {
+        return null;
+    }
+
+    public function update(Msg $msg): array
+    {
+        if ($msg instanceof KeyMsg) {
+            $this->keyCalls++;
+        }
+
+        return [$this, null];
+    }
+
+    public function view(): string
+    {
+        return '';
+    }
+
+    public function subscriptions(): ?\SugarCraft\Core\Subscriptions
+    {
+        return null;
     }
 }
