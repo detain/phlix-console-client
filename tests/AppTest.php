@@ -800,6 +800,18 @@ final class AppTest extends TestCase
         self::assertStringContainsString('Quit', $open->view(), 'the palette box floats over the screen');
     }
 
+    public function testViewHighlightsThePaletteMatchAfterTyping(): void
+    {
+        // A non-empty background (LoginScreen) so the palette actually composites.
+        $stack = [['route' => Route::Login, 'screen' => LoginScreen::create(null, 80, 24)]];
+        [$open] = $this->appWithStack($stack)->update($this->ctrlK());
+        [$typed] = $open->update(new KeyMsg(KeyType::Char, 'q')); // ranks + highlights 'Quit'
+
+        // The bold-highlighted matched rune ('Q' of 'Quit') survives compositing
+        // into the App view (Hermit.View + sugar-veil composite are ANSI-aware).
+        self::assertStringContainsString("\e[1mQ", $typed->view(), 'the matched rune is highlighted in the composited view');
+    }
+
     public function testGoHomePopsTheStackToItsRoot(): void
     {
         $app = $this->appWithStack([
