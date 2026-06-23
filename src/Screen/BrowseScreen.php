@@ -469,13 +469,13 @@ final class BrowseScreen implements Breadcrumbed
 
     private function visibleRailCount(): int
     {
-        return max(1, intdiv(max(1, $this->rows - 4), self::RAIL_HEIGHT));
+        return max(1, intdiv(max(1, Chrome::bodyHeight($this->rows)), self::RAIL_HEIGHT));
     }
 
     /** The vertical room for the content region (the sidebar fills this). */
     private function contentHeight(): int
     {
-        return max(self::POSTER_HEIGHT, $this->rows - 6);
+        return max(self::POSTER_HEIGHT, Chrome::bodyHeight($this->rows));
     }
 
     private function displayName(): string
