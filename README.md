@@ -6,16 +6,20 @@ command palette, and an in-terminal video player. Posters and video render as
 **sixel / kitty / iTerm2 / half-block ANSI** via the
 [SugarCraft](https://sugarcraft.github.io/) stack.
 
-> **Status: Phases 0–3 complete; Phase 4 player (direct-play) core landed.** The
-> build plan is
+> **Status: Phases 0–4 complete.** The build plan is
 > [`../phlix_console_client.md`](../phlix_console_client.md). Working today: log
 > in, browse your libraries as poster rails beside a sidebar, open a library into
 > a virtualized poster grid (scroll, filter, sort, A–Z jump), open any poster
 > into a **detail screen** (hero poster, metadata, synopsis), and drill
-> **series → season → episode**, with a **breadcrumb trail** in the header. Press
-> `p` on a detail screen to launch the in-terminal **player** (direct-play via
-> ffmpeg) — the Phase 4 core. Search, the command palette, and
-> music/books/photos land in later phases.
+> **series → season → episode**, with a **breadcrumb trail** in the header.
+>
+> Press `p` to launch the **in-terminal player** (Phase 4): it **direct-plays**
+> the item's signed stream straight through ffmpeg — decoding HEVC/MKV/AV1 the
+> browser can't and bypassing the server transcode — with a **scrubber** (chapter
+> ticks + intro/outro skip), **resume** from where you left off, **progress
+> reporting**, **up-next** auto-advance between episodes, on-demand **subtitles**,
+> and a **transcode fallback** when a file can't be direct-played. Search, the
+> command palette, and music/books/photos land in later phases.
 
 ## Requirements
 
@@ -63,6 +67,11 @@ bin/phlix run
 
 Keys: `↑↓←→` move · `⏎` open · `/` filter (in a grid) · A–Z jump · `p` play
 · `Tab` switch focus on the home screen · `Esc` back · `Ctrl-C` quit.
+
+**In the player:** `Space` play/pause · `←`/`→` seek ±10s · `0`–`9` seek to % ·
+`[` / `]` speed · `m` cycle render mode · `s` skip intro/outro · `o` start over ·
+`c` captions · `n` / `p` next / previous episode · `f` toggle chrome · `q`/`Esc`
+back.
 
 ### Render diagnostics
 
