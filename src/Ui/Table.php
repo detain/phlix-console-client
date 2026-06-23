@@ -39,8 +39,10 @@ final class Table
      * @param int $selected index into $rows of the selected (cursor) row
      * @param int $totalWidth the available content width (caller passes `cols - 4`)
      * @param int $viewportRows the number of DATA rows to show (header + rule are extra)
+     * @param bool $selectable whether a row is highlighted (reverse-video); pass false for a
+     *        read-only table (e.g. a stats panel) so no row is shown as a cursor. Default true.
      */
-    public static function render(array $columns, array $rows, int $selected, int $totalWidth, int $viewportRows): string
+    public static function render(array $columns, array $rows, int $selected, int $totalWidth, int $viewportRows, bool $selectable = true): string
     {
         $count = count($rows);
         $viewport = max(1, $viewportRows);
@@ -50,8 +52,8 @@ final class Table
             ->withBorderless()
             ->withWidth(max(1, $totalWidth))
             ->withCellPadding(0)
-            ->withSelectable($count > 0)
-            ->withSelectedIndex($selected)
+            ->withSelectable($selectable && $count > 0)
+            ->withSelectedIndex(max(0, $selected))
             ->withViewportHeight($viewport)
             ->withScrollY(self::scrollY($count, $selected, $viewport))
             ->View();
