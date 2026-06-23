@@ -6,7 +6,7 @@ command palette, and an in-terminal video player. Posters and video render as
 **sixel / kitty / iTerm2 / half-block ANSI** via the
 [SugarCraft](https://sugarcraft.github.io/) stack.
 
-> **Status: Phases 0–4 complete.** The build plan is
+> **Status: Phases 0–5 complete.** The build plan is
 > [`../phlix_console_client.md`](../phlix_console_client.md). Working today: log
 > in, browse your libraries as poster rails beside a sidebar, open a library into
 > a virtualized poster grid (scroll, filter, sort, A–Z jump), open any poster
@@ -18,8 +18,14 @@ command palette, and an in-terminal video player. Posters and video render as
 > browser can't and bypassing the server transcode — with a **scrubber** (chapter
 > ticks + intro/outro skip), **resume** from where you left off, **progress
 > reporting**, **up-next** auto-advance between episodes, on-demand **subtitles**,
-> and a **transcode fallback** when a file can't be direct-played. Search, the
-> command palette, and music/books/photos land in later phases.
+> and a **transcode fallback** when a file can't be direct-played.
+>
+> Phase 5 adds **global search** (`/` from anywhere → a debounced query over a
+> virtualized poster grid of `/media?search=` results), a **command palette**
+> (Ctrl-K or `:` → fuzzy-ranked actions: search, jump to any library, log out,
+> quit), and **toasts** — transient top-right notifications that surface errors
+> which used to fail silently. Music / books / audiobooks / photos (Phase 6) and
+> theming / settings (Phase 7) land in later phases.
 
 ## Requirements
 
@@ -61,12 +67,14 @@ composer update 'sugarcraft/*'
 ```sh
 # Launch the full-window app (needs a real TTY): first run asks for your server
 # URL, then log in. Browse rails + sidebar → open a library → grid → open a
-# poster → detail → drill series/season/episode. Esc walks back; Ctrl-C quits.
+# poster → detail → drill series/season/episode. Press `/` to search and Ctrl-K
+# (or `:`) for the command palette from anywhere. Esc walks back; Ctrl-C quits.
 bin/phlix run
 ```
 
-Keys: `↑↓←→` move · `⏎` open · `/` filter (in a grid) · A–Z jump · `p` play
-· `Tab` switch focus on the home screen · `Esc` back · `Ctrl-C` quit.
+Keys: `↑↓←→` move · `⏎` open · `/` search (or filter, in a grid) · Ctrl-K / `:`
+command palette · A–Z jump · `p` play · `Tab` switch focus on the home screen ·
+`Esc` back · `Ctrl-C` quit.
 
 **In the player:** `Space` play/pause · `←`/`→` seek ±10s · `0`–`9` seek to % ·
 `[` / `]` speed · `m` cycle render mode · `s` skip intro/outro · `o` start over ·
