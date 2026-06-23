@@ -48,9 +48,10 @@ use SugarCraft\Reel\AudioPlayer;
  * clone-mutate — only {@see teardown()} mutates `$this` in place (the player
  * lifecycle, like PlayerScreen).
  */
-final class AlbumScreen implements Breadcrumbed, Teardownable
+final class AlbumScreen implements Breadcrumbed, Teardownable, Themed
 {
     use SubscriptionCapable;
+    use ThemedScreen;
 
     private const HINT = '↑↓  select      ⏎  play      space  pause · n/p  next/prev      Esc  back';
     private const PLAY_FAILED = 'Could not play this track';
@@ -132,7 +133,7 @@ final class AlbumScreen implements Breadcrumbed, Teardownable
 
     public function view(): string
     {
-        return Chrome::frame($this->album->name, $this->body(), self::HINT, $this->cols, $this->rows, $this->crumbs);
+        return Chrome::frame($this->album->name, $this->body(), self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
     }
 
     // ---- input ---------------------------------------------------------

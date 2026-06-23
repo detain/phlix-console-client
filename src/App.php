@@ -55,6 +55,7 @@ use Phlix\Console\Screen\PlayerScreen;
 use Phlix\Console\Screen\SearchScreen;
 use Phlix\Console\Screen\ServerScreen;
 use Phlix\Console\Screen\Teardownable;
+use Phlix\Console\Screen\Themed;
 use Phlix\Console\Store\AudiobooksStore;
 use Phlix\Console\Store\AuthStore;
 use Phlix\Console\Store\BooksStore;
@@ -65,6 +66,7 @@ use Phlix\Console\Store\PhotosStore;
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\CommandPalette;
 use Phlix\Console\Ui\PaletteAction;
+use Phlix\Console\Ui\Theme;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Model;
@@ -98,10 +100,14 @@ final class App implements Model
     /** The single toast host, floating above whatever screen is on top. */
     private readonly Toast $toast;
 
+    /** The active UI theme, applied to the top screen's chrome just before render. */
+    private readonly Theme $theme;
+
     /**
      * @param list<array{route: Route, screen: Model}> $stack top frame last; empty = the loading state
      * @param bool $toastTicking whether a prune tick is already in flight (so a burst of toasts doesn't stack ticks)
      * @param ?CommandPalette $palette the open command palette overlay, or null when closed
+     * @param ?Theme $theme the active theme; null defaults to {@see Theme::nocturne()} (the identity look)
      */
     public function __construct(
         private readonly Config $config,
@@ -117,8 +123,10 @@ final class App implements Model
         ?Toast $toast = null,
         private readonly bool $toastTicking = false,
         private readonly ?CommandPalette $palette = null,
+        ?Theme $theme = null,
     ) {
         $this->toast = $toast ?? self::defaultToast();
+        $this->theme = $theme ?? Theme::nocturne();
     }
 
     private static function defaultToast(): Toast
@@ -135,13 +143,17 @@ final class App implements Model
         MediaStore $media,
         PosterLoader $posters,
     ): self {
+        // The persisted theme name (if any) maps to a preset; an absent / unknown
+        // name falls back to Nocturne (the identity look) via Theme::byName().
+        $theme = Theme::byName((string) ($config->theme ?? ''));
+
         if (!$config->hasServer()) {
             $screen = ServerScreen::create();
 
-            return new self($config, $auth, $api, $libraries, $media, $posters, [['route' => Route::ServerSetup, 'screen' => $screen]], $screen->init());
+            return new self($config, $auth, $api, $libraries, $media, $posters, [['route' => Route::ServerSetup, 'screen' => $screen]], $screen->init(), theme: $theme);
         }
 
-        return new self($config, $auth, $api, $libraries, $media, $posters, [], self::restoreCmd($auth));
+        return new self($config, $auth, $api, $libraries, $media, $posters, [], self::restoreCmd($auth), theme: $theme);
     }
 
     public function init(): ?\Closure
@@ -284,17 +296,24 @@ final class App implements Model
     private function baseView(): string
     {
         $top = $this->topScreen();
-        // Hand the top screen the breadcrumb trail built from the whole stack
-        // (only the App knows it) just before it renders its chrome.
-        if ($top instanceof Breadcrumbed) {
-            return $top->withCrumbs($this->breadcrumbTrail())->view();
-        }
         if ($top !== null) {
-            return $top->view();
+            // Apply the active theme then the breadcrumb trail (both known only to
+            // the App) transiently, just before the top screen renders its chrome —
+            // each is a clone-mutate that leaves the stacked screen untouched. Under
+            // Nocturne withTheme() is a render no-op, so the frame is unchanged.
+            $rendered = $top;
+            if ($rendered instanceof Themed) {
+                $rendered = $rendered->withTheme($this->theme);
+            }
+            if ($rendered instanceof Breadcrumbed) {
+                $rendered = $rendered->withCrumbs($this->breadcrumbTrail());
+            }
+
+            return $rendered->view();
         }
 
         // Loading: no active screen.
-        return Chrome::frame('Connecting', "\n  Connecting to your Phlix server…", '', $this->cols, $this->rows);
+        return Chrome::frame('Connecting', "\n  Connecting to your Phlix server…", '', $this->cols, $this->rows, theme: $this->theme);
     }
 
     /**
@@ -364,6 +383,7 @@ final class App implements Model
             $toast,
             $ticking,
             $this->palette,
+            $this->theme,
         );
     }
 
@@ -487,6 +507,7 @@ final class App implements Model
             $this->toast,
             $this->toastTicking,
             $palette,
+            $this->theme,
         );
     }
 
@@ -885,7 +906,7 @@ final class App implements Model
     {
         return new self(
             $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
-            $stack, null, $this->cols, $this->rows, $this->toast, $this->toastTicking, $this->palette,
+            $stack, null, $this->cols, $this->rows, $this->toast, $this->toastTicking, $this->palette, $this->theme,
         );
     }
 
@@ -912,7 +933,7 @@ final class App implements Model
 
         $app = new self(
             $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
-            $stack, null, $cols, $rows, $this->toast, $this->toastTicking, $this->palette?->resizedTo($cols, $rows),
+            $stack, null, $cols, $rows, $this->toast, $this->toastTicking, $this->palette?->resizedTo($cols, $rows), $this->theme,
         );
 
         return [$app, $cmds === [] ? null : Cmd::batch(...$cmds)];
@@ -943,5 +964,24 @@ final class App implements Model
     public function palette(): ?CommandPalette
     {
         return $this->palette;
+    }
+
+    /** The active UI theme (Nocturne by default). */
+    public function theme(): Theme
+    {
+        return $this->theme;
+    }
+
+    /**
+     * A copy switched to $theme (T2 uses this to apply a live theme change). The
+     * theme is applied transiently to the top screen on the next render, so the
+     * stacked screens need no rebuild.
+     */
+    public function withTheme(Theme $theme): self
+    {
+        return new self(
+            $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
+            $this->stack, null, $this->cols, $this->rows, $this->toast, $this->toastTicking, $this->palette, $theme,
+        );
     }
 }

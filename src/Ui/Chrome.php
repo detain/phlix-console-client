@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Ui;
 
+use Phlix\Console\Screen\Themed;
 use SugarCraft\Boxer\SugarBoxer;
 use SugarCraft\Crumbs\Breadcrumb;
 
@@ -15,14 +16,29 @@ use SugarCraft\Crumbs\Breadcrumb;
  * stack), the header shows it (Home › Movies › The Matrix) instead of the bare
  * title, truncating from the left to fit the width so the deepest crumbs stay
  * visible.
+ *
+ * An optional {@see Theme} tints two tokens: the " Phlix " brand (its accent) and
+ * the status line (its muted colour). Under the default {@see Theme::nocturne()}
+ * both styles are plain (zero SGR), so the rendered frame is byte-identical to
+ * the pre-theme output — the breadcrumb / title portion is never tinted. The
+ * theme is applied per render (the App hands the top {@see Themed} screen the
+ * active theme just before it renders); sugar-boxer's ANSI-aware placement keeps
+ * the injected SGR aligned.
  */
 final class Chrome
 {
+    /** The brand token (space-padded) the theme's accent colours. */
+    private const BRAND = ' Phlix ';
+
+    /** What sits between the brand and the title/breadcrumb (kept un-tinted). */
+    private const BRAND_SEP = ' ·  ';
+
     /**
      * @param list<string> $trail breadcrumb labels, root-first; empty = bare title
      */
-    public static function frame(string $title, string $body, string $hint, int $cols, int $rows, array $trail = []): string
+    public static function frame(string $title, string $body, string $hint, int $cols, int $rows, array $trail = [], ?Theme $theme = null): string
     {
+        $theme ??= Theme::nocturne();
         $b = SugarBoxer::new();
 
         // header = 1 fixed line, content = FILLS (flex/grow), status = 1 fixed line.
@@ -31,9 +47,16 @@ final class Chrome
         // sections (sugar-boxer draws an inter-panel divider on a borderless leaf's
         // only row at spacing 0, so use spacing 1 — the blank line reads as
         // breathing room). The content grows to fill everything left over.
-        $header = $b->leaf(' Phlix  ·  ' . self::headerLabel($title, $trail, $cols))->withBorder(false)->withMinHeight(1);
+        //
+        // The accent colours ONLY the brand token; the separator + title/breadcrumb
+        // stay plain. Under Nocturne brandStyle()/statusStyle() add no SGR, so this
+        // concatenation reproduces the old ' Phlix  ·  ' . label header byte-for-byte.
+        $headerText = $theme->brandStyle()->render(self::BRAND)
+            . self::BRAND_SEP
+            . self::headerLabel($title, $trail, $cols);
+        $header = $b->leaf($headerText)->withBorder(false)->withMinHeight(1);
         $content = $b->leaf($body)->withBorder(true)->withGrow();
-        $status = $b->leaf(' ' . $hint)->withBorder(false)->withMinHeight(1);
+        $status = $b->leaf($theme->statusStyle()->render(' ' . $hint))->withBorder(false)->withMinHeight(1);
 
         $root = $b->vertical($header, $content, $status)->withSpacing(1);
 

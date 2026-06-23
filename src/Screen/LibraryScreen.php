@@ -44,9 +44,10 @@ use SugarCraft\Gallery\PosterGrid;
  * (the candy-core / sugar-gallery pattern) so the screen stays immutable without
  * a giant positional constructor.
  */
-final class LibraryScreen implements Breadcrumbed, CapturesSlash
+final class LibraryScreen implements Breadcrumbed, CapturesSlash, Themed
 {
     use SubscriptionCapable;
+    use ThemedScreen;
 
     private const CARD_WIDTH = 14;
     private const POSTER_HEIGHT = 9;
@@ -144,7 +145,7 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash
     public function view(): string
     {
         if ($this->error !== null) {
-            return Chrome::frame($this->name, "\n  {$this->error}", self::HINT, $this->cols, $this->rows, $this->crumbs);
+            return Chrome::frame($this->name, "\n  {$this->error}", self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
         }
 
         $total = $this->grid->total();
@@ -171,7 +172,7 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash
             ? $header . "\n" . $secondLine . "\n" . $this->grid->render(true)
             : $header . "\n\n" . $this->grid->render(true);
 
-        return Chrome::frame($this->name, $body, $this->filtering ? self::FILTER_HINT : self::HINT, $this->cols, $this->rows, $this->crumbs);
+        return Chrome::frame($this->name, $body, $this->filtering ? self::FILTER_HINT : self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
     }
 
     // ---- input ---------------------------------------------------------

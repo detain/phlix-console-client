@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Phlix\Console\Tests\Ui;
 
 use Phlix\Console\Ui\Chrome;
+use Phlix\Console\Ui\Theme;
 use PHPUnit\Framework\TestCase;
 
 final class ChromeTest extends TestCase
@@ -84,6 +85,46 @@ final class ChromeTest extends TestCase
         self::assertSame(0, Chrome::bodyHeight(8));
         self::assertSame(1, Chrome::bodyHeight(9));
         self::assertGreaterThanOrEqual(0, Chrome::bodyHeight(1));
+    }
+
+    public function testNocturneThemeIsByteIdenticalToNoTheme(): void
+    {
+        // The whole approach depends on Nocturne being the identity: a frame with
+        // the default Nocturne theme MUST equal the frame with no theme at all,
+        // byte-for-byte (proves the styling is a true no-op).
+        $plain = Chrome::frame('The Matrix', 'body', 'a hint', 100, 24, ['Home', 'Movies', 'The Matrix']);
+        $nocturne = Chrome::frame('The Matrix', 'body', 'a hint', 100, 24, ['Home', 'Movies', 'The Matrix'], Theme::nocturne());
+
+        self::assertSame($plain, $nocturne);
+    }
+
+    public function testNocturneThemeIsByteIdenticalWithoutATrail(): void
+    {
+        $plain = Chrome::frame('Login', 'body', 'hint', 80, 24);
+        $nocturne = Chrome::frame('Login', 'body', 'hint', 80, 24, [], Theme::nocturne());
+
+        self::assertSame($plain, $nocturne);
+    }
+
+    public function testMidnightThemeColoursTheBrandButNotTheBody(): void
+    {
+        $out = Chrome::frame('Movies', 'BODYMARKER', 'a hint', 80, 24, [], Theme::midnight());
+
+        // The " Phlix " brand token is wrapped in an SGR escape + reset.
+        self::assertStringContainsString("\e[", $out, 'Midnight emits SGR');
+        self::assertMatchesRegularExpression('/\e\[[0-9;]*m Phlix \e\[0m/', $out, 'the brand is colour-wrapped');
+        // The body text is untouched (no SGR injected around it).
+        self::assertStringContainsString('BODYMARKER', $out);
+    }
+
+    public function testMidnightLeavesTheTitleUntinted(): void
+    {
+        // Only the brand is accented; the title/breadcrumb stays plain text.
+        $out = Chrome::frame('Movies', 'body', 'hint', 80, 24, [], Theme::midnight());
+
+        // The accent escape immediately precedes " Phlix ", never "Movies".
+        self::assertDoesNotMatchRegularExpression('/\e\[[0-9;]*mMovies/', $out, 'the title is not tinted');
+        self::assertStringContainsString('Movies', $out);
     }
 
     public function testFrameBodyWidthIsExactlyColsMinusFour(): void

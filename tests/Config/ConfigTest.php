@@ -81,6 +81,62 @@ final class ConfigTest extends TestCase
         self::assertSame('https://h.tld:8096', (new Config())->withServerUrl('h.tld:8096/')->serverUrl);
     }
 
+    // ---- theme -----------------------------------------------------------
+
+    public function testThemeDefaultsToNull(): void
+    {
+        self::assertNull((new Config())->theme);
+    }
+
+    public function testThemeRoundTripsThroughSaveAndLoad(): void
+    {
+        $path = $this->dir . '/config.json';
+        (new Config('https://srv', 'Midnight'))->save($path);
+
+        $loaded = Config::load($path);
+
+        self::assertSame('Midnight', $loaded->theme);
+        self::assertSame('https://srv', $loaded->serverUrl);
+    }
+
+    public function testAbsentThemeLoadsAsNull(): void
+    {
+        // A legacy config file with only server_url (no theme key) → theme is null.
+        @mkdir($this->dir, 0o700, true);
+        $path = $this->dir . '/config.json';
+        file_put_contents($path, json_encode(['server_url' => 'https://srv']));
+
+        $loaded = Config::load($path);
+
+        self::assertSame('https://srv', $loaded->serverUrl);
+        self::assertNull($loaded->theme);
+    }
+
+    public function testEmptyThemeStringLoadsAsNull(): void
+    {
+        @mkdir($this->dir, 0o700, true);
+        $path = $this->dir . '/config.json';
+        file_put_contents($path, json_encode(['server_url' => 'https://srv', 'theme' => '']));
+
+        self::assertNull(Config::load($path)->theme);
+    }
+
+    public function testWithThemePreservesServerUrl(): void
+    {
+        $config = (new Config('https://srv'))->withTheme('Daylight');
+
+        self::assertSame('Daylight', $config->theme);
+        self::assertSame('https://srv', $config->serverUrl, 'switching theme keeps the server');
+    }
+
+    public function testWithServerUrlPreservesTheme(): void
+    {
+        $config = (new Config('https://old', 'Midnight'))->withServerUrl('new.tld');
+
+        self::assertSame('https://new.tld', $config->serverUrl);
+        self::assertSame('Midnight', $config->theme, 'changing server keeps the theme');
+    }
+
     public function testNormalizeUrl(): void
     {
         self::assertSame('https://a.tld', Config::normalizeUrl('a.tld'));
