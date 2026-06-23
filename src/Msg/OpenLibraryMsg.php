@@ -12,6 +12,7 @@ final readonly class OpenLibraryMsg implements Msg
     public function __construct(
         public string $libraryId,
         public string $name,
+        public string $type = '',
     ) {
     }
 }

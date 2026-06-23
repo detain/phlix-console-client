@@ -19,4 +19,6 @@ enum Route
     case Detail;
     case Player;
     case Search;
+    case Music;
+    case Album;
 }
