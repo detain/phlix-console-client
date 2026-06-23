@@ -10,6 +10,7 @@ use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\Dto\MediaPage;
 use Phlix\Console\Api\Dto\PlaybackMarkers;
 use Phlix\Console\Api\Dto\SubtitleTrack;
+use Phlix\Console\Api\Dto\TranscodeJob;
 use Phlix\Console\Api\MediaQuery;
 use Phlix\Console\Config\Config;
 use Phlix\Console\Msg\NavigateBackMsg;
@@ -23,6 +24,9 @@ use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\SessionStartedMsg;
 use Phlix\Console\Msg\SiblingsLoadedMsg;
 use Phlix\Console\Msg\SubtitleVttLoadedMsg;
+use Phlix\Console\Msg\TranscodePollMsg;
+use Phlix\Console\Msg\TranscodeStartedMsg;
+use Phlix\Console\Msg\TranscodeStatusMsg;
 use Phlix\Console\Msg\UpNextTickMsg;
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\Scrubber;
@@ -80,6 +84,8 @@ final class PlayerScreen implements Model, Teardownable
     private const RESUME_HINT_WINDOW = 45.0;
     /** Seconds the up-next card counts down before auto-advancing. */
     private const UP_NEXT_COUNTDOWN = 8;
+    /** Seconds between transcode-readiness polls. */
+    private const TRANSCODE_POLL_INTERVAL = 2.0;
 
     private ?Player $inner = null;
     private ?string $error = null;
@@ -99,6 +105,11 @@ final class PlayerScreen implements Model, Teardownable
     private bool $captionsOn = false;
     /** True once a caption fetch has been kicked off (so `c` doesn't refetch). */
     private bool $captionsFetched = false;
+    /** Transcode fallback (when direct-play fails): tried once, the job id + progress. */
+    private bool $transcodeTried = false;
+    private bool $transcoding = false;
+    private ?string $transcodeJob = null;
+    private ?float $transcodeProgress = null;
 
     /**
      * @param \Closure(string $url, int $cols, int $rows): Player $playerFactory
@@ -131,7 +142,7 @@ final class PlayerScreen implements Model, Teardownable
     {
         // Build the player and fetch its markers + resume + episode queue concurrently.
         $cmds = [
-            Cmd::promise(fn (): PromiseInterface => $this->buildPlayer()),
+            $this->buildPlayerCmd($this->streamUrl()),
             $this->fetchMarkers(),
             $this->fetchResume(),
         ];
@@ -152,7 +163,16 @@ final class PlayerScreen implements Model, Teardownable
             return $this->onReady($msg->player);
         }
         if ($msg instanceof PlayerPrepareFailedMsg) {
-            return [$this->withError($msg->reason), null];
+            return $this->onPrepareFailed($msg->reason);
+        }
+        if ($msg instanceof TranscodeStartedMsg) {
+            return $this->onTranscodeStarted($msg->job);
+        }
+        if ($msg instanceof TranscodePollMsg) {
+            return $this->onTranscodePoll();
+        }
+        if ($msg instanceof TranscodeStatusMsg) {
+            return $this->onTranscodeStatus($msg->job);
         }
         if ($msg instanceof PlaybackMarkersLoadedMsg) {
             $next = clone $this;
@@ -205,7 +225,11 @@ final class PlayerScreen implements Model, Teardownable
             return Chrome::frame($this->item->name, "\n  {$this->error}", 'Esc  back', $this->cols, $this->rows);
         }
         if ($this->inner === null) {
-            return Chrome::frame($this->item->name, "\n  Preparing playback…", 'Esc  back', $this->cols, $this->rows);
+            $body = $this->transcoding
+                ? sprintf("\n  Preparing playback (transcoding… %d%%)", (int) round($this->transcodeProgress ?? 0.0))
+                : "\n  Preparing playback…";
+
+            return Chrome::frame($this->item->name, $body, 'Esc  back', $this->cols, $this->rows);
         }
 
         $frame = $this->inner->view();
@@ -221,17 +245,22 @@ final class PlayerScreen implements Model, Teardownable
 
     // ---- lifecycle -----------------------------------------------------
 
+    /** A Cmd that builds the inner player from $url (off the synchronous path). */
+    private function buildPlayerCmd(string $url): \Closure
+    {
+        return Cmd::promise(fn (): PromiseInterface => $this->buildPlayer($url));
+    }
+
     /**
-     * Build the inner player (the probe + decoder spawn happen here, off the
-     * synchronous update path). A missing stream URL or a build failure (e.g. no
-     * local ffmpeg — the transcode fallback lands in a later step) becomes a
-     * {@see PlayerPrepareFailedMsg} rather than a crash.
+     * Build the inner player from a source URL (the probe + decoder spawn happen
+     * here, off the synchronous update path). An empty URL or a build failure
+     * becomes a {@see PlayerPrepareFailedMsg} (which triggers the transcode
+     * fallback) rather than a crash.
      *
      * @return PromiseInterface<Msg>
      */
-    private function buildPlayer(): PromiseInterface
+    private function buildPlayer(string $url): PromiseInterface
     {
-        $url = $this->streamUrl();
         if ($url === '') {
             return resolve(new PlayerPrepareFailedMsg('This title has no playable source.'));
         }
@@ -572,6 +601,84 @@ final class PlayerScreen implements Model, Teardownable
         return $cmds;
     }
 
+    // ---- transcode fallback --------------------------------------------
+
+    /**
+     * Direct-play failed. The first time, fall back to a server HLS transcode
+     * (the file may have a codec/container ffmpeg here can't direct-play);
+     * thereafter (or if the transcode path also fails) show the error.
+     */
+    private function onPrepareFailed(string $reason): array
+    {
+        if (!$this->transcodeTried) {
+            $next = clone $this;
+            $next->transcodeTried = true;
+            $next->transcoding = true;
+
+            return [$next, $this->startTranscodeCmd()];
+        }
+
+        return [$this->withError($reason), null];
+    }
+
+    private function startTranscodeCmd(): \Closure
+    {
+        $id = $this->item->id;
+
+        return Cmd::promise(fn (): PromiseInterface => $this->api->startTranscode($id)->then(
+            static fn (TranscodeJob $job): Msg => new TranscodeStartedMsg($job),
+            static fn (\Throwable $e): Msg => new PlayerPrepareFailedMsg('Could not prepare this title for playback.'),
+        ));
+    }
+
+    private function onTranscodeStarted(TranscodeJob $job): array
+    {
+        $next = clone $this;
+        $next->transcodeJob = $job->jobId;
+        $next->transcodeProgress = $job->progress;
+
+        // Already playable (a reused/complete job) → build now; else start polling.
+        if ($job->isPlayable()) {
+            return [$next, $this->buildPlayerCmd($this->resolveUrl($job->masterUrl))];
+        }
+
+        return [$next, $this->transcodePollCmd()];
+    }
+
+    private function onTranscodePoll(): array
+    {
+        $jobId = $this->transcodeJob;
+        if ($jobId === null) {
+            return [$this, null];
+        }
+
+        return [$this, Cmd::promise(fn (): PromiseInterface => $this->api->transcodeStatus($jobId)->then(
+            static fn (TranscodeJob $job): Msg => new TranscodeStatusMsg($job),
+            static fn (\Throwable $e): Msg => new PlayerPrepareFailedMsg('The transcode failed.'),
+        ))];
+    }
+
+    private function onTranscodeStatus(TranscodeJob $job): array
+    {
+        if ($job->isFailed()) {
+            return [$this->withError('This title could not be prepared for playback.'), null];
+        }
+
+        $next = clone $this;
+        $next->transcodeProgress = $job->progress;
+
+        if ($job->isPlayable()) {
+            return [$next, $this->buildPlayerCmd($this->resolveUrl($job->masterUrl))];
+        }
+
+        return [$next, $this->transcodePollCmd()];
+    }
+
+    private function transcodePollCmd(): \Closure
+    {
+        return Cmd::tick(self::TRANSCODE_POLL_INTERVAL, static fn (): Msg => new TranscodePollMsg());
+    }
+
     private function onReady(Player $player): array
     {
         // Auto-play: Space toggles the inner player out of its paused initial
@@ -868,7 +975,12 @@ final class PlayerScreen implements Model, Teardownable
     /** Resolve the item's signed stream URL against the server base (handles a relative path). */
     private function streamUrl(): string
     {
-        $url = $this->item->streamUrl ?? '';
+        return $this->resolveUrl($this->item->streamUrl ?? '');
+    }
+
+    /** Resolve a (possibly relative) URL against the server base; absolute/empty pass through. */
+    private function resolveUrl(string $url): string
+    {
         if ($url === '' || preg_match('#^https?://#i', $url) === 1) {
             return $url; // empty, or already absolute (signed URLs are absolute)
         }
@@ -971,5 +1083,15 @@ final class PlayerScreen implements Model, Teardownable
     public function hasCaptions(): bool
     {
         return $this->captions !== null;
+    }
+
+    public function isTranscoding(): bool
+    {
+        return $this->transcoding && $this->inner === null;
+    }
+
+    public function transcodeJob(): ?string
+    {
+        return $this->transcodeJob;
     }
 }

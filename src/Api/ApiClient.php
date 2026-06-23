@@ -14,6 +14,7 @@ use Phlix\Console\Api\Dto\MediaPage;
 use Phlix\Console\Api\Dto\PlaybackInfo;
 use Phlix\Console\Api\Dto\PlaybackMarkers;
 use Phlix\Console\Api\Dto\SubtitleTrack;
+use Phlix\Console\Api\Dto\TranscodeJob;
 use Phlix\Console\Config\TokenBundle;
 use Psr\Http\Message\ResponseInterface;
 use React\Promise\Deferred;
@@ -233,6 +234,31 @@ final class ApiClient
     {
         return $this->authed('DELETE', '/api/v1/sessions/' . rawurlencode($sessionId))
             ->then(static fn (array $data): bool => true);
+    }
+
+    // ---- transcode fallback --------------------------------------------
+
+    /**
+     * Start (or reuse) a server HLS transcode for an item that can't be
+     * direct-played, returning the job (incl. the signed master playlist URL).
+     *
+     * @return PromiseInterface<TranscodeJob>
+     */
+    public function startTranscode(string $id): PromiseInterface
+    {
+        return $this->authed('POST', '/api/v1/media/' . rawurlencode($id) . '/transcode', ['profile' => 'web'])
+            ->then(static fn (array $data): TranscodeJob => TranscodeJob::fromArray($data));
+    }
+
+    /**
+     * Poll a transcode job's readiness (status + playlist_ready + progress).
+     *
+     * @return PromiseInterface<TranscodeJob>
+     */
+    public function transcodeStatus(string $jobId): PromiseInterface
+    {
+        return $this->authed('GET', '/api/v1/transcode/' . rawurlencode($jobId) . '/status')
+            ->then(static fn (array $data): TranscodeJob => TranscodeJob::fromArray($data));
     }
 
     // ---- subtitles -----------------------------------------------------

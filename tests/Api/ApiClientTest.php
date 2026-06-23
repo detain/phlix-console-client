@@ -18,6 +18,7 @@ use Phlix\Console\Api\Dto\MediaPage;
 use Phlix\Console\Api\Dto\PlaybackInfo;
 use Phlix\Console\Api\Dto\PlaybackMarkers;
 use Phlix\Console\Api\Dto\SubtitleTrack;
+use Phlix\Console\Api\Dto\TranscodeJob;
 use Phlix\Console\Config\TokenBundle;
 use PHPUnit\Framework\TestCase;
 use React\EventLoop\Loop;
@@ -291,6 +292,39 @@ final class ApiClientTest extends TestCase
         $req = $t->requestAt(0);
         self::assertSame('DELETE', $req['method']);
         self::assertStringEndsWith('/api/v1/sessions/sess-9', $req['url']);
+    }
+
+    public function testStartTranscodePostsWithProfile(): void
+    {
+        $t = (new FakeTransport())->json(200, ['job_id' => 'j1', 'master_url' => '/hls/j1/master.m3u8', 'status' => 'running']);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $job = $this->await($client->startTranscode('m1'));
+
+        self::assertInstanceOf(TranscodeJob::class, $job);
+        self::assertSame('j1', $job->jobId);
+        self::assertSame('/hls/j1/master.m3u8', $job->masterUrl);
+        $req = $t->requestAt(0);
+        self::assertSame('POST', $req['method']);
+        self::assertStringContainsString('/api/v1/media/m1/transcode', $req['url']);
+        self::assertStringContainsString('profile=web', $req['url']);
+    }
+
+    public function testTranscodeStatusMaps(): void
+    {
+        $t = (new FakeTransport())->json(200, [
+            'job_id' => 'j1', 'status' => 'running', 'playlist_ready' => true, 'progress' => 42, 'master_url' => '/hls/j1/master.m3u8',
+        ]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $job = $this->await($client->transcodeStatus('j1'));
+
+        self::assertTrue($job->playlistReady);
+        self::assertSame(42.0, $job->progress);
+        self::assertTrue($job->isPlayable());
+        self::assertStringEndsWith('/api/v1/transcode/j1/status', $t->requestAt(0)['url']);
     }
 
     public function testSubtitleTracksMapsRows(): void

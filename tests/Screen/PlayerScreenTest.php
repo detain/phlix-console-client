@@ -14,6 +14,9 @@ use Phlix\Console\Msg\PlayNextMsg;
 use Phlix\Console\Msg\ProgressTickMsg;
 use Phlix\Console\Msg\ResumeInfoMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
+use Phlix\Console\Msg\TranscodePollMsg;
+use Phlix\Console\Msg\TranscodeStartedMsg;
+use Phlix\Console\Msg\TranscodeStatusMsg;
 use Phlix\Console\Msg\UpNextTickMsg;
 use Phlix\Console\Screen\PlayerScreen;
 use Phlix\Console\Tests\Api\FakeTransport;
@@ -190,17 +193,17 @@ final class PlayerScreenTest extends TestCase
         self::assertSame(['https://srv/media/m1/stream?sig=x'], $captured);
     }
 
-    public function testMissingStreamUrlShowsAPrepareFailure(): void
+    public function testMissingStreamUrlFallsBackToTranscode(): void
     {
         [$screen] = $this->screen(streamUrl: null);
 
         $msg = $this->firstOfType($this->runBatch($screen->init()), PlayerPrepareFailedMsg::class);
-
         self::assertInstanceOf(PlayerPrepareFailedMsg::class, $msg);
-        [$failed] = $screen->update($msg);
-        self::assertFalse($failed->isReady());
-        self::assertStringContainsString('no playable source', (string) $failed->error());
-        self::assertStringContainsString('no playable source', $failed->view());
+
+        // A first build failure no longer errors outright — it tries a transcode.
+        [$next, $cmd] = $screen->update($msg);
+        self::assertTrue($next->isTranscoding(), 'a build failure starts the server transcode');
+        self::assertInstanceOf(\Closure::class, $cmd);
     }
 
     public function testFactoryFailureBecomesAPrepareFailure(): void
@@ -470,6 +473,111 @@ final class PlayerScreenTest extends TestCase
         [$same, $cmd] = $ready->update(new KeyMsg(KeyType::Char, 's'));
         self::assertSame($ready, $same);
         self::assertNull($cmd);
+    }
+
+    // ---- transcode fallback --------------------------------------------
+
+    /**
+     * A screen whose factory FAILS to direct-play (throws) but succeeds on an
+     * HLS master URL — so the transcode fallback can be exercised.
+     *
+     * @return array{PlayerScreen, FakePlayerDecoder}
+     */
+    private function transcodeScreen(FakeTransport $transport): array
+    {
+        $decoder = new FakePlayerDecoder($this->frames());
+        $factory = function (string $url, int $c, int $r) use ($decoder): Player {
+            if (str_contains($url, 'master.m3u8')) {
+                return Player::openForTest($decoder, fps: 24.0, totalFrames: 2400, cellsW: $c, cellsH: $r, videoPath: '/fake', paused: true);
+            }
+            throw new \RuntimeException('cannot direct-play this container');
+        };
+        $api = new ApiClient('https://srv', $transport);
+        $screen = new PlayerScreen($this->item(), 'https://srv', $api, $factory, cols: 80, rows: 24);
+
+        return [$screen, $decoder];
+    }
+
+    public function testDirectPlayFailurePollsTheTranscodeThenPlaysTheHls(): void
+    {
+        $master = '/hls/j1/master.m3u8';
+        $transport = (new FakeTransport())
+            ->json(200, ['job_id' => 'j1', 'master_url' => $master, 'status' => 'running']) // start: not ready
+            ->json(200, ['job_id' => 'j1', 'status' => 'running', 'playlist_ready' => false, 'progress' => 20, 'master_url' => $master])
+            ->json(200, ['job_id' => 'j1', 'status' => 'running', 'playlist_ready' => true, 'progress' => 60, 'master_url' => $master]);
+        [$screen] = $this->transcodeScreen($transport);
+
+        // Direct-play failed → transcode begins.
+        [$s, $cmd] = $screen->update(new PlayerPrepareFailedMsg('cannot direct-play'));
+        self::assertTrue($s->isTranscoding());
+        self::assertStringContainsString('transcoding', $s->view());
+
+        $started = $this->runCmd($cmd);
+        self::assertInstanceOf(TranscodeStartedMsg::class, $started);
+        [$s] = $s->update($started); // not playable → schedules a poll tick
+        self::assertSame('j1', $s->transcodeJob());
+
+        // Poll 1 (running, not ready) — feed the tick + run the status fetch.
+        [$s, $statusCmd] = $s->update(new TranscodePollMsg());
+        [$s] = $s->update($this->runCmd($statusCmd));
+        self::assertTrue($s->isTranscoding(), 'still transcoding');
+
+        // Poll 2 (playlist ready) → build from the HLS master, which succeeds.
+        [$s, $statusCmd2] = $s->update(new TranscodePollMsg());
+        [$s, $buildCmd] = $s->update($this->runCmd($statusCmd2));
+        $ready = $this->runCmd($buildCmd);
+        self::assertInstanceOf(PlayerReadyMsg::class, $ready);
+        [$playing] = $s->update($ready);
+
+        self::assertTrue($playing->isReady());
+        self::assertTrue($playing->isPlaying(), 'the HLS player auto-plays');
+    }
+
+    public function testTranscodeStartAlreadyPlayableBuildsImmediately(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, ['job_id' => 'j2', 'master_url' => '/hls/j2/master.m3u8', 'status' => 'completed']);
+        [$screen] = $this->transcodeScreen($transport);
+
+        [$s, $cmd] = $screen->update(new PlayerPrepareFailedMsg('x'));
+        [$s, $buildCmd] = $s->update($this->runCmd($cmd)); // TranscodeStartedMsg, playable → build
+        $ready = $this->runCmd($buildCmd);
+
+        self::assertInstanceOf(PlayerReadyMsg::class, $ready);
+    }
+
+    public function testTranscodeFailedStatusShowsError(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, ['job_id' => 'j3', 'master_url' => '/hls/j3/master.m3u8', 'status' => 'running']);
+        [$screen] = $this->transcodeScreen($transport);
+
+        [$s, $cmd] = $screen->update(new PlayerPrepareFailedMsg('x'));
+        [$s] = $s->update($this->runCmd($cmd)); // started, polling
+
+        // A failed status → error.
+        [$failed] = $s->update(new TranscodeStatusMsg(\Phlix\Console\Api\Dto\TranscodeJob::fromArray([
+            'job_id' => 'j3', 'status' => 'failed',
+        ])));
+
+        self::assertFalse($failed->isReady());
+        self::assertStringContainsString('could not be prepared', (string) $failed->error());
+        self::assertStringContainsString('could not be prepared', $failed->view());
+    }
+
+    public function testTranscodeStartFailureShowsErrorOnTheSecondPrepareFailure(): void
+    {
+        $transport = (new FakeTransport())->fail(new \RuntimeException('503 busy')); // start fails
+        [$screen] = $this->transcodeScreen($transport);
+
+        [$s, $cmd] = $screen->update(new PlayerPrepareFailedMsg('direct failed'));
+        $secondFail = $this->runCmd($cmd); // start → PlayerPrepareFailedMsg again
+        self::assertInstanceOf(PlayerPrepareFailedMsg::class, $secondFail);
+
+        // The 2nd prepare-failure (transcode already tried) errors out.
+        [$failed] = $s->update($secondFail);
+        self::assertFalse($failed->isReady());
+        self::assertNotNull($failed->error());
     }
 
     // ---- captions ------------------------------------------------------
