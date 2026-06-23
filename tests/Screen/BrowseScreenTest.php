@@ -386,6 +386,25 @@ final class BrowseScreenTest extends TestCase
         self::assertSame('movie', $msg->type, 'movie-typed libraries keep their type too');
     }
 
+    public function testSidebarEnterThreadsTheLibraryItemCountIntoTheOpenMessage(): void
+    {
+        // A book-typed library's item count is threaded into OpenLibraryMsg so
+        // the App can seed the BooksScreen grid total (the /books endpoint sends
+        // no total).
+        $screen = $this->screen()->update(new LibrariesLoadedMsg([
+            Library::fromArray(['id' => 'lib-books', 'name' => 'Reads', 'type' => 'book', 'item_count' => 33]),
+        ]))[0];
+
+        [$screen] = $screen->update(new KeyMsg(KeyType::Tab));   // focus the sidebar
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Enter));
+        $msg = $cmd?->__invoke();
+
+        self::assertInstanceOf(OpenLibraryMsg::class, $msg);
+        self::assertSame('lib-books', $msg->libraryId);
+        self::assertSame('book', $msg->type);
+        self::assertSame(33, $msg->itemCount, 'the library item count is carried for the grid total');
+    }
+
     public function testSidebarEnterWithNoLibrariesDoesNothing(): void
     {
         [$screen] = $this->screen()->update(new KeyMsg(KeyType::Tab));   // sidebar focus, but empty
