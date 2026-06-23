@@ -44,7 +44,7 @@ use SugarCraft\Gallery\PosterGrid;
  * (the candy-core / sugar-gallery pattern) so the screen stays immutable without
  * a giant positional constructor.
  */
-final class LibraryScreen implements Breadcrumbed
+final class LibraryScreen implements Breadcrumbed, CapturesSlash
 {
     use SubscriptionCapable;
 

@@ -18,4 +18,5 @@ enum Route
     case Library;
     case Detail;
     case Player;
+    case Search;
 }

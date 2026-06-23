@@ -17,6 +17,7 @@ use Phlix\Console\Msg\LoginSucceededMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\OpenLibraryMsg;
+use Phlix\Console\Msg\OpenSearchMsg;
 use Phlix\Console\Msg\PaletteLibrariesLoadedMsg;
 use Phlix\Console\Msg\PlayNextMsg;
 use Phlix\Console\Msg\PlayRequestedMsg;
@@ -33,7 +34,9 @@ use Phlix\Console\Screen\BrowseScreen;
 use Phlix\Console\Screen\DetailScreen;
 use Phlix\Console\Screen\LibraryScreen;
 use Phlix\Console\Screen\LoginScreen;
+use Phlix\Console\Screen\CapturesSlash;
 use Phlix\Console\Screen\PlayerScreen;
+use Phlix\Console\Screen\SearchScreen;
 use Phlix\Console\Screen\ServerScreen;
 use Phlix\Console\Screen\Teardownable;
 use Phlix\Console\Store\AuthStore;
@@ -148,9 +151,16 @@ final class App implements Model
         if ($this->palette !== null && $msg instanceof KeyMsg) {
             return $this->handlePaletteKey($this->palette, $msg);
         }
-        // Ctrl-K opens the palette from any screen.
-        if ($msg instanceof KeyMsg && $this->isPaletteToggle($msg)) {
+        // Ctrl-K opens the palette from any screen; `:` also opens it, unless the
+        // top screen captures text (where `:` should type).
+        if ($msg instanceof KeyMsg && ($this->isPaletteToggle($msg) || $this->isColonPaletteOpen($msg))) {
             return $this->openPalette();
+        }
+        // `/` opens global search, unless the top screen captures it (a screen
+        // with its own filter, or the player where a search overlay would orphan
+        // playback).
+        if ($msg instanceof KeyMsg && $this->isSearchKey($msg)) {
+            return $this->openSearch();
         }
 
         if ($msg instanceof BootResolvedMsg) {
@@ -176,6 +186,9 @@ final class App implements Model
         }
         if ($msg instanceof OpenDetailMsg) {
             return $this->openDetail($msg->id, $msg->name);
+        }
+        if ($msg instanceof OpenSearchMsg) {
+            return $this->openSearch();
         }
         if ($msg instanceof PlayRequestedMsg) {
             return $this->openPlayer($msg->item);
@@ -326,6 +339,14 @@ final class App implements Model
         return $msg->type === KeyType::Char && $msg->rune === 'k' && $msg->ctrl;
     }
 
+    private function isColonPaletteOpen(KeyMsg $msg): bool
+    {
+        return $msg->type === KeyType::Char
+            && $msg->rune === ':'
+            && !$msg->ctrl
+            && !($this->topScreen() instanceof CapturesSlash);
+    }
+
     private function openPalette(): array
     {
         $palette = CommandPalette::open($this->staticActions(), $this->cols, $this->rows);
@@ -369,10 +390,19 @@ final class App implements Model
     private function staticActions(): array
     {
         return [
+            new PaletteAction('Search', new OpenSearchMsg()),
             new PaletteAction('Home', new GoHomeMsg()),
             new PaletteAction('Log out', new RequestLogoutMsg()),
             new PaletteAction('Quit', new RequestQuitMsg()),
         ];
+    }
+
+    private function isSearchKey(KeyMsg $msg): bool
+    {
+        return $msg->type === KeyType::Char
+            && $msg->rune === '/'
+            && !$msg->ctrl
+            && !($this->topScreen() instanceof CapturesSlash);
     }
 
     private function fetchPaletteLibraries(): \Closure
@@ -540,6 +570,18 @@ final class App implements Model
         );
 
         return [$this->push(Route::Detail, $screen), $screen->init()];
+    }
+
+    private function openSearch(): array
+    {
+        $screen = new SearchScreen(
+            $this->media,
+            $this->posters,
+            cols: $this->cols,
+            rows: $this->rows,
+        );
+
+        return [$this->push(Route::Search, $screen), $screen->init()];
     }
 
     private function openPlayer(MediaItem $item): array
