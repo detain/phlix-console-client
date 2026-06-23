@@ -35,9 +35,10 @@ use SugarCraft\Core\SubscriptionCapable;
  * Stable collaborators are readonly; the mutable view state is private and
  * copied via clone-mutate (the established screen idiom).
  */
-final class AudiobooksScreen implements Breadcrumbed
+final class AudiobooksScreen implements Breadcrumbed, Themed
 {
     use SubscriptionCapable;
+    use ThemedScreen;
 
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
     private const HINT = '↑↓  select      ⏎  open      Esc  back';
@@ -93,7 +94,7 @@ final class AudiobooksScreen implements Breadcrumbed
 
     public function view(): string
     {
-        return Chrome::frame($this->title(), $this->body(), self::HINT, $this->cols, $this->rows, $this->crumbs);
+        return Chrome::frame($this->title(), $this->body(), self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
     }
 
     // ---- input ---------------------------------------------------------

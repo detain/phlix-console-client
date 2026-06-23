@@ -50,9 +50,10 @@ use SugarCraft\Sprinkles\Layout;
  *
  * @phpstan-type RailMap array<string, Rail>
  */
-final class BrowseScreen implements Breadcrumbed
+final class BrowseScreen implements Breadcrumbed, Themed
 {
     use SubscriptionCapable;
+    use ThemedScreen;
 
     private const CONTINUE_ID = 'continue';
     private const SIDEBAR = 'sidebar';
@@ -139,7 +140,7 @@ final class BrowseScreen implements Breadcrumbed
                 ? "\n  {$this->error}"
                 : "\n  Welcome, {$name}.\n\n  Loading your libraries…";
 
-            return Chrome::frame('Browse', $body, 'q  quit', $this->cols, $this->rows, $this->crumbs);
+            return Chrome::frame('Browse', $body, 'q  quit', $this->cols, $this->rows, $this->crumbs, $this->theme());
         }
 
         $railsFocused = $this->focus->isFocused(self::RAILS);
@@ -159,7 +160,7 @@ final class BrowseScreen implements Breadcrumbed
         $railsBody = $blocks === [] ? '' : Layout::joinVerticalWithSpacing(0.0, 1, ...$blocks);
         $body = Layout::joinHorizontalWithSpacing(0.0, self::SIDEBAR_GAP, $this->sidebar->render($this->contentHeight()), $railsBody);
 
-        return Chrome::frame('Browse', $body, $railsFocused ? self::RAILS_HINT : self::SIDEBAR_HINT, $this->cols, $this->rows, $this->crumbs);
+        return Chrome::frame('Browse', $body, $railsFocused ? self::RAILS_HINT : self::SIDEBAR_HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
     }
 
     // ---- data loading --------------------------------------------------

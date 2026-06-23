@@ -40,9 +40,10 @@ use SugarCraft\Sprinkles\Style;
  * Implements {@see CapturesSlash} so `/` types into the box instead of
  * re-opening search.
  */
-final class SearchScreen implements Breadcrumbed, CapturesSlash
+final class SearchScreen implements Breadcrumbed, CapturesSlash, Themed
 {
     use SubscriptionCapable;
+    use ThemedScreen;
 
     private const CARD_WIDTH = 14;
     private const POSTER_HEIGHT = 9;
@@ -114,13 +115,13 @@ final class SearchScreen implements Breadcrumbed, CapturesSlash
         if ($this->error !== null) {
             $body = $inputLine . "\n\n  {$this->error}";
 
-            return Chrome::frame('Search', $body, self::HINT, $this->cols, $this->rows, $this->crumbs);
+            return Chrome::frame('Search', $body, self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
         }
 
         if (!$this->hasSearched) {
             $body = $inputLine . "\n\n  Type to search across your libraries.";
 
-            return Chrome::frame('Search', $body, self::HINT, $this->cols, $this->rows, $this->crumbs);
+            return Chrome::frame('Search', $body, self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
         }
 
         $total = $this->grid->total();
@@ -134,7 +135,7 @@ final class SearchScreen implements Breadcrumbed, CapturesSlash
 
         $body = $inputLine . "\n" . $count . "\n" . $this->grid->render(true);
 
-        return Chrome::frame('Search', $body, self::HINT, $this->cols, $this->rows, $this->crumbs);
+        return Chrome::frame('Search', $body, self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
     }
 
     // ---- input ---------------------------------------------------------

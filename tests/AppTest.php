@@ -66,6 +66,7 @@ use Phlix\Console\Store\AudiobooksStore;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Tests\Api\FakeTransport;
 use Phlix\Console\Tests\Reel\FakeAudioPlayer;
+use Phlix\Console\Ui\Theme;
 use PHPUnit\Framework\TestCase;
 use React\EventLoop\Loop;
 use React\Promise\PromiseInterface;
@@ -1312,6 +1313,59 @@ final class AppTest extends TestCase
         }
 
         return $state['value'];
+    }
+
+    // ---- theme -----------------------------------------------------------
+
+    public function testDefaultAppIsNocturne(): void
+    {
+        [$app] = $this->makeApp('https://srv', new FakeTransport());
+
+        // A Config with no theme → the App boots Nocturne, and its loading-state
+        // view carries no SGR (byte-identical to the pre-theme look).
+        self::assertSame('Nocturne', $app->theme()->name);
+        self::assertStringNotContainsString("\e[", $app->view(), 'the default app render has zero SGR');
+    }
+
+    public function testAppBootsThemeFromConfig(): void
+    {
+        $config = new Config('https://srv', 'midnight');
+        $api = new ApiClient('https://srv', new FakeTransport());
+        $auth = new AuthStore($api, TokenStore::default());
+        $app = App::boot($config, $auth, $api, new LibrariesStore($api), new MediaStore($api), new PosterLoader(Mosaic::halfBlock()));
+
+        self::assertSame('Midnight', $app->theme()->name, 'the persisted (case-insensitive) theme name is resolved at boot');
+    }
+
+    public function testUnknownConfigThemeFallsBackToNocturne(): void
+    {
+        $config = new Config('https://srv', 'no-such-theme');
+        $api = new ApiClient('https://srv', new FakeTransport());
+        $auth = new AuthStore($api, TokenStore::default());
+        $app = App::boot($config, $auth, $api, new LibrariesStore($api), new MediaStore($api), new PosterLoader(Mosaic::halfBlock()));
+
+        self::assertSame('Nocturne', $app->theme()->name);
+    }
+
+    public function testAppAppliesItsThemeToTheTopScreenInBaseView(): void
+    {
+        // A Daylight-themed App renders its (Themed) Browse top screen with the
+        // accent-coloured brand — proof baseView() applies the theme transiently.
+        $themed = $this->browsing()->withTheme(Theme::daylight());
+
+        self::assertSame('Daylight', $themed->theme()->name);
+        self::assertMatchesRegularExpression('/\e\[[0-9;]*m Phlix \e\[0m/', $themed->view(), 'the brand is accent-wrapped');
+    }
+
+    public function testWithThemeKeepsTheStackAndIsImmutable(): void
+    {
+        $browse = $this->browsing();
+        $themed = $browse->withTheme(Theme::midnight());
+
+        self::assertNotSame($browse, $themed);
+        self::assertSame('Nocturne', $browse->theme()->name, 'the original app is unchanged');
+        self::assertSame('Midnight', $themed->theme()->name);
+        self::assertSame($browse->stackDepth(), $themed->stackDepth(), 'the screen stack is preserved');
     }
 }
 

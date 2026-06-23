@@ -67,9 +67,10 @@ use function React\Promise\resolve;
  * {@see Teardownable} so leaving it — by Esc, or a global Ctrl-C quit — stops
  * the ffmpeg/ffplay subprocesses rather than leaking them.
  */
-final class PlayerScreen implements Model, Teardownable, CapturesSlash
+final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
 {
     use SubscriptionCapable;
+    use ThemedScreen;
 
     /** Rows reserved below the video: caption + scrubber + status line + 1 slack for the inner player's own status line. */
     private const CHROME_ROWS = 4;
@@ -222,14 +223,14 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash
     public function view(): string
     {
         if ($this->error !== null) {
-            return Chrome::frame($this->item->name, "\n  {$this->error}", 'Esc  back', $this->cols, $this->rows);
+            return Chrome::frame($this->item->name, "\n  {$this->error}", 'Esc  back', $this->cols, $this->rows, theme: $this->theme());
         }
         if ($this->inner === null) {
             $body = $this->transcoding
                 ? sprintf("\n  Preparing playback (transcoding… %d%%)", (int) round($this->transcodeProgress ?? 0.0))
                 : "\n  Preparing playback…";
 
-            return Chrome::frame($this->item->name, $body, 'Esc  back', $this->cols, $this->rows);
+            return Chrome::frame($this->item->name, $body, 'Esc  back', $this->cols, $this->rows, theme: $this->theme());
         }
 
         $frame = $this->inner->view();

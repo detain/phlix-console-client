@@ -56,9 +56,10 @@ use SugarCraft\Sprinkles\Style;
  * above. Stable collaborators are readonly; mutable view state is private and
  * copied via clone-mutate (the established screen idiom).
  */
-final class DetailScreen implements Breadcrumbed
+final class DetailScreen implements Breadcrumbed, Themed
 {
     use SubscriptionCapable;
+    use ThemedScreen;
 
     private const HERO_WIDTH = 26;
     private const HERO_HEIGHT = 16;
@@ -142,10 +143,10 @@ final class DetailScreen implements Breadcrumbed
     public function view(): string
     {
         if ($this->error !== null) {
-            return Chrome::frame($this->headerTitle(), "\n  {$this->error}", self::LOADING_HINT, $this->cols, $this->rows, $this->crumbs);
+            return Chrome::frame($this->headerTitle(), "\n  {$this->error}", self::LOADING_HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
         }
         if (!$this->loaded || $this->item === null) {
-            return Chrome::frame($this->headerTitle(), "\n  Loading…", self::LOADING_HINT, $this->cols, $this->rows, $this->crumbs);
+            return Chrome::frame($this->headerTitle(), "\n  Loading…", self::LOADING_HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
         }
         if ($this->childGrid !== null) {
             return $this->containerView($this->item, $this->childGrid);
@@ -155,7 +156,7 @@ final class DetailScreen implements Breadcrumbed
         $column = $this->metadataColumn($this->item);
         $body = Layout::joinHorizontalWithSpacing(0.0, self::COL_GAP, $hero, $column);
 
-        return Chrome::frame($this->headerTitle(), $body, self::HINT, $this->cols, $this->rows, $this->crumbs);
+        return Chrome::frame($this->headerTitle(), $body, self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
     }
 
     // ---- input ---------------------------------------------------------
@@ -423,7 +424,7 @@ final class DetailScreen implements Breadcrumbed
 
         $body = $header . "\n\n" . $grid->render(true);
 
-        return Chrome::frame($this->headerTitle(), $body, self::CONTAINER_HINT, $this->cols, $this->rows, $this->crumbs);
+        return Chrome::frame($this->headerTitle(), $body, self::CONTAINER_HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
     }
 
     /** "3 seasons" for a series, "12 episodes" for a season, else "N items". */
