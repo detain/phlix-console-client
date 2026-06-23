@@ -352,6 +352,40 @@ final class BrowseScreenTest extends TestCase
         self::assertSame('TV', $msg->name);
     }
 
+    public function testSidebarEnterOnAMusicLibraryCarriesTheMusicType(): void
+    {
+        // A music-typed library threads its type into the OpenLibraryMsg so the
+        // App can branch to the MusicScreen instead of the poster grid.
+        $screen = $this->screen()->update(new LibrariesLoadedMsg([
+            Library::fromArray(['id' => 'lib-mov', 'name' => 'Movies', 'type' => 'movie']),
+            Library::fromArray(['id' => 'lib-mus', 'name' => 'Tunes', 'type' => 'music']),
+        ]))[0];
+
+        [$screen] = $screen->update(new KeyMsg(KeyType::Tab));   // focus the sidebar
+        [$screen] = $screen->update(new KeyMsg(KeyType::Down));  // select the music library
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Enter));
+        $msg = $cmd?->__invoke();
+
+        self::assertInstanceOf(OpenLibraryMsg::class, $msg);
+        self::assertSame('lib-mus', $msg->libraryId);
+        self::assertSame('Tunes', $msg->name);
+        self::assertSame('music', $msg->type);
+    }
+
+    public function testSidebarEnterOnANonMusicLibraryCarriesItsType(): void
+    {
+        $screen = $this->screen()->update(new LibrariesLoadedMsg([
+            Library::fromArray(['id' => 'lib-mov', 'name' => 'Movies', 'type' => 'movie']),
+        ]))[0];
+
+        [$screen] = $screen->update(new KeyMsg(KeyType::Tab));
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Enter));
+        $msg = $cmd?->__invoke();
+
+        self::assertInstanceOf(OpenLibraryMsg::class, $msg);
+        self::assertSame('movie', $msg->type, 'movie-typed libraries keep their type too');
+    }
+
     public function testSidebarEnterWithNoLibrariesDoesNothing(): void
     {
         [$screen] = $this->screen()->update(new KeyMsg(KeyType::Tab));   // sidebar focus, but empty

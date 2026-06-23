@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Phlix\Console;
 
 use Phlix\Console\Api\ApiClient;
+use Phlix\Console\Api\Dto\Album;
 use Phlix\Console\Api\Dto\AuthUser;
 use Phlix\Console\Api\Dto\Library;
 use Phlix\Console\Api\Dto\MediaItem;
@@ -15,6 +16,7 @@ use Phlix\Console\Msg\GoHomeMsg;
 use Phlix\Console\Msg\LoginFailedMsg;
 use Phlix\Console\Msg\LoginSucceededMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
+use Phlix\Console\Msg\OpenAlbumMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\OpenLibraryMsg;
 use Phlix\Console\Msg\OpenSearchMsg;
@@ -29,11 +31,13 @@ use Phlix\Console\Msg\SubmitLoginMsg;
 use Phlix\Console\Msg\SubmitServerMsg;
 use Phlix\Console\Msg\ToastTickMsg;
 use Phlix\Console\Media\PosterLoader;
+use Phlix\Console\Screen\AlbumScreen;
 use Phlix\Console\Screen\Breadcrumbed;
 use Phlix\Console\Screen\BrowseScreen;
 use Phlix\Console\Screen\DetailScreen;
 use Phlix\Console\Screen\LibraryScreen;
 use Phlix\Console\Screen\LoginScreen;
+use Phlix\Console\Screen\MusicScreen;
 use Phlix\Console\Screen\CapturesSlash;
 use Phlix\Console\Screen\PlayerScreen;
 use Phlix\Console\Screen\SearchScreen;
@@ -42,6 +46,7 @@ use Phlix\Console\Screen\Teardownable;
 use Phlix\Console\Store\AuthStore;
 use Phlix\Console\Store\LibrariesStore;
 use Phlix\Console\Store\MediaStore;
+use Phlix\Console\Store\MusicStore;
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\CommandPalette;
 use Phlix\Console\Ui\PaletteAction;
@@ -182,7 +187,10 @@ final class App implements Model
             return $this->goLogin($msg->reason);
         }
         if ($msg instanceof OpenLibraryMsg) {
-            return $this->openLibrary($msg->libraryId, $msg->name);
+            return $this->openLibrary($msg->libraryId, $msg->name, $msg->type);
+        }
+        if ($msg instanceof OpenAlbumMsg) {
+            return $this->openAlbum($msg->album);
         }
         if ($msg instanceof OpenDetailMsg) {
             return $this->openDetail($msg->id, $msg->name);
@@ -426,7 +434,7 @@ final class App implements Model
         $actions = [];
         foreach ($libraries as $library) {
             if ($library instanceof Library) {
-                $actions[] = new PaletteAction('Go to ' . $library->name, new OpenLibraryMsg($library->id, $library->name));
+                $actions[] = new PaletteAction('Go to ' . $library->name, new OpenLibraryMsg($library->id, $library->name, $library->type));
             }
         }
         foreach ($this->staticActions() as $action) {
@@ -544,8 +552,16 @@ final class App implements Model
         return [$this, Cmd::quit()];
     }
 
-    private function openLibrary(string $libraryId, string $name): array
+    private function openLibrary(string $libraryId, string $name, string $type = ''): array
     {
+        // Library type decides the screen: music gets the album list; everything
+        // else (movie / tv / series) gets the virtualized poster grid.
+        if ($type === 'music') {
+            $screen = new MusicScreen(new MusicStore($this->api), cols: $this->cols, rows: $this->rows);
+
+            return [$this->push(Route::Music, $screen), $screen->init()];
+        }
+
         $screen = new LibraryScreen(
             $libraryId,
             $name,
@@ -556,6 +572,13 @@ final class App implements Model
         );
 
         return [$this->push(Route::Library, $screen), $screen->init()];
+    }
+
+    private function openAlbum(Album $album): array
+    {
+        $screen = new AlbumScreen($album, cols: $this->cols, rows: $this->rows);
+
+        return [$this->push(Route::Album, $screen), $screen->init()];
     }
 
     private function openDetail(string $id, string $name): array
