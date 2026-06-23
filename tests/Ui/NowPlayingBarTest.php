@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Phlix\Console\Tests\Ui;
 
 use Phlix\Console\Api\Dto\Album;
-use Phlix\Console\Audio\NowPlaying;
+use Phlix\Console\Api\Dto\Audiobook;
+use Phlix\Console\Api\Dto\AudiobookChapter;
+use Phlix\Console\Audio\AudiobookSession;
+use Phlix\Console\Audio\MusicSession;
 use Phlix\Console\Tests\Reel\FakeAudioPlayer;
 use Phlix\Console\Ui\NowPlayingBar;
 use Phlix\Console\Ui\Theme;
@@ -27,9 +30,28 @@ final class NowPlayingBarTest extends TestCase
         ]);
     }
 
-    private function nowPlaying(bool $paused = false, int $position = 0, ?Album $album = null): NowPlaying
+    private function nowPlaying(bool $paused = false, int $position = 0, ?Album $album = null): MusicSession
     {
-        return new NowPlaying(new FakeAudioPlayer('u'), $album ?? $this->album(), 0, $paused, $position, 1);
+        return new MusicSession(new FakeAudioPlayer('u'), $album ?? $this->album(), 0, $paused, $position, 1);
+    }
+
+    /** An audiobook session for the interface-render tests. */
+    private function audiobookSession(bool $paused = false, int $positionMs = 0): AudiobookSession
+    {
+        $book = Audiobook::fromArray([
+            'id' => 'ab1',
+            'title' => 'Dune',
+            'author' => 'Frank Herbert',
+            'narrator' => 'Scott Brick',
+            'duration_ms' => 7_200_000, // 2:00:00
+            'stream_url' => 'https://srv/s/ab1',
+        ]);
+        $chapters = [
+            AudiobookChapter::fromArray(['index' => 0, 'title' => 'Beginnings', 'start_ms' => 0, 'end_ms' => 3_600_000, 'duration_ms' => 3_600_000], 0),
+            AudiobookChapter::fromArray(['index' => 1, 'title' => 'The Spice', 'start_ms' => 3_600_000, 'end_ms' => 7_200_000, 'duration_ms' => 3_600_000], 1),
+        ];
+
+        return new AudiobookSession(new FakeAudioPlayer('u'), $book, $chapters, $positionMs, $paused, 1);
     }
 
     public function testRendersGlyphTitleSubtitleAndClock(): void
@@ -126,5 +148,33 @@ final class NowPlayingBarTest extends TestCase
 
         self::assertMatchesRegularExpression('/\e\[[0-9;]*m▶ Come Together\e\[0m/', $bar, 'the glyph + title are accent-wrapped');
         self::assertSame(80, Width::string($bar), 'the SGR does not count toward the cell width');
+    }
+
+    // ---- audiobook sessions render via the same interface --------------
+
+    public function testRendersAnAudiobookSessionViaTheInterface(): void
+    {
+        // 1h30m into a 2h book → inside chapter 1 ("The Spice"); the subtitle is
+        // author · narrator and the clock is the ms position / total.
+        $bar = NowPlayingBar::render($this->audiobookSession(positionMs: 5_400_000), 80);
+
+        self::assertStringContainsString('▶ The Spice', $bar, 'the current chapter title shows');
+        self::assertStringContainsString('Frank Herbert · Scott Brick', $bar);
+        self::assertStringContainsString('1:30:00 / 2:00:00', $bar, 'the ms clock for an audiobook');
+    }
+
+    public function testAPausedAudiobookShowsThePauseGlyph(): void
+    {
+        $bar = NowPlayingBar::render($this->audiobookSession(paused: true, positionMs: 0), 80);
+
+        self::assertStringContainsString('⏸ Beginnings', $bar);
+        self::assertStringNotContainsString('▶', $bar);
+    }
+
+    public function testAnAudiobookBarIsExactlyTheRequestedWidth(): void
+    {
+        $bar = NowPlayingBar::render($this->audiobookSession(positionMs: 5_400_000), 80);
+
+        self::assertSame(80, Width::string($bar));
     }
 }
