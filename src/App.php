@@ -15,6 +15,7 @@ use Phlix\Console\Msg\LoginSucceededMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\OpenLibraryMsg;
+use Phlix\Console\Msg\PlayNextMsg;
 use Phlix\Console\Msg\PlayRequestedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\SubmitLoginMsg;
@@ -140,6 +141,12 @@ final class App implements Model
         }
         if ($msg instanceof PlayRequestedMsg) {
             return $this->openPlayer($msg->item);
+        }
+        if ($msg instanceof PlayNextMsg) {
+            // Replace the current player frame with the next episode's (binge
+            // without growing the stack): pop the ended player (tears it down)
+            // then push a fresh one beneath the same detail.
+            return $this->popScreen()->openPlayer($msg->item);
         }
         if ($msg instanceof NavigateBackMsg) {
             return [$this->popScreen(), null];
