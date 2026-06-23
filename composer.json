@@ -39,16 +39,6 @@
     "autoload-dev": {
         "psr-4": { "Phlix\\Console\\Tests\\": "tests/" }
     },
-    "repositories": [
-        {
-            "type": "vcs",
-            "url": "https://github.com/sugarcraft/candy-focus"
-        },
-        {
-            "type": "vcs",
-            "url": "https://github.com/sugarcraft/sugar-reel"
-        }
-    ],
     "minimum-stability": "dev",
     "prefer-stable": true,
     "config": {
