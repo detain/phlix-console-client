@@ -14,6 +14,7 @@ use Phlix\Console\Config\Config;
 use Phlix\Console\Config\TokenBundle;
 use Phlix\Console\Config\TokenStore;
 use Phlix\Console\Media\PosterLoader;
+use Phlix\Console\Msg\AudioStartedMsg;
 use Phlix\Console\Msg\BootResolvedMsg;
 use Phlix\Console\Msg\GoHomeMsg;
 use Phlix\Console\Msg\LoginFailedMsg;
@@ -51,6 +52,7 @@ use Phlix\Console\Store\LibrariesStore;
 use Phlix\Console\Store\MediaRange;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Tests\Api\FakeTransport;
+use Phlix\Console\Tests\Reel\FakeAudioPlayer;
 use PHPUnit\Framework\TestCase;
 use React\EventLoop\Loop;
 use React\Promise\PromiseInterface;
@@ -328,6 +330,48 @@ final class AppTest extends TestCase
         self::assertInstanceOf(AlbumScreen::class, $albumScreen->screen());
         self::assertSame(2, $albumScreen->stackDepth(), 'the album is pushed on top, not replaced');
         self::assertNull($cmd, 'the album carries its tracks, so there is nothing to fetch');
+
+        // The pushed AlbumScreen is now audio-capable (Teardownable).
+        self::assertInstanceOf(Teardownable::class, $albumScreen->screen());
+    }
+
+    public function testPlayingAnAlbumTrackThenNavigatingBackTearsDownTheAudio(): void
+    {
+        // A real audio-capable AlbumScreen on the stack, wired to a recording
+        // audio factory so no ffplay is spawned. Playing a track then popping the
+        // frame (NavigateBack) must stop the audio.
+        $player = null;
+        $album = Album::fromArray([
+            'name' => 'Abbey Road',
+            'tracks' => [['id' => 't1', 'metadata' => ['title' => 'Come Together', 'duration_secs' => 100]]],
+        ]);
+        $transport = (new FakeTransport())->json(200, ['item' => ['id' => 't1', 'name' => 'Come Together', 'type' => 'music', 'stream_url' => 'https://srv/s/t1']]);
+        $media = new MediaStore(new ApiClient('https://srv', $transport));
+        $factory = function (string $url) use (&$player): FakeAudioPlayer {
+            return $player = new FakeAudioPlayer($url);
+        };
+        $screen = new AlbumScreen($album, $media, 'https://srv', $factory, cols: 80, rows: 24);
+        $app = $this->appWithStack([['route' => Route::Album, 'screen' => $screen]]);
+
+        // Enter → the App routes the key to the AlbumScreen, which fetches the URL.
+        [$loading, $cmd] = $app->update(new KeyMsg(KeyType::Enter));
+        $started = $this->runCmd($cmd);
+        self::assertInstanceOf(AudioStartedMsg::class, $started);
+        [$playing] = $loading->update($started);
+        self::assertNotNull($player);
+        self::assertSame(1, $player->startCalls, 'the track started playing');
+
+        // NavigateBack would pop the only frame (no-op below depth 1) — but the
+        // App still routes the pop through teardown when a frame is discarded.
+        // Push a root beneath so the album can actually pop.
+        $deeper = $this->appWithStack([
+            ['route' => Route::Browse, 'screen' => new SpyTeardownScreen()],
+            ['route' => Route::Album, 'screen' => $playing->screen()],
+        ]);
+        [$popped] = $deeper->update(new NavigateBackMsg());
+
+        self::assertSame(1, $popped->stackDepth(), 'the album frame was popped');
+        self::assertSame(1, $player->stopCalls, 'popping the album stops the audio (no leaked ffplay)');
     }
 
     public function testOpenDetailPushesDetailScreen(): void

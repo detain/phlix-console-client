@@ -576,7 +576,14 @@ final class App implements Model
 
     private function openAlbum(Album $album): array
     {
-        $screen = new AlbumScreen($album, cols: $this->cols, rows: $this->rows);
+        $screen = new AlbumScreen(
+            $album,
+            $this->media,
+            $this->api->baseUrl(),
+            AlbumScreen::productionAudioFactory(),
+            cols: $this->cols,
+            rows: $this->rows,
+        );
 
         return [$this->push(Route::Album, $screen), $screen->init()];
     }
