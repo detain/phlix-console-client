@@ -6,6 +6,7 @@ namespace Phlix\Console;
 
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\Dto\AuthUser;
+use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\NetworkError;
 use Phlix\Console\Config\Config;
 use Phlix\Console\Msg\BootResolvedMsg;
@@ -14,6 +15,7 @@ use Phlix\Console\Msg\LoginSucceededMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\OpenLibraryMsg;
+use Phlix\Console\Msg\PlayRequestedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\SubmitLoginMsg;
 use Phlix\Console\Msg\SubmitServerMsg;
@@ -23,7 +25,9 @@ use Phlix\Console\Screen\BrowseScreen;
 use Phlix\Console\Screen\DetailScreen;
 use Phlix\Console\Screen\LibraryScreen;
 use Phlix\Console\Screen\LoginScreen;
+use Phlix\Console\Screen\PlayerScreen;
 use Phlix\Console\Screen\ServerScreen;
+use Phlix\Console\Screen\Teardownable;
 use Phlix\Console\Store\AuthStore;
 use Phlix\Console\Store\LibrariesStore;
 use Phlix\Console\Store\MediaStore;
@@ -96,6 +100,13 @@ final class App implements Model
     public function update(Msg $msg): array
     {
         if ($msg instanceof KeyMsg && $this->isInterrupt($msg)) {
+            // A global Ctrl-C quit must still tear down a screen holding external
+            // resources (the player's ffmpeg/ffplay subprocesses) so they don't leak.
+            $top = $this->topScreen();
+            if ($top instanceof Teardownable) {
+                $top->teardown();
+            }
+
             return [$this, Cmd::quit()];
         }
 
@@ -126,6 +137,9 @@ final class App implements Model
         }
         if ($msg instanceof OpenDetailMsg) {
             return $this->openDetail($msg->id, $msg->name);
+        }
+        if ($msg instanceof PlayRequestedMsg) {
+            return $this->openPlayer($msg->item);
         }
         if ($msg instanceof NavigateBackMsg) {
             return [$this->popScreen(), null];
@@ -263,6 +277,19 @@ final class App implements Model
         return [$this->push(Route::Detail, $screen), $screen->init()];
     }
 
+    private function openPlayer(MediaItem $item): array
+    {
+        $screen = new PlayerScreen(
+            $item,
+            $this->api->baseUrl(),
+            PlayerScreen::productionFactory(),
+            cols: $this->cols,
+            rows: $this->rows,
+        );
+
+        return [$this->push(Route::Player, $screen), $screen->init()];
+    }
+
     // ---- helpers -------------------------------------------------------
 
     /** A Cmd that validates any stored token and reports the result. */
@@ -308,6 +335,11 @@ final class App implements Model
     /** Replace the whole stack with a single frame (auth transitions). */
     private function replace(Route $route, Model $screen): self
     {
+        // The whole current stack is discarded — release any screen's external
+        // resources first (e.g. a player's ffmpeg/ffplay) so a SessionExpired or
+        // logout mid-playback can't leak a subprocess.
+        $this->tearDownFrames($this->stack);
+
         return $this->withStack([['route' => $route, 'screen' => $screen]]);
     }
 
@@ -328,9 +360,29 @@ final class App implements Model
         }
 
         $stack = $this->stack;
-        array_pop($stack);
+        $popped = array_pop($stack);
+        // Popping permanently discards the frame (drilling back up), so release
+        // its resources (idempotent — a PlayerScreen also self-tears-down on Esc).
+        if ($popped !== null && $popped['screen'] instanceof Teardownable) {
+            $popped['screen']->teardown();
+        }
 
         return $this->withStack($stack);
+    }
+
+    /**
+     * Tear down every {@see Teardownable} screen in a set of frames being
+     * discarded, so external resources (ffmpeg/ffplay) are released, not leaked.
+     *
+     * @param list<array{route: Route, screen: Model}> $frames
+     */
+    private function tearDownFrames(array $frames): void
+    {
+        foreach ($frames as $frame) {
+            if ($frame['screen'] instanceof Teardownable) {
+                $frame['screen']->teardown();
+            }
+        }
     }
 
     private function withTopScreen(Model $screen): self
