@@ -17,6 +17,7 @@ use Phlix\Console\Msg\LoginFailedMsg;
 use Phlix\Console\Msg\LoginSucceededMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenAlbumMsg;
+use Phlix\Console\Msg\OpenBookMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\OpenLibraryMsg;
 use Phlix\Console\Msg\OpenSearchMsg;
@@ -32,6 +33,8 @@ use Phlix\Console\Msg\SubmitServerMsg;
 use Phlix\Console\Msg\ToastTickMsg;
 use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Screen\AlbumScreen;
+use Phlix\Console\Screen\BookDetailScreen;
+use Phlix\Console\Screen\BooksScreen;
 use Phlix\Console\Screen\Breadcrumbed;
 use Phlix\Console\Screen\BrowseScreen;
 use Phlix\Console\Screen\DetailScreen;
@@ -44,6 +47,7 @@ use Phlix\Console\Screen\SearchScreen;
 use Phlix\Console\Screen\ServerScreen;
 use Phlix\Console\Screen\Teardownable;
 use Phlix\Console\Store\AuthStore;
+use Phlix\Console\Store\BooksStore;
 use Phlix\Console\Store\LibrariesStore;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Store\MusicStore;
@@ -187,10 +191,13 @@ final class App implements Model
             return $this->goLogin($msg->reason);
         }
         if ($msg instanceof OpenLibraryMsg) {
-            return $this->openLibrary($msg->libraryId, $msg->name, $msg->type);
+            return $this->openLibrary($msg->libraryId, $msg->name, $msg->type, $msg->itemCount);
         }
         if ($msg instanceof OpenAlbumMsg) {
             return $this->openAlbum($msg->album);
+        }
+        if ($msg instanceof OpenBookMsg) {
+            return $this->openBook($msg->id, $msg->title);
         }
         if ($msg instanceof OpenDetailMsg) {
             return $this->openDetail($msg->id, $msg->name);
@@ -434,7 +441,7 @@ final class App implements Model
         $actions = [];
         foreach ($libraries as $library) {
             if ($library instanceof Library) {
-                $actions[] = new PaletteAction('Go to ' . $library->name, new OpenLibraryMsg($library->id, $library->name, $library->type));
+                $actions[] = new PaletteAction('Go to ' . $library->name, new OpenLibraryMsg($library->id, $library->name, $library->type, $library->itemCount));
             }
         }
         foreach ($this->staticActions() as $action) {
@@ -552,14 +559,32 @@ final class App implements Model
         return [$this, Cmd::quit()];
     }
 
-    private function openLibrary(string $libraryId, string $name, string $type = ''): array
+    private function openLibrary(string $libraryId, string $name, string $type = '', int $itemCount = 0): array
     {
-        // Library type decides the screen: music gets the album list; everything
-        // else (movie / tv / series) gets the virtualized poster grid.
+        // Library type decides the screen: music gets the album list; book gets
+        // the lazy-cover grid; everything else (movie / tv / series) gets the
+        // virtualized poster grid.
         if ($type === 'music') {
             $screen = new MusicScreen(new MusicStore($this->api), cols: $this->cols, rows: $this->rows);
 
             return [$this->push(Route::Music, $screen), $screen->init()];
+        }
+        if ($type === 'book') {
+            // A BooksStore is built locally (the App holds no books field) so no
+            // with*/boot threading is needed; the library's item count seeds the
+            // grid total (the /books endpoint sends none).
+            $screen = new BooksScreen(
+                new BooksStore($this->api),
+                $this->posters,
+                $this->api->baseUrl(),
+                $libraryId,
+                $name,
+                $itemCount,
+                cols: $this->cols,
+                rows: $this->rows,
+            );
+
+            return [$this->push(Route::Books, $screen), $screen->init()];
         }
 
         $screen = new LibraryScreen(
@@ -586,6 +611,23 @@ final class App implements Model
         );
 
         return [$this->push(Route::Album, $screen), $screen->init()];
+    }
+
+    private function openBook(string $id, string $title): array
+    {
+        // A fresh BooksStore (the App holds no books field) — the detail fetches
+        // the signed cover/download URLs the grid's list rows lack.
+        $screen = new BookDetailScreen(
+            new BooksStore($this->api),
+            $this->posters,
+            $this->api->baseUrl(),
+            $id,
+            $title,
+            cols: $this->cols,
+            rows: $this->rows,
+        );
+
+        return [$this->push(Route::BookDetail, $screen), $screen->init()];
     }
 
     private function openDetail(string $id, string $name): array

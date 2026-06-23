@@ -27,6 +27,21 @@ final class BooksStoreTest extends TestCase
         ];
     }
 
+    /**
+     * A `/books` page whose book ids/titles equal their absolute index, so a
+     * range fetch can be asserted positionally.
+     */
+    private function booksPage(int $offset, int $count, int $limit = 50): array
+    {
+        $books = [];
+        for ($i = 0; $i < $count; $i++) {
+            $abs = $offset + $i;
+            $books[] = ['id' => (string) $abs, 'name' => "b{$abs}.epub", 'path' => "/x/b{$abs}.epub", 'metadata' => ['title' => "Book {$abs}"]];
+        }
+
+        return ['books' => $books, 'limit' => $limit, 'offset' => $offset];
+    }
+
     /** A `/books/{id}` envelope: `{book: {…signed}}`. */
     private function bookResponse(string $title = 'Dune'): array
     {
@@ -154,6 +169,98 @@ final class BooksStoreTest extends TestCase
         $page = $this->await($store->page('lib-1', 24, 0));
         self::assertInstanceOf(BookPage::class, $page, 'retry succeeds because in-flight was cleared');
         self::assertSame(2, $transport->requestCount());
+    }
+
+    // ---- ensureRange() -------------------------------------------------
+
+    public function testEnsureRangeFetchesTheCoveringPageAndKeysByAbsoluteIndex(): void
+    {
+        // A window inside the first page (limit 50): one request, books keyed by
+        // their absolute index, clipped to the requested window.
+        $transport = (new FakeTransport())->json(200, $this->booksPage(0, 50, 50));
+        $store = new BooksStore(new ApiClient('https://srv', $transport), 60.0, static fn (): float => 1000.0);
+
+        $books = $this->await($store->ensureRange('lib-1', 200, 2, 5, 50));
+
+        self::assertSame([2, 3, 4, 5], array_keys($books));
+        self::assertSame('Book 2', $books[2]->title);
+        self::assertSame('Book 5', $books[5]->title);
+        self::assertSame(1, $transport->requestCount(), 'one page covers the window');
+        self::assertStringContainsString('offset=0', $transport->requestAt(0)['url']);
+    }
+
+    public function testEnsureRangeFetchesEveryCoveringPageForAWindowSpanningPages(): void
+    {
+        // A window straddling the page boundary (limit 50): pages at offset 0 and
+        // 50 are both fetched, and books are keyed by absolute index across them.
+        $transport = (new FakeTransport())
+            ->json(200, $this->booksPage(0, 50, 50))
+            ->json(200, $this->booksPage(50, 50, 50));
+        $store = new BooksStore(new ApiClient('https://srv', $transport), 60.0, static fn (): float => 1000.0);
+
+        $books = $this->await($store->ensureRange('lib-1', 200, 48, 52, 50));
+
+        self::assertSame([48, 49, 50, 51, 52], array_keys($books));
+        self::assertSame('Book 48', $books[48]->title);
+        self::assertSame('Book 52', $books[52]->title);
+        self::assertSame(2, $transport->requestCount(), 'a window spanning two pages fetches both');
+        self::assertStringContainsString('offset=0', $transport->requestAt(0)['url']);
+        self::assertStringContainsString('offset=50', $transport->requestAt(1)['url']);
+    }
+
+    public function testEnsureRangeClampsTheWindowToThePassedTotal(): void
+    {
+        // total=5 (the library's item count); a grid overscan asks for [0, 30],
+        // but the window is clamped so only the single covering page is fetched
+        // and only the books that actually exist come back.
+        $transport = (new FakeTransport())->json(200, $this->booksPage(0, 5, 50));
+        $store = new BooksStore(new ApiClient('https://srv', $transport), 60.0, static fn (): float => 1000.0);
+
+        $books = $this->await($store->ensureRange('lib-1', 5, 0, 30, 50));
+
+        self::assertSame([0, 1, 2, 3, 4], array_keys($books), 'clamped to the total — no phantom indices');
+        self::assertSame(1, $transport->requestCount(), 'the clamp keeps the fetch to the one real page');
+    }
+
+    public function testEnsureRangeWithAPartialLastPageOmitsTrailingIndices(): void
+    {
+        // The last page is partial (10 books, offset 50): a window into that tail
+        // returns only the books present; the gap up to the total is simply
+        // absent (the grid shows skeletons there). The window [55, 70] covers
+        // only the offset-50 page, so that single partial page is the one served.
+        $transport = (new FakeTransport())->json(200, $this->booksPage(50, 10, 50));
+        $store = new BooksStore(new ApiClient('https://srv', $transport), 60.0, static fn (): float => 1000.0);
+
+        $books = $this->await($store->ensureRange('lib-1', 80, 55, 70, 50));
+
+        // Only 55..59 exist on the partial page; 60..70 are absent.
+        self::assertSame([55, 56, 57, 58, 59], array_keys($books));
+        self::assertArrayNotHasKey(60, $books, 'the partial last page leaves trailing indices absent');
+        self::assertSame(1, $transport->requestCount(), 'only the covering page is fetched');
+    }
+
+    public function testEnsureRangeReturnsEmptyForAnInvalidWindow(): void
+    {
+        $transport = (new FakeTransport());
+        $store = new BooksStore(new ApiClient('https://srv', $transport), 60.0, static fn (): float => 1000.0);
+
+        $books = $this->await($store->ensureRange('lib-1', 200, 5, 2, 50));
+
+        self::assertSame([], $books, 'start > end resolves empty without a request');
+        self::assertSame(0, $transport->requestCount());
+    }
+
+    public function testEnsureRangeReusesCachedPages(): void
+    {
+        // Two overlapping windows in the same page hit the cache: one request.
+        $transport = (new FakeTransport())->json(200, $this->booksPage(0, 50, 50));
+        $store = new BooksStore(new ApiClient('https://srv', $transport), 60.0, static fn (): float => 1000.0);
+
+        $this->await($store->ensureRange('lib-1', 200, 0, 5, 50));
+        $second = $this->await($store->ensureRange('lib-1', 200, 3, 8, 50));
+
+        self::assertSame([3, 4, 5, 6, 7, 8], array_keys($second));
+        self::assertSame(1, $transport->requestCount(), 'the second window reuses the cached page');
     }
 
     // ---- book() --------------------------------------------------------

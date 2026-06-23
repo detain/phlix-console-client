@@ -10,6 +10,7 @@ use Phlix\Console\Api\Dto\BookPage;
 use React\Promise\Deferred;
 use React\Promise\PromiseInterface;
 
+use function React\Promise\all;
 use function React\Promise\resolve;
 
 /**
@@ -120,6 +121,55 @@ final class BooksStore
         );
 
         return $deferred->promise();
+    }
+
+    /**
+     * Fetch the page(s) covering the absolute-index window [$start, $end] and
+     * resolve the books keyed by their ABSOLUTE index. Unlike
+     * {@see MediaStore::ensureRange()} the `/books` endpoint sends no total, so
+     * the grid's total ($total — the library's item count) is PASSED IN and used
+     * only to clamp the window; the returned map carries just the books. Pages
+     * are TTL-cached and de-duplicated via {@see page()}, so the grid can call
+     * this freely on scroll.
+     *
+     * @return PromiseInterface<array<int, Book>>
+     */
+    public function ensureRange(?string $libraryId, int $total, int $start, int $end, int $limit = 50): PromiseInterface
+    {
+        $limit = max(1, $limit);
+        $start = max(0, $start);
+        // Clamp the window to the known total so a grid overscan past the last
+        // book never requests pages that cannot exist.
+        if ($total > 0) {
+            $end = min($end, $total - 1);
+        }
+        if ($end < 0 || $start > $end) {
+            return resolve([]);
+        }
+
+        $firstOffset = intdiv($start, $limit) * $limit;
+        $lastOffset = intdiv($end, $limit) * $limit;
+
+        /** @var array<int, PromiseInterface<BookPage>> $promises */
+        $promises = [];
+        for ($offset = $firstOffset; $offset <= $lastOffset; $offset += $limit) {
+            $promises[$offset] = $this->page($libraryId, $limit, $offset);
+        }
+
+        return all($promises)->then(static function (array $pages) use ($start, $end): array {
+            $books = [];
+            foreach ($pages as $offset => $page) {
+                foreach ($page->books as $i => $book) {
+                    $absolute = $offset + $i;
+                    if ($absolute >= $start && $absolute <= $end) {
+                        $books[$absolute] = $book;
+                    }
+                }
+            }
+            ksort($books);
+
+            return $books;
+        });
     }
 
     public function invalidate(): void

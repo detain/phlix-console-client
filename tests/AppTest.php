@@ -22,6 +22,7 @@ use Phlix\Console\Msg\LoginSucceededMsg;
 use Phlix\Console\Msg\MediaRangeLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenAlbumMsg;
+use Phlix\Console\Msg\OpenBookMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\OpenLibraryMsg;
 use Phlix\Console\Msg\OpenSearchMsg;
@@ -37,6 +38,8 @@ use Phlix\Console\Msg\SubmitServerMsg;
 use Phlix\Console\Msg\ToastTickMsg;
 use Phlix\Console\Route;
 use Phlix\Console\Screen\AlbumScreen;
+use Phlix\Console\Screen\BookDetailScreen;
+use Phlix\Console\Screen\BooksScreen;
 use Phlix\Console\Screen\BrowseScreen;
 use Phlix\Console\Screen\CapturesSlash;
 use Phlix\Console\Screen\DetailScreen;
@@ -311,6 +314,43 @@ final class AppTest extends TestCase
 
         self::assertSame(Route::Library, $lib->route());
         self::assertInstanceOf(LibraryScreen::class, $lib->screen());
+    }
+
+    public function testOpenABookLibraryPushesTheBooksScreenWithItemCountAsTheGridTotal(): void
+    {
+        $browse = $this->browsing();
+
+        [$books, $cmd] = $browse->update(new OpenLibraryMsg('lib-books', 'Reads', 'book', 42));
+
+        self::assertSame(Route::Books, $books->route());
+        $screen = $books->screen();
+        self::assertInstanceOf(BooksScreen::class, $screen);
+        self::assertSame(2, $books->stackDepth(), 'books is pushed onto Browse');
+        self::assertSame(42, $screen->grid()->total(), 'the library item count seeds the grid total');
+        self::assertInstanceOf(\Closure::class, $cmd, 'the books screen fetches its first window on push');
+    }
+
+    public function testOpenBookMsgPushesTheBookDetailScreen(): void
+    {
+        $browse = $this->browsing();
+
+        [$detail, $cmd] = $browse->update(new OpenBookMsg('b1', 'Dune'));
+
+        self::assertSame(Route::BookDetail, $detail->route());
+        self::assertInstanceOf(BookDetailScreen::class, $detail->screen());
+        self::assertSame(2, $detail->stackDepth(), 'the book detail is pushed on top, not replaced');
+        self::assertInstanceOf(\Closure::class, $cmd, 'the book detail fetches its book on push');
+    }
+
+    public function testOpenLibraryMsgCarriesTheItemCountToTheBooksScreen(): void
+    {
+        // The end-to-end thread: a book-typed OpenLibraryMsg with a non-zero item
+        // count surfaces as the BooksScreen grid total.
+        [$books] = $this->browsing()->update(new OpenLibraryMsg('lib-books', 'Reads', 'book', 7));
+
+        $screen = $books->screen();
+        self::assertInstanceOf(BooksScreen::class, $screen);
+        self::assertSame(7, $screen->grid()->total());
     }
 
     public function testOpenAlbumPushesTheAlbumScreen(): void
