@@ -477,10 +477,10 @@ final class AlbumScreen implements Breadcrumbed, Teardownable
 
     private function viewportRows(): int
     {
-        // Window to the frame's REAL content height (a fraction of $rows, not
-        // rows-N), less the header line + blank (2) and the table's own header +
-        // separator (2), so the selected row is never clipped by the frame.
-        return max(1, Chrome::contentHeight($this->cols, $this->rows) - 2 - 2);
+        // The content panel fills the frame; window the table to that body height
+        // less the header line + blank (2) and the table's own header + separator
+        // (2), so the selected row is never clipped by the frame.
+        return max(1, Chrome::bodyHeight($this->rows) - 4);
     }
 
     // ---- immutable copies (clone-mutate) -------------------------------

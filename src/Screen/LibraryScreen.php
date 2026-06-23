@@ -491,10 +491,10 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash
 
     private static function viewportRows(int $rows): int
     {
-        // Reserve the frame chrome (header + status + content border = 4) and the
-        // two in-content lines above the grid (the count line + the A–Z rail, or
-        // a blank spacer when the rail is hidden).
-        return max(self::POSTER_HEIGHT + 2, $rows - 6);
+        // The content panel now fills the frame; window the grid to that body
+        // height less the two in-content lines above it (the count line + the
+        // A–Z rail, or a blank spacer when the rail is hidden).
+        return max(self::POSTER_HEIGHT + 2, Chrome::bodyHeight($rows) - 2);
     }
 
     // ---- breadcrumb ----------------------------------------------------

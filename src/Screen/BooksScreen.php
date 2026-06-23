@@ -79,7 +79,7 @@ final class BooksScreen implements Breadcrumbed
         private int $rows = 24,
     ) {
         $this->grid = PosterGrid::new(self::CARD_WIDTH, self::POSTER_HEIGHT, self::H_SPACING, self::V_SPACING)
-            ->withViewport(self::viewportCols($cols), self::viewportRows($cols, $rows))
+            ->withViewport(self::viewportCols($cols), self::viewportRows($rows))
             ->reset(max(0, $total));
         $this->requestedRange = [0, $this->initialWindowEnd()];
     }
@@ -175,7 +175,7 @@ final class BooksScreen implements Breadcrumbed
 
     private function onResize(int $cols, int $rows): array
     {
-        $grid = $this->grid->withViewport(self::viewportCols($cols), self::viewportRows($cols, $rows));
+        $grid = $this->grid->withViewport(self::viewportCols($cols), self::viewportRows($rows));
 
         $next = clone $this;
         $next->cols = $cols;
@@ -338,12 +338,11 @@ final class BooksScreen implements Breadcrumbed
         return max(self::CARD_WIDTH, $cols - 4);
     }
 
-    private static function viewportRows(int $cols, int $rows): int
+    private static function viewportRows(int $rows): int
     {
-        // Window to the frame's REAL content height (a fraction of $rows — the
-        // bordered region only gets part of the height), less the count line +
-        // blank above the grid (2), so the bottom rows are never clipped.
-        return max(self::POSTER_HEIGHT + 2, Chrome::contentHeight($cols, $rows) - 2);
+        // The content panel fills the frame; window the grid to that body height
+        // less the count line + blank above it (2), so the bottom rows never clip.
+        return max(self::POSTER_HEIGHT + 2, Chrome::bodyHeight($rows) - 2);
     }
 
     // ---- breadcrumb ----------------------------------------------------

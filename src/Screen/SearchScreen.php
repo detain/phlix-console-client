@@ -370,8 +370,9 @@ final class SearchScreen implements Breadcrumbed, CapturesSlash
 
     private static function viewportRows(int $rows): int
     {
-        // Reserve chrome (4) + the search input line + the result-count line (2).
-        return max(self::POSTER_HEIGHT + 2, $rows - 6);
+        // The content panel fills the frame; window the grid to that body height
+        // less the search input line + the result-count line (2).
+        return max(self::POSTER_HEIGHT + 2, Chrome::bodyHeight($rows) - 2);
     }
 
     // ---- breadcrumb ----------------------------------------------------
