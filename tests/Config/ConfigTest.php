@@ -137,6 +137,87 @@ final class ConfigTest extends TestCase
         self::assertSame('Midnight', $config->theme, 'changing server keeps the theme');
     }
 
+    // ---- slideshow interval ---------------------------------------------
+
+    public function testSlideshowIntervalDefaultsToFour(): void
+    {
+        self::assertSame(4, (new Config())->slideshowInterval);
+    }
+
+    public function testSlideshowIntervalRoundTripsThroughSaveAndLoad(): void
+    {
+        $path = $this->dir . '/config.json';
+        (new Config('https://srv', 'Midnight', 12))->save($path);
+
+        $loaded = Config::load($path);
+
+        self::assertSame(12, $loaded->slideshowInterval);
+        self::assertSame('Midnight', $loaded->theme);
+        self::assertSame('https://srv', $loaded->serverUrl);
+    }
+
+    public function testAbsentSlideshowIntervalLoadsAsDefaultFour(): void
+    {
+        @mkdir($this->dir, 0o700, true);
+        $path = $this->dir . '/config.json';
+        // A legacy config without the slideshow_interval key → default 4.
+        file_put_contents($path, json_encode(['server_url' => 'https://srv', 'theme' => 'Daylight']));
+
+        self::assertSame(4, Config::load($path)->slideshowInterval);
+    }
+
+    public function testOutOfRangeSlideshowIntervalClampsOnLoad(): void
+    {
+        @mkdir($this->dir, 0o700, true);
+        $path = $this->dir . '/config.json';
+
+        file_put_contents($path, json_encode(['slideshow_interval' => 0]));
+        self::assertSame(1, Config::load($path)->slideshowInterval, 'too-low clamps up to 1');
+
+        file_put_contents($path, json_encode(['slideshow_interval' => 9999]));
+        self::assertSame(300, Config::load($path)->slideshowInterval, 'too-high clamps down to 300');
+    }
+
+    public function testNonNumericSlideshowIntervalLoadsAsDefault(): void
+    {
+        @mkdir($this->dir, 0o700, true);
+        $path = $this->dir . '/config.json';
+        file_put_contents($path, json_encode(['slideshow_interval' => 'soon']));
+
+        self::assertSame(4, Config::load($path)->slideshowInterval);
+    }
+
+    public function testWithSlideshowIntervalClampsAndPreservesOtherFields(): void
+    {
+        $base = new Config('https://srv', 'Midnight', 4);
+
+        $set = $base->withSlideshowInterval(30);
+        self::assertSame(30, $set->slideshowInterval);
+        self::assertSame('https://srv', $set->serverUrl, 'setting the interval keeps the server');
+        self::assertSame('Midnight', $set->theme, 'setting the interval keeps the theme');
+
+        self::assertSame(1, $base->withSlideshowInterval(0)->slideshowInterval, 'clamps too-low to 1');
+        self::assertSame(300, $base->withSlideshowInterval(1000)->slideshowInterval, 'clamps too-high to 300');
+    }
+
+    public function testWithThemePreservesSlideshowInterval(): void
+    {
+        $config = (new Config('https://srv', 'Nocturne', 17))->withTheme('Daylight');
+
+        self::assertSame('Daylight', $config->theme);
+        self::assertSame(17, $config->slideshowInterval, 'switching theme keeps the interval');
+        self::assertSame('https://srv', $config->serverUrl);
+    }
+
+    public function testWithServerUrlPreservesSlideshowInterval(): void
+    {
+        $config = (new Config('https://old', 'Midnight', 17))->withServerUrl('new.tld');
+
+        self::assertSame('https://new.tld', $config->serverUrl);
+        self::assertSame(17, $config->slideshowInterval, 'changing server keeps the interval');
+        self::assertSame('Midnight', $config->theme);
+    }
+
     public function testNormalizeUrl(): void
     {
         self::assertSame('https://a.tld', Config::normalizeUrl('a.tld'));

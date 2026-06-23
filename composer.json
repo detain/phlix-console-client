@@ -44,5 +44,11 @@
     "prefer-stable": true,
     "config": {
         "sort-packages": true
+    },
+    "repositories": {
+        "candy-forms": {
+            "type": "vcs",
+            "url": "https://github.com/sugarcraft/candy-forms"
+        }
     }
 }
