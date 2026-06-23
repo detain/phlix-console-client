@@ -17,6 +17,7 @@ use Phlix\Console\Msg\LoginFailedMsg;
 use Phlix\Console\Msg\LoginSucceededMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenAlbumMsg;
+use Phlix\Console\Msg\OpenAudiobookMsg;
 use Phlix\Console\Msg\OpenBookMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\OpenLibraryMsg;
@@ -33,6 +34,8 @@ use Phlix\Console\Msg\SubmitServerMsg;
 use Phlix\Console\Msg\ToastTickMsg;
 use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Screen\AlbumScreen;
+use Phlix\Console\Screen\AudiobookDetailScreen;
+use Phlix\Console\Screen\AudiobooksScreen;
 use Phlix\Console\Screen\BookDetailScreen;
 use Phlix\Console\Screen\BooksScreen;
 use Phlix\Console\Screen\Breadcrumbed;
@@ -46,6 +49,7 @@ use Phlix\Console\Screen\PlayerScreen;
 use Phlix\Console\Screen\SearchScreen;
 use Phlix\Console\Screen\ServerScreen;
 use Phlix\Console\Screen\Teardownable;
+use Phlix\Console\Store\AudiobooksStore;
 use Phlix\Console\Store\AuthStore;
 use Phlix\Console\Store\BooksStore;
 use Phlix\Console\Store\LibrariesStore;
@@ -198,6 +202,9 @@ final class App implements Model
         }
         if ($msg instanceof OpenBookMsg) {
             return $this->openBook($msg->id, $msg->title);
+        }
+        if ($msg instanceof OpenAudiobookMsg) {
+            return $this->openAudiobook($msg->id, $msg->title);
         }
         if ($msg instanceof OpenDetailMsg) {
             return $this->openDetail($msg->id, $msg->name);
@@ -586,6 +593,19 @@ final class App implements Model
 
             return [$this->push(Route::Books, $screen), $screen->init()];
         }
+        if ($type === 'audiobook') {
+            // An AudiobooksStore is built locally (the App holds no audiobooks
+            // field, like BooksStore); the screen pages the whole library at once.
+            $screen = new AudiobooksScreen(
+                new AudiobooksStore($this->api),
+                $libraryId,
+                $name,
+                cols: $this->cols,
+                rows: $this->rows,
+            );
+
+            return [$this->push(Route::Audiobooks, $screen), $screen->init()];
+        }
 
         $screen = new LibraryScreen(
             $libraryId,
@@ -628,6 +648,21 @@ final class App implements Model
         );
 
         return [$this->push(Route::BookDetail, $screen), $screen->init()];
+    }
+
+    private function openAudiobook(string $id, string $title): array
+    {
+        // A fresh AudiobooksStore (the App holds no audiobooks field) — the
+        // detail fetches the chapter list and the signed stream URL the list lacks.
+        $screen = new AudiobookDetailScreen(
+            new AudiobooksStore($this->api),
+            $id,
+            $title,
+            cols: $this->cols,
+            rows: $this->rows,
+        );
+
+        return [$this->push(Route::AudiobookDetail, $screen), $screen->init()];
     }
 
     private function openDetail(string $id, string $name): array
