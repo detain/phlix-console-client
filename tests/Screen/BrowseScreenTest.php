@@ -407,6 +407,27 @@ final class BrowseScreenTest extends TestCase
         self::assertSame('audiobook', $msg->type);
     }
 
+    public function testSidebarEnterOnAPhotoLibraryCarriesThePhotoType(): void
+    {
+        // A photo-typed library threads its type into the OpenLibraryMsg so the
+        // App branches to the PhotosScreen — the existing generic type threading
+        // covers photos with no BrowseScreen change.
+        $screen = $this->screen()->update(new LibrariesLoadedMsg([
+            Library::fromArray(['id' => 'lib-mov', 'name' => 'Movies', 'type' => 'movie']),
+            Library::fromArray(['id' => 'lib-ph', 'name' => 'Snaps', 'type' => 'photo']),
+        ]))[0];
+
+        [$screen] = $screen->update(new KeyMsg(KeyType::Tab));   // focus the sidebar
+        [$screen] = $screen->update(new KeyMsg(KeyType::Down));  // select the photo library
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Enter));
+        $msg = $cmd?->__invoke();
+
+        self::assertInstanceOf(OpenLibraryMsg::class, $msg);
+        self::assertSame('lib-ph', $msg->libraryId);
+        self::assertSame('Snaps', $msg->name);
+        self::assertSame('photo', $msg->type);
+    }
+
     public function testSidebarEnterThreadsTheLibraryItemCountIntoTheOpenMessage(): void
     {
         // A book-typed library's item count is threaded into OpenLibraryMsg so

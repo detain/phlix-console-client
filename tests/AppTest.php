@@ -9,6 +9,7 @@ use Phlix\Console\Api\Dto\Album;
 use Phlix\Console\Api\Dto\AuthUser;
 use Phlix\Console\Api\Dto\Library;
 use Phlix\Console\Api\Dto\MediaItem;
+use Phlix\Console\Api\Dto\PhotoAlbum;
 use Phlix\Console\App;
 use Phlix\Console\Config\Config;
 use Phlix\Console\Config\TokenBundle;
@@ -26,6 +27,7 @@ use Phlix\Console\Msg\OpenAudiobookMsg;
 use Phlix\Console\Msg\OpenBookMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\OpenLibraryMsg;
+use Phlix\Console\Msg\OpenPhotoAlbumMsg;
 use Phlix\Console\Msg\OpenSearchMsg;
 use Phlix\Console\Msg\PaletteLibrariesLoadedMsg;
 use Phlix\Console\Msg\PlayNextMsg;
@@ -49,6 +51,8 @@ use Phlix\Console\Screen\DetailScreen;
 use Phlix\Console\Screen\LibraryScreen;
 use Phlix\Console\Screen\LoginScreen;
 use Phlix\Console\Screen\MusicScreen;
+use Phlix\Console\Screen\PhotoAlbumScreen;
+use Phlix\Console\Screen\PhotosScreen;
 use Phlix\Console\Screen\PlayerScreen;
 use Phlix\Console\Screen\SearchScreen;
 use Phlix\Console\Screen\ServerScreen;
@@ -429,6 +433,50 @@ final class AppTest extends TestCase
 
         self::assertSame(1, $popped->stackDepth(), 'the audiobook frame was popped');
         self::assertSame(1, $player->stopCalls, 'popping the audiobook stops the audio (no leaked ffplay)');
+    }
+
+    public function testOpenAPhotoLibraryPushesThePhotosScreen(): void
+    {
+        $browse = $this->browsing();
+
+        [$photos, $cmd] = $browse->update(new OpenLibraryMsg('lib-photos', 'Snaps', 'photo'));
+
+        self::assertSame(Route::Photos, $photos->route());
+        self::assertInstanceOf(PhotosScreen::class, $photos->screen());
+        self::assertSame(2, $photos->stackDepth(), 'photos is pushed onto Browse');
+        self::assertInstanceOf(\Closure::class, $cmd, 'the photos screen fetches its albums on push');
+    }
+
+    public function testANonPhotoLibraryStillRoutesAsBefore(): void
+    {
+        $browse = $this->browsing();
+
+        [$lib] = $browse->update(new OpenLibraryMsg('lib-a', 'Movies', 'movie'));
+
+        self::assertSame(Route::Library, $lib->route());
+        self::assertInstanceOf(LibraryScreen::class, $lib->screen());
+    }
+
+    public function testOpenPhotoAlbumMsgPushesThePhotoAlbumScreen(): void
+    {
+        $browse = $this->browsing();
+        $album = PhotoAlbum::fromArray([
+            'id' => 'a0',
+            'date' => '2026-06-23',
+            'photo_count' => 1,
+            'photos' => [['id' => 'p0', 'name' => 'p0.jpg', 'thumbnail_url' => 'https://srv/t.png']],
+        ]);
+
+        [$albumScreen, $cmd] = $browse->update(new OpenPhotoAlbumMsg($album));
+
+        self::assertSame(Route::PhotoAlbum, $albumScreen->route());
+        $screen = $albumScreen->screen();
+        self::assertInstanceOf(PhotoAlbumScreen::class, $screen);
+        self::assertSame(2, $albumScreen->stackDepth(), 'the album is pushed on top, not replaced');
+        self::assertSame(1, $screen->grid()->total(), 'the album photos seed the grid');
+        // The album carries its photos (each with a signed thumbnail), so init
+        // loads the visible thumbnails directly.
+        self::assertInstanceOf(\Closure::class, $cmd, 'the album loads its visible thumbnails on push');
     }
 
     public function testOpenAlbumPushesTheAlbumScreen(): void
@@ -1030,6 +1078,28 @@ final class AppTest extends TestCase
         self::assertInstanceOf(OpenLibraryMsg::class, $msg);
         self::assertSame('lib-ab', $msg->libraryId);
         self::assertSame('audiobook', $msg->type, 'the palette action carries the audiobook type');
+    }
+
+    public function testPaletteGoToAPhotoLibraryCarriesThePhotoType(): void
+    {
+        [$open] = $this->paletteApp()->update($this->ctrlK());
+        $libs = [Library::fromArray(['id' => 'lib-ph', 'name' => 'Snaps', 'type' => 'photo'])];
+        [$augmented] = $open->update(new PaletteLibrariesLoadedMsg($libs));
+
+        $labels = array_map(static fn ($a): string => $a->label, $augmented->palette()->actions());
+        self::assertContains('Go to Snaps', $labels);
+
+        // Rank "Go to Snaps" and open it → OpenLibraryMsg with type 'photo'.
+        $typed = $augmented;
+        foreach (['s', 'n', 'a', 'p', 's'] as $rune) {
+            [$typed] = $typed->update(new KeyMsg(KeyType::Char, $rune));
+        }
+        [, $cmd] = $typed->update(new KeyMsg(KeyType::Enter));
+
+        $msg = $this->runCmd($cmd);
+        self::assertInstanceOf(OpenLibraryMsg::class, $msg);
+        self::assertSame('lib-ph', $msg->libraryId);
+        self::assertSame('photo', $msg->type, 'the palette action carries the photo type');
     }
 
     public function testPaletteLibrariesIgnoredWhenPaletteClosed(): void
