@@ -10,9 +10,11 @@ use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\PlaybackMarkersLoadedMsg;
 use Phlix\Console\Msg\PlayerPrepareFailedMsg;
 use Phlix\Console\Msg\PlayerReadyMsg;
+use Phlix\Console\Msg\PlayNextMsg;
 use Phlix\Console\Msg\ProgressTickMsg;
 use Phlix\Console\Msg\ResumeInfoMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
+use Phlix\Console\Msg\UpNextTickMsg;
 use Phlix\Console\Screen\PlayerScreen;
 use Phlix\Console\Tests\Api\FakeTransport;
 use Phlix\Console\Tests\Reel\FakePlayerDecoder;
@@ -466,6 +468,167 @@ final class PlayerScreenTest extends TestCase
 
         // s does nothing when there are no markers to skip.
         [$same, $cmd] = $ready->update(new KeyMsg(KeyType::Char, 's'));
+        self::assertSame($ready, $same);
+        self::assertNull($cmd);
+    }
+
+    // ---- up-next (episode queue) ---------------------------------------
+
+    private function episodeItem(string $id): MediaItem
+    {
+        return MediaItem::fromArray([
+            'id' => $id,
+            'name' => 'Episode',
+            'type' => 'episode',
+            'parent_id' => 'season-1',
+            'season_number' => 1,
+            'episode_number' => 2,
+            'stream_url' => self::STREAM,
+        ]);
+    }
+
+    /** A 3-episode season page (the up-next queue). */
+    private function episodesPage(): array
+    {
+        return ['items' => [
+            ['id' => 'ep1', 'name' => 'Pilot', 'type' => 'episode', 'season_number' => 1, 'episode_number' => 1],
+            ['id' => 'ep2', 'name' => 'Ep 2', 'type' => 'episode', 'season_number' => 1, 'episode_number' => 2, 'episode_title' => 'The Middle'],
+            ['id' => 'ep3', 'name' => 'Finale', 'type' => 'episode', 'season_number' => 1, 'episode_number' => 3],
+        ], 'total' => 3];
+    }
+
+    /** A ready episode player with its sibling queue loaded ($frameCount 0 ends on the first tick). */
+    private function readyEpisode(string $id, int $frameCount = 60): PlayerScreen
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->markersResponse())     // 1: markers
+            ->json(200, $this->continueWatching())     // 2: resume (none)
+            ->json(200, $this->episodesPage());        // 3: siblings
+        $decoder = new FakePlayerDecoder($this->frames($frameCount));
+        $factory = static fn (string $u, int $c, int $r): Player => Player::openForTest($decoder, fps: 24.0, totalFrames: 2400, cellsW: $c, cellsH: $r, videoPath: '/fake', paused: true);
+        $api = new ApiClient('https://srv', $transport);
+        $screen = new PlayerScreen($this->episodeItem($id), 'https://srv', $api, $factory, cols: 80, rows: 24);
+
+        return $this->ready($screen);
+    }
+
+    public function testEpisodeKnowsItsNeighbours(): void
+    {
+        $first = $this->readyEpisode('ep1');
+        self::assertTrue($first->hasNext());
+        self::assertFalse($first->hasPrev());
+
+        $mid = $this->readyEpisode('ep2');
+        self::assertTrue($mid->hasNext());
+        self::assertTrue($mid->hasPrev());
+
+        $last = $this->readyEpisode('ep3');
+        self::assertFalse($last->hasNext());
+        self::assertTrue($last->hasPrev());
+    }
+
+    public function testEpisodeEndStartsTheUpNextCountdown(): void
+    {
+        $first = $this->readyEpisode('ep1', frameCount: 0); // empty decoder → ends on first tick
+
+        [$ended, $cmd] = $first->update(new ReelTickMsg());
+
+        self::assertSame(8, $ended->upNextCountdown());
+        self::assertNotNull($cmd, 'the countdown tick is armed');
+        $view = $ended->view();
+        self::assertStringContainsString('Up next', $view);
+        self::assertStringContainsString('S01E02 The Middle', $view, 'the next episode is named');
+    }
+
+    public function testUpNextCountsDownAndAutoAdvances(): void
+    {
+        $cur = $this->readyEpisode('ep1', frameCount: 0);
+        [$cur] = $cur->update(new ReelTickMsg()); // upNext = 8
+        for ($i = 0; $i < 7; $i++) {
+            [$cur] = $cur->update(new UpNextTickMsg());
+        }
+        self::assertSame(1, $cur->upNextCountdown());
+
+        [, $cmd] = $cur->update(new UpNextTickMsg()); // 1 → 0 → advance
+        $advance = $this->firstOfType($this->runBatch($cmd), PlayNextMsg::class);
+
+        self::assertInstanceOf(PlayNextMsg::class, $advance);
+        self::assertSame('ep2', $advance->item->id);
+    }
+
+    public function testUpNextCancelsWhenScrubbedBack(): void
+    {
+        $first = $this->readyEpisode('ep1', frameCount: 0);
+        [$ended] = $first->update(new ReelTickMsg());
+        self::assertSame(8, $ended->upNextCountdown());
+
+        // ← seeks back, clearing the ended state.
+        [$scrubbed] = $ended->update(new KeyMsg(KeyType::Left));
+        self::assertFalse($scrubbed->player()?->ended ?? true, 'seeking cleared ended');
+
+        [$cancelled, $cmd] = $scrubbed->update(new UpNextTickMsg());
+        self::assertNull($cancelled->upNextCountdown(), 'the countdown cancels once no longer ended');
+        self::assertNull($cmd, 'no further countdown tick');
+    }
+
+    public function testNoUpNextOnTheLastEpisode(): void
+    {
+        $last = $this->readyEpisode('ep3', frameCount: 0);
+
+        [$ended, $cmd] = $last->update(new ReelTickMsg());
+
+        self::assertNull($ended->upNextCountdown(), 'no up-next without a next episode');
+        self::assertNull($cmd, 'the ended player just stops');
+    }
+
+    public function testNAdvancesToTheNextEpisode(): void
+    {
+        $mid = $this->readyEpisode('ep2');
+
+        [, $cmd] = $mid->update(new KeyMsg(KeyType::Char, 'n'));
+        $advance = $this->firstOfType($this->runBatch($cmd), PlayNextMsg::class);
+
+        self::assertSame('ep3', $advance?->item->id);
+    }
+
+    public function testPGoesToThePreviousEpisode(): void
+    {
+        $mid = $this->readyEpisode('ep2');
+
+        [, $cmd] = $mid->update(new KeyMsg(KeyType::Char, 'p'));
+        $advance = $this->firstOfType($this->runBatch($cmd), PlayNextMsg::class);
+
+        self::assertSame('ep1', $advance?->item->id);
+    }
+
+    public function testUpNextCardUsesThePlainNameWhenNoEpisodeNumber(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->markersResponse())
+            ->json(200, $this->continueWatching())
+            ->json(200, ['items' => [
+                ['id' => 'cur', 'name' => 'Current', 'type' => 'episode', 'season_number' => 1, 'episode_number' => 1],
+                ['id' => 'spec', 'name' => 'A Special'], // no season/episode numbers
+            ], 'total' => 2]);
+        $decoder = new FakePlayerDecoder($this->frames(0));
+        $factory = static fn (string $u, int $c, int $r): Player => Player::openForTest($decoder, fps: 24.0, totalFrames: 2400, cellsW: $c, cellsH: $r, videoPath: '/fake', paused: true);
+        $api = new ApiClient('https://srv', $transport);
+        $item = MediaItem::fromArray(['id' => 'cur', 'name' => 'Current', 'type' => 'episode', 'parent_id' => 'season-1', 'stream_url' => self::STREAM]);
+        $screen = $this->ready(new PlayerScreen($item, 'https://srv', $api, $factory, cols: 80, rows: 24));
+
+        [$ended] = $screen->update(new ReelTickMsg());
+
+        self::assertStringContainsString('A Special', $ended->view(), 'a numberless next episode shows its name');
+    }
+
+    public function testMovieHasNoNeighboursAndNKeyIsANoOp(): void
+    {
+        $ready = $this->ready($this->screen()[0]); // a movie
+
+        self::assertFalse($ready->hasNext());
+        self::assertFalse($ready->hasPrev());
+
+        [$same, $cmd] = $ready->update(new KeyMsg(KeyType::Char, 'n'));
         self::assertSame($ready, $same);
         self::assertNull($cmd);
     }

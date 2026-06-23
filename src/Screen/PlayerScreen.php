@@ -7,16 +7,21 @@ namespace Phlix\Console\Screen;
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\MediaItem;
+use Phlix\Console\Api\Dto\MediaPage;
 use Phlix\Console\Api\Dto\PlaybackMarkers;
+use Phlix\Console\Api\MediaQuery;
 use Phlix\Console\Config\Config;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\PlaybackMarkersLoadedMsg;
 use Phlix\Console\Msg\PlayerPrepareFailedMsg;
 use Phlix\Console\Msg\PlayerReadyMsg;
+use Phlix\Console\Msg\PlayNextMsg;
 use Phlix\Console\Msg\ProgressTickMsg;
 use Phlix\Console\Msg\ResumeInfoMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\SessionStartedMsg;
+use Phlix\Console\Msg\SiblingsLoadedMsg;
+use Phlix\Console\Msg\UpNextTickMsg;
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\Scrubber;
 use SugarCraft\Core\Cmd;
@@ -71,6 +76,8 @@ final class PlayerScreen implements Model, Teardownable
     private const RESUME_FLOOR = 5.0;
     /** Hide the "Resumed from …" hint once the user is this far past the resume point. */
     private const RESUME_HINT_WINDOW = 45.0;
+    /** Seconds the up-next card counts down before auto-advancing. */
+    private const UP_NEXT_COUNTDOWN = 8;
 
     private ?Player $inner = null;
     private ?string $error = null;
@@ -80,6 +87,11 @@ final class PlayerScreen implements Model, Teardownable
     private ?string $sessionId = null;
     private ?float $resumeSeconds = null;
     private bool $resumeApplied = false;
+    /** The season's episodes (the up-next queue), or null for a non-episode / no queue. */
+    private ?array $siblings = null;
+    private int $currentIndex = -1;
+    /** Remaining seconds on the end-of-episode up-next countdown, or null when inactive. */
+    private ?int $upNext = null;
 
     /**
      * @param \Closure(string $url, int $cols, int $rows): Player $playerFactory
@@ -110,12 +122,18 @@ final class PlayerScreen implements Model, Teardownable
 
     public function init(): ?\Closure
     {
-        // Build the player and fetch its markers + resume position concurrently.
-        return Cmd::batch(
+        // Build the player and fetch its markers + resume + episode queue concurrently.
+        $cmds = [
             Cmd::promise(fn (): PromiseInterface => $this->buildPlayer()),
             $this->fetchMarkers(),
             $this->fetchResume(),
-        );
+        ];
+        $siblings = $this->fetchSiblings();
+        if ($siblings !== null) {
+            $cmds[] = $siblings;
+        }
+
+        return Cmd::batch(...$cmds);
     }
 
     public function update(Msg $msg): array
@@ -137,6 +155,16 @@ final class PlayerScreen implements Model, Teardownable
         }
         if ($msg instanceof ResumeInfoMsg) {
             return $this->onResumeInfo($msg->seconds);
+        }
+        if ($msg instanceof SiblingsLoadedMsg) {
+            $next = clone $this;
+            $next->siblings = $msg->siblings;
+            $next->currentIndex = $msg->currentIndex;
+
+            return [$next, null];
+        }
+        if ($msg instanceof UpNextTickMsg) {
+            return $this->onUpNextTick();
         }
         if ($msg instanceof SessionStartedMsg) {
             return $this->onSessionStarted($msg->sessionId);
@@ -276,6 +304,101 @@ final class PlayerScreen implements Model, Teardownable
             },
             static fn (\Throwable $e): Msg => new ResumeInfoMsg(null),
         ));
+    }
+
+    // ---- up-next (episode queue) ---------------------------------------
+
+    /**
+     * Fetch the season's episodes (the up-next queue) for an episode item, or
+     * null when this isn't an episode with a parent season. Best-effort.
+     */
+    private function fetchSiblings(): ?\Closure
+    {
+        if ($this->item->type !== 'episode' || $this->item->parentId === null) {
+            return null;
+        }
+        $parentId = $this->item->parentId;
+        $currentId = $this->item->id;
+
+        return Cmd::promise(fn (): PromiseInterface => $this->api->media(new MediaQuery(parentId: $parentId, limit: 500))->then(
+            static function (MediaPage $page) use ($currentId): Msg {
+                $index = -1;
+                foreach ($page->items as $i => $episode) {
+                    if ($episode->id === $currentId) {
+                        $index = $i;
+                        break;
+                    }
+                }
+
+                return new SiblingsLoadedMsg($page->items, $index);
+            },
+            static fn (\Throwable $e): Msg => new SiblingsLoadedMsg([], -1),
+        ));
+    }
+
+    private function nextItem(): ?MediaItem
+    {
+        if ($this->siblings === null || $this->currentIndex < 0) {
+            return null;
+        }
+
+        return $this->siblings[$this->currentIndex + 1] ?? null;
+    }
+
+    private function prevItem(): ?MediaItem
+    {
+        if ($this->siblings === null || $this->currentIndex <= 0) {
+            return null;
+        }
+
+        return $this->siblings[$this->currentIndex - 1] ?? null;
+    }
+
+    /**
+     * Leave for another episode: report a final position + end the session +
+     * tear down, then ask the App to swap in the next/prev episode's player.
+     */
+    private function advanceTo(MediaItem $item): array
+    {
+        $exit = $this->exitReportCmds();
+        $this->teardown();
+        $exit[] = Cmd::send(new PlayNextMsg($item));
+
+        return [$this, Cmd::batch(...$exit)];
+    }
+
+    private function onUpNextTick(): array
+    {
+        // Cancelled — the viewer scrubbed back out of the ended state (or it was
+        // never really active). Stop counting.
+        if ($this->upNext === null || $this->inner === null || !$this->inner->ended) {
+            $next = clone $this;
+            $next->upNext = null;
+
+            return [$next, null];
+        }
+
+        $remaining = $this->upNext - 1;
+        if ($remaining <= 0) {
+            $item = $this->nextItem();
+            if ($item !== null) {
+                return $this->advanceTo($item);
+            }
+            $next = clone $this;
+            $next->upNext = null;
+
+            return [$next, null];
+        }
+
+        $next = clone $this;
+        $next->upNext = $remaining;
+
+        return [$next, $this->upNextTickCmd()];
+    }
+
+    private function upNextTickCmd(): \Closure
+    {
+        return Cmd::tick(1.0, static fn (): Msg => new UpNextTickMsg());
     }
 
     // ---- progress reporting --------------------------------------------
@@ -466,6 +589,18 @@ final class PlayerScreen implements Model, Teardownable
             return $this->startOver();
         }
 
+        // n / p → next / previous episode (manual binge nav).
+        if ($msg->type === KeyType::Char && ($msg->rune === 'n' || $msg->rune === 'N')) {
+            $next = $this->nextItem();
+
+            return $next !== null ? $this->advanceTo($next) : [$this, null];
+        }
+        if ($msg->type === KeyType::Char && ($msg->rune === 'p' || $msg->rune === 'P')) {
+            $prev = $this->prevItem();
+
+            return $prev !== null ? $this->advanceTo($prev) : [$this, null];
+        }
+
         // Everything else the inner player handles (Space, [ , ] , m, 0–9) → forward.
         return $this->forwardToInner($msg);
     }
@@ -497,10 +632,18 @@ final class PlayerScreen implements Model, Teardownable
             return [$this, null];
         }
 
-        [$nextInner, $cmd] = $inner->update($msg);
+        [$updated, $cmd] = $inner->update($msg);
+        $nextInner = $updated instanceof Player ? $updated : $inner;
 
         $next = clone $this;
-        $next->inner = $nextInner instanceof Player ? $nextInner : $inner;
+        $next->inner = $nextInner;
+
+        // The episode just ended → start the up-next countdown if there's a next one.
+        if ($nextInner->ended && !$inner->ended && $this->upNext === null && $this->nextItem() !== null) {
+            $next->upNext = self::UP_NEXT_COUNTDOWN;
+
+            return [$next, $this->upNextTickCmd()];
+        }
 
         return [$next, $cmd];
     }
@@ -532,15 +675,45 @@ final class PlayerScreen implements Model, Teardownable
     /** play/pause glyph + title + a contextual resume/skip prompt + the key hints. */
     private function statusLine(Player $inner): string
     {
+        // End of episode: the up-next countdown replaces the normal status line
+        // (only while actually ended — scrubbing back reveals the normal line).
+        if ($this->upNext !== null && $inner->ended) {
+            return $this->upNextLine();
+        }
+
         $glyph = $inner->paused ? '⏸' : '▶';
         // A live resume hint wins over the skip prompt (resume usually clears the intro).
         $prompt = $this->resumeHint($inner) ?? $this->skipPrompt($inner);
-        $hint = 'Space ⏯  ←→ ±10s  [ ] speed  m mode  f full  q back';
+        $nav = $this->nextItem() !== null ? '  n next' : '';
+        $hint = 'Space ⏯  ←→ ±10s  [ ] speed  m mode' . $nav . '  q back';
 
-        $title = Width::truncate($this->item->name, max(8, $this->cols - 56));
+        $title = Width::truncate($this->item->name, max(8, $this->cols - 60));
         $line = sprintf('%s %s%s   ·   %s', $glyph, $title, $prompt, $hint);
 
         return Style::new()->bold()->render(Width::truncate($line, max(1, $this->cols)));
+    }
+
+    /** "▶ Up next: S01E03 The Title · starting in 7…   n play now   Esc back". */
+    private function upNextLine(): string
+    {
+        $next = $this->nextItem();
+        $title = $next !== null ? $this->episodeLabel($next) : '';
+        $line = sprintf('▶ Up next: %s · starting in %d…   n play now   Esc back', $title, $this->upNext ?? 0);
+
+        return Style::new()->bold()->render(Width::truncate($line, max(1, $this->cols)));
+    }
+
+    /** "S01E03 The Title" for an episode, else its name. */
+    private function episodeLabel(MediaItem $episode): string
+    {
+        if ($episode->seasonNumber !== null && $episode->episodeNumber !== null) {
+            $code = sprintf('S%02dE%02d', $episode->seasonNumber, $episode->episodeNumber);
+            $name = ($episode->episodeTitle !== null && $episode->episodeTitle !== '') ? $episode->episodeTitle : $episode->name;
+
+            return $name !== '' ? "{$code} {$name}" : $code;
+        }
+
+        return $episode->name;
     }
 
     /** "   s Skip Intro/Outro" when the playhead is in a skip window, else ''. */
@@ -663,5 +836,20 @@ final class PlayerScreen implements Model, Teardownable
     public function isResumed(): bool
     {
         return $this->resumeApplied;
+    }
+
+    public function upNextCountdown(): ?int
+    {
+        return $this->upNext;
+    }
+
+    public function hasNext(): bool
+    {
+        return $this->nextItem() !== null;
+    }
+
+    public function hasPrev(): bool
+    {
+        return $this->prevItem() !== null;
     }
 }

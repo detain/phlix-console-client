@@ -19,6 +19,7 @@ use Phlix\Console\Msg\MediaRangeLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\OpenLibraryMsg;
+use Phlix\Console\Msg\PlayNextMsg;
 use Phlix\Console\Msg\PlayRequestedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\SubmitLoginMsg;
@@ -340,6 +341,25 @@ final class AppTest extends TestCase
 
         self::assertSame(1, $player->teardownCalls, 'replacing the stack tears the player down');
         self::assertSame(Route::Login, $next->route());
+    }
+
+    public function testPlayNextReplacesTheTopPlayerFrame(): void
+    {
+        // [Detail, Player] → PlayNext → [Detail, Player(next)] — replaced, not grown.
+        $oldPlayer = new SpyTeardownScreen();
+        $app = $this->appWithStack([
+            ['route' => Route::Detail, 'screen' => new SpyTeardownScreen()],
+            ['route' => Route::Player, 'screen' => $oldPlayer],
+        ]);
+        $next = MediaItem::fromArray(['id' => 'ep2', 'name' => 'Ep 2', 'type' => 'episode', 'stream_url' => 'https://srv/s?sig=x']);
+
+        [$app2, $cmd] = $app->update(new PlayNextMsg($next));
+
+        self::assertSame(2, $app2->stackDepth(), 'frame count unchanged');
+        self::assertSame(Route::Player, $app2->route());
+        self::assertInstanceOf(PlayerScreen::class, $app2->screen());
+        self::assertSame(1, $oldPlayer->teardownCalls, 'the finished player is torn down');
+        self::assertInstanceOf(\Closure::class, $cmd, 'the next player builds on push');
     }
 
     public function testDetailCanBePushedOntoALibraryAndPoppedBack(): void
