@@ -654,8 +654,11 @@ final class App implements Model
     {
         // A fresh AudiobooksStore (the App holds no audiobooks field) — the
         // detail fetches the chapter list and the signed stream URL the list lacks.
+        // Audio is screen-local; the App tears down the Teardownable frame on leave.
         $screen = new AudiobookDetailScreen(
             new AudiobooksStore($this->api),
+            $this->api->baseUrl(),
+            AudiobookDetailScreen::productionAudioFactory(),
             $id,
             $title,
             cols: $this->cols,
