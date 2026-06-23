@@ -16,7 +16,7 @@ use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Ui\Chrome;
-use Phlix\Console\Ui\TableView;
+use Phlix\Console\Ui\Table;
 use React\Promise\PromiseInterface;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
@@ -28,8 +28,9 @@ use SugarCraft\Core\Util\Width;
 use SugarCraft\Reel\AudioPlayer;
 
 /**
- * A single album's track list, rendered as a plain-text {@see TableView} (# ·
- * Title · Duration) beneath a one-line meta header (artist · year · N tracks).
+ * A single album's track list, rendered as a borderless sugar-table via
+ * {@see Table} (# · Title · Duration) with reverse-video row selection, beneath a
+ * one-line meta header (artist · year · N tracks).
  * The {@see Album} carries its own tracks, so the screen needs no track fetch.
  *
  * Enter plays the selected track: the screen fetches that media item's signed
@@ -443,7 +444,7 @@ final class AlbumScreen implements Breadcrumbed, Teardownable
             ];
         }
 
-        return TableView::render([
+        return Table::render([
             ['title' => '#', 'width' => self::NUM_WIDTH, 'align' => 'right'],
             ['title' => 'Title', 'width' => 0],
             ['title' => 'Duration', 'width' => self::DURATION_WIDTH, 'align' => 'right'],
