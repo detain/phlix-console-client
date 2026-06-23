@@ -27,4 +27,5 @@ enum Route
     case AudiobookDetail;
     case Photos;
     case PhotoAlbum;
+    case PhotoViewer;
 }
