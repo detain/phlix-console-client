@@ -7,13 +7,18 @@ namespace Phlix\Console;
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Album;
+use Phlix\Console\Api\Dto\Audiobook;
+use Phlix\Console\Api\Dto\AudiobookChapter;
 use Phlix\Console\Api\Dto\AuthUser;
 use Phlix\Console\Api\Dto\Library;
 use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\Dto\PhotoAlbum;
 use Phlix\Console\Api\NetworkError;
-use Phlix\Console\Audio\NowPlaying;
+use Phlix\Console\Audio\AudiobookSession;
+use Phlix\Console\Audio\MusicSession;
+use Phlix\Console\Audio\NowPlayingSession;
 use Phlix\Console\Config\Config;
+use Phlix\Console\Msg\AudiobookTickMsg;
 use Phlix\Console\Msg\AudioSkipMsg;
 use Phlix\Console\Msg\BootResolvedMsg;
 use Phlix\Console\Msg\GoHomeMsg;
@@ -31,6 +36,7 @@ use Phlix\Console\Msg\OpenPhotoMsg;
 use Phlix\Console\Msg\OpenSearchMsg;
 use Phlix\Console\Msg\OpenSettingsMsg;
 use Phlix\Console\Msg\PaletteLibrariesLoadedMsg;
+use Phlix\Console\Msg\PlayAudiobookMsg;
 use Phlix\Console\Msg\PlayNextMsg;
 use Phlix\Console\Msg\PlayRequestedMsg;
 use Phlix\Console\Msg\PlayTrackMsg;
@@ -118,8 +124,8 @@ final class App implements Model
     private readonly Theme $theme;
 
     /**
-     * Builds the audio player for a resolved music stream URL — injected so tests
-     * use a recording fake instead of spawning ffplay/mpv.
+     * Builds the audio player for a resolved stream URL (music OR audiobook) —
+     * injected so tests use a recording fake instead of spawning ffplay/mpv.
      *
      * @var \Closure(string $url, ?int $startMs=): \SugarCraft\Reel\AudioPlayer
      */
@@ -130,7 +136,7 @@ final class App implements Model
      * @param bool $toastTicking whether a prune tick is already in flight (so a burst of toasts doesn't stack ticks)
      * @param ?CommandPalette $palette the open command palette overlay, or null when closed
      * @param ?Theme $theme the active theme; null defaults to {@see Theme::nocturne()} (the identity look)
-     * @param ?NowPlaying $nowPlaying the App-owned music session (persists across navigation), or null when nothing plays
+     * @param ?NowPlayingSession $nowPlaying the App-owned playback session (music or audiobook; persists across navigation), or null when nothing plays
      * @param ?(\Closure(string, ?int): \SugarCraft\Reel\AudioPlayer) $audioFactory builds the player for a stream URL; null defaults to the production ffplay/mpv factory
      */
     public function __construct(
@@ -148,12 +154,12 @@ final class App implements Model
         private readonly bool $toastTicking = false,
         private readonly ?CommandPalette $palette = null,
         ?Theme $theme = null,
-        private readonly ?NowPlaying $nowPlaying = null,
+        private readonly ?NowPlayingSession $nowPlaying = null,
         ?\Closure $audioFactory = null,
     ) {
         $this->toast = $toast ?? self::defaultToast();
         $this->theme = $theme ?? Theme::nocturne();
-        $this->audioFactory = $audioFactory ?? NowPlaying::productionAudioFactory();
+        $this->audioFactory = $audioFactory ?? MusicSession::productionAudioFactory();
     }
 
     private static function defaultToast(): Toast
@@ -295,6 +301,12 @@ final class App implements Model
         if ($msg instanceof StopAudioMsg) {
             return $this->stopAudio();
         }
+        if ($msg instanceof PlayAudiobookMsg) {
+            return $this->playAudiobook($msg->audiobook, $msg->chapters, $msg->startMs);
+        }
+        if ($msg instanceof AudiobookTickMsg) {
+            return $this->onAudiobookTick($msg->epoch);
+        }
         if ($msg instanceof PlayRequestedMsg) {
             return $this->openPlayer($msg->item);
         }
@@ -340,10 +352,10 @@ final class App implements Model
     public function view(): string
     {
         $view = $this->baseView();
-        // The App owns the music audio, so a persistent now-playing bar is
-        // composited onto the bottom row of every screen (replacing the chrome's
-        // last line) — playback stays visible as the user navigates. The palette
-        // + toasts then layer ON TOP of the bar.
+        // The App owns the playback audio (music OR audiobook), so a persistent
+        // now-playing bar is composited onto the bottom row of every screen
+        // (replacing the chrome's last line) — playback stays visible as the user
+        // navigates. The palette + toasts then layer ON TOP of the bar.
         if ($this->nowPlaying !== null) {
             $view = $this->compositeNowPlayingBar($view, $this->nowPlaying);
         }
@@ -366,7 +378,7 @@ final class App implements Model
      * `explode("\n", …)` always yields at least one element, so the last-line
      * index is always valid.
      */
-    private function compositeNowPlayingBar(string $view, NowPlaying $nowPlaying): string
+    private function compositeNowPlayingBar(string $view, NowPlayingSession $nowPlaying): string
     {
         $bar = NowPlayingBar::render($nowPlaying, max(1, $this->cols), $this->theme);
 
@@ -534,9 +546,9 @@ final class App implements Model
             new PaletteAction('Home', new GoHomeMsg()),
             new PaletteAction('Settings', new OpenSettingsMsg()),
         ];
-        // Music controls are universal (no key conflict) — surfaced in the palette
-        // only while a session is playing, so they reach the App-owned audio from
-        // any screen.
+        // Playback controls are universal (no key conflict) — surfaced in the
+        // palette only while a session (music or audiobook) is playing, so they
+        // reach the App-owned audio from any screen.
         if ($this->nowPlaying !== null) {
             $actions[] = new PaletteAction(
                 $this->nowPlaying->paused() ? 'Resume playback' : 'Pause playback',
@@ -774,7 +786,7 @@ final class App implements Model
     private function openAlbum(Album $album): array
     {
         // The AlbumScreen is now a pure list that EMITS play/control Msgs; the
-        // App owns the music audio (NowPlaying), so the screen needs no store /
+        // App owns the music audio (MusicSession), so the screen needs no store /
         // base URL / audio factory.
         $screen = new AlbumScreen($album, cols: $this->cols, rows: $this->rows);
 
@@ -802,11 +814,11 @@ final class App implements Model
     {
         // A fresh AudiobooksStore (the App holds no audiobooks field) — the
         // detail fetches the chapter list and the signed stream URL the list lacks.
-        // Audio is screen-local; the App tears down the Teardownable frame on leave.
+        // The screen is now a pure chapter list that EMITS play/control Msgs; the
+        // App owns the audiobook audio (AudiobookSession), so the screen needs no
+        // base URL / audio factory and is no longer Teardownable.
         $screen = new AudiobookDetailScreen(
             new AudiobooksStore($this->api),
-            $this->api->baseUrl(),
-            AudiobookDetailScreen::productionAudioFactory(),
             $id,
             $title,
             cols: $this->cols,
@@ -915,7 +927,7 @@ final class App implements Model
     // The music audio lives on the App (not the AlbumScreen) so playback
     // persists across navigation, shown by the NowPlayingBar. The epoch
     // discipline is relocated VERBATIM from the old AlbumScreen: every (re)start
-    // of the heartbeat bumps {@see NowPlaying::epoch()} so a tick from a
+    // of the heartbeat bumps {@see MusicSession::epoch()} so a tick from a
     // superseded chain is dropped as stale — never two heartbeats at once.
 
     /** A toast shown when a track can't be resolved/played. */
@@ -980,7 +992,7 @@ final class App implements Model
         $player->start();
 
         $epoch = $prevEpoch + 1;
-        $nowPlaying = new NowPlaying($player, $album, $index, paused: false, positionSecs: 0, epoch: $epoch);
+        $nowPlaying = new MusicSession($player, $album, $index, paused: false, positionSecs: 0, epoch: $epoch);
 
         return [$this->withNowPlaying($nowPlaying), $this->nowPlayingTickCmd($epoch)];
     }
@@ -995,7 +1007,9 @@ final class App implements Model
     private function onNowPlayingTick(int $epoch): array
     {
         $np = $this->nowPlaying;
-        if ($np === null || $epoch !== $np->epoch() || $np->paused()) {
+        // MUSIC-only: an AudiobookSession ticks via AudiobookTickMsg, never this
+        // one (the two heartbeats never cross-fire).
+        if (!$np instanceof MusicSession || $epoch !== $np->epoch() || $np->paused()) {
             return [$this, null];
         }
 
@@ -1018,9 +1032,12 @@ final class App implements Model
     }
 
     /**
-     * Toggle pause/resume on the active session. Bumps the epoch either way:
-     * pausing invalidates the in-flight tick (no re-arm); resuming starts a fresh
-     * heartbeat no leftover tick can double. Mirrors the old AlbumScreen::togglePause.
+     * Toggle pause/resume on the active session — works for BOTH a music track and
+     * an audiobook via the {@see NowPlayingSession} interface. Bumps the epoch
+     * either way: pausing invalidates the in-flight tick (no re-arm); resuming
+     * starts a fresh heartbeat no leftover tick can double, re-armed with the
+     * RIGHT tick Msg for the session kind (music vs audiobook never cross-fire).
+     * Mirrors the old AlbumScreen/AudiobookDetailScreen togglePause.
      */
     private function toggleAudio(): array
     {
@@ -1032,13 +1049,24 @@ final class App implements Model
         $epoch = $np->epoch() + 1;
         if (!$np->paused()) {
             $np->player()->pause();
+            $paused = $np->withPaused(true)->withEpoch($epoch);
 
-            return [$this->withNowPlaying($np->withPaused(true)->withEpoch($epoch)), null];
+            // An audiobook persists its position the moment you pause, so a
+            // pause-then-quit resumes exactly where you stopped (music has no
+            // progress endpoint, so it just holds).
+            $cmd = $paused instanceof AudiobookSession ? $this->reportProgressCmd($paused) : null;
+
+            return [$this->withNowPlaying($paused), $cmd];
         }
 
         $np->player()->resume();
 
-        return [$this->withNowPlaying($np->withPaused(false)->withEpoch($epoch)), $this->nowPlayingTickCmd($epoch)];
+        // Re-arm the heartbeat dedicated to this session kind.
+        $tick = $np instanceof AudiobookSession
+            ? $this->audiobookTickCmd($epoch)
+            : $this->nowPlayingTickCmd($epoch);
+
+        return [$this->withNowPlaying($np->withPaused(false)->withEpoch($epoch)), $tick];
     }
 
     /**
@@ -1049,7 +1077,9 @@ final class App implements Model
     private function skipAudio(int $delta): array
     {
         $np = $this->nowPlaying;
-        if ($np === null) {
+        // MUSIC-only: an audiobook seeks via PlayAudiobookMsg (Enter on a chapter),
+        // never AudioSkip.
+        if (!$np instanceof MusicSession) {
             return [$this, null];
         }
         $target = $np->trackIndex() + $delta;
@@ -1071,6 +1101,115 @@ final class App implements Model
     private function nowPlayingTickCmd(int $epoch): \Closure
     {
         return Cmd::tick(1.0, static fn (): Msg => new NowPlayingTickMsg($epoch));
+    }
+
+    // ---- audiobook audio (App-owned session) ---------------------------
+    //
+    // The audiobook audio lives on the App (not the AudiobookDetailScreen) so
+    // playback persists across navigation, shown by the same NowPlayingBar. An
+    // audiobook is ONE signed stream; chapters are seek markers. Its heartbeat is
+    // a DEDICATED AudiobookTickMsg (never the music NowPlayingTickMsg) under the
+    // same epoch discipline relocated VERBATIM from AudiobookDetailScreen.
+
+    /** A toast shown when an audiobook can't be played (missing stream URL). */
+    private const PLAY_AUDIOBOOK_FAILED = 'Cannot play this audiobook';
+
+    /**
+     * Play (or seek) $audiobook at $startMs (a chapter start, or a resume
+     * position): stop any existing session, spawn the player over the ONE signed
+     * stream URL (already on the Msg — SYNCHRONOUS, no fetch, exactly like the old
+     * AudiobookDetailScreen::playFrom), open the App's now-playing session, and arm
+     * the audiobook heartbeat under a fresh epoch. A missing/empty stream URL
+     * surfaces an error toast and plays nothing.
+     *
+     * @param list<AudiobookChapter> $chapters
+     */
+    private function playAudiobook(Audiobook $audiobook, array $chapters, int $startMs): array
+    {
+        if ($audiobook->streamUrl === null || $audiobook->streamUrl === '') {
+            return [$this, Cmd::send(ShowToastMsg::error(self::PLAY_AUDIOBOOK_FAILED))];
+        }
+
+        $prevEpoch = $this->nowPlaying?->epoch() ?? 0;
+        $this->nowPlaying?->teardown();
+
+        $player = ($this->audioFactory)($this->resolveUrl($audiobook->streamUrl), $startMs);
+        $player->start();
+
+        $epoch = $prevEpoch + 1;
+        $session = new AudiobookSession(
+            $player,
+            $audiobook,
+            $chapters,
+            positionMs: $startMs,
+            paused: false,
+            epoch: $epoch,
+            ticksSinceReport: 0,
+        );
+
+        return [$this->withNowPlaying($session), $this->audiobookTickCmd($epoch)];
+    }
+
+    /**
+     * One playback second elapsed during an audiobook: advance the estimated
+     * position (+1000ms) and re-arm the tick. At/after the audiobook's known
+     * duration the book finishes (stop + a FINAL ~100% progress report); every
+     * ~10 ticks a throttled progress save fires. A tick from a superseded
+     * heartbeat — or while nothing plays / not an AudiobookSession / paused — is
+     * dropped. Mirrors the old AudiobookDetailScreen::onAudiobookTick EXACTLY.
+     */
+    private function onAudiobookTick(int $epoch): array
+    {
+        $session = $this->nowPlaying;
+        // AUDIOBOOK-only: a MusicSession ticks via NowPlayingTickMsg, never this
+        // one (the two heartbeats never cross-fire).
+        if (!$session instanceof AudiobookSession || $epoch !== $session->epoch() || $session->paused()) {
+            return [$this, null];
+        }
+
+        $next = $session->ticked();
+
+        if ($next->endReached()) {
+            // The book finished — stop and fire a final report at ~100%.
+            $report = $this->reportProgressCmd($next);
+            $next->teardown();
+
+            return [$this->withNowPlaying(null), $report];
+        }
+
+        $cmds = [$this->audiobookTickCmd($epoch)];
+        if ($next->shouldReport()) {
+            // Throttled ~10s save: keep the heartbeat going AND persist progress.
+            $next = $next->withReported();
+            $cmds[] = $this->reportProgressCmd($next);
+        }
+
+        return [$this->withNowPlaying($next), Cmd::batch(...$cmds)];
+    }
+
+    /**
+     * Persist an audiobook session's position fire-and-forget: a failed save
+     * NEVER disrupts playback (both arms swallow to null). The App holds no
+     * AudiobooksStore field, so one is built locally from $this->api (like the
+     * open-handlers do). The report reads the SESSION's current chapter / completed
+     * chapters / percent.
+     */
+    private function reportProgressCmd(AudiobookSession $session): \Closure
+    {
+        $store = new AudiobooksStore($this->api);
+
+        return Cmd::promise(static fn (): PromiseInterface => $store->saveProgress(
+            $session->audiobookId(),
+            $session->positionMs(),
+            $session->currentChapterIndex(),
+            $session->completedChapterIndices(),
+            $session->percentComplete(),
+        )->then(static fn (): ?Msg => null, static fn (): ?Msg => null));
+    }
+
+    private function audiobookTickCmd(int $epoch): \Closure
+    {
+        return Cmd::tick(1.0, static fn (): Msg => new AudiobookTickMsg($epoch));
     }
 
     /** Resolve a (possibly relative) URL against the server base; absolute/empty pass through. */
@@ -1286,8 +1425,8 @@ final class App implements Model
         return $this->config;
     }
 
-    /** The App's active music session, or null when nothing is playing. */
-    public function nowPlaying(): ?NowPlaying
+    /** The App's active playback session (music or audiobook), or null when nothing is playing. */
+    public function nowPlaying(): ?NowPlayingSession
     {
         return $this->nowPlaying;
     }
@@ -1321,11 +1460,12 @@ final class App implements Model
     }
 
     /**
-     * A copy carrying the App's active music session $nowPlaying (or null to
-     * clear it). Every other field is preserved. Internal: audio transitions
-     * route through here so the now-playing bar follows the session.
+     * A copy carrying the App's active playback session $nowPlaying (music or
+     * audiobook, or null to clear it). Every other field is preserved. Internal:
+     * audio transitions route through here so the now-playing bar follows the
+     * session.
      */
-    private function withNowPlaying(?NowPlaying $nowPlaying): self
+    private function withNowPlaying(?NowPlayingSession $nowPlaying): self
     {
         return new self(
             $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,

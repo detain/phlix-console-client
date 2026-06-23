@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Ui;
 
-use Phlix\Console\Audio\NowPlaying;
+use Phlix\Console\Audio\NowPlayingSession;
 use SugarCraft\Core\Util\Width;
 
 /**
  * The persistent now-playing bar: a single, ANSI-safe line summarising the App's
- * active {@see NowPlaying} music session, composited onto the bottom row of every
- * screen so playback stays visible across navigation.
+ * active {@see NowPlayingSession} — a music track OR an audiobook chapter —
+ * composited onto the bottom row of every screen so playback stays visible across
+ * navigation.
  *
  * Layout (exactly {@see $width} cells):
  *
@@ -18,22 +19,22 @@ use SugarCraft\Core\Util\Width;
  *   └─ left (truncated to fit) ─┘ └─ pad ─┘ └─ right clock ─┘
  *
  * The ▶/⏸ glyph + title may be tinted with the theme's brand accent (Nocturne is
- * plain — a no-op). The clock is `m:ss` (or `h:mm:ss`), with `—` for an unknown
- * duration. All widths are measured with {@see Width} (ANSI-stripped) so the line
- * is exactly $width display cells regardless of any embedded SGR.
+ * plain — a no-op). The clock (`position / duration`) is precomputed by the
+ * session (`m:ss` / `h:mm:ss`, with `—` for an unknown duration). All widths are
+ * measured with {@see Width} (ANSI-stripped) so the line is exactly $width display
+ * cells regardless of any embedded SGR.
  */
 final class NowPlayingBar
 {
     /** Cells between the left text and the right-aligned clock (minimum gap). */
     private const GAP = 2;
 
-    public static function render(NowPlaying $np, int $width, ?Theme $theme = null): string
+    public static function render(NowPlayingSession $np, int $width, ?Theme $theme = null): string
     {
         $width = max(1, $width);
 
         $glyph = $np->paused() ? '⏸' : '▶';
-        $clock = self::clock($np->positionSecs()) . ' / '
-            . ($np->durationSecs() !== null ? self::clock($np->durationSecs()) : '—');
+        $clock = $np->positionLabel() . ' / ' . $np->durationLabel();
         $clockWidth = Width::string($clock);
 
         // Reserve the clock + a gap on the right; the left text gets the rest.
@@ -55,16 +56,5 @@ final class NowPlayingBar
         $padded = Width::padRight($left, $width - $clockWidth);
 
         return $padded . $clock;
-    }
-
-    /** Seconds → "m:ss" (or "h:mm:ss" past an hour). Copied from AlbumScreen. */
-    private static function clock(int $seconds): string
-    {
-        $s = max(0, $seconds);
-        $h = intdiv($s, 3600);
-        $m = intdiv($s % 3600, 60);
-        $sec = $s % 60;
-
-        return $h > 0 ? sprintf('%d:%02d:%02d', $h, $m, $sec) : sprintf('%d:%02d', $m, $sec);
     }
 }

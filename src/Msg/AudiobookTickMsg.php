@@ -7,11 +7,11 @@ namespace Phlix\Console\Msg;
 use SugarCraft\Core\Msg;
 
 /**
- * One second elapsed during audiobook playback. The
- * {@see \SugarCraft\Reel\AudioPlayer} exposes no playhead, so the
- * {@see \Phlix\Console\Screen\AudiobookDetailScreen} estimates the elapsed
- * position by counting these 1-second ticks while the book plays (re-arming
- * each tick) — and reports/persists progress off that count.
+ * One second elapsed during the App's audiobook playback. The
+ * {@see \SugarCraft\Reel\AudioPlayer} exposes no playhead, so the App estimates
+ * the elapsed position of its active {@see \Phlix\Console\Audio\AudiobookSession}
+ * by counting these 1-second ticks while the book plays (re-arming each tick,
+ * each adding 1000ms) — and reports/persists progress off that count.
  *
  * A DEDICATED tick Msg (distinct from the App's music {@see NowPlayingTickMsg})
  * so the two never cross-fire a tick.

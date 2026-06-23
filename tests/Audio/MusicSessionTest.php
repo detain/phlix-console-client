@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Phlix\Console\Tests\Audio;
 
 use Phlix\Console\Api\Dto\Album;
-use Phlix\Console\Audio\NowPlaying;
+use Phlix\Console\Audio\MusicSession;
 use Phlix\Console\Tests\Reel\FakeAudioPlayer;
 use PHPUnit\Framework\TestCase;
 use SugarCraft\Reel\AudioPlayer;
 
-final class NowPlayingTest extends TestCase
+final class MusicSessionTest extends TestCase
 {
     private function album(?string $artist = 'The Beatles'): Album
     {
@@ -26,9 +26,9 @@ final class NowPlayingTest extends TestCase
         ]);
     }
 
-    private function nowPlaying(?Album $album = null, int $index = 0, bool $paused = false, int $position = 0, int $epoch = 1): NowPlaying
+    private function session(?Album $album = null, int $index = 0, bool $paused = false, int $position = 0, int $epoch = 1): MusicSession
     {
-        return new NowPlaying(new FakeAudioPlayer('u'), $album ?? $this->album(), $index, $paused, $position, $epoch);
+        return new MusicSession(new FakeAudioPlayer('u'), $album ?? $this->album(), $index, $paused, $position, $epoch);
     }
 
     // ---- accessors -----------------------------------------------------
@@ -37,7 +37,7 @@ final class NowPlayingTest extends TestCase
     {
         $player = new FakeAudioPlayer('u');
         $album = $this->album();
-        $np = new NowPlaying($player, $album, 1, true, 42, 7);
+        $np = new MusicSession($player, $album, 1, true, 42, 7);
 
         self::assertSame($player, $np->player());
         self::assertSame($album, $np->album());
@@ -49,7 +49,7 @@ final class NowPlayingTest extends TestCase
 
     public function testTrackTitleSubtitleAndDurationComeFromTheCurrentTrack(): void
     {
-        $np = $this->nowPlaying(index: 1);
+        $np = $this->session(index: 1);
 
         self::assertSame('Something', $np->track()?->title);
         self::assertSame('Something', $np->title());
@@ -59,14 +59,14 @@ final class NowPlayingTest extends TestCase
 
     public function testSubtitleOmitsAMissingArtist(): void
     {
-        $np = $this->nowPlaying($this->album(artist: null));
+        $np = $this->session($this->album(artist: null));
 
         self::assertSame('Abbey Road', $np->subtitle(), 'no " · artist" when the album has no artist');
     }
 
     public function testAnOutOfRangeIndexYieldsAnEmptyTitleAndNullDuration(): void
     {
-        $np = $this->nowPlaying(index: 9);
+        $np = $this->session(index: 9);
 
         self::assertNull($np->track());
         self::assertSame('', $np->title());
@@ -75,11 +75,73 @@ final class NowPlayingTest extends TestCase
         self::assertSame('Abbey Road · The Beatles', $np->subtitle());
     }
 
+    // ---- interface: labels / ticked / endReached -----------------------
+
+    public function testPositionAndDurationLabelsFormatAsClocks(): void
+    {
+        $np = $this->session(index: 0, position: 83); // 1:23 of a 4:19 track
+
+        self::assertSame('1:23', $np->positionLabel());
+        self::assertSame('4:19', $np->durationLabel());
+    }
+
+    public function testDurationLabelIsADashWhenUnknown(): void
+    {
+        $album = Album::fromArray([
+            'name' => 'Live',
+            'tracks' => [['id' => 't1', 'metadata' => ['title' => 'Jam']]], // no duration
+        ]);
+        $np = $this->session($album, index: 0, position: 5);
+
+        self::assertSame('0:05', $np->positionLabel());
+        self::assertSame('—', $np->durationLabel(), 'an unknown duration renders as a dash');
+    }
+
+    public function testHourLongPositionsUseHmmss(): void
+    {
+        $album = Album::fromArray([
+            'name' => 'Long',
+            'tracks' => [['id' => 't1', 'metadata' => ['title' => 'Epic', 'duration_secs' => 7200]]],
+        ]);
+        $np = $this->session($album, index: 0, position: 3661); // 1:01:01
+
+        self::assertSame('1:01:01', $np->positionLabel());
+        self::assertSame('2:00:00', $np->durationLabel());
+    }
+
+    public function testTickedAdvancesThePositionByOneSecond(): void
+    {
+        $np = $this->session(position: 4);
+        $ticked = $np->ticked();
+
+        self::assertNotSame($np, $ticked);
+        self::assertSame(4, $np->positionSecs(), 'the original is unchanged');
+        self::assertSame(5, $ticked->positionSecs());
+    }
+
+    public function testEndReachedOnceThePositionMeetsTheDuration(): void
+    {
+        // Track 1 is a 182s song.
+        self::assertFalse($this->session(index: 1, position: 181)->endReached());
+        self::assertTrue($this->session(index: 1, position: 182)->endReached());
+        self::assertTrue($this->session(index: 1, position: 200)->endReached());
+    }
+
+    public function testEndReachedIsFalseForAnUnknownDuration(): void
+    {
+        $album = Album::fromArray([
+            'name' => 'Live',
+            'tracks' => [['id' => 't1', 'metadata' => ['title' => 'Jam']]], // no duration
+        ]);
+
+        self::assertFalse($this->session($album, index: 0, position: 99_999)->endReached(), 'no duration → never ends');
+    }
+
     // ---- clone-mutate --------------------------------------------------
 
     public function testWithPausedIsImmutable(): void
     {
-        $np = $this->nowPlaying(paused: false);
+        $np = $this->session(paused: false);
         $paused = $np->withPaused(true);
 
         self::assertNotSame($np, $paused);
@@ -89,7 +151,7 @@ final class NowPlayingTest extends TestCase
 
     public function testWithPositionSecsIsImmutable(): void
     {
-        $np = $this->nowPlaying(position: 0);
+        $np = $this->session(position: 0);
         $advanced = $np->withPositionSecs(5);
 
         self::assertNotSame($np, $advanced);
@@ -99,7 +161,7 @@ final class NowPlayingTest extends TestCase
 
     public function testWithEpochIsImmutable(): void
     {
-        $np = $this->nowPlaying(epoch: 1);
+        $np = $this->session(epoch: 1);
         $bumped = $np->withEpoch(2);
 
         self::assertNotSame($np, $bumped);
@@ -109,7 +171,7 @@ final class NowPlayingTest extends TestCase
 
     public function testWithTrackResetsPositionAndPauseUnderANewPlayer(): void
     {
-        $np = $this->nowPlaying(index: 0, paused: true, position: 99, epoch: 3);
+        $np = $this->session(index: 0, paused: true, position: 99, epoch: 3);
         $newPlayer = new FakeAudioPlayer('v');
 
         $next = $np->withTrack(1, $newPlayer);
@@ -128,7 +190,7 @@ final class NowPlayingTest extends TestCase
     public function testTeardownStopsThePlayer(): void
     {
         $player = new FakeAudioPlayer('u');
-        $np = new NowPlaying($player, $this->album(), 0, false, 0, 1);
+        $np = new MusicSession($player, $this->album(), 0, false, 0, 1);
 
         $np->teardown();
 
@@ -138,7 +200,7 @@ final class NowPlayingTest extends TestCase
     public function testTeardownIsIdempotent(): void
     {
         $player = new FakeAudioPlayer('u');
-        $np = new NowPlaying($player, $this->album(), 0, false, 0, 1);
+        $np = new MusicSession($player, $this->album(), 0, false, 0, 1);
 
         $np->teardown();
         $np->teardown(); // must not double-stop or throw
@@ -148,7 +210,7 @@ final class NowPlayingTest extends TestCase
 
     public function testProductionAudioFactoryBuildsAnAudioPlayer(): void
     {
-        $factory = NowPlaying::productionAudioFactory();
+        $factory = MusicSession::productionAudioFactory();
 
         $player = $factory('https://srv/s/t1', null);
 
