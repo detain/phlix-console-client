@@ -22,6 +22,7 @@ use Phlix\Console\Msg\LoginSucceededMsg;
 use Phlix\Console\Msg\MediaRangeLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenAlbumMsg;
+use Phlix\Console\Msg\OpenAudiobookMsg;
 use Phlix\Console\Msg\OpenBookMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\OpenLibraryMsg;
@@ -38,6 +39,8 @@ use Phlix\Console\Msg\SubmitServerMsg;
 use Phlix\Console\Msg\ToastTickMsg;
 use Phlix\Console\Route;
 use Phlix\Console\Screen\AlbumScreen;
+use Phlix\Console\Screen\AudiobookDetailScreen;
+use Phlix\Console\Screen\AudiobooksScreen;
 use Phlix\Console\Screen\BookDetailScreen;
 use Phlix\Console\Screen\BooksScreen;
 use Phlix\Console\Screen\BrowseScreen;
@@ -351,6 +354,40 @@ final class AppTest extends TestCase
         $screen = $books->screen();
         self::assertInstanceOf(BooksScreen::class, $screen);
         self::assertSame(7, $screen->grid()->total());
+    }
+
+    public function testOpenAnAudiobookLibraryPushesTheAudiobooksScreen(): void
+    {
+        $browse = $this->browsing();
+
+        [$audiobooks, $cmd] = $browse->update(new OpenLibraryMsg('lib-ab', 'Listens', 'audiobook'));
+
+        self::assertSame(Route::Audiobooks, $audiobooks->route());
+        self::assertInstanceOf(AudiobooksScreen::class, $audiobooks->screen());
+        self::assertSame(2, $audiobooks->stackDepth(), 'audiobooks is pushed onto Browse');
+        self::assertInstanceOf(\Closure::class, $cmd, 'the audiobooks screen fetches its list on push');
+    }
+
+    public function testANonAudiobookLibraryStillRoutesAsBefore(): void
+    {
+        $browse = $this->browsing();
+
+        [$lib] = $browse->update(new OpenLibraryMsg('lib-a', 'Movies', 'movie'));
+
+        self::assertSame(Route::Library, $lib->route());
+        self::assertInstanceOf(LibraryScreen::class, $lib->screen());
+    }
+
+    public function testOpenAudiobookMsgPushesTheAudiobookDetailScreen(): void
+    {
+        $browse = $this->browsing();
+
+        [$detail, $cmd] = $browse->update(new OpenAudiobookMsg('ab1', 'Dune'));
+
+        self::assertSame(Route::AudiobookDetail, $detail->route());
+        self::assertInstanceOf(AudiobookDetailScreen::class, $detail->screen());
+        self::assertSame(2, $detail->stackDepth(), 'the audiobook detail is pushed on top, not replaced');
+        self::assertInstanceOf(\Closure::class, $cmd, 'the audiobook detail fetches its detail + chapters on push');
     }
 
     public function testOpenAlbumPushesTheAlbumScreen(): void
@@ -930,6 +967,28 @@ final class AppTest extends TestCase
         self::assertInstanceOf(OpenLibraryMsg::class, $msg);
         self::assertSame('lib2', $msg->libraryId);
         self::assertSame('music', $msg->type);
+    }
+
+    public function testPaletteGoToAnAudiobookLibraryCarriesTheAudiobookType(): void
+    {
+        [$open] = $this->paletteApp()->update($this->ctrlK());
+        $libs = [Library::fromArray(['id' => 'lib-ab', 'name' => 'Listens', 'type' => 'audiobook'])];
+        [$augmented] = $open->update(new PaletteLibrariesLoadedMsg($libs));
+
+        $labels = array_map(static fn ($a): string => $a->label, $augmented->palette()->actions());
+        self::assertContains('Go to Listens', $labels);
+
+        // Rank "Go to Listens" and open it → OpenLibraryMsg with type 'audiobook'.
+        $typed = $augmented;
+        foreach (['l', 'i', 's', 't', 'e', 'n', 's'] as $rune) {
+            [$typed] = $typed->update(new KeyMsg(KeyType::Char, $rune));
+        }
+        [, $cmd] = $typed->update(new KeyMsg(KeyType::Enter));
+
+        $msg = $this->runCmd($cmd);
+        self::assertInstanceOf(OpenLibraryMsg::class, $msg);
+        self::assertSame('lib-ab', $msg->libraryId);
+        self::assertSame('audiobook', $msg->type, 'the palette action carries the audiobook type');
     }
 
     public function testPaletteLibrariesIgnoredWhenPaletteClosed(): void

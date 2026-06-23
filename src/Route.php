@@ -23,4 +23,6 @@ enum Route
     case Album;
     case Books;
     case BookDetail;
+    case Audiobooks;
+    case AudiobookDetail;
 }
