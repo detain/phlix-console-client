@@ -11,6 +11,10 @@ use Phlix\Console\Api\AuthResult;
 use Phlix\Console\Api\MediaQuery;
 use Phlix\Console\Api\NetworkError;
 use Phlix\Console\Api\Dto\Album;
+use Phlix\Console\Api\Dto\Audiobook;
+use Phlix\Console\Api\Dto\AudiobookChapter;
+use Phlix\Console\Api\Dto\AudiobookPage;
+use Phlix\Console\Api\Dto\AudiobookProgress;
 use Phlix\Console\Api\Dto\AuthUser;
 use Phlix\Console\Api\Dto\Book;
 use Phlix\Console\Api\Dto\BookPage;
@@ -344,6 +348,164 @@ final class ApiClientTest extends TestCase
         self::assertSame('/api/v1/books/b1/download?sig=ghi', $book->downloadUrl);
         self::assertSame('epub', $book->format);
         self::assertStringEndsWith('/api/v1/books/b1', $t->requestAt(0)['url']);
+    }
+
+    // ---- audiobooks ----------------------------------------------------
+
+    public function testAudiobooksHitsEndpointWithLibraryIdAndPagingAndMaps(): void
+    {
+        $t = (new FakeTransport())->json(200, [
+            'audiobooks' => [
+                ['id' => 'a1', 'name' => 'dune.m4b', 'metadata' => ['author' => 'Frank Herbert', 'duration_ms' => 75600000]],
+                'garbage',
+            ],
+            'limit' => 100,
+            'offset' => 0,
+        ]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $page = $this->await($client->audiobooks('lib-1', 100, 0));
+
+        self::assertInstanceOf(AudiobookPage::class, $page);
+        self::assertCount(1, $page->audiobooks, 'non-array rows are skipped');
+        self::assertSame('a1', $page->audiobooks[0]->id);
+        self::assertSame('Frank Herbert', $page->audiobooks[0]->author);
+        self::assertSame(100, $page->limit);
+        self::assertSame(0, $page->offset);
+
+        $req = $t->requestAt(0);
+        self::assertSame('GET', $req['method']);
+        self::assertStringContainsString('/api/v1/audiobooks?', $req['url']);
+        self::assertStringContainsString('library_id=lib-1', $req['url']);
+        self::assertStringContainsString('limit=100', $req['url']);
+        self::assertStringContainsString('offset=0', $req['url']);
+    }
+
+    public function testAudiobooksOmitsLibraryIdWhenNull(): void
+    {
+        $t = (new FakeTransport())->json(200, ['audiobooks' => [], 'limit' => 50, 'offset' => 0]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $this->await($client->audiobooks(null));
+
+        $url = $t->requestAt(0)['url'];
+        self::assertStringContainsString('/api/v1/audiobooks?', $url);
+        self::assertStringNotContainsString('library_id', $url, 'a null library_id is omitted');
+        self::assertStringContainsString('limit=50', $url);
+        self::assertStringContainsString('offset=0', $url);
+    }
+
+    public function testAudiobookMapsTheSignedDetail(): void
+    {
+        $t = (new FakeTransport())->json(200, ['audiobook' => [
+            'id' => 'a1',
+            'title' => 'Dune',
+            'author' => 'Frank Herbert',
+            'narrator' => 'Scott Brick',
+            'duration_ms' => 75600000,
+            'cover_url' => '/var/data/covers/dune.jpg', // filesystem path — not exposed
+            'stream_url' => '/api/v1/audiobooks/a1/stream?sig=abc',
+            'read_url' => '/api/v1/audiobooks/a1/read?sig=def',
+        ]]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $audiobook = $this->await($client->audiobook('a1'));
+
+        self::assertInstanceOf(Audiobook::class, $audiobook);
+        self::assertSame('Dune', $audiobook->title);
+        self::assertSame('Frank Herbert', $audiobook->author);
+        self::assertSame('Scott Brick', $audiobook->narrator);
+        self::assertSame(75600000, $audiobook->durationMs);
+        self::assertSame('/api/v1/audiobooks/a1/stream?sig=abc', $audiobook->streamUrl);
+        self::assertStringEndsWith('/api/v1/audiobooks/a1', $t->requestAt(0)['url']);
+    }
+
+    public function testAudiobookChaptersMapsWithOrdinalFallback(): void
+    {
+        $t = (new FakeTransport())->json(200, ['chapters' => [
+            ['index' => 0, 'title' => 'One', 'start_ms' => 0, 'end_ms' => 1000, 'duration_ms' => 1000],
+            ['title' => 'Two', 'start_ms' => 1000, 'end_ms' => 3000, 'duration_ms' => 2000], // no index → ordinal 1
+            'garbage',
+        ]]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $chapters = $this->await($client->audiobookChapters('a1'));
+
+        self::assertContainsOnlyInstancesOf(AudiobookChapter::class, $chapters);
+        self::assertCount(2, $chapters, 'the non-array row is skipped');
+        self::assertSame(0, $chapters[0]->index);
+        self::assertSame('One', $chapters[0]->title);
+        self::assertSame(1, $chapters[1]->index, 'a missing index falls back to the list ordinal');
+        self::assertSame('Two', $chapters[1]->title);
+        self::assertSame(2000, $chapters[1]->durationMs);
+        self::assertStringEndsWith('/api/v1/audiobooks/a1/chapters', $t->requestAt(0)['url']);
+    }
+
+    public function testAudiobookProgressMaps(): void
+    {
+        $t = (new FakeTransport())->json(200, ['progress' => [
+            'audiobook_id' => 'a1',
+            'user_id' => 'u1',
+            'position_ms' => 5000,
+            'current_chapter_index' => 1,
+            'completed_chapters' => [0],
+            'percent_complete' => 10.0,
+            'last_played_at' => 1700000000,
+        ]]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $progress = $this->await($client->audiobookProgress('a1'));
+
+        self::assertInstanceOf(AudiobookProgress::class, $progress);
+        self::assertSame('a1', $progress->audiobookId);
+        self::assertSame(5000, $progress->positionMs);
+        self::assertSame(1, $progress->currentChapterIndex);
+        self::assertSame([0], $progress->completedChapters);
+        self::assertSame(10.0, $progress->percentComplete);
+        self::assertSame('GET', $t->requestAt(0)['method']);
+        self::assertStringEndsWith('/api/v1/audiobooks/a1/progress', $t->requestAt(0)['url']);
+    }
+
+    public function testSaveAudiobookProgressPostsTheBodyAndMaps(): void
+    {
+        $t = (new FakeTransport())->json(200, [
+            'message' => 'saved',
+            'progress' => [
+                'audiobook_id' => 'a1',
+                'user_id' => 'u1',
+                'position_ms' => 12345,
+                'current_chapter_index' => 2,
+                'completed_chapters' => [0, 1],
+                'percent_complete' => 25.0,
+                'last_played_at' => 1700000001,
+            ],
+        ]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $progress = $this->await($client->saveAudiobookProgress('a1', 12345, 2, [0, 1], 25.0));
+
+        self::assertInstanceOf(AudiobookProgress::class, $progress);
+        self::assertSame(12345, $progress->positionMs);
+        self::assertSame(2, $progress->currentChapterIndex);
+        self::assertSame([0, 1], $progress->completedChapters);
+        self::assertSame(25.0, $progress->percentComplete);
+
+        $req = $t->requestAt(0);
+        self::assertSame('POST', $req['method']);
+        self::assertStringEndsWith('/api/v1/audiobooks/a1/progress', $req['url']);
+        $body = json_decode($req['body'], true);
+        self::assertSame(12345, $body['position_ms']);
+        self::assertSame(2, $body['current_chapter_index']);
+        self::assertSame([0, 1], $body['completed_chapters']);
+        // JSON has no float/int distinction, so 25.0 encodes as `25`; assert the
+        // numeric value rather than the round-tripped PHP type.
+        self::assertEqualsWithDelta(25.0, $body['percent_complete'], 0.0001);
     }
 
     public function testContinueWatchingMapsEntries(): void
