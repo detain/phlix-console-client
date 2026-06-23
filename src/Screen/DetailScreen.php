@@ -17,6 +17,7 @@ use Phlix\Console\Msg\DetailLoadedMsg;
 use Phlix\Console\Msg\DetailPosterLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
+use Phlix\Console\Msg\PlayRequestedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Store\MediaRange;
 use Phlix\Console\Store\MediaStore;
@@ -39,9 +40,10 @@ use SugarCraft\Sprinkles\Style;
  *
  * - **Leaf** (movie / episode): a hero poster beside its metadata (title,
  *   year / rating / runtime, genres, director, cast) and a {@see Renderer
- *   candy-shine} rendered, ↑/↓-scrollable synopsis, plus a Play entry-point.
- *   Play is wired but inert in Phase 3 — `p` shows that direct-play arrives with
- *   the sugar-reel player in Phase 4; the action is the seam.
+ *   candy-shine} rendered, ↑/↓-scrollable synopsis, plus a Play entry-point:
+ *   `p` direct-plays the item's signed `stream_url` via the sugar-reel player
+ *   (a {@see \Phlix\Console\Msg\PlayRequestedMsg} the App turns into a
+ *   PlayerScreen). An item with no signed source shows a brief notice instead.
  * - **Container** (series / season): a header plus a 2-D virtualized grid of the
  *   item's children (the seasons of a series, the episodes of a season), fetched
  *   by `parentId`. Enter opens the focused child's detail — so series → season →
@@ -68,7 +70,7 @@ final class DetailScreen implements Breadcrumbed
     private const PAGE_LIMIT = 50;
     private const OVERSCAN = 1;
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
-    private const PLAY_NOTICE = '▶  Direct-play arrives in Phase 4 (the sugar-reel player).';
+    private const PLAY_NOTICE = '▶  This title has no playable source.';
     private const HINT = '↑↓  scroll synopsis      p  play      Esc  back';
     private const CONTAINER_HINT = '↑↓←→  move      ⏎  open      Esc  back';
     private const LOADING_HINT = 'Esc  back';
@@ -167,8 +169,12 @@ final class DetailScreen implements Breadcrumbed
             return $this->handleContainerKey($msg, $this->childGrid);
         }
 
-        // Leaf: Play (inert in Phase 3) + synopsis scroll.
+        // Leaf: Play → direct-play the signed stream via the player; synopsis scroll.
         if ($msg->type === KeyType::Char && ($msg->rune === 'p' || $msg->rune === 'P')) {
+            if ($this->item !== null && $this->item->streamUrl !== null) {
+                return [$this, Cmd::send(new PlayRequestedMsg($this->item))];
+            }
+            // No signed stream on this item → nothing to direct-play.
             $next = clone $this;
             $next->playNotice = true;
 

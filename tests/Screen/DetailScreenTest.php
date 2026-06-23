@@ -14,6 +14,7 @@ use Phlix\Console\Msg\DetailLoadedMsg;
 use Phlix\Console\Msg\DetailPosterLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
+use Phlix\Console\Msg\PlayRequestedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Screen\DetailScreen;
 use Phlix\Console\Store\MediaRange;
@@ -159,15 +160,29 @@ final class DetailScreenTest extends TestCase
         self::assertInstanceOf(NavigateBackMsg::class, $cmd?->__invoke());
     }
 
-    public function testPlayKeyShowsThePhase4Notice(): void
+    public function testPlayKeyOnAPlayableItemRequestsPlayback(): void
     {
+        // The default detailResponse carries a signed stream_url.
         $loaded = $this->loaded();
-        self::assertFalse($loaded->showsPlayNotice());
 
-        [$next] = $loaded->update(new KeyMsg(KeyType::Char, 'p'));
+        [$same, $cmd] = $loaded->update(new KeyMsg(KeyType::Char, 'p'));
 
+        $msg = $cmd?->__invoke();
+        self::assertInstanceOf(PlayRequestedMsg::class, $msg);
+        self::assertSame('m1', $msg->item->id);
+        self::assertSame('https://srv/media/m1/stream?sig=x', $msg->item->streamUrl);
+        self::assertFalse($same->showsPlayNotice(), 'a playable item plays — no notice');
+    }
+
+    public function testPlayKeyWithoutAStreamShowsNoSourceNotice(): void
+    {
+        $loaded = $this->loaded(['stream_url' => null]);
+
+        [$next, $cmd] = $loaded->update(new KeyMsg(KeyType::Char, 'p'));
+
+        self::assertNull($cmd, 'nothing to play');
         self::assertTrue($next->showsPlayNotice());
-        self::assertStringContainsString('Phase 4', $next->view());
+        self::assertStringContainsString('no playable source', $next->view());
     }
 
     public function testUpAndDownScrollTheSynopsisAndClampAtTheTop(): void

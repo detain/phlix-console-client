@@ -17,4 +17,5 @@ enum Route
     case Browse;
     case Library;
     case Detail;
+    case Player;
 }

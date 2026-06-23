@@ -6,6 +6,7 @@ namespace Phlix\Console\Tests;
 
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\Dto\AuthUser;
+use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\App;
 use Phlix\Console\Config\Config;
 use Phlix\Console\Config\TokenBundle;
@@ -18,6 +19,7 @@ use Phlix\Console\Msg\MediaRangeLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\OpenLibraryMsg;
+use Phlix\Console\Msg\PlayRequestedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\SubmitLoginMsg;
 use Phlix\Console\Msg\SubmitServerMsg;
@@ -26,6 +28,7 @@ use Phlix\Console\Screen\BrowseScreen;
 use Phlix\Console\Screen\DetailScreen;
 use Phlix\Console\Screen\LibraryScreen;
 use Phlix\Console\Screen\LoginScreen;
+use Phlix\Console\Screen\PlayerScreen;
 use Phlix\Console\Screen\ServerScreen;
 use Phlix\Console\Store\AuthStore;
 use Phlix\Console\Store\LibrariesStore;
@@ -248,6 +251,43 @@ final class AppTest extends TestCase
         self::assertInstanceOf(DetailScreen::class, $detail->screen());
         self::assertSame(2, $detail->stackDepth(), 'detail is pushed onto Browse');
         self::assertInstanceOf(\Closure::class, $cmd, 'the detail fetches its item on push');
+    }
+
+    public function testPlayRequestPushesThePlayerScreen(): void
+    {
+        $browse = $this->browsing();
+        $item = MediaItem::fromArray([
+            'id' => 'm1',
+            'name' => 'The Matrix',
+            'type' => 'movie',
+            'stream_url' => 'https://srv/media/m1/stream?sig=x',
+        ]);
+
+        [$player, $cmd] = $browse->update(new PlayRequestedMsg($item));
+
+        self::assertSame(Route::Player, $player->route());
+        self::assertInstanceOf(PlayerScreen::class, $player->screen());
+        self::assertSame(2, $player->stackDepth(), 'player is pushed onto Browse');
+        // The build Cmd is returned but intentionally NOT invoked here — running it
+        // would spawn real ffmpeg. The player's own tests drive it with a fake factory.
+        self::assertInstanceOf(\Closure::class, $cmd);
+    }
+
+    public function testCtrlCQuitsWithThePlayerOnTop(): void
+    {
+        $item = MediaItem::fromArray([
+            'id' => 'm1',
+            'name' => 'The Matrix',
+            'type' => 'movie',
+            'stream_url' => 'https://srv/media/m1/stream?sig=x',
+        ]);
+        [$player] = $this->browsing()->update(new PlayRequestedMsg($item));
+
+        // The App tears down a Teardownable top screen before quitting; on a
+        // not-yet-ready player that teardown is a safe no-op, and it still quits.
+        [, $cmd] = $player->update(new KeyMsg(KeyType::Char, 'c', ctrl: true));
+
+        self::assertInstanceOf(QuitMsg::class, $cmd?->__invoke());
     }
 
     public function testDetailCanBePushedOntoALibraryAndPoppedBack(): void
