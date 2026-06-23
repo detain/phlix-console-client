@@ -335,6 +335,11 @@ final class App implements Model
     /** Replace the whole stack with a single frame (auth transitions). */
     private function replace(Route $route, Model $screen): self
     {
+        // The whole current stack is discarded — release any screen's external
+        // resources first (e.g. a player's ffmpeg/ffplay) so a SessionExpired or
+        // logout mid-playback can't leak a subprocess.
+        $this->tearDownFrames($this->stack);
+
         return $this->withStack([['route' => $route, 'screen' => $screen]]);
     }
 
@@ -355,9 +360,29 @@ final class App implements Model
         }
 
         $stack = $this->stack;
-        array_pop($stack);
+        $popped = array_pop($stack);
+        // Popping permanently discards the frame (drilling back up), so release
+        // its resources (idempotent — a PlayerScreen also self-tears-down on Esc).
+        if ($popped !== null && $popped['screen'] instanceof Teardownable) {
+            $popped['screen']->teardown();
+        }
 
         return $this->withStack($stack);
+    }
+
+    /**
+     * Tear down every {@see Teardownable} screen in a set of frames being
+     * discarded, so external resources (ffmpeg/ffplay) are released, not leaked.
+     *
+     * @param list<array{route: Route, screen: Model}> $frames
+     */
+    private function tearDownFrames(array $frames): void
+    {
+        foreach ($frames as $frame) {
+            if ($frame['screen'] instanceof Teardownable) {
+                $frame['screen']->teardown();
+            }
+        }
     }
 
     private function withTopScreen(Model $screen): self
