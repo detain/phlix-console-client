@@ -12,6 +12,8 @@ use Phlix\Console\Api\MediaQuery;
 use Phlix\Console\Api\NetworkError;
 use Phlix\Console\Api\Dto\Album;
 use Phlix\Console\Api\Dto\AuthUser;
+use Phlix\Console\Api\Dto\Book;
+use Phlix\Console\Api\Dto\BookPage;
 use Phlix\Console\Api\Dto\ContinueWatchingItem;
 use Phlix\Console\Api\Dto\Library;
 use Phlix\Console\Api\Dto\MediaItem;
@@ -268,6 +270,80 @@ final class ApiClientTest extends TestCase
         self::assertCount(1, $album->tracks);
         self::assertSame('Come Together', $album->tracks[0]->title);
         self::assertSame(self::BASE . '/api/v1/music/albums/Abbey%20Road', $t->requestAt(0)['url']);
+    }
+
+    // ---- books ---------------------------------------------------------
+
+    public function testBooksHitsEndpointWithLibraryIdAndPagingAndMaps(): void
+    {
+        $t = (new FakeTransport())->json(200, [
+            'books' => [
+                ['id' => 'b1', 'name' => 'dune.epub', 'path' => '/x/dune.epub', 'metadata' => ['title' => 'Dune', 'author' => 'Frank Herbert']],
+                'garbage',
+            ],
+            'limit' => 24,
+            'offset' => 0,
+        ]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $page = $this->await($client->books('lib-1', 24, 0));
+
+        self::assertInstanceOf(BookPage::class, $page);
+        self::assertCount(1, $page->books, 'non-array rows are skipped');
+        self::assertSame('Dune', $page->books[0]->title);
+        self::assertSame('epub', $page->books[0]->format);
+        self::assertSame(24, $page->limit);
+        self::assertSame(0, $page->offset);
+
+        $req = $t->requestAt(0);
+        self::assertSame('GET', $req['method']);
+        self::assertStringContainsString('/api/v1/books?', $req['url']);
+        self::assertStringContainsString('library_id=lib-1', $req['url']);
+        self::assertStringContainsString('limit=24', $req['url']);
+        self::assertStringContainsString('offset=0', $req['url']);
+    }
+
+    public function testBooksOmitsLibraryIdWhenNull(): void
+    {
+        $t = (new FakeTransport())->json(200, ['books' => [], 'limit' => 50, 'offset' => 0]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $this->await($client->books(null));
+
+        $url = $t->requestAt(0)['url'];
+        self::assertStringContainsString('/api/v1/books?', $url);
+        self::assertStringNotContainsString('library_id', $url, 'a null library_id is omitted');
+        self::assertStringContainsString('limit=50', $url);
+        self::assertStringContainsString('offset=0', $url);
+    }
+
+    public function testBookMapsTheSignedDetail(): void
+    {
+        $t = (new FakeTransport())->json(200, ['book' => [
+            'id' => 'b1',
+            'name' => 'dune.epub',
+            'type' => 'book',
+            'path' => '/x/dune.epub',
+            'metadata' => ['title' => 'Dune', 'author' => 'Frank Herbert'],
+            'cover_url' => '/api/v1/books/b1/cover?sig=abc',
+            'read_url' => '/api/v1/books/b1/read?sig=def',
+            'download_url' => '/api/v1/books/b1/download?sig=ghi',
+        ]]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $book = $this->await($client->book('b1'));
+
+        self::assertInstanceOf(Book::class, $book);
+        self::assertSame('Dune', $book->title);
+        self::assertSame('Frank Herbert', $book->author);
+        self::assertSame('/api/v1/books/b1/cover?sig=abc', $book->coverUrl);
+        self::assertSame('/api/v1/books/b1/read?sig=def', $book->readUrl);
+        self::assertSame('/api/v1/books/b1/download?sig=ghi', $book->downloadUrl);
+        self::assertSame('epub', $book->format);
+        self::assertStringEndsWith('/api/v1/books/b1', $t->requestAt(0)['url']);
     }
 
     public function testContinueWatchingMapsEntries(): void
