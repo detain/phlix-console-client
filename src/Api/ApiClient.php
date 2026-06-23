@@ -195,6 +195,45 @@ final class ApiClient
             ->then(static fn (array $data): MediaItem => MediaItem::fromArray(Coerce::map($data['item'] ?? null)));
     }
 
+    // ---- playback sessions / progress ---------------------------------
+
+    /**
+     * Open a playback session (for progress reporting). Returns the session id.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function createSession(string $deviceId, string $deviceName = 'Phlix Console', string $deviceType = 'console'): PromiseInterface
+    {
+        return $this->authed('POST', '/api/v1/sessions', [], [
+            'device_id' => $deviceId,
+            'device_name' => $deviceName,
+            'device_type' => $deviceType,
+        ])->then(static fn (array $data): string => Coerce::str($data['session_id'] ?? ''));
+    }
+
+    /**
+     * Report playback position for a session. `position`/`duration` are seconds;
+     * the server stores Jellyfin-style 100ns ticks (1s = 10,000,000).
+     *
+     * @return PromiseInterface<bool>
+     */
+    public function reportProgress(string $sessionId, string $mediaItemId, int $positionTicks, int $durationTicks, bool $isPaused): PromiseInterface
+    {
+        return $this->authed('POST', '/api/v1/sessions/' . rawurlencode($sessionId) . '/progress', [], [
+            'media_item_id' => $mediaItemId,
+            'position_ticks' => $positionTicks,
+            'duration_ticks' => $durationTicks,
+            'is_paused' => $isPaused,
+        ])->then(static fn (array $data): bool => true);
+    }
+
+    /** End a playback session. @return PromiseInterface<bool> */
+    public function endSession(string $sessionId): PromiseInterface
+    {
+        return $this->authed('DELETE', '/api/v1/sessions/' . rawurlencode($sessionId))
+            ->then(static fn (array $data): bool => true);
+    }
+
     /** @return PromiseInterface<list<ContinueWatchingItem>> */
     public function continueWatching(): PromiseInterface
     {

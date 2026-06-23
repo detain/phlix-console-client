@@ -248,6 +248,50 @@ final class ApiClientTest extends TestCase
         self::assertStringEndsWith('/api/v1/media/m1/playback-info', $t->requestAt(0)['url']);
     }
 
+    public function testCreateSessionPostsTheDeviceAndReturnsTheId(): void
+    {
+        $t = (new FakeTransport())->json(201, ['session_id' => 'sess-9']);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $id = $this->await($client->createSession('dev-1', 'Phlix Console', 'console'));
+
+        self::assertSame('sess-9', $id);
+        $req = $t->requestAt(0);
+        self::assertSame('POST', $req['method']);
+        self::assertStringEndsWith('/api/v1/sessions', $req['url']);
+        self::assertStringContainsString('"device_id":"dev-1"', $req['body']);
+    }
+
+    public function testReportProgressPostsTicks(): void
+    {
+        $t = (new FakeTransport())->json(200, ['message' => 'Progress updated']);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $ok = $this->await($client->reportProgress('sess-9', 'm1', 100000000, 360000000, true));
+
+        self::assertTrue($ok);
+        $req = $t->requestAt(0);
+        self::assertStringEndsWith('/api/v1/sessions/sess-9/progress', $req['url']);
+        self::assertStringContainsString('"position_ticks":100000000', $req['body']);
+        self::assertStringContainsString('"is_paused":true', $req['body']);
+    }
+
+    public function testEndSessionDeletes(): void
+    {
+        $t = (new FakeTransport())->json(200, ['message' => 'Session ended']);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $ok = $this->await($client->endSession('sess-9'));
+
+        self::assertTrue($ok);
+        $req = $t->requestAt(0);
+        self::assertSame('DELETE', $req['method']);
+        self::assertStringEndsWith('/api/v1/sessions/sess-9', $req['url']);
+    }
+
     // ---- 401 refresh-and-retry ----------------------------------------
 
     public function testUnauthorizedTriggersRefreshAndRetry(): void
