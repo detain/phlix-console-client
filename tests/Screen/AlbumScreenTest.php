@@ -102,21 +102,25 @@ final class AlbumScreenTest extends TestCase
         self::assertStringContainsString('3:02', $view, '182s → 3:02');
     }
 
-    public function testTheSelectedTrackRowCarriesTheCursorGutter(): void
+    public function testTheSelectedTrackRowRendersReverseVideo(): void
     {
-        // Selection is a plain-text cursor gutter (▸), not reverse-video. The
-        // first track is selected, so its row — and only its row — has the cursor.
+        // Selection is real ANSI reverse-video (sugar-table), not a plain cursor.
+        // The first track is selected, so its row — and only its row — is reversed.
         $screen = $this->screen();
-        $firstLine = $this->lineContaining($screen->view(), 'Come Together');
-        $secondLine = $this->lineContaining($screen->view(), 'Something');
 
-        self::assertStringContainsString('▸', $firstLine, 'the selected track row has the cursor');
-        self::assertStringNotContainsString('▸', $secondLine, 'the unselected row has no cursor');
+        self::assertTrue(self::hasReverse($this->lineContaining($screen->view(), 'Come Together')), 'the selected track row is reversed');
+        self::assertFalse(self::hasReverse($this->lineContaining($screen->view(), 'Something')), 'the unselected row is not reversed');
 
-        // Move down: the cursor follows the selection to the second track.
+        // Move down: the highlight follows the selection to the second track.
         [$down] = $screen->update(new KeyMsg(KeyType::Down));
-        self::assertStringContainsString('▸', $this->lineContaining($down->view(), 'Something'));
-        self::assertStringNotContainsString('▸', $this->lineContaining($down->view(), 'Come Together'));
+        self::assertTrue(self::hasReverse($this->lineContaining($down->view(), 'Something')));
+        self::assertFalse(self::hasReverse($this->lineContaining($down->view(), 'Come Together')));
+    }
+
+    /** True if a rendered line carries the SGR reverse attribute (7), however encoded. */
+    private static function hasReverse(string $line): bool
+    {
+        return preg_match('/\e\[(?:[0-9;]*;)?7(?:;[0-9;]*)?m/', $line) === 1;
     }
 
     private function lineContaining(string $view, string $needle): string
