@@ -23,6 +23,7 @@ use Phlix\Console\Msg\OpenBookMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\OpenLibraryMsg;
 use Phlix\Console\Msg\OpenPhotoAlbumMsg;
+use Phlix\Console\Msg\OpenPhotoMsg;
 use Phlix\Console\Msg\OpenSearchMsg;
 use Phlix\Console\Msg\PaletteLibrariesLoadedMsg;
 use Phlix\Console\Msg\PlayNextMsg;
@@ -49,6 +50,7 @@ use Phlix\Console\Screen\MusicScreen;
 use Phlix\Console\Screen\CapturesSlash;
 use Phlix\Console\Screen\PhotoAlbumScreen;
 use Phlix\Console\Screen\PhotosScreen;
+use Phlix\Console\Screen\PhotoViewerScreen;
 use Phlix\Console\Screen\PlayerScreen;
 use Phlix\Console\Screen\SearchScreen;
 use Phlix\Console\Screen\ServerScreen;
@@ -213,6 +215,9 @@ final class App implements Model
         }
         if ($msg instanceof OpenPhotoAlbumMsg) {
             return $this->openPhotoAlbum($msg->album);
+        }
+        if ($msg instanceof OpenPhotoMsg) {
+            return $this->openPhoto($msg->album, $msg->index);
         }
         if ($msg instanceof OpenDetailMsg) {
             return $this->openDetail($msg->id, $msg->name);
@@ -705,6 +710,24 @@ final class App implements Model
         );
 
         return [$this->push(Route::PhotoAlbum, $screen), $screen->init()];
+    }
+
+    private function openPhoto(PhotoAlbum $album, int $index): array
+    {
+        // A PhotosStore is built locally (the App holds no photos field, like
+        // BookDetailScreen) — the viewer fetches each photo's EXIF off its detail;
+        // the album already carries the signed `full_url`s for the images.
+        $screen = new PhotoViewerScreen(
+            $album,
+            $index,
+            new PhotosStore($this->api),
+            $this->posters,
+            $this->api->baseUrl(),
+            cols: $this->cols,
+            rows: $this->rows,
+        );
+
+        return [$this->push(Route::PhotoViewer, $screen), $screen->init()];
     }
 
     private function openDetail(string $id, string $name): array

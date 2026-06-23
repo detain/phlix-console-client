@@ -8,8 +8,8 @@ use Phlix\Console\Api\Dto\PhotoAlbum;
 use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Msg\GridPosterLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
+use Phlix\Console\Msg\OpenPhotoMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
-use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Screen\PhotoAlbumScreen;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ServerRequestInterface;
@@ -25,7 +25,6 @@ use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Mosaic\Mosaic;
-use SugarCraft\Toast\ToastType;
 
 final class PhotoAlbumScreenTest extends TestCase
 {
@@ -155,25 +154,29 @@ final class PhotoAlbumScreenTest extends TestCase
         self::assertSame(0, $home->grid()->cursorIndex());
     }
 
-    public function testEnterSurfacesTheViewerSoonToastWhenPhotosPresent(): void
+    public function testEnterEmitsOpenPhotoForTheCursorPhoto(): void
     {
-        $screen = $this->screen($this->album(12, null));
+        $album = $this->album(12, null);
+        $screen = $this->screen($album);
 
-        [, $cmd] = $screen->update(new KeyMsg(KeyType::Enter));
+        // Move the cursor first, so the emitted index is the cursor's, not 0.
+        [$moved] = $screen->update(new KeyMsg(KeyType::Right));
+        [, $cmd] = $moved->update(new KeyMsg(KeyType::Enter));
         $msg = $cmd?->__invoke();
 
-        self::assertInstanceOf(ShowToastMsg::class, $msg);
-        self::assertSame(ToastType::Info, $msg->type);
-        self::assertStringContainsString('next update', $msg->message);
+        self::assertInstanceOf(OpenPhotoMsg::class, $msg);
+        self::assertSame($album, $msg->album, 'the whole album is carried');
+        self::assertSame(1, $msg->index, 'the cursor index is carried');
     }
 
     public function testEnterOnAnEmptyAlbumIsANoOp(): void
     {
         $screen = $this->screen($this->album(0));
 
-        [, $cmd] = $screen->update(new KeyMsg(KeyType::Enter));
+        [$same, $cmd] = $screen->update(new KeyMsg(KeyType::Enter));
 
-        self::assertNull($cmd, 'no viewer toast when the album is empty');
+        self::assertSame($screen, $same);
+        self::assertNull($cmd, 'no viewer opens when the album is empty');
     }
 
     public function testEscEmitsNavigateBack(): void

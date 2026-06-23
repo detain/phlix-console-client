@@ -28,6 +28,7 @@ use Phlix\Console\Msg\OpenBookMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\OpenLibraryMsg;
 use Phlix\Console\Msg\OpenPhotoAlbumMsg;
+use Phlix\Console\Msg\OpenPhotoMsg;
 use Phlix\Console\Msg\OpenSearchMsg;
 use Phlix\Console\Msg\PaletteLibrariesLoadedMsg;
 use Phlix\Console\Msg\PlayNextMsg;
@@ -53,6 +54,7 @@ use Phlix\Console\Screen\LoginScreen;
 use Phlix\Console\Screen\MusicScreen;
 use Phlix\Console\Screen\PhotoAlbumScreen;
 use Phlix\Console\Screen\PhotosScreen;
+use Phlix\Console\Screen\PhotoViewerScreen;
 use Phlix\Console\Screen\PlayerScreen;
 use Phlix\Console\Screen\SearchScreen;
 use Phlix\Console\Screen\ServerScreen;
@@ -477,6 +479,31 @@ final class AppTest extends TestCase
         // The album carries its photos (each with a signed thumbnail), so init
         // loads the visible thumbnails directly.
         self::assertInstanceOf(\Closure::class, $cmd, 'the album loads its visible thumbnails on push');
+    }
+
+    public function testOpenPhotoMsgPushesThePhotoViewerScreen(): void
+    {
+        $browse = $this->browsing();
+        $album = PhotoAlbum::fromArray([
+            'id' => 'a0',
+            'date' => '2026-06-23',
+            'photo_count' => 2,
+            'photos' => [
+                ['id' => 'p0', 'name' => 'p0.jpg', 'thumbnail_url' => 'https://srv/t0.png', 'full_url' => 'https://srv/f0.png'],
+                ['id' => 'p1', 'name' => 'p1.jpg', 'thumbnail_url' => 'https://srv/t1.png', 'full_url' => 'https://srv/f1.png'],
+            ],
+        ]);
+
+        [$viewer, $cmd] = $browse->update(new OpenPhotoMsg($album, 1));
+
+        self::assertSame(Route::PhotoViewer, $viewer->route());
+        $screen = $viewer->screen();
+        self::assertInstanceOf(PhotoViewerScreen::class, $screen);
+        self::assertSame(2, $viewer->stackDepth(), 'the viewer is pushed on top, not replaced');
+        self::assertSame(1, $screen->index(), 'the viewer opens at the requested index');
+        // The photo carries a signed full_url + EXIF detail to fetch, so init
+        // returns a load Cmd.
+        self::assertInstanceOf(\Closure::class, $cmd, 'the viewer loads the photo image + EXIF on push');
     }
 
     public function testOpenAlbumPushesTheAlbumScreen(): void
