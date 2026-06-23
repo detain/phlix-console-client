@@ -61,6 +61,33 @@ final class AlbumScreenTest extends TestCase
         self::assertStringContainsString('3:02', $view, '182s → 3:02');
     }
 
+    public function testTheSelectedTrackRowCarriesTheCursorGutter(): void
+    {
+        // Selection is a plain-text cursor gutter (▸), not reverse-video. The
+        // first track is selected, so its row — and only its row — has the cursor.
+        $screen = $this->screen();
+        $firstLine = $this->lineContaining($screen->view(), 'Come Together');
+        $secondLine = $this->lineContaining($screen->view(), 'Something');
+
+        self::assertStringContainsString('▸', $firstLine, 'the selected track row has the cursor');
+        self::assertStringNotContainsString('▸', $secondLine, 'the unselected row has no cursor');
+
+        // Move down: the cursor follows the selection to the second track.
+        [$down] = $screen->update(new KeyMsg(KeyType::Down));
+        self::assertStringContainsString('▸', $this->lineContaining($down->view(), 'Something'));
+        self::assertStringNotContainsString('▸', $this->lineContaining($down->view(), 'Come Together'));
+    }
+
+    private function lineContaining(string $view, string $needle): string
+    {
+        foreach (explode("\n", $view) as $line) {
+            if (str_contains($line, $needle)) {
+                return $line;
+            }
+        }
+        self::fail("no line contains [{$needle}]");
+    }
+
     public function testMetaHeaderOmitsNullArtistAndYear(): void
     {
         $album = Album::fromArray([

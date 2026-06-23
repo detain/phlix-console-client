@@ -13,24 +13,19 @@ use Phlix\Console\Msg\OpenAlbumMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Store\MusicStore;
 use Phlix\Console\Ui\Chrome;
+use Phlix\Console\Ui\TableView;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
-use SugarCraft\Core\Model;
 use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\SubscriptionCapable;
-use SugarCraft\Core\Util\Width;
-use SugarCraft\Table\Column;
-use SugarCraft\Table\Row;
-use SugarCraft\Table\RowData;
-use SugarCraft\Table\Table;
 
 /**
- * A music library's album list, rendered as a {@see Table} (Album · Artist ·
- * Year · Tracks). Music has no cover art server-side, so the screen is
- * text-forward. ↑/↓ move the selection, Enter opens the album's track list (an
- * {@see OpenAlbumMsg} the App turns into an AlbumScreen), Esc/q go back.
+ * A music library's album list, rendered as a plain-text {@see TableView}
+ * (Album · Artist · Year · Tracks). Music has no cover art server-side, so the
+ * screen is text-forward. ↑/↓ move the selection, Enter opens the album's track
+ * list (an {@see OpenAlbumMsg} the App turns into an AlbumScreen), Esc/q go back.
  *
  * The album list is fetched once via {@see MusicStore::albums()} (the server
  * returns every album, with its tracks, in one call). Stable collaborators are
@@ -43,7 +38,8 @@ final class MusicScreen implements Breadcrumbed
 
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
     private const HINT = '↑↓  select      ⏎  open      Esc  back';
-    // Small fixed columns; the Album/Artist columns share whatever is left.
+    // Fixed columns; the flex Album column fills whatever is left.
+    private const ARTIST_WIDTH = 22;
     private const YEAR_WIDTH = 6;
     private const TRACKS_WIDTH = 7;
 
@@ -147,68 +143,30 @@ final class MusicScreen implements Breadcrumbed
             return "\n  No albums in this library.";
         }
 
-        return $this->table()->View();
-    }
-
-    private function table(): Table
-    {
-        $albumWidth = $this->albumColumnWidth();
-        $artistWidth = $this->artistColumnWidth();
-
         $rows = [];
         foreach ($this->albums as $album) {
-            $rows[] = Row::new(RowData::from([
-                'album' => Width::truncate($album->name, $albumWidth),
-                'artist' => Width::truncate($album->artist ?? '—', $artistWidth),
-                'year' => $album->year !== null ? (string) $album->year : '—',
-                'tracks' => (string) $album->trackCount,
-            ]));
+            $rows[] = [
+                $album->name,
+                $album->artist ?? '—',
+                $album->year !== null ? (string) $album->year : '—',
+                (string) $album->trackCount,
+            ];
         }
 
-        return Table::withColumns([
-            Column::new('album', 'Album', $albumWidth)->withAlignLeft(),
-            Column::new('artist', 'Artist', $artistWidth)->withAlignLeft(),
-            Column::new('year', 'Year', self::YEAR_WIDTH),
-            Column::new('tracks', 'Tracks', self::TRACKS_WIDTH),
-        ])
-            ->withRows($rows)
-            ->withSelectable()
-            ->withSelectedIndex($this->selected)
-            ->withViewportHeight($this->viewportRows())
-            // sugar-boxer (which Chrome composes the body with) is ANSI-width
-            // UNAWARE, so it clips a line mid-escape when cells carry truecolor
-            // SGR. A plain header emits no per-cell color, keeping the whole
-            // table intact; the selected row's short reverse-video still shows.
-            ->withHeaderStyle('');
-    }
-
-    /** The room left for the two flexible columns after the fixed ones + borders. */
-    private function flexibleWidth(): int
-    {
-        // The table draws 2 border columns plus a 1-col separator between each of
-        // the 4 columns (3 separators); subtract those and the two fixed columns.
-        $fixed = self::YEAR_WIDTH + self::TRACKS_WIDTH;
-        $chrome = 2 + 3; // borders + inter-column separators
-
-        return max(20, ($this->cols - 4) - $fixed - $chrome);
-    }
-
-    private function albumColumnWidth(): int
-    {
-        // Album gets the larger share of the flexible room.
-        return max(12, (int) ceil($this->flexibleWidth() * 0.6));
-    }
-
-    private function artistColumnWidth(): int
-    {
-        return max(8, $this->flexibleWidth() - $this->albumColumnWidth());
+        return TableView::render([
+            ['title' => 'Album', 'width' => 0],
+            ['title' => 'Artist', 'width' => self::ARTIST_WIDTH],
+            ['title' => 'Year', 'width' => self::YEAR_WIDTH, 'align' => 'right'],
+            ['title' => 'Tracks', 'width' => self::TRACKS_WIDTH, 'align' => 'right'],
+        ], $rows, $this->selected, $this->cols - 4, $this->viewportRows());
     }
 
     private function viewportRows(): int
     {
-        // Reserve the frame chrome (4) plus the table's own header + separator +
-        // top/bottom border (4) so the visible rows fit the content region.
-        return max(1, $this->rows - 4 - 4);
+        // Window to the frame's REAL content height (a fraction of $rows, not
+        // rows-N — sugar-boxer splits height by weight), less the table's own
+        // header + separator (2), so the selected row is never clipped.
+        return max(1, Chrome::contentHeight($this->cols, $this->rows) - 2);
     }
 
     // ---- immutable copies (clone-mutate) -------------------------------

@@ -9,24 +9,20 @@ use Phlix\Console\Api\Dto\Track;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Ui\Chrome;
+use Phlix\Console\Ui\TableView;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
-use SugarCraft\Core\Model;
 use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\SubscriptionCapable;
 use SugarCraft\Core\Util\Width;
-use SugarCraft\Table\Column;
-use SugarCraft\Table\Row;
-use SugarCraft\Table\RowData;
-use SugarCraft\Table\Table;
 
 /**
- * A single album's track list, rendered as a {@see Table} (# · Title ·
- * Duration) beneath a one-line meta header (artist · year · N tracks). The
- * {@see Album} carries its own tracks, so the screen needs no fetch — init()
- * returns null.
+ * A single album's track list, rendered as a plain-text {@see TableView} (# ·
+ * Title · Duration) beneath a one-line meta header (artist · year · N tracks).
+ * The {@see Album} carries its own tracks, so the screen needs no fetch —
+ * init() returns null.
  *
  * ↑/↓ move the selection; Esc/q go back. Enter is an inert placeholder in this
  * step — audio playback arrives in the next update (M3) — so it surfaces an
@@ -128,7 +124,7 @@ final class AlbumScreen implements Breadcrumbed
             return $header . "\n\n  No tracks on this album.";
         }
 
-        return $header . "\n\n" . $this->table()->View();
+        return $header . "\n\n" . $this->trackTable();
     }
 
     private function metaLine(): string
@@ -146,33 +142,22 @@ final class AlbumScreen implements Breadcrumbed
         return implode('   ·   ', $parts);
     }
 
-    private function table(): Table
+    private function trackTable(): string
     {
-        $titleWidth = $this->titleColumnWidth();
-
         $rows = [];
         foreach ($this->album->tracks as $ordinal => $track) {
-            $rows[] = Row::new(RowData::from([
-                'num' => $this->trackNumberLabel($track, $ordinal),
-                'title' => Width::truncate($track->title, $titleWidth),
-                'duration' => $track->durationLabel(),
-            ]));
+            $rows[] = [
+                $this->trackNumberLabel($track, $ordinal),
+                $track->title,
+                $track->durationLabel(),
+            ];
         }
 
-        return Table::withColumns([
-            Column::new('num', '#', self::NUM_WIDTH),
-            Column::new('title', 'Title', $titleWidth)->withAlignLeft(),
-            Column::new('duration', 'Duration', self::DURATION_WIDTH),
-        ])
-            ->withRows($rows)
-            ->withSelectable()
-            ->withSelectedIndex($this->selected)
-            ->withViewportHeight($this->viewportRows())
-            // sugar-boxer (which Chrome composes the body with) is ANSI-width
-            // UNAWARE, so it clips a line mid-escape when cells carry truecolor
-            // SGR. A plain header emits no per-cell color, keeping the whole
-            // table intact; the selected row's short reverse-video still shows.
-            ->withHeaderStyle('');
+        return TableView::render([
+            ['title' => '#', 'width' => self::NUM_WIDTH, 'align' => 'right'],
+            ['title' => 'Title', 'width' => 0],
+            ['title' => 'Duration', 'width' => self::DURATION_WIDTH, 'align' => 'right'],
+        ], $rows, $this->selected, $this->cols - 4, $this->viewportRows());
     }
 
     /** The track's own number, falling back to its 1-based position in the list. */
@@ -181,21 +166,12 @@ final class AlbumScreen implements Breadcrumbed
         return (string) ($track->trackNumber ?? ($ordinal + 1));
     }
 
-    private function titleColumnWidth(): int
-    {
-        // The table draws 2 border columns plus a 1-col separator between each of
-        // the 3 columns (2 separators); the title gets the rest.
-        $fixed = self::NUM_WIDTH + self::DURATION_WIDTH;
-        $chrome = 2 + 2; // borders + inter-column separators
-
-        return max(12, ($this->cols - 4) - $fixed - $chrome);
-    }
-
     private function viewportRows(): int
     {
-        // Reserve the frame chrome (4), the meta line + blank (2), and the table's
-        // own header + separator + top/bottom border (4).
-        return max(1, $this->rows - 4 - 2 - 4);
+        // Window to the frame's REAL content height (a fraction of $rows, not
+        // rows-N), less the meta line + blank (2) and the table's own header +
+        // separator (2), so the selected row is never clipped by the frame.
+        return max(1, Chrome::contentHeight($this->cols, $this->rows) - 2 - 2);
     }
 
     // ---- immutable copies (clone-mutate) -------------------------------

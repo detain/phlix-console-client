@@ -103,6 +103,33 @@ final class MusicScreenTest extends TestCase
         self::assertStringContainsString('—', $view, 'missing artist/year is shown as a dash');
     }
 
+    public function testTheSelectedAlbumRowCarriesTheCursorGutter(): void
+    {
+        // Selection is a plain-text cursor gutter (▸), not reverse-video. The
+        // first album is selected, so its row — and only its row — has the cursor.
+        $loaded = $this->loaded();
+        $selectedLine = $this->lineContaining($loaded->view(), 'Abbey Road');
+        $otherLine = $this->lineContaining($loaded->view(), 'Kind of Blue');
+
+        self::assertStringContainsString('▸', $selectedLine, 'the selected album row has the cursor');
+        self::assertStringNotContainsString('▸', $otherLine, 'the unselected row has no cursor');
+
+        // Move down: the cursor follows the selection to the second album.
+        [$down] = $loaded->update(new KeyMsg(KeyType::Down));
+        self::assertStringContainsString('▸', $this->lineContaining($down->view(), 'Kind of Blue'));
+        self::assertStringNotContainsString('▸', $this->lineContaining($down->view(), 'Abbey Road'));
+    }
+
+    private function lineContaining(string $view, string $needle): string
+    {
+        foreach (explode("\n", $view) as $line) {
+            if (str_contains($line, $needle)) {
+                return $line;
+            }
+        }
+        self::fail("no line contains [{$needle}]");
+    }
+
     public function testLoadingViewBeforeAlbumsArrive(): void
     {
         $screen = $this->screenWith((new FakeTransport())->pending());
