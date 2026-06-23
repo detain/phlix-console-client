@@ -10,6 +10,7 @@ use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\PlaybackMarkersLoadedMsg;
 use Phlix\Console\Msg\PlayerPrepareFailedMsg;
 use Phlix\Console\Msg\PlayerReadyMsg;
+use Phlix\Console\Msg\ProgressTickMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Screen\PlayerScreen;
 use Phlix\Console\Tests\Api\FakeTransport;
@@ -106,6 +107,28 @@ final class PlayerScreenTest extends TestCase
         $cur = $screen;
         foreach ($this->runBatch($screen->init()) as $msg) {
             [$cur] = $cur->update($msg);
+        }
+        self::assertTrue($cur->isReady());
+
+        return $cur;
+    }
+
+    /**
+     * Drive init → onReady (auto-play + open session) → SessionStarted, so the
+     * returned screen has a live session. The transport must queue, in order:
+     * markers, the session, then any progress responses the test triggers.
+     */
+    private function readyWithSession(FakeTransport $transport): PlayerScreen
+    {
+        [$screen] = $this->screen(transport: $transport);
+        $cur = $screen;
+        foreach ($this->runBatch($screen->init()) as $msg) {
+            [$cur, $cmd] = $cur->update($msg);
+            // PlayerReady's Cmd is the auto-play + createSession batch — run it
+            // and feed the SessionStarted it yields.
+            foreach ($this->runBatch($cmd) as $sub) {
+                [$cur] = $cur->update($sub);
+            }
         }
         self::assertTrue($cur->isReady());
 
@@ -425,6 +448,84 @@ final class PlayerScreenTest extends TestCase
         [$same, $cmd] = $ready->update(new KeyMsg(KeyType::Char, 's'));
         self::assertSame($ready, $same);
         self::assertNull($cmd);
+    }
+
+    // ---- progress reporting / session lifecycle ------------------------
+
+    public function testPlaybackOpensASessionWithTheDeviceId(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->markersResponse())
+            ->json(201, ['session_id' => 'sess-1']);
+
+        $ready = $this->readyWithSession($transport);
+
+        self::assertSame('sess-1', $ready->sessionId());
+        $sessionReq = $transport->requestAt(1); // 0 = markers, 1 = session
+        self::assertSame('POST', $sessionReq['method']);
+        self::assertStringContainsString('/api/v1/sessions', $sessionReq['url']);
+        self::assertStringContainsString('device_id', $sessionReq['body']);
+    }
+
+    public function testProgressTickReportsThePositionInTicks(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->markersResponse())
+            ->json(201, ['session_id' => 'sess-1'])
+            ->json(200, ['message' => 'ok']);
+        $ready = $this->readyWithSession($transport);
+
+        [$moved] = $ready->update(new KeyMsg(KeyType::Right)); // → 10s
+        [, $cmd] = $moved->update(new ProgressTickMsg());
+        $this->runBatch($cmd); // fires the progress POST + re-arms the heartbeat
+
+        $req = $transport->lastRequest();
+        self::assertNotNull($req);
+        self::assertSame('POST', $req['method']);
+        self::assertStringContainsString('/sessions/sess-1/progress', $req['url']);
+        self::assertStringContainsString('"position_ticks":100000000', $req['body'], '10s × 10,000,000 ticks/s');
+        self::assertStringContainsString('"media_item_id":"m1"', $req['body']);
+    }
+
+    public function testSessionCreateFailureIsSwallowedAndPlaybackContinues(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->markersResponse())
+            ->fail(new \RuntimeException('boom'));
+
+        $ready = $this->readyWithSession($transport);
+
+        self::assertNull($ready->sessionId(), 'a failed session is swallowed');
+        self::assertTrue($ready->isPlaying(), 'playback continues regardless');
+    }
+
+    public function testExitReportsAFinalPositionAndEndsTheSession(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->markersResponse())
+            ->json(201, ['session_id' => 'sess-1'])
+            ->json(200, ['message' => 'ok'])     // final progress
+            ->json(200, ['message' => 'ended']); // endSession
+        $ready = $this->readyWithSession($transport);
+
+        [, $cmd] = $ready->update(new KeyMsg(KeyType::Escape));
+        $msgs = $this->runBatch($cmd);
+
+        self::assertNotNull($this->firstOfType($msgs, NavigateBackMsg::class), 'still navigates back');
+        $calls = array_map(static fn (array $r): string => $r['method'] . ' ' . $r['url'], $transport->requests);
+        self::assertNotEmpty(array_filter($calls, static fn (string $c): bool => str_contains($c, 'POST') && str_contains($c, '/sessions/sess-1/progress')), 'final progress reported');
+        self::assertNotEmpty(array_filter($calls, static fn (string $c): bool => str_starts_with($c, 'DELETE') && str_contains($c, '/sessions/sess-1')), 'session ended');
+    }
+
+    public function testExitWithoutASessionJustNavigatesBack(): void
+    {
+        // ready() discards onReady's session Cmd → no session opened.
+        $ready = $this->ready($this->screen()[0]);
+        self::assertNull($ready->sessionId());
+
+        [, $cmd] = $ready->update(new KeyMsg(KeyType::Escape));
+
+        self::assertInstanceOf(NavigateBackMsg::class, $cmd?->__invoke(), 'a plain back, no session calls');
     }
 
     // ---- before-ready guards + ended-seek edge -------------------------

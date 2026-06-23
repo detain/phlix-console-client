@@ -142,4 +142,13 @@ final class ConfigTest extends TestCase
 
         (new Config('https://x'))->save($this->dir . '/config.json');
     }
+
+    public function testDeviceIdIsStableNonEmptyAndPrefixed(): void
+    {
+        $id = Config::deviceId();
+
+        self::assertStringStartsWith('phlix-console-', $id);
+        self::assertNotSame('phlix-console-', $id, 'a host/dir-derived suffix is appended');
+        self::assertSame($id, Config::deviceId(), 'stable across calls');
+    }
 }

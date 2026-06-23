@@ -8,11 +8,14 @@ use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\Dto\PlaybackMarkers;
+use Phlix\Console\Config\Config;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\PlaybackMarkersLoadedMsg;
 use Phlix\Console\Msg\PlayerPrepareFailedMsg;
 use Phlix\Console\Msg\PlayerReadyMsg;
+use Phlix\Console\Msg\ProgressTickMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
+use Phlix\Console\Msg\SessionStartedMsg;
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\Scrubber;
 use SugarCraft\Core\Cmd;
@@ -59,12 +62,17 @@ final class PlayerScreen implements Model, Teardownable
     /** Rows reserved below the video: the scrubber + status line + 1 slack for the inner player's own status line. */
     private const CHROME_ROWS = 3;
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    /** Jellyfin-style 100ns ticks per second (the server's progress unit). */
+    private const TICKS_PER_SECOND = 10_000_000;
+    /** Seconds between throttled progress reports. */
+    private const PROGRESS_INTERVAL = 10.0;
 
     private ?Player $inner = null;
     private ?string $error = null;
     private bool $chromeHidden = false;
     private bool $tornDown = false;
     private ?PlaybackMarkers $markers = null;
+    private ?string $sessionId = null;
 
     /**
      * @param \Closure(string $url, int $cols, int $rows): Player $playerFactory
@@ -118,6 +126,12 @@ final class PlayerScreen implements Model, Teardownable
             $next->markers = $msg->markers;
 
             return [$next, null];
+        }
+        if ($msg instanceof SessionStartedMsg) {
+            return $this->onSessionStarted($msg->sessionId);
+        }
+        if ($msg instanceof ProgressTickMsg) {
+            return $this->onProgressTick();
         }
         if ($msg instanceof KeyMsg) {
             return $this->handleKey($msg);
@@ -211,17 +225,102 @@ final class PlayerScreen implements Model, Teardownable
         return [$next, $wasEnded ? $this->tickCmd($seeked) : null];
     }
 
+    // ---- progress reporting --------------------------------------------
+
+    /** Open a playback session; on success → SessionStartedMsg. Failure is swallowed. */
+    private function createSessionCmd(): \Closure
+    {
+        return Cmd::promise(fn (): PromiseInterface => $this->api->createSession(Config::deviceId())->then(
+            static fn (string $sessionId): ?Msg => $sessionId !== '' ? new SessionStartedMsg($sessionId) : null,
+            // Progress reporting is best-effort — a failed session never interrupts playback.
+            static fn (\Throwable $e): ?Msg => null,
+        ));
+    }
+
+    private function onSessionStarted(string $sessionId): array
+    {
+        $next = clone $this;
+        $next->sessionId = $sessionId;
+
+        // Begin the throttled progress heartbeat.
+        return [$next, $this->progressTickCmd()];
+    }
+
+    private function onProgressTick(): array
+    {
+        // Report the current position (if still reportable) and re-arm the heartbeat.
+        $cmds = [$this->progressTickCmd()];
+        $report = $this->reportProgressCmd();
+        if ($report !== null) {
+            $cmds[] = $report;
+        }
+
+        return [$this, Cmd::batch(...$cmds)];
+    }
+
+    private function progressTickCmd(): \Closure
+    {
+        return Cmd::tick(self::PROGRESS_INTERVAL, static fn (): Msg => new ProgressTickMsg());
+    }
+
+    /** A best-effort progress POST for the current position, or null if not reportable. */
+    private function reportProgressCmd(): ?\Closure
+    {
+        $inner = $this->inner;
+        $sessionId = $this->sessionId;
+        if ($inner === null || $sessionId === null) {
+            return null;
+        }
+
+        $positionTicks = (int) round($inner->position() * self::TICKS_PER_SECOND);
+        $durationTicks = (int) round($inner->duration() * self::TICKS_PER_SECOND);
+        $isPaused = $inner->paused;
+        $mediaId = $this->item->id;
+
+        return Cmd::promise(fn (): PromiseInterface => $this->api->reportProgress($sessionId, $mediaId, $positionTicks, $durationTicks, $isPaused)->then(
+            static fn (bool $ok): ?Msg => null,
+            static fn (\Throwable $e): ?Msg => null, // never interrupt playback on a telemetry error
+        ));
+    }
+
+    /**
+     * Exit-time Cmds: a final progress report then end the session (both
+     * best-effort). Empty when no session was ever opened.
+     *
+     * @return list<\Closure>
+     */
+    private function exitReportCmds(): array
+    {
+        $sessionId = $this->sessionId;
+        if ($sessionId === null) {
+            return [];
+        }
+
+        $cmds = [];
+        $report = $this->reportProgressCmd();
+        if ($report !== null) {
+            $cmds[] = $report;
+        }
+        $cmds[] = Cmd::promise(fn (): PromiseInterface => $this->api->endSession($sessionId)->then(
+            static fn (bool $ok): ?Msg => null,
+            static fn (\Throwable $e): ?Msg => null,
+        ));
+
+        return $cmds;
+    }
+
     private function onReady(Player $player): array
     {
         // Auto-play: Space toggles the inner player out of its paused initial
         // state — it starts audio and arms the tick chain. The returned Cmd is
-        // that first tick, which flows back up to drive the frame pump.
-        [$started, $cmd] = $player->update(new KeyMsg(KeyType::Space));
+        // that first tick, which flows back up to drive the frame pump. Alongside
+        // it, open a playback session so progress can be reported.
+        [$started, $tick] = $player->update(new KeyMsg(KeyType::Space));
 
         $next = clone $this;
         $next->inner = $started instanceof Player ? $started : $player;
 
-        return [$next, $cmd];
+        return [$next, Cmd::batch($tick, $this->createSessionCmd())];
     }
 
     public function teardown(): void
@@ -237,14 +336,21 @@ final class PlayerScreen implements Model, Teardownable
 
     private function handleKey(KeyMsg $msg): array
     {
-        // Esc / q → tear down the subprocesses and pop back to the detail screen.
-        // (Intercepted BEFORE forwarding so the inner player's own quit — which
-        // would Cmd::quit the whole app — never fires.)
+        // Esc / q → report a final position, end the session, tear down the
+        // subprocesses, and pop back to the detail screen. (Intercepted BEFORE
+        // forwarding so the inner player's own quit — which would Cmd::quit the
+        // whole app — never fires.) The exit Cmds are captured from the live
+        // player before teardown stops it.
         if ($msg->type === KeyType::Escape
             || ($msg->type === KeyType::Char && ($msg->rune === 'q' || $msg->rune === 'Q'))) {
+            $exit = $this->exitReportCmds();
             $this->teardown();
+            if ($exit === []) {
+                return [$this, Cmd::send(new NavigateBackMsg())];
+            }
+            $exit[] = Cmd::send(new NavigateBackMsg());
 
-            return [$this, Cmd::send(new NavigateBackMsg())];
+            return [$this, Cmd::batch(...$exit)];
         }
 
         if ($this->inner === null) {
@@ -421,5 +527,10 @@ final class PlayerScreen implements Model, Teardownable
     public function markers(): ?PlaybackMarkers
     {
         return $this->markers;
+    }
+
+    public function sessionId(): ?string
+    {
+        return $this->sessionId;
     }
 }
