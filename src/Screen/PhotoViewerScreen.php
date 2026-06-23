@@ -62,7 +62,6 @@ final class PhotoViewerScreen implements Breadcrumbed, Themed
     use SubscriptionCapable;
     use ThemedScreen;
 
-    private const SLIDE_INTERVAL = 4.0;
     private const EXIF_WIDTH = 30;
     private const COL_GAP = 2;
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
@@ -89,6 +88,7 @@ final class PhotoViewerScreen implements Breadcrumbed, Themed
         private readonly string $baseUrl,
         private int $cols = 80,
         private int $rows = 24,
+        private readonly float $slideInterval = 4.0,
     ) {
         // Clamp into [0, last]; an empty album floors to 0 (currentPhoto() is then
         // null and the view renders "No photos").
@@ -302,7 +302,7 @@ final class PhotoViewerScreen implements Breadcrumbed, Themed
 
     private function slideTickCmd(int $epoch): \Closure
     {
-        return Cmd::tick(self::SLIDE_INTERVAL, static fn (): Msg => new PhotoSlideTickMsg($epoch));
+        return Cmd::tick($this->slideInterval, static fn (): Msg => new PhotoSlideTickMsg($epoch));
     }
 
     /** The image width: narrowed for the EXIF panel when it is shown. */
