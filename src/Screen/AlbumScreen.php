@@ -27,7 +27,7 @@ use SugarCraft\Core\Util\Width;
  * The {@see Album} carries its own tracks, so the screen needs no track fetch.
  *
  * The screen is a PURE LIST: it owns no playback. Music audio now lives on the
- * App (a persistent {@see \Phlix\Console\Audio\NowPlaying} session shown by the
+ * App (a persistent {@see \Phlix\Console\Audio\MusicSession} shown by the
  * {@see \Phlix\Console\Ui\NowPlayingBar} on every screen), so playback continues
  * when the user leaves the album. The screen just EMITS Msgs the App acts on:
  *

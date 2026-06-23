@@ -9,10 +9,12 @@ use Phlix\Console\Api\Dto\Track;
 use SugarCraft\Reel\AudioPlayer;
 
 /**
- * The App's active music session — the one track currently playing, owned by the
+ * The App's active MUSIC session — the one track currently playing, owned by the
  * {@see \Phlix\Console\App} (not the {@see \Phlix\Console\Screen\AlbumScreen}) so
- * playback persists as the user navigates. Rendered by the persistent
- * {@see \Phlix\Console\Ui\NowPlayingBar} on the bottom row of every screen.
+ * playback persists as the user navigates. One implementation of
+ * {@see NowPlayingSession}; the audiobook twin is {@see AudiobookSession}.
+ * Rendered by the persistent {@see \Phlix\Console\Ui\NowPlayingBar} on the bottom
+ * row of every screen.
  *
  * Immutable, clone-mutate (like a screen): every transition (pause/resume, a new
  * track, a position tick) returns a copy. Only {@see teardown()} mutates `$this`
@@ -24,7 +26,7 @@ use SugarCraft\Reel\AudioPlayer;
  * dropped as stale — guarding against two heartbeats running at once. The App
  * owns the epoch arithmetic; this object just carries the current value.
  */
-final class NowPlaying
+final class MusicSession implements NowPlayingSession
 {
     private bool $tornDown = false;
 
@@ -122,9 +124,29 @@ final class NowPlaying
         return $this->track()?->durationSecs;
     }
 
+    public function positionLabel(): string
+    {
+        return self::clock($this->positionSecs);
+    }
+
+    public function durationLabel(): string
+    {
+        $duration = $this->durationSecs();
+
+        return $duration !== null ? self::clock($duration) : '—';
+    }
+
+    /** True once the elapsed position reaches the current track's known duration. */
+    public function endReached(): bool
+    {
+        $duration = $this->durationSecs();
+
+        return $duration !== null && $this->positionSecs >= $duration;
+    }
+
     // ---- clone-mutate --------------------------------------------------
 
-    public function withPaused(bool $paused): self
+    public function withPaused(bool $paused): static
     {
         $next = clone $this;
         $next->paused = $paused;
@@ -132,7 +154,7 @@ final class NowPlaying
         return $next;
     }
 
-    public function withPositionSecs(int $positionSecs): self
+    public function withPositionSecs(int $positionSecs): static
     {
         $next = clone $this;
         $next->positionSecs = $positionSecs;
@@ -140,7 +162,7 @@ final class NowPlaying
         return $next;
     }
 
-    public function withEpoch(int $epoch): self
+    public function withEpoch(int $epoch): static
     {
         $next = clone $this;
         $next->epoch = $epoch;
@@ -148,12 +170,18 @@ final class NowPlaying
         return $next;
     }
 
+    /** One playback second elapsed: the position advances by one. */
+    public function ticked(): static
+    {
+        return $this->withPositionSecs($this->positionSecs + 1);
+    }
+
     /**
      * Switch to a different track of the same album under a new player (used by
      * next/prev and auto-advance): the position resets to 0 and paused clears.
      * The caller supplies the new epoch separately via {@see withEpoch()}.
      */
-    public function withTrack(int $index, AudioPlayer $player): self
+    public function withTrack(int $index, AudioPlayer $player): static
     {
         $next = clone $this;
         $next->player = $player;
@@ -172,5 +200,16 @@ final class NowPlaying
         }
         $this->tornDown = true;
         $this->player->stop();
+    }
+
+    /** Seconds → "m:ss" (or "h:mm:ss" past an hour). */
+    private static function clock(int $seconds): string
+    {
+        $s = max(0, $seconds);
+        $h = intdiv($s, 3600);
+        $m = intdiv($s % 3600, 60);
+        $sec = $s % 60;
+
+        return $h > 0 ? sprintf('%d:%02d:%02d', $h, $m, $sec) : sprintf('%d:%02d', $m, $sec);
     }
 }

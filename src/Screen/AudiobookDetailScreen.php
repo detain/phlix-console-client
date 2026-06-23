@@ -12,10 +12,10 @@ use Phlix\Console\Msg\AudiobookChaptersLoadedMsg;
 use Phlix\Console\Msg\AudiobookFailedMsg;
 use Phlix\Console\Msg\AudiobookLoadedMsg;
 use Phlix\Console\Msg\AudiobookProgressLoadedMsg;
-use Phlix\Console\Msg\AudiobookTickMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
+use Phlix\Console\Msg\PlayAudiobookMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
-use Phlix\Console\Msg\ShowToastMsg;
+use Phlix\Console\Msg\ToggleAudioMsg;
 use Phlix\Console\Store\AudiobooksStore;
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\Table;
@@ -27,7 +27,6 @@ use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\SubscriptionCapable;
 use SugarCraft\Core\Util\Width;
-use SugarCraft\Reel\AudioPlayer;
 
 /**
  * A single audiobook's detail: a metadata header (by author · narrated by
@@ -44,31 +43,26 @@ use SugarCraft\Reel\AudioPlayer;
  * offered); an auth failure on any of the three surfaces as a session expiry so
  * the App can re-authenticate.
  *
- * Enter plays the selected chapter over the audiobook's ONE signed `stream_url`
- * (already on the loaded detail) — so play is SYNCHRONOUS (no per-item fetch):
- * chapters are seek markers into that single stream, and {@see AudioPlayer}'s
- * second ctor argument is a start offset in MILLISECONDS, so chapter-seek and
- * resume are just a rebuild of the player at a `startMs`. Playback is
- * screen-local: it plays while the audiobook is open and stops on leave (Esc/q,
- * a stack pop, or Ctrl-C), because the screen is {@see Teardownable} and the App
- * tears down a popped frame. AudioPlayer exposes no playhead clock, so the
- * elapsed position is ESTIMATED by counting 1-second {@see AudiobookTickMsg}s
- * while playing, and progress is reported (POSTed) throttled off that count.
+ * The audiobook AUDIO is owned by the {@see \Phlix\Console\App} (an
+ * {@see \Phlix\Console\Audio\AudiobookSession}), NOT this screen, so playback
+ * persists as the user navigates — shown by the persistent
+ * {@see \Phlix\Console\Ui\NowPlayingBar}. This screen is therefore a pure chapter
+ * list that EMITS Msgs: Enter on a chapter (or `r` to resume) emits a
+ * {@see PlayAudiobookMsg} (carrying the loaded audiobook + chapters + a start
+ * offset in MILLISECONDS — chapters are seek markers into the one signed stream);
+ * Space emits {@see ToggleAudioMsg}; Esc/q go back (audio keeps playing, the bar
+ * shows it). The saved progress is still fetched to offer a "↺ Resume from …"
+ * affordance (a display hint + the `r` seed).
  *
- * ↑/↓ move the chapter selection (independent of where playback is); Enter
- * plays the selected chapter (or toggles pause when it is the playing one); `r`
- * resumes from the saved position; Space toggles pause; Esc/q go back. Stable
- * collaborators are readonly; mutable view state is private and copied via
- * clone-mutate — only {@see teardown()} and {@see stopPlaybackInPlace()} mutate
- * `$this` in place (the player lifecycle, exactly like AlbumScreen).
+ * ↑/↓ move the chapter selection. Stable collaborators are readonly; mutable
+ * view state is private and copied via clone-mutate.
  */
-final class AudiobookDetailScreen implements Breadcrumbed, Teardownable, Themed
+final class AudiobookDetailScreen implements Breadcrumbed, Themed
 {
     use SubscriptionCapable;
     use ThemedScreen;
 
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
-    private const PLAY_FAILED = 'Cannot play this audiobook';
     private const HINT = '↑↓  select   ⏎  play   r  resume   space  pause   Esc  back';
     private const NUM_WIDTH = 5;
     private const DURATION_WIDTH = 10;
@@ -84,50 +78,16 @@ final class AudiobookDetailScreen implements Breadcrumbed, Teardownable, Themed
     /** @var list<string> */
     private array $crumbs = [];
 
-    /** True while a chapter/stream is playing. */
-    private bool $playing = false;
-    private bool $paused = false;
-    /** Estimated absolute position in MILLISECONDS (counted from 1s ticks). */
-    private int $positionMs = 0;
-    private ?AudioPlayer $audio = null;
-    /**
-     * The current heartbeat generation. Bumped on every (re)start of playback
-     * (play/chapter-seek/resume/finish) so a tick armed by a superseded chain is
-     * dropped as stale — guarding against two heartbeats running at once.
-     */
-    private int $audioEpoch = 0;
     /** The saved resume position in ms, or null when there is none to resume. */
     private ?int $resumeMs = null;
-    /** Ticks since the last throttled progress report (resets every ~10). */
-    private int $ticksSinceReport = 0;
-    private bool $tornDown = false;
 
-    /**
-     * @param \Closure(string $url, ?int $startMs): AudioPlayer $audioFactory
-     *        Builds the audio player for a resolved URL + start offset (injected
-     *        so tests use a recording fake instead of spawning ffplay/mpv).
-     */
     public function __construct(
         private readonly AudiobooksStore $store,
-        private readonly string $baseUrl,
-        private readonly \Closure $audioFactory,
         private readonly string $id,
         private readonly string $title,
         private int $cols = 80,
         private int $rows = 24,
     ) {
-    }
-
-    /**
-     * The real factory: a sugar-reel {@see AudioPlayer} over the resolved stream
-     * URL, seeking to `$startMs` (it spawns ffplay/mpv on start(), or silently
-     * no-ops if neither is installed).
-     *
-     * @return \Closure(string $url, ?int $startMs): AudioPlayer
-     */
-    public static function productionAudioFactory(): \Closure
-    {
-        return static fn (string $url, ?int $startMs): AudioPlayer => new AudioPlayer($url, $startMs);
     }
 
     public function init(): ?\Closure
@@ -155,9 +115,6 @@ final class AudiobookDetailScreen implements Breadcrumbed, Teardownable, Themed
         }
         if ($msg instanceof AudiobookFailedMsg) {
             return [$this->withError($msg->reason), null];
-        }
-        if ($msg instanceof AudiobookTickMsg) {
-            return $this->onAudiobookTick($msg->epoch);
         }
         if ($msg instanceof KeyMsg) {
             return $this->handleKey($msg);
@@ -223,30 +180,21 @@ final class AudiobookDetailScreen implements Breadcrumbed, Teardownable, Themed
     private function handleKey(KeyMsg $msg): array
     {
         if ($msg->type === KeyType::Escape || ($msg->type === KeyType::Char && $msg->rune === 'q')) {
-            // Save a final position (best-effort) and stop the audio before
-            // popping (mirrors AlbumScreen) so leaving never leaks ffplay/mpv.
-            $report = $this->playing ? $this->reportProgressCmd() : null;
-            $this->teardown();
-
-            return [$this, $report !== null
-                ? Cmd::batch($report, Cmd::send(new NavigateBackMsg()))
-                : Cmd::send(new NavigateBackMsg())];
+            // The App owns the audio now, so leaving never stops playback — the
+            // now-playing bar keeps it visible. Just go back.
+            return [$this, Cmd::send(new NavigateBackMsg())];
         }
         if ($msg->type === KeyType::Char && $msg->rune === ' ') {
-            return $this->togglePause();
+            // Pause/resume the App-owned session.
+            return [$this, Cmd::send(new ToggleAudioMsg())];
         }
         if ($msg->type === KeyType::Char && $msg->rune === 'r') {
-            // Resume from the saved position, if there is one.
-            return $this->resumeMs !== null ? $this->playFrom($this->resumeMs) : [$this, null];
+            // Resume from the saved position, if there is one (App plays the seek).
+            return $this->resumeMs !== null ? $this->play($this->resumeMs) : [$this, null];
         }
         if ($msg->type === KeyType::Enter) {
-            // Enter on the already-playing chapter toggles pause; otherwise it
-            // plays the selected chapter from its start (or 0 with no chapters).
-            if ($this->chapters !== [] && $this->playing && $this->selected === $this->currentChapterIndex()) {
-                return $this->togglePause();
-            }
-
-            return $this->playFrom($this->selectedChapterStartMs());
+            // Play the selected chapter from its start (or 0 with no chapters).
+            return $this->play($this->selectedChapterStartMs());
         }
         if ($msg->type === KeyType::Up) {
             return [$this->moveSelection(-1), null];
@@ -256,6 +204,20 @@ final class AudiobookDetailScreen implements Breadcrumbed, Teardownable, Themed
         }
 
         return [$this, null];
+    }
+
+    /**
+     * Emit a {@see PlayAudiobookMsg} for the App to play/seek the audiobook at
+     * $startMs. A no-op (no Msg) until the audiobook detail (with its stream URL)
+     * has loaded — the App also guards a missing URL with an error toast.
+     */
+    private function play(int $startMs): array
+    {
+        if ($this->audiobook === null) {
+            return [$this, null];
+        }
+
+        return [$this, Cmd::send(new PlayAudiobookMsg($this->audiobook, $this->chapters, $startMs))];
     }
 
     /** The selected chapter's start offset in ms, or 0 when there are no chapters. */
@@ -280,201 +242,6 @@ final class AudiobookDetailScreen implements Breadcrumbed, Teardownable, Themed
         return $next;
     }
 
-    // ---- audio lifecycle -----------------------------------------------
-
-    /**
-     * (Re)build the player over the one signed stream URL, seeking to `$startMs`,
-     * and start a fresh heartbeat. A missing stream URL surfaces an error toast
-     * (and plays nothing). The play is SYNCHRONOUS — the URL is already on the
-     * loaded detail, so there is no per-item fetch.
-     */
-    private function playFrom(int $startMs): array
-    {
-        if ($this->audiobook === null || $this->audiobook->streamUrl === null || $this->audiobook->streamUrl === '') {
-            return [$this, Cmd::send(ShowToastMsg::error(self::PLAY_FAILED))];
-        }
-
-        $this->audio?->stop();
-        $player = ($this->audioFactory)($this->resolveUrl($this->audiobook->streamUrl), $startMs);
-        $player->start();
-
-        $next = clone $this;
-        $next->audio = $player;
-        $next->playing = true;
-        $next->paused = false;
-        $next->positionMs = $startMs;
-        $next->ticksSinceReport = 0;
-        // A fresh heartbeat generation for the (re)started stream.
-        $next->audioEpoch = $this->audioEpoch + 1;
-
-        return [$next, $this->tickCmd($next->audioEpoch)];
-    }
-
-    /** Toggle pause on the playing stream; a no-op when nothing is playing. */
-    private function togglePause(): array
-    {
-        if (!$this->playing || $this->audio === null) {
-            return [$this, null];
-        }
-
-        $next = clone $this;
-        $next->paused = !$this->paused;
-        // Bump the epoch either way: pausing must invalidate the in-flight tick
-        // (so it can't fire once more after pause), and resuming starts a fresh
-        // heartbeat that no leftover tick can double.
-        $next->audioEpoch = $this->audioEpoch + 1;
-        if ($next->paused) {
-            $this->audio->pause();
-
-            // Persist the paused position (best-effort); stop the tick.
-            return [$next, $next->reportProgressCmd()];
-        }
-
-        $this->audio->resume();
-
-        return [$next, $this->tickCmd($next->audioEpoch)];
-    }
-
-    /**
-     * One playback second elapsed: advance the estimated position and re-arm the
-     * tick. At/after the audiobook's known duration the book finishes (stop +
-     * a final ~100% report); every ~10 ticks a throttled progress save fires.
-     * Ignored when not playing, paused, or for a superseded heartbeat.
-     */
-    private function onAudiobookTick(int $epoch): array
-    {
-        // Drop a tick from a superseded heartbeat, or when not actively playing.
-        if ($epoch !== $this->audioEpoch || !$this->playing || $this->paused) {
-            return [$this, null];
-        }
-
-        $next = clone $this;
-        $next->positionMs = $this->positionMs + 1000;
-        $next->ticksSinceReport = $this->ticksSinceReport + 1;
-
-        $duration = $this->audiobook?->durationMs;
-        if ($duration !== null && $next->positionMs >= $duration) {
-            // The book finished — stop and fire a final report at ~100%.
-            $next->stopPlaybackInPlace();
-
-            return [$next, $next->reportProgressCmd()];
-        }
-
-        if ($next->ticksSinceReport >= 10) {
-            // Throttled ~10s save: keep the heartbeat going AND persist progress.
-            $next->ticksSinceReport = 0;
-
-            return [$next, Cmd::batch($this->tickCmd($next->audioEpoch), $next->reportProgressCmd())];
-        }
-
-        // Continue the SAME generation (no bump here).
-        return [$next, $this->tickCmd($next->audioEpoch)];
-    }
-
-    /**
-     * Stop and clear playback on this instance (only ever called on a freshly
-     * cloned screen, like AlbumScreen's in-place stop).
-     */
-    private function stopPlaybackInPlace(): void
-    {
-        $this->audio?->stop();
-        $this->audio = null;
-        $this->playing = false;
-        $this->paused = false;
-        // Invalidate any tick still in flight so it can't resurrect playback.
-        $this->audioEpoch++;
-    }
-
-    public function teardown(): void
-    {
-        if ($this->tornDown) {
-            return;
-        }
-        $this->tornDown = true;
-        $this->audio?->stop();
-    }
-
-    private function tickCmd(int $epoch): \Closure
-    {
-        return Cmd::tick(1.0, static fn (): Msg => new AudiobookTickMsg($epoch));
-    }
-
-    /**
-     * Persist the current position fire-and-forget: a failed save NEVER disrupts
-     * playback (both arms swallow to null). Reads `$this`'s current state, so it
-     * must be called on the screen whose position should be saved.
-     */
-    private function reportProgressCmd(): \Closure
-    {
-        return Cmd::promise(fn (): PromiseInterface => $this->store->saveProgress(
-            $this->id,
-            $this->positionMs,
-            $this->currentChapterIndex(),
-            $this->completedChapterIndices(),
-            $this->percentComplete(),
-        )->then(static fn (): ?Msg => null, static fn (): ?Msg => null));
-    }
-
-    /**
-     * The index of the chapter whose [startMs, endMs) contains the current
-     * position (or the last chapter starting at/before it); 0 when no chapters.
-     */
-    private function currentChapterIndex(): int
-    {
-        if ($this->chapters === []) {
-            return 0;
-        }
-
-        $index = 0;
-        foreach ($this->chapters as $i => $chapter) {
-            if ($this->positionMs >= $chapter->startMs && ($chapter->endMs <= 0 || $this->positionMs < $chapter->endMs)) {
-                return $i;
-            }
-            if ($chapter->startMs <= $this->positionMs) {
-                $index = $i;
-            }
-        }
-
-        return $index;
-    }
-
-    /**
-     * The indices of chapters fully behind the current position.
-     *
-     * @return list<int>
-     */
-    private function completedChapterIndices(): array
-    {
-        $completed = [];
-        foreach ($this->chapters as $i => $chapter) {
-            if ($chapter->endMs > 0 && $chapter->endMs <= $this->positionMs) {
-                $completed[] = $i;
-            }
-        }
-
-        return $completed;
-    }
-
-    /** The 0–100 completion percentage from the position over the duration. */
-    private function percentComplete(): float
-    {
-        $duration = $this->audiobook?->durationMs;
-
-        return $duration !== null && $duration > 0
-            ? min(100.0, $this->positionMs / $duration * 100)
-            : 0.0;
-    }
-
-    /** Resolve a (possibly relative) URL against the server base; absolute/empty pass through. */
-    private function resolveUrl(string $url): string
-    {
-        if ($url === '' || preg_match('#^https?://#i', $url) === 1) {
-            return $url; // empty, or already absolute (signed URLs are absolute)
-        }
-
-        return rtrim($this->baseUrl, '/') . '/' . ltrim($url, '/');
-    }
-
     // ---- rendering -----------------------------------------------------
 
     private function body(Audiobook $book): string
@@ -491,9 +258,9 @@ final class AudiobookDetailScreen implements Breadcrumbed, Teardownable, Themed
     }
 
     /**
-     * The header region above the chapter table: while playing, a single
-     * now-playing line; otherwise the metadata lines plus (when there is a saved
-     * position) a resume hint. Width-truncated to the content width, ANSI-free.
+     * The header region above the chapter table: the metadata lines plus (when
+     * there is a saved position) a resume hint. Width-truncated to the content
+     * width, ANSI-free.
      *
      * @return list<string>
      */
@@ -501,26 +268,12 @@ final class AudiobookDetailScreen implements Breadcrumbed, Teardownable, Themed
     {
         $width = max(1, $this->cols - 4);
 
-        if ($this->playing) {
-            return [Width::truncate($this->nowPlayingLine($book), $width)];
-        }
-
         $lines = $this->metaLines($book);
         if ($this->resumeMs !== null) {
             $lines[] = Width::truncate('↺ Resume from ' . self::clock($this->resumeMs) . '  (press r)', $width);
         }
 
         return $lines;
-    }
-
-    /** The ▶/⏸ now-playing line: current chapter title + position / total. */
-    private function nowPlayingLine(Audiobook $book): string
-    {
-        $glyph = $this->paused ? '⏸ ' : '▶ ';
-        $title = $this->chapters[$this->currentChapterIndex()]->title ?? $book->title;
-        $total = $book->durationMs !== null ? self::clock($book->durationMs) : '—';
-
-        return $glyph . $title . '   ' . self::clock($this->positionMs) . ' / ' . $total;
     }
 
     /**
@@ -727,51 +480,8 @@ final class AudiobookDetailScreen implements Breadcrumbed, Teardownable, Themed
         return $this->chapters[$this->selected] ?? null;
     }
 
-    public function isPlaying(): bool
-    {
-        return $this->playing;
-    }
-
-    public function isPaused(): bool
-    {
-        return $this->paused;
-    }
-
-    public function positionMs(): int
-    {
-        return $this->positionMs;
-    }
-
-    /** The current heartbeat generation (an armed tick carries this epoch). */
-    public function audioEpoch(): int
-    {
-        return $this->audioEpoch;
-    }
-
     public function resumeMs(): ?int
     {
         return $this->resumeMs;
-    }
-
-    /** Test accessor: the chapter index containing the current position. */
-    public function currentChapterIndexForTest(): int
-    {
-        return $this->currentChapterIndex();
-    }
-
-    /**
-     * Test accessor: the indices of chapters behind the current position.
-     *
-     * @return list<int>
-     */
-    public function completedChapterIndicesForTest(): array
-    {
-        return $this->completedChapterIndices();
-    }
-
-    /** Test accessor: the 0–100 completion percentage. */
-    public function percentCompleteForTest(): float
-    {
-        return $this->percentComplete();
     }
 }

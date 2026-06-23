@@ -6,6 +6,8 @@ namespace Phlix\Console\Tests;
 
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\Dto\Album;
+use Phlix\Console\Api\Dto\Audiobook;
+use Phlix\Console\Api\Dto\AudiobookChapter;
 use Phlix\Console\Api\Dto\AuthUser;
 use Phlix\Console\Api\Dto\Library;
 use Phlix\Console\Api\Dto\MediaItem;
@@ -14,7 +16,9 @@ use Phlix\Console\App;
 use Phlix\Console\Config\Config;
 use Phlix\Console\Config\TokenBundle;
 use Phlix\Console\Config\TokenStore;
-use Phlix\Console\Audio\NowPlaying;
+use Phlix\Console\Audio\AudiobookSession;
+use Phlix\Console\Audio\MusicSession;
+use Phlix\Console\Msg\AudiobookTickMsg;
 use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Msg\AudioSkipMsg;
 use Phlix\Console\Msg\BootResolvedMsg;
@@ -34,6 +38,7 @@ use Phlix\Console\Msg\OpenPhotoMsg;
 use Phlix\Console\Msg\OpenSearchMsg;
 use Phlix\Console\Msg\OpenSettingsMsg;
 use Phlix\Console\Msg\PaletteLibrariesLoadedMsg;
+use Phlix\Console\Msg\PlayAudiobookMsg;
 use Phlix\Console\Msg\PlayNextMsg;
 use Phlix\Console\Msg\PlayRequestedMsg;
 use Phlix\Console\Msg\PlayTrackMsg;
@@ -407,44 +412,20 @@ final class AppTest extends TestCase
         self::assertSame(2, $detail->stackDepth(), 'the audiobook detail is pushed on top, not replaced');
         self::assertInstanceOf(\Closure::class, $cmd, 'the audiobook detail fetches its detail + chapters + progress on push');
 
-        // The pushed AudiobookDetailScreen is now audio-capable (Teardownable).
-        self::assertInstanceOf(Teardownable::class, $detail->screen());
+        // The App owns the audiobook audio now, so the detail screen is a pure
+        // chapter list — it is NOT Teardownable (leaving it does not stop playback).
+        self::assertNotInstanceOf(Teardownable::class, $detail->screen());
     }
 
-    public function testPlayingAnAudiobookThenNavigatingBackTearsDownTheAudio(): void
+    public function testOpenAudiobookScreenIsNotTeardownableAndDoesNotStopAudioOnLeave(): void
     {
-        // A real audio-capable AudiobookDetailScreen on the stack, wired to a
-        // recording audio factory so no ffplay is spawned. Playing then popping
-        // the frame (NavigateBack) must stop the audio — proving the App's
-        // discard-teardown wiring covers the audiobook screen too.
-        $player = null;
-        $transport = (new FakeTransport())
-            ->json(200, ['audiobook' => ['id' => 'ab1', 'title' => 'Dune', 'duration_ms' => 600_000, 'stream_url' => 'https://srv/s/ab1']])
-            ->json(200, ['chapters' => []])
-            ->json(200, ['progress' => ['audiobook_id' => 'ab1', 'user_id' => 'u1', 'position_ms' => 0, 'current_chapter_index' => 0, 'completed_chapters' => [], 'percent_complete' => 0.0, 'last_played_at' => null]]);
-        $api = new ApiClient('https://srv', $transport);
-        $factory = function (string $url, ?int $startMs) use (&$player): FakeAudioPlayer {
-            return $player = new FakeAudioPlayer($url);
-        };
-        $screen = new AudiobookDetailScreen(new AudiobooksStore($api), 'https://srv', $factory, 'ab1', 'Dune', cols: 80, rows: 24);
-        foreach ($this->runBatchMsgs($screen->init()) as $msg) {
-            [$screen] = $screen->update($msg);
-        }
+        // The AudiobookDetailScreen no longer owns audio — popping it must NOT tear
+        // anything down (the App owns the AudiobookSession). Proven by the persist
+        // test below; here we just confirm the pushed screen is not Teardownable.
+        [$detail] = $this->browsing()->update(new OpenAudiobookMsg('ab1', 'Dune'));
 
-        // Enter plays synchronously (the stream URL is already loaded).
-        [$playing] = $screen->update(new KeyMsg(KeyType::Enter));
-        self::assertNotNull($player);
-        self::assertSame(1, $player->startCalls, 'the audiobook started playing');
-
-        // Pop the frame (a root beneath so the audiobook can actually pop).
-        $deeper = $this->appWithStack([
-            ['route' => Route::Browse, 'screen' => new SpyTeardownScreen()],
-            ['route' => Route::AudiobookDetail, 'screen' => $playing],
-        ]);
-        [$popped] = $deeper->update(new NavigateBackMsg());
-
-        self::assertSame(1, $popped->stackDepth(), 'the audiobook frame was popped');
-        self::assertSame(1, $player->stopCalls, 'popping the audiobook stops the audio (no leaked ffplay)');
+        self::assertInstanceOf(AudiobookDetailScreen::class, $detail->screen());
+        self::assertNotInstanceOf(Teardownable::class, $detail->screen());
     }
 
     public function testOpenAPhotoLibraryPushesThePhotosScreen(): void
@@ -1208,33 +1189,6 @@ final class AppTest extends TestCase
         self::assertInstanceOf(OpenSearchMsg::class, $this->runCmd($cmd));
     }
 
-    /**
-     * Resolve a batched init Cmd into the list of Msgs its children produce
-     * (each child awaited). Used to drive a screen's three-fetch init().
-     *
-     * @return list<Msg>
-     */
-    private function runBatchMsgs(?\Closure $cmd): array
-    {
-        if ($cmd === null) {
-            return [];
-        }
-        $result = $cmd();
-        if ($result instanceof BatchMsg) {
-            $msgs = [];
-            foreach ($result->cmds as $child) {
-                $msg = $this->runCmd($child);
-                if ($msg !== null) {
-                    $msgs[] = $msg;
-                }
-            }
-
-            return $msgs;
-        }
-
-        return $result instanceof Msg ? [$result] : [];
-    }
-
     private function runCmd(?\Closure $cmd): ?Msg
     {
         if ($cmd === null) {
@@ -1920,7 +1874,432 @@ final class AppTest extends TestCase
 
     private function positionOf(App $app): int
     {
-        return $app->nowPlaying()?->positionSecs() ?? 0;
+        $session = $app->nowPlaying();
+
+        return $session instanceof MusicSession ? $session->positionSecs() : 0;
+    }
+
+    // ---- audiobook audio (App-owned session) ---------------------------
+    //
+    // The audiobook audio MOVED from AudiobookDetailScreen to the App (T3b), so an
+    // audiobook persists across navigation, shown by the same NowPlayingBar.
+    // These tests are the relocated audiobook audio suite, driven with a recording
+    // FakeAudioPlayer factory (capturing [url, startMs]) over a FakeTransport
+    // serving /audiobooks/{id}/progress for the throttled progress POSTs. Play is
+    // SYNCHRONOUS — the stream URL rides on the PlayAudiobookMsg (no fetch).
+
+    private const AB_STREAM = 'https://srv/api/v1/audiobooks/ab1/stream?sig=s';
+
+    /** The most recent fake audio player the App's factory produced (audiobook suite). */
+    private ?FakeAudioPlayer $lastAbPlayer = null;
+    /** Every [url, startMs] the App's audio factory was handed (audiobook suite). @var list<array{0:string,1:?int}> */
+    private array $abPlays = [];
+
+    private function audiobook(array $overrides = []): Audiobook
+    {
+        return Audiobook::fromArray(array_merge([
+            'id' => 'ab1',
+            'title' => 'Dune',
+            'author' => 'Frank Herbert',
+            'narrator' => 'Scott Brick',
+            'duration_ms' => 75_600_000, // 21:00:00
+            'stream_url' => self::AB_STREAM,
+        ], $overrides));
+    }
+
+    /** Two chapters: [0, 3_600_000) "Beginnings", [3_600_000, 7_200_000) "The Spice". @return list<AudiobookChapter> */
+    private function audiobookChapters(): array
+    {
+        return [
+            AudiobookChapter::fromArray(['index' => 0, 'title' => 'Beginnings', 'start_ms' => 0, 'end_ms' => 3_600_000, 'duration_ms' => 3_600_000], 0),
+            AudiobookChapter::fromArray(['index' => 1, 'title' => 'The Spice', 'start_ms' => 3_600_000, 'end_ms' => 7_200_000, 'duration_ms' => 3_600_000], 1),
+        ];
+    }
+
+    /**
+     * An App over a single Browse-like frame wired to a recording audio factory.
+     * The transport (defaulting to one empty progress response) serves the
+     * fire-and-forget progress POSTs the App's AudiobooksStore makes.
+     */
+    private function audiobookApp(?FakeTransport $transport = null): App
+    {
+        $transport ??= (new FakeTransport())->json(200, ['progress' => []]);
+        $api = new ApiClient('https://srv', $transport);
+        $factory = function (string $url, ?int $startMs = null): FakeAudioPlayer {
+            $this->abPlays[] = [$url, $startMs];
+
+            return $this->lastAbPlayer = new FakeAudioPlayer($url);
+        };
+
+        $app = new App(
+            new Config('https://srv'),
+            new AuthStore($api, TokenStore::default()),
+            $api,
+            new LibrariesStore($api),
+            new MediaStore($api),
+            new PosterLoader(Mosaic::halfBlock()),
+            [['route' => Route::Browse, 'screen' => new SpyTeardownScreen()]],
+        );
+
+        return $app->withAudioFactory($factory);
+    }
+
+    /** Play an audiobook (synchronous) at $startMs and return the now-playing App. */
+    private function startAudiobook(App $app, ?Audiobook $book = null, ?array $chapters = null, int $startMs = 0): App
+    {
+        [$playing, $tick] = $app->update(new PlayAudiobookMsg($book ?? $this->audiobook(), $chapters ?? $this->audiobookChapters(), $startMs));
+        self::assertNotNull($tick, 'playing arms the audiobook heartbeat');
+
+        return $playing;
+    }
+
+    private function abEpochOf(App $app): int
+    {
+        return $app->nowPlaying()?->epoch() ?? 0;
+    }
+
+    private function abPositionOf(App $app): int
+    {
+        $session = $app->nowPlaying();
+
+        return $session instanceof AudiobookSession ? $session->positionMs() : -1;
+    }
+
+    public function testPlayAudiobookSpawnsThePlayerAtStartMsSynchronouslyAndShowsTheBar(): void
+    {
+        $app = $this->audiobookApp();
+
+        // Play the second chapter (starts at 1h) → synchronous spawn at 3_600_000ms.
+        [$playing, $tick] = $app->update(new PlayAudiobookMsg($this->audiobook(), $this->audiobookChapters(), 3_600_000));
+
+        self::assertCount(1, $this->abPlays, 'the factory was called immediately (no fetch)');
+        self::assertSame(self::AB_STREAM, $this->abPlays[0][0], 'the signed absolute URL is used verbatim');
+        self::assertSame(3_600_000, $this->abPlays[0][1], 'the player seeks to the chapter start');
+        self::assertNotNull($this->lastAbPlayer);
+        self::assertSame(1, $this->lastAbPlayer->startCalls, 'the player was started');
+
+        // The heartbeat armed is the DEDICATED audiobook tick.
+        self::assertNotNull($tick);
+        $request = $tick();
+        self::assertInstanceOf(\SugarCraft\Core\TickRequest::class, $request);
+        self::assertInstanceOf(AudiobookTickMsg::class, ($request->produce)());
+
+        // The now-playing bar shows the current chapter + the ms clock.
+        $view = $playing->view();
+        self::assertStringContainsString('▶ The Spice', $view);
+        self::assertStringContainsString('1:00:00 / 21:00:00', $view);
+        self::assertInstanceOf(AudiobookSession::class, $playing->nowPlaying());
+    }
+
+    public function testPlayAudiobookFromZeroOnAChapterlessBook(): void
+    {
+        $app = $this->audiobookApp();
+
+        [$playing] = $app->update(new PlayAudiobookMsg($this->audiobook(), [], 0));
+
+        self::assertCount(1, $this->abPlays);
+        self::assertSame(0, $this->abPlays[0][1], 'from the very start');
+        // The bar falls back to the audiobook title (no chapters).
+        self::assertStringContainsString('▶ Dune', $playing->view());
+    }
+
+    public function testARelativeAudiobookStreamUrlIsResolvedAgainstTheBase(): void
+    {
+        $app = $this->audiobookApp();
+
+        $app->update(new PlayAudiobookMsg($this->audiobook(['stream_url' => '/api/v1/audiobooks/ab1/stream?sig=x']), $this->audiobookChapters(), 0));
+
+        self::assertSame('https://srv/api/v1/audiobooks/ab1/stream?sig=x', $this->abPlays[0][0]);
+    }
+
+    public function testAMissingAudiobookStreamUrlSurfacesAToastAndPlaysNothing(): void
+    {
+        $app = $this->audiobookApp();
+
+        [$after, $cmd] = $app->update(new PlayAudiobookMsg($this->audiobook(['stream_url' => null]), $this->audiobookChapters(), 0));
+
+        $toast = $cmd?->__invoke();
+        self::assertInstanceOf(ShowToastMsg::class, $toast);
+        self::assertSame(ToastType::Error, $toast->type);
+        self::assertStringContainsString('Cannot play', $toast->message);
+        self::assertNull($after->nowPlaying(), 'nothing starts playing');
+        self::assertCount(0, $this->abPlays, 'the factory is never called');
+    }
+
+    public function testToggleAudioPausesAndResumesAnAudiobookReArmingTheAudiobookTick(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['progress' => []]); // the pause-save POST
+        $playing = $this->startAudiobook($this->audiobookApp($transport));
+        self::assertStringContainsString('▶ Beginnings', $playing->view());
+
+        // Pause: glyph flips, the player is paused, the heartbeat stops, AND the
+        // current position is persisted (so a pause-then-quit resumes exactly here).
+        [$paused, $pauseCmd] = $playing->update(new ToggleAudioMsg());
+        self::assertSame(1, $this->lastAbPlayer?->pauseCalls);
+        self::assertStringContainsString('⏸ Beginnings', $paused->view());
+        self::assertNotNull($pauseCmd, 'pausing an audiobook persists its position (fire-and-forget save)');
+        $this->runCmd($pauseCmd);
+        self::assertSame(1, $transport->requestCount(), 'pause saves progress');
+        self::assertStringEndsWith('/api/v1/audiobooks/ab1/progress', $transport->requestAt(0)['url']);
+
+        // Resume: the player resumes and a fresh AUDIOBOOK heartbeat re-arms (no save).
+        [$resumed, $resumeCmd] = $paused->update(new ToggleAudioMsg());
+        self::assertSame(1, $transport->requestCount(), 'resuming does not POST again');
+        self::assertSame(1, $this->lastAbPlayer?->resumeCalls);
+        self::assertNotNull($resumeCmd, 'resuming re-arms the heartbeat');
+        $request = $resumeCmd();
+        self::assertInstanceOf(AudiobookTickMsg::class, ($request->produce)(), 'resume re-arms the AUDIOBOOK tick, not the music one');
+        self::assertStringContainsString('▶ Beginnings', $resumed->view());
+    }
+
+    public function testAudiobookTickAdvancesThePositionByOneSecond(): void
+    {
+        $cur = $this->startAudiobook($this->audiobookApp());
+        for ($i = 0; $i < 5; $i++) {
+            [$cur, $cmd] = $cur->update(new AudiobookTickMsg($this->abEpochOf($cur)));
+            self::assertNotNull($cmd, 'each playing tick re-arms the next');
+        }
+
+        self::assertSame(5000, $this->abPositionOf($cur), 'five 1-second ticks = 5000ms');
+        self::assertStringContainsString('0:05 / 21:00:00', $cur->view(), 'position renders as a clock');
+    }
+
+    public function testAnAudiobookTickWhilePausedIsInert(): void
+    {
+        $playing = $this->startAudiobook($this->audiobookApp());
+        [$paused] = $playing->update(new ToggleAudioMsg());
+
+        [$same, $cmd] = $paused->update(new AudiobookTickMsg($this->abEpochOf($paused)));
+
+        self::assertNull($cmd, 'no re-arm while paused');
+        self::assertSame(0, $this->abPositionOf($same), 'the position did not advance');
+    }
+
+    public function testAnAudiobookTickWithNothingPlayingIsANoOp(): void
+    {
+        $app = $this->audiobookApp();
+
+        [$same, $cmd] = $app->update(new AudiobookTickMsg(0));
+
+        self::assertSame($app, $same);
+        self::assertNull($cmd);
+    }
+
+    public function testAStaleAudiobookTickFromASupersededGenerationIsDropped(): void
+    {
+        // Regression (relocated from AudiobookDetailScreen): a leftover tick from a
+        // previous heartbeat must NOT advance the position or arm a second one.
+        $cur = $this->startAudiobook($this->audiobookApp());
+        $staleEpoch = $this->abEpochOf($cur);
+        [$cur] = $cur->update(new AudiobookTickMsg($this->abEpochOf($cur))); // +1000ms, same generation
+
+        [$paused] = $cur->update(new ToggleAudioMsg());          // bump epoch, pause
+        [$resumed, $arm] = $paused->update(new ToggleAudioMsg()); // bump epoch, resume + new heartbeat
+        self::assertNotNull($arm, 'resume arms a fresh heartbeat');
+        self::assertNotSame($staleEpoch, $this->abEpochOf($resumed), 'the generation advanced');
+
+        $beforePos = $this->abPositionOf($resumed);
+
+        // The leftover tick from the original generation is ignored.
+        [$afterStale, $staleCmd] = $resumed->update(new AudiobookTickMsg($staleEpoch));
+        self::assertSame($beforePos, $this->abPositionOf($afterStale), 'a stale tick does not advance');
+        self::assertNull($staleCmd, 'a stale tick does not arm a second heartbeat');
+
+        // The live generation's tick still advances exactly once (+1000ms, not +2000).
+        [$afterLive] = $resumed->update(new AudiobookTickMsg($this->abEpochOf($resumed)));
+        self::assertSame($beforePos + 1000, $this->abPositionOf($afterLive));
+    }
+
+    public function testEveryTenTicksPostsAThrottledProgressSave(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['progress' => []]); // the throttled save POST
+        $cur = $this->startAudiobook($this->audiobookApp($transport));
+
+        // Nine ticks: no save yet (each re-arms only).
+        for ($i = 0; $i < 9; $i++) {
+            [$cur, $cmd] = $cur->update(new AudiobookTickMsg($this->abEpochOf($cur)));
+            self::assertNotNull($cmd);
+            self::assertSame(0, $transport->requestCount(), 'no save before the 10th tick');
+        }
+
+        // The 10th tick's Cmd is a batch (tick + report) → it POSTs the save.
+        [$cur, $tenth] = $cur->update(new AudiobookTickMsg($this->abEpochOf($cur)));
+        self::assertSame(10_000, $this->abPositionOf($cur));
+        $this->drainBatchCmds($tenth);
+
+        self::assertSame(1, $transport->requestCount(), 'the 10th tick saves progress');
+        $post = $transport->requestAt(0);
+        self::assertSame('POST', $post['method']);
+        self::assertStringEndsWith('/api/v1/audiobooks/ab1/progress', $post['url']);
+        $body = json_decode($post['body'], true);
+        self::assertSame(10_000, $body['position_ms']);
+        self::assertSame(0, $body['current_chapter_index'], '10s in → still chapter 0');
+        self::assertSame([], $body['completed_chapters'], 'no chapter finished yet');
+        self::assertEqualsWithDelta(10_000 / 75_600_000 * 100, $body['percent_complete'], 0.0001);
+    }
+
+    public function testReachingTheDurationStopsAndFiresAFinalReport(): void
+    {
+        // A tiny audiobook (2-second duration) so the tick reaches the end fast.
+        $transport = (new FakeTransport())->json(200, ['progress' => []]); // the final save POST
+        $book = $this->audiobook(['duration_ms' => 2000]);
+        $chapters = [AudiobookChapter::fromArray(['index' => 0, 'title' => 'Only', 'start_ms' => 0, 'end_ms' => 2000, 'duration_ms' => 2000], 0)];
+        $cur = $this->startAudiobook($this->audiobookApp($transport), $book, $chapters, 0);
+        $player = $this->lastAbPlayer;
+
+        [$cur, $cmd1] = $cur->update(new AudiobookTickMsg($this->abEpochOf($cur))); // 1000ms
+        self::assertNotNull($cmd1);
+        [$finished, $finalCmd] = $cur->update(new AudiobookTickMsg($this->abEpochOf($cur))); // 2000ms == duration → finish
+
+        self::assertNull($finished->nowPlaying(), 'the session is cleared at the end');
+        self::assertSame(1, $player?->stopCalls, 'the player is stopped');
+        self::assertInstanceOf(\Closure::class, $finalCmd, 'a final report fires');
+        $this->runCmd($finalCmd);
+
+        $post = $transport->requestAt(0);
+        self::assertSame('POST', $post['method']);
+        $body = json_decode($post['body'], true);
+        self::assertSame(2000, $body['position_ms']);
+        self::assertEqualsWithDelta(100.0, $body['percent_complete'], 0.0001, 'a finished book reports ~100%');
+        self::assertSame([0], $body['completed_chapters'], 'the only chapter is complete');
+
+        // The bar is gone.
+        self::assertStringNotContainsString('▶', $finished->view());
+        self::assertStringNotContainsString('⏸', $finished->view());
+    }
+
+    public function testResumePlaysAnAudiobookFromASavedPosition(): void
+    {
+        // A PlayAudiobookMsg at the saved resume position (what the `r` key emits).
+        $app = $this->audiobookApp();
+
+        [$playing] = $app->update(new PlayAudiobookMsg($this->audiobook(), $this->audiobookChapters(), 5_400_000));
+
+        self::assertSame(5_400_000, $this->abPlays[0][1], 'resume seeks to the saved position');
+        self::assertSame(5_400_000, $this->abPositionOf($playing));
+        self::assertStringContainsString('1:30:00 /', $playing->view());
+    }
+
+    public function testStopAudioClearsAnAudiobookSessionAndStopsThePlayer(): void
+    {
+        $playing = $this->startAudiobook($this->audiobookApp());
+        $player = $this->lastAbPlayer;
+        self::assertStringContainsString('▶ Beginnings', $playing->view());
+
+        [$stopped, $cmd] = $playing->update(new StopAudioMsg());
+
+        self::assertNull($cmd);
+        self::assertSame(1, $player?->stopCalls, 'stop tears the player down');
+        self::assertNull($stopped->nowPlaying(), 'the session is cleared');
+        self::assertStringNotContainsString('▶ Beginnings', $stopped->view(), 'the bar is gone');
+    }
+
+    public function testPlayingAnAudiobookThenNavigatingAwayKeepsTheSession(): void
+    {
+        // THE persist-across-navigation proof for audiobooks: play on top of a
+        // deeper stack (Browse → AudiobookDetail), then NavigateBack — the session
+        // (and the bar) survive the pop, and nothing is torn down.
+        $api = new ApiClient('https://srv', (new FakeTransport())->json(200, ['progress' => []]));
+        $factory = function (string $url, ?int $startMs = null): FakeAudioPlayer {
+            return $this->lastAbPlayer = new FakeAudioPlayer($url);
+        };
+        $app = (new App(
+            new Config('https://srv'),
+            new AuthStore($api, TokenStore::default()),
+            $api,
+            new LibrariesStore($api),
+            new MediaStore($api),
+            new PosterLoader(Mosaic::halfBlock()),
+            [
+                ['route' => Route::Browse, 'screen' => new SpyTeardownScreen()],
+                ['route' => Route::AudiobookDetail, 'screen' => new AudiobookDetailScreen(new AudiobooksStore($api), 'ab1', 'Dune', cols: 80, rows: 24)],
+            ],
+        ))->withAudioFactory($factory);
+
+        $playing = $this->startAudiobook($app);
+        self::assertSame(2, $playing->stackDepth());
+        self::assertStringContainsString('▶ Beginnings', $playing->view());
+
+        // Leave the audiobook detail.
+        [$back] = $playing->update(new NavigateBackMsg());
+
+        self::assertSame(1, $back->stackDepth(), 'the audiobook detail frame was popped');
+        self::assertSame(Route::Browse, $back->route());
+        self::assertSame(0, $this->lastAbPlayer?->stopCalls, 'leaving does NOT stop the audiobook');
+        self::assertStringContainsString('▶ Beginnings', $back->view(), 'the now-playing bar persists on the screen beneath');
+    }
+
+    public function testCtrlCTearsDownTheActiveAudiobook(): void
+    {
+        $playing = $this->startAudiobook($this->audiobookApp());
+        $player = $this->lastAbPlayer;
+
+        [, $cmd] = $playing->update(new KeyMsg(KeyType::Char, 'c', ctrl: true));
+
+        self::assertInstanceOf(QuitMsg::class, $cmd?->__invoke());
+        self::assertSame(1, $player?->stopCalls, 'Ctrl-C stops the audiobook (no leaked ffplay)');
+    }
+
+    public function testRequestQuitTearsDownTheActiveAudiobook(): void
+    {
+        $playing = $this->startAudiobook($this->audiobookApp());
+        $player = $this->lastAbPlayer;
+
+        [, $cmd] = $playing->update(new RequestQuitMsg());
+
+        self::assertInstanceOf(QuitMsg::class, $cmd?->__invoke());
+        self::assertSame(1, $player?->stopCalls, 'quitting stops the audiobook');
+    }
+
+    public function testAMusicTickIsIgnoredByAnAudiobookSession(): void
+    {
+        // The two tick kinds never cross-fire: a NowPlayingTickMsg must not advance
+        // (or disturb) an active audiobook session.
+        $playing = $this->startAudiobook($this->audiobookApp());
+
+        [$same, $cmd] = $playing->update(new NowPlayingTickMsg($this->abEpochOf($playing)));
+
+        self::assertNull($cmd, 'a music tick arms nothing on an audiobook');
+        self::assertSame(0, $this->abPositionOf($same), 'the audiobook position is untouched');
+    }
+
+    public function testAnAudiobookTickIsIgnoredByAMusicSession(): void
+    {
+        // The mirror: an AudiobookTickMsg must not advance an active music session.
+        $playing = $this->startPlaying($this->audioApp());
+
+        [$same, $cmd] = $playing->update(new AudiobookTickMsg($this->epochOf($playing)));
+
+        self::assertNull($cmd, 'an audiobook tick arms nothing on a music session');
+        self::assertSame(0, $this->positionOf($same), 'the music position is untouched');
+    }
+
+    public function testThePaletteGainsPauseAndStopWhileAnAudiobookPlays(): void
+    {
+        $playing = $this->startAudiobook($this->audiobookApp());
+
+        [$open] = $playing->update($this->ctrlK());
+        $labels = array_map(static fn ($a): string => $a->label, $open->palette()->actions());
+
+        self::assertContains('Pause playback', $labels, 'a playing audiobook adds a Pause action');
+        self::assertContains('Stop playback', $labels);
+    }
+
+    /** Drain a (possibly batched) Cmd, running every child (audiobook progress POSTs are fire-and-forget). */
+    private function drainBatchCmds(?\Closure $cmd): void
+    {
+        if ($cmd === null) {
+            return;
+        }
+        $result = $cmd();
+        if ($result instanceof BatchMsg) {
+            foreach ($result->cmds as $child) {
+                $this->runCmd($child);
+            }
+
+            return;
+        }
+        $this->runCmd($cmd);
     }
 }
 
