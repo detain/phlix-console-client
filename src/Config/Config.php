@@ -5,17 +5,23 @@ declare(strict_types=1);
 namespace Phlix\Console\Config;
 
 /**
- * Client configuration — the (configurable, never hard-coded) Phlix server URL
- * and the chosen UI theme name, persisted as JSON under the user's config
- * directory.
+ * Client configuration — the (configurable, never hard-coded) Phlix server URL,
+ * the chosen UI theme name, and the photo-slideshow interval, persisted as JSON
+ * under the user's config directory.
  *
  * Honours `XDG_CONFIG_HOME`, falling back to `~/.config/phlix`.
  */
 final class Config
 {
+    /** Floor / ceiling (seconds) for the photo-slideshow interval. */
+    private const SLIDESHOW_MIN = 1;
+    private const SLIDESHOW_MAX = 300;
+    private const SLIDESHOW_DEFAULT = 4;
+
     public function __construct(
         public readonly ?string $serverUrl = null,
         public readonly ?string $theme = null,
+        public readonly int $slideshowInterval = self::SLIDESHOW_DEFAULT,
     ) {
     }
 
@@ -57,10 +63,12 @@ final class Config
 
         $url = $data['server_url'] ?? null;
         $theme = $data['theme'] ?? null;
+        $interval = $data['slideshow_interval'] ?? null;
 
         return new self(
             serverUrl: (is_string($url) && $url !== '') ? $url : null,
             theme: (is_string($theme) && $theme !== '') ? $theme : null,
+            slideshowInterval: is_numeric($interval) ? self::clampInterval((int) $interval) : self::SLIDESHOW_DEFAULT,
         );
     }
 
@@ -79,7 +87,11 @@ final class Config
         }
 
         $json = json_encode(
-            ['server_url' => $this->serverUrl, 'theme' => $this->theme],
+            [
+                'server_url' => $this->serverUrl,
+                'theme' => $this->theme,
+                'slideshow_interval' => $this->slideshowInterval,
+            ],
             JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES,
         );
 
@@ -90,16 +102,31 @@ final class Config
         @chmod($path, 0o600);
     }
 
-    /** Return a copy with the given (normalised) server URL, preserving the theme. */
+    /** Return a copy with the given (normalised) server URL, preserving the theme + slideshow interval. */
     public function withServerUrl(string $url): self
     {
-        return new self(serverUrl: self::normalizeUrl($url), theme: $this->theme);
+        return new self(serverUrl: self::normalizeUrl($url), theme: $this->theme, slideshowInterval: $this->slideshowInterval);
     }
 
-    /** Return a copy with the given theme name, preserving the server URL. */
+    /** Return a copy with the given theme name, preserving the server URL + slideshow interval. */
     public function withTheme(string $name): self
     {
-        return new self(serverUrl: $this->serverUrl, theme: $name);
+        return new self(serverUrl: $this->serverUrl, theme: $name, slideshowInterval: $this->slideshowInterval);
+    }
+
+    /**
+     * Return a copy with the photo-slideshow interval (seconds), clamped to
+     * [1, 300], preserving the server URL + theme.
+     */
+    public function withSlideshowInterval(int $seconds): self
+    {
+        return new self(serverUrl: $this->serverUrl, theme: $this->theme, slideshowInterval: self::clampInterval($seconds));
+    }
+
+    /** Clamp a slideshow interval into the supported [1, 300] second range. */
+    private static function clampInterval(int $seconds): int
+    {
+        return max(self::SLIDESHOW_MIN, min(self::SLIDESHOW_MAX, $seconds));
     }
 
     public function hasServer(): bool

@@ -19,6 +19,7 @@ enum Route
     case Detail;
     case Player;
     case Search;
+    case Settings;
     case Music;
     case Album;
     case Books;

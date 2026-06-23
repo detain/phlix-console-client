@@ -30,12 +30,14 @@ use Phlix\Console\Msg\OpenLibraryMsg;
 use Phlix\Console\Msg\OpenPhotoAlbumMsg;
 use Phlix\Console\Msg\OpenPhotoMsg;
 use Phlix\Console\Msg\OpenSearchMsg;
+use Phlix\Console\Msg\OpenSettingsMsg;
 use Phlix\Console\Msg\PaletteLibrariesLoadedMsg;
 use Phlix\Console\Msg\PlayNextMsg;
 use Phlix\Console\Msg\PlayRequestedMsg;
 use Phlix\Console\Msg\RequestLogoutMsg;
 use Phlix\Console\Msg\RequestQuitMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
+use Phlix\Console\Msg\SettingsSavedMsg;
 use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Msg\SubmitLoginMsg;
 use Phlix\Console\Msg\SubmitServerMsg;
@@ -58,6 +60,7 @@ use Phlix\Console\Screen\PhotoViewerScreen;
 use Phlix\Console\Screen\PlayerScreen;
 use Phlix\Console\Screen\SearchScreen;
 use Phlix\Console\Screen\ServerScreen;
+use Phlix\Console\Screen\SettingsScreen;
 use Phlix\Console\Screen\Teardownable;
 use Phlix\Console\Store\AuthStore;
 use Phlix\Console\Store\LibrariesStore;
@@ -934,7 +937,7 @@ final class AppTest extends TestCase
         self::assertNotNull($next->palette());
         self::assertInstanceOf(\Closure::class, $cmd, 'opening fires the libraries fetch');
         $labels = array_map(static fn ($a): string => $a->label, $next->palette()->actions());
-        self::assertSame(['Search', 'Home', 'Log out', 'Quit'], $labels);
+        self::assertSame(['Search', 'Home', 'Settings', 'Log out', 'Quit'], $labels);
     }
 
     public function testCtrlKTogglesThePaletteClosed(): void
@@ -1366,6 +1369,102 @@ final class AppTest extends TestCase
         self::assertSame('Nocturne', $browse->theme()->name, 'the original app is unchanged');
         self::assertSame('Midnight', $themed->theme()->name);
         self::assertSame($browse->stackDepth(), $themed->stackDepth(), 'the screen stack is preserved');
+    }
+
+    // ---- settings --------------------------------------------------------
+
+    public function testTheStaticPaletteActionsIncludeSettings(): void
+    {
+        [$open] = $this->paletteApp()->update($this->ctrlK());
+
+        $labels = array_map(static fn ($a): string => $a->label, $open->palette()->actions());
+        self::assertContains('Settings', $labels, 'the command palette offers a Settings action');
+    }
+
+    public function testOpenSettingsPushesTheSettingsScreenSeededWithTheCurrentThemeAndInterval(): void
+    {
+        // A Daylight App whose config carries a non-default slideshow interval.
+        $browse = $this->browsing()
+            ->withTheme(Theme::daylight())
+            ->withConfig((new Config('https://srv', 'Daylight', 9)));
+
+        [$settings, $cmd] = $browse->update(new OpenSettingsMsg());
+
+        self::assertSame(Route::Settings, $settings->route());
+        $screen = $settings->screen();
+        self::assertInstanceOf(SettingsScreen::class, $screen);
+        self::assertSame(2, $settings->stackDepth(), 'settings is pushed onto Browse');
+        // The form is seeded with the App's live theme + the config interval.
+        self::assertSame('Daylight', $screen->currentTheme);
+        self::assertSame(9, $screen->currentInterval);
+        self::assertSame('9', $screen->form->getString('slideshow'), 'the interval pre-fills the form');
+        // The App returns the form's focus Cmd on push; a Select-focused form has
+        // no cursor-blink Cmd, so it is null here (the push still happened).
+        self::assertSame($screen->init(), $cmd, 'the App threads the settings form init Cmd');
+    }
+
+    public function testSettingsSavedAppliesTheThemeLivePersistsAndPopsBack(): void
+    {
+        // Open settings on top of Browse, then save Midnight @ 12s.
+        [$settings] = $this->browsing()->update(new OpenSettingsMsg());
+        self::assertSame(2, $settings->stackDepth());
+
+        [$saved, $cmd] = $settings->update(new SettingsSavedMsg('Midnight', 12));
+
+        // The theme switches LIVE (the brand renders accent-wrapped now).
+        self::assertSame('Midnight', $saved->theme()->name, 'the new theme applies live');
+        self::assertMatchesRegularExpression('/\e\[[0-9;]*m Phlix \e\[0m/', $saved->view(), 'the live theme tints the brand');
+        // The config carries the new theme + interval.
+        self::assertSame('Midnight', $saved->config()->theme);
+        self::assertSame(12, $saved->config()->slideshowInterval);
+        // The settings frame is popped — we are back on Browse.
+        self::assertSame(1, $saved->stackDepth(), 'the settings frame is popped');
+        self::assertSame(Route::Browse, $saved->route());
+        self::assertNull($cmd);
+        // And it was persisted to disk (hermetic via the temp XDG_CONFIG_HOME).
+        $onDisk = Config::load();
+        self::assertSame('Midnight', $onDisk->theme, 'the theme was saved');
+        self::assertSame(12, $onDisk->slideshowInterval, 'the interval was saved');
+    }
+
+    public function testSettingsSavedKeepsTheServerUrlInThePersistedConfig(): void
+    {
+        [$settings] = $this->browsing()->update(new OpenSettingsMsg());
+
+        [$saved] = $settings->update(new SettingsSavedMsg('Daylight', 20));
+
+        self::assertSame('https://srv', $saved->config()->serverUrl, 'saving settings keeps the server URL');
+        self::assertSame('https://srv', Config::load()->serverUrl);
+    }
+
+    public function testSettingsSavedAppliesLiveEvenWhenPersistingFails(): void
+    {
+        // Occupy the config DIRECTORY path with a regular file so Config::save()
+        // can't mkdir and throws — saveSettings swallows it (best-effort) and
+        // still applies the theme + interval in memory.
+        @mkdir($this->dir, 0o700, true);
+        file_put_contents($this->dir . '/phlix', 'i am a file, not a dir');
+
+        [$settings] = $this->browsing()->update(new OpenSettingsMsg());
+        [$saved, $cmd] = $settings->update(new SettingsSavedMsg('Midnight', 15));
+
+        self::assertSame('Midnight', $saved->theme()->name, 'the theme still applies live when the save fails');
+        self::assertSame(15, $saved->config()->slideshowInterval, 'the interval still applies in memory');
+        self::assertSame(1, $saved->stackDepth(), 'the settings frame is still popped');
+        self::assertNull($cmd);
+
+        @unlink($this->dir . '/phlix');
+    }
+
+    public function testWithConfigIsImmutableAndPreservesTheStack(): void
+    {
+        $browse = $this->browsing();
+        $next = $browse->withConfig(new Config('https://srv', 'Midnight', 30));
+
+        self::assertNotSame($browse, $next);
+        self::assertSame(4, $browse->config()->slideshowInterval, 'the original app config is unchanged');
+        self::assertSame(30, $next->config()->slideshowInterval);
+        self::assertSame($browse->stackDepth(), $next->stackDepth(), 'the screen stack is preserved');
     }
 }
 

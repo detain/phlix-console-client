@@ -420,6 +420,35 @@ final class PhotoViewerScreenTest extends TestCase
         self::assertStringContainsString('slideshow', $on->view(), 'the caption flags the running slideshow');
     }
 
+    public function testDefaultSlideIntervalArmsAFourSecondTick(): void
+    {
+        $screen = $this->screen($this->album(3), 0); // no slideInterval → default 4.0
+        [$on, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 's'));
+
+        self::assertSame(4.0, $this->tickSeconds($cmd), 'the default slideshow tick fires every 4s');
+    }
+
+    public function testCustomSlideIntervalArmsATickAtThatInterval(): void
+    {
+        $screen = new PhotoViewerScreen(
+            $this->album(3),
+            0,
+            $this->store(),
+            new PosterLoader(Mosaic::halfBlock()),
+            'https://srv',
+            cols: 120,
+            rows: 40,
+            slideInterval: 12.5,
+        );
+
+        [$on, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 's'));
+        self::assertSame(12.5, $this->tickSeconds($cmd), 'the configured interval drives the slide tick');
+
+        // An auto-advance re-arms at the SAME custom interval.
+        [, $next] = $on->update(new PhotoSlideTickMsg($on->slideEpoch()));
+        self::assertSame(12.5, $this->tickSeconds($next), 'the re-armed tick keeps the custom interval');
+    }
+
     // ---- exif auth / failure -------------------------------------------
 
     public function testExifAuthErrorSurfacesSessionExpired(): void
@@ -559,6 +588,31 @@ final class PhotoViewerScreenTest extends TestCase
                 if ($msg instanceof PhotoSlideTickMsg) {
                     return $msg;
                 }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * The wall-clock delay (seconds) of the slide {@see \SugarCraft\Core\TickRequest}
+     * a Cmd arms — handling either a bare tick Cmd or a batch (image + EXIF +
+     * tick); the non-tick children are async loads and are skipped. Returns null
+     * when no slide tick is present.
+     */
+    private function tickSeconds(?\Closure $cmd): ?float
+    {
+        if ($cmd === null) {
+            return null;
+        }
+
+        $result = $cmd();
+        $children = $result instanceof BatchMsg ? $result->cmds : [static fn () => $result];
+
+        foreach ($children as $child) {
+            $produced = $child instanceof \Closure ? $child() : $child;
+            if ($produced instanceof \SugarCraft\Core\TickRequest && ($produced->produce)() instanceof PhotoSlideTickMsg) {
+                return $produced->seconds;
             }
         }
 

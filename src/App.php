@@ -25,12 +25,14 @@ use Phlix\Console\Msg\OpenLibraryMsg;
 use Phlix\Console\Msg\OpenPhotoAlbumMsg;
 use Phlix\Console\Msg\OpenPhotoMsg;
 use Phlix\Console\Msg\OpenSearchMsg;
+use Phlix\Console\Msg\OpenSettingsMsg;
 use Phlix\Console\Msg\PaletteLibrariesLoadedMsg;
 use Phlix\Console\Msg\PlayNextMsg;
 use Phlix\Console\Msg\PlayRequestedMsg;
 use Phlix\Console\Msg\RequestLogoutMsg;
 use Phlix\Console\Msg\RequestQuitMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
+use Phlix\Console\Msg\SettingsSavedMsg;
 use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Msg\SubmitLoginMsg;
 use Phlix\Console\Msg\SubmitServerMsg;
@@ -54,6 +56,7 @@ use Phlix\Console\Screen\PhotoViewerScreen;
 use Phlix\Console\Screen\PlayerScreen;
 use Phlix\Console\Screen\SearchScreen;
 use Phlix\Console\Screen\ServerScreen;
+use Phlix\Console\Screen\SettingsScreen;
 use Phlix\Console\Screen\Teardownable;
 use Phlix\Console\Screen\Themed;
 use Phlix\Console\Store\AudiobooksStore;
@@ -236,6 +239,12 @@ final class App implements Model
         }
         if ($msg instanceof OpenSearchMsg) {
             return $this->openSearch();
+        }
+        if ($msg instanceof OpenSettingsMsg) {
+            return $this->openSettings();
+        }
+        if ($msg instanceof SettingsSavedMsg) {
+            return $this->saveSettings($msg->themeName, $msg->slideshowInterval);
         }
         if ($msg instanceof PlayRequestedMsg) {
             return $this->openPlayer($msg->item);
@@ -447,6 +456,7 @@ final class App implements Model
         return [
             new PaletteAction('Search', new OpenSearchMsg()),
             new PaletteAction('Home', new GoHomeMsg()),
+            new PaletteAction('Settings', new OpenSettingsMsg()),
             new PaletteAction('Log out', new RequestLogoutMsg()),
             new PaletteAction('Quit', new RequestQuitMsg()),
         ];
@@ -746,6 +756,7 @@ final class App implements Model
             $this->api->baseUrl(),
             cols: $this->cols,
             rows: $this->rows,
+            slideInterval: (float) $this->config->slideshowInterval,
         );
 
         return [$this->push(Route::PhotoViewer, $screen), $screen->init()];
@@ -775,6 +786,40 @@ final class App implements Model
         );
 
         return [$this->push(Route::Search, $screen), $screen->init()];
+    }
+
+    private function openSettings(): array
+    {
+        $screen = SettingsScreen::create(
+            $this->theme->name,
+            $this->config->slideshowInterval,
+            $this->cols,
+            $this->rows,
+        );
+
+        return [$this->push(Route::Settings, $screen), $screen->init()];
+    }
+
+    /**
+     * Apply a settings change: persist the new theme + slideshow interval
+     * (best-effort), switch the live theme, and pop the Settings frame so the
+     * user returns to the screen they opened it from. The theme applies LIVE
+     * because {@see baseView()} re-applies $this->theme each render; the new
+     * interval flows into future {@see openPhoto()} pushes via $this->config.
+     */
+    private function saveSettings(string $themeName, int $slideshowInterval): array
+    {
+        $newTheme = Theme::byName($themeName);
+        $newConfig = $this->config->withTheme($themeName)->withSlideshowInterval($slideshowInterval);
+
+        try {
+            $newConfig->save();
+        } catch (\Throwable) {
+            // Persisting is best-effort; proceed with the in-memory config anyway.
+        }
+
+        // Pop the Settings frame, then apply the new config + theme to that copy.
+        return [$this->popScreen()->withConfig($newConfig)->withTheme($newTheme), null];
     }
 
     private function openPlayer(MediaItem $item): array
@@ -972,6 +1017,12 @@ final class App implements Model
         return $this->theme;
     }
 
+    /** The current client config (server URL, theme name, slideshow interval). */
+    public function config(): Config
+    {
+        return $this->config;
+    }
+
     /**
      * A copy switched to $theme (T2 uses this to apply a live theme change). The
      * theme is applied transiently to the top screen on the next render, so the
@@ -982,6 +1033,19 @@ final class App implements Model
         return new self(
             $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
             $this->stack, null, $this->cols, $this->rows, $this->toast, $this->toastTicking, $this->palette, $theme,
+        );
+    }
+
+    /**
+     * A copy carrying $config (Settings save persists the new theme name +
+     * slideshow interval here so future {@see openPhoto()} pushes pick it up).
+     * Every other field is preserved.
+     */
+    public function withConfig(Config $config): self
+    {
+        return new self(
+            $config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
+            $this->stack, null, $this->cols, $this->rows, $this->toast, $this->toastTicking, $this->palette, $this->theme,
         );
     }
 }
