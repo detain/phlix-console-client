@@ -10,6 +10,7 @@ use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\AuthResult;
 use Phlix\Console\Api\MediaQuery;
 use Phlix\Console\Api\NetworkError;
+use Phlix\Console\Api\Dto\Album;
 use Phlix\Console\Api\Dto\AuthUser;
 use Phlix\Console\Api\Dto\ContinueWatchingItem;
 use Phlix\Console\Api\Dto\Library;
@@ -200,6 +201,73 @@ final class ApiClientTest extends TestCase
         self::assertInstanceOf(MediaItem::class, $item);
         self::assertSame('https://s/x?sig=1', $item->streamUrl);
         self::assertStringEndsWith('/api/v1/media/m1', $t->requestAt(0)['url']);
+    }
+
+    // ---- music ---------------------------------------------------------
+
+    public function testMusicAlbumsHitsEndpointAndMapsAlbumsWithTracks(): void
+    {
+        $t = (new FakeTransport())->json(200, ['albums' => [
+            [
+                'name' => 'Abbey Road',
+                'artist' => 'The Beatles',
+                'year' => 1969,
+                'track_count' => 2,
+                'tracks' => [
+                    ['id' => 't1', 'name' => 'x', 'metadata' => ['title' => 'Come Together', 'track_number' => 1, 'duration_secs' => 259]],
+                    ['id' => 't2', 'name' => 'x', 'metadata' => ['title' => 'Something', 'track_number' => 2, 'duration_secs' => 182]],
+                ],
+            ],
+            [
+                'name' => 'Revolver',
+                'artist' => 'The Beatles',
+                'year' => 1966,
+                'track_count' => 1,
+                'tracks' => [
+                    ['id' => 't3', 'name' => 'x', 'metadata' => ['title' => 'Taxman', 'track_number' => 1]],
+                ],
+            ],
+            'garbage',
+        ]]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $albums = $this->await($client->musicAlbums());
+
+        self::assertContainsOnlyInstancesOf(Album::class, $albums);
+        self::assertCount(2, $albums, 'non-array rows are skipped');
+        self::assertSame('Abbey Road', $albums[0]->name);
+        self::assertCount(2, $albums[0]->tracks);
+        self::assertSame('Come Together', $albums[0]->tracks[0]->title);
+        self::assertSame('Revolver', $albums[1]->name);
+        self::assertSame('Taxman', $albums[1]->tracks[0]->title);
+
+        $req = $t->requestAt(0);
+        self::assertSame('GET', $req['method']);
+        self::assertSame(self::BASE . '/api/v1/music/albums', $req['url']);
+    }
+
+    public function testMusicAlbumHitsEndpointWithRawUrlEncodedNameAndMapsOne(): void
+    {
+        $t = (new FakeTransport())->json(200, ['album' => [
+            'name' => 'Abbey Road',
+            'artist' => 'The Beatles',
+            'year' => 1969,
+            'track_count' => 1,
+            'tracks' => [
+                ['id' => 't1', 'name' => 'x', 'metadata' => ['title' => 'Come Together']],
+            ],
+        ]]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $album = $this->await($client->musicAlbum('Abbey Road'));
+
+        self::assertInstanceOf(Album::class, $album);
+        self::assertSame('Abbey Road', $album->name);
+        self::assertCount(1, $album->tracks);
+        self::assertSame('Come Together', $album->tracks[0]->title);
+        self::assertSame(self::BASE . '/api/v1/music/albums/Abbey%20Road', $t->requestAt(0)['url']);
     }
 
     public function testContinueWatchingMapsEntries(): void

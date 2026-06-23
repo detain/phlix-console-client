@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Api;
 
+use Phlix\Console\Api\Dto\Album;
 use Phlix\Console\Api\Dto\AuthUser;
 use Phlix\Console\Api\Dto\Coerce;
 use Phlix\Console\Api\Dto\ContinueWatchingItem;
@@ -195,6 +196,39 @@ final class ApiClient
     {
         return $this->authed('GET', '/api/v1/media/' . rawurlencode($id))
             ->then(static fn (array $data): MediaItem => MediaItem::fromArray(Coerce::map($data['item'] ?? null)));
+    }
+
+    // ---- music ---------------------------------------------------------
+
+    /**
+     * The full album list — the server returns every album (each carrying its
+     * full track list) in one call, with no pagination.
+     *
+     * @return PromiseInterface<list<Album>>
+     */
+    public function musicAlbums(): PromiseInterface
+    {
+        return $this->authed('GET', '/api/v1/music/albums')->then(static function (array $data): array {
+            $albums = [];
+            foreach (Coerce::map($data['albums'] ?? null) as $row) {
+                if (is_array($row)) {
+                    $albums[] = Album::fromArray($row);
+                }
+            }
+
+            return $albums;
+        });
+    }
+
+    /**
+     * A single album by name (the server keys albums by name, case-insensitive).
+     *
+     * @return PromiseInterface<Album>
+     */
+    public function musicAlbum(string $name): PromiseInterface
+    {
+        return $this->authed('GET', '/api/v1/music/albums/' . rawurlencode($name))
+            ->then(static fn (array $data): Album => Album::fromArray(Coerce::map($data['album'] ?? null)));
     }
 
     // ---- playback sessions / progress ---------------------------------
