@@ -6,7 +6,7 @@ command palette, and an in-terminal video player. Posters and video render as
 **sixel / kitty / iTerm2 / half-block ANSI** via the
 [SugarCraft](https://sugarcraft.github.io/) stack.
 
-> **Status: Phases 0–5 complete.** The build plan is
+> **Status: Phases 0–6 complete.** The build plan is
 > [`../phlix_console_client.md`](../phlix_console_client.md). Working today: log
 > in, browse your libraries as poster rails beside a sidebar, open a library into
 > a virtualized poster grid (scroll, filter, sort, A–Z jump), open any poster
@@ -24,14 +24,32 @@ command palette, and an in-terminal video player. Posters and video render as
 > virtualized poster grid of `/media?search=` results), a **command palette**
 > (Ctrl-K or `:` → fuzzy-ranked actions: search, jump to any library, log out,
 > quit), and **toasts** — transient top-right notifications that surface errors
-> which used to fail silently. Music / books / audiobooks / photos (Phase 6) and
-> theming / settings (Phase 7) land in later phases.
+> which used to fail silently.
+>
+> Phase 6 makes **every library type browsable** and audio + photos fully usable —
+> opening a library now routes to a browser built for its type:
+>
+> - **Music** — an album list (Album · Artist · Year · Tracks) → a track table;
+>   Enter **direct-plays** the audio through ffplay/mpv, with `Space` pause and
+>   `n`/`p` for the next/previous track. (No server cover art → text-forward.)
+> - **Books** — a virtualized cover grid (lazy covers) → a detail screen with the
+>   cover, metadata, and a copyable **download URL** (there is no in-terminal
+>   reader).
+> - **Audiobooks** — a list (Title · Author · Narrator · Duration) → a chapter
+>   table; Enter plays a chapter, `r` **resumes** from your saved position, `Space`
+>   pauses, and your **progress is saved back to the server**. (Text-forward.)
+> - **Photos** — a grid of album covers (by date) → an album's thumbnail grid → a
+>   **fullscreen photo** (`←`/`→` prev/next) with an **EXIF panel** (`i`) and an
+>   auto-advancing **slideshow** (`s`). Thumbnails and full images render directly
+>   from signed URLs.
+>
+> Theming / settings (Phase 7) land in a later phase.
 
 ## Requirements
 
 - **PHP ≥ 8.3** with `ext-gd` (image decode), `pcntl` + `posix` (TTY/raw mode).
 - **ffmpeg** + **ffprobe** (video decode + frame grabs).
-- **ffplay** or **mpv** (audio playback — Phase 4).
+- **ffplay** or **mpv** (audio playback — video, music, audiobooks).
 - A terminal with **sixel** or the **kitty**/**iTerm2** graphics protocol is
   recommended; **half-block** is the universal fallback.
 
@@ -67,7 +85,9 @@ composer update 'sugarcraft/*'
 ```sh
 # Launch the full-window app (needs a real TTY): first run asks for your server
 # URL, then log in. Browse rails + sidebar → open a library → grid → open a
-# poster → detail → drill series/season/episode. Press `/` to search and Ctrl-K
+# poster → detail → drill series/season/episode. Opening a music, book,
+# audiobook, or photo library routes to its own browser instead (album list /
+# book grid / audiobook list / photo albums). Press `/` to search and Ctrl-K
 # (or `:`) for the command palette from anywhere. Esc walks back; Ctrl-C quits.
 bin/phlix run
 ```
@@ -80,6 +100,13 @@ command palette · A–Z jump · `p` play · `Tab` switch focus on the home scre
 `[` / `]` speed · `m` cycle render mode · `s` skip intro/outro · `o` start over ·
 `c` captions · `n` / `p` next / previous episode · `f` toggle chrome · `q`/`Esc`
 back.
+
+**Music** — an album list → a track table; `⏎` plays a track (`Space` pause,
+`n`/`p` next/previous). **Audiobooks** — a list → a chapter table; `⏎` plays a
+chapter, `r` resumes from your saved spot, `Space` pauses (progress is saved
+back). **Books** — a cover grid → a detail screen with a copyable download URL.
+**Photos** — album covers (by date) → an album's thumbnails → a fullscreen photo
+(`←`/`→` prev/next, `i` EXIF panel, `s` slideshow).
 
 ### Render diagnostics
 
