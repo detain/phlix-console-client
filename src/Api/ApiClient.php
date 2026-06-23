@@ -6,6 +6,8 @@ namespace Phlix\Console\Api;
 
 use Phlix\Console\Api\Dto\Album;
 use Phlix\Console\Api\Dto\AuthUser;
+use Phlix\Console\Api\Dto\Book;
+use Phlix\Console\Api\Dto\BookPage;
 use Phlix\Console\Api\Dto\Coerce;
 use Phlix\Console\Api\Dto\ContinueWatchingItem;
 use Phlix\Console\Api\Dto\LetterIndex;
@@ -229,6 +231,38 @@ final class ApiClient
     {
         return $this->authed('GET', '/api/v1/music/albums/' . rawurlencode($name))
             ->then(static fn (array $data): Album => Album::fromArray(Coerce::map($data['album'] ?? null)));
+    }
+
+    // ---- books ---------------------------------------------------------
+
+    /**
+     * A page of books — scoped to a library when `$libraryId` is given (which
+     * paginates that library), otherwise up to 1000 books across all libraries.
+     * The server sends no total.
+     *
+     * @return PromiseInterface<BookPage>
+     */
+    public function books(?string $libraryId, int $limit = 50, int $offset = 0): PromiseInterface
+    {
+        $query = array_filter(
+            ['library_id' => $libraryId, 'limit' => $limit, 'offset' => $offset],
+            static fn (mixed $value): bool => $value !== null,
+        );
+
+        return $this->authed('GET', '/api/v1/books', $query)
+            ->then(static fn (array $data): BookPage => BookPage::fromArray($data));
+    }
+
+    /**
+     * A single book's detail, which adds the signed cover/read/download URLs the
+     * list shape omits.
+     *
+     * @return PromiseInterface<Book>
+     */
+    public function book(string $id): PromiseInterface
+    {
+        return $this->authed('GET', '/api/v1/books/' . rawurlencode($id))
+            ->then(static fn (array $data): Book => Book::fromArray(Coerce::map($data['book'] ?? null)));
     }
 
     // ---- playback sessions / progress ---------------------------------
