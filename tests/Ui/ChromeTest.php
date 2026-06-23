@@ -46,20 +46,22 @@ final class ChromeTest extends TestCase
         self::assertStringNotContainsString('›', $out);
     }
 
-    public function testContentHeightIsPositiveAndGrowsWithRows(): void
+    public function testBodyHeightIsPositiveAndGrowsWithRows(): void
     {
-        $small = Chrome::contentHeight(80, 24);
-        $large = Chrome::contentHeight(80, 50);
+        $small = Chrome::bodyHeight(24);
+        $large = Chrome::bodyHeight(50);
 
         self::assertGreaterThan(0, $small);
-        self::assertLessThan(24, $small, 'the content region is only a fraction of the rows');
         self::assertGreaterThan($small, $large, 'a taller terminal yields a taller content region');
+        // The content panel now FILLS the frame (it grows with the terminal) —
+        // not the old ~1/3 split. At 24 rows the body is the clear majority.
+        self::assertGreaterThan((int) (24 / 2), $small, 'the content panel fills most of the terminal');
     }
 
-    public function testContentHeightIsExactlyWhatTheFrameCanShow(): void
+    public function testBodyHeightIsExactlyWhatTheFrameCanShow(): void
     {
         $rows = 30;
-        $h = Chrome::contentHeight(80, $rows);
+        $h = Chrome::bodyHeight($rows);
 
         // A body of exactly $h tagged lines all survive the frame…
         $fit = implode("\n", array_map(static fn (int $i): string => "ROW{$i}END", range(1, $h)));
@@ -68,14 +70,32 @@ final class ChromeTest extends TestCase
             self::assertStringContainsString("ROW{$i}END", $out, "row {$i} of {$h} should be visible");
         }
 
-        // …and one more line overflows (the frame cannot show $h + 1).
+        // …and one more line overflows (the panel cannot show $h + 1).
         $over = implode("\n", array_map(static fn (int $i): string => "ROW{$i}END", range(1, $h + 1)));
         $outOver = Chrome::frame('T', $over, 'hint', 80, $rows);
         self::assertStringNotContainsString('ROW' . ($h + 1) . 'END', $outOver);
     }
 
-    public function testContentHeightIsMemoisedAndStable(): void
+    public function testBodyHeightIsDeterministicAndNeverNegative(): void
     {
-        self::assertSame(Chrome::contentHeight(100, 40), Chrome::contentHeight(100, 40));
+        self::assertSame(Chrome::bodyHeight(40), Chrome::bodyHeight(40));
+        // A terminal too short for the 8-line chrome yields 0 body lines (exactly
+        // what the frame shows); one row taller yields 1. Never negative.
+        self::assertSame(0, Chrome::bodyHeight(8));
+        self::assertSame(1, Chrome::bodyHeight(9));
+        self::assertGreaterThanOrEqual(0, Chrome::bodyHeight(1));
+    }
+
+    public function testFrameBodyWidthIsExactlyColsMinusFour(): void
+    {
+        // Two nested borders (outer frame + content panel) inset the body by 4
+        // cells — the width every screen sizes its content to.
+        $cols = 40;
+        $out = Chrome::frame('T', str_repeat('x', $cols - 4), 'hint', $cols, 24);
+        self::assertStringContainsString(str_repeat('x', $cols - 4), $out, 'a cols-4 body line fits exactly');
+
+        // …and one cell more is clipped (proves the inset is exactly 4, not less).
+        $outOver = Chrome::frame('T', str_repeat('y', $cols - 3), 'hint', $cols, 24);
+        self::assertStringNotContainsString(str_repeat('y', $cols - 3), $outOver, 'a cols-3 body line does not fit');
     }
 }

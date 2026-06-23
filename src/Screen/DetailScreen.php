@@ -445,9 +445,10 @@ final class DetailScreen implements Breadcrumbed
 
     private function containerViewportRows(int $rows): int
     {
-        // Reserve the frame chrome (4) plus the meta line + blank (2), matching
-        // LibraryScreen so a full grid of children renders without clipping.
-        return max(self::POSTER_HEIGHT + 2, $rows - 6);
+        // The content panel fills the frame; window the children grid to that body
+        // height less the meta line + blank (2), matching LibraryScreen so a full
+        // grid of children renders without clipping.
+        return max(self::POSTER_HEIGHT + 2, Chrome::bodyHeight($rows) - 2);
     }
 
     // ---- rendering: leaf -----------------------------------------------
@@ -557,7 +558,10 @@ final class DetailScreen implements Breadcrumbed
 
     private function bodyHeight(): int
     {
-        return max(self::HERO_HEIGHT, $this->rows - 4);
+        // The metadata column is sized to the content panel so its actions line
+        // stays visible even on short terminals; the fixed-height hero poster
+        // beside it simply clips at the bottom when the panel can't fit it.
+        return Chrome::bodyHeight($this->rows);
     }
 
     private function headerTitle(): string

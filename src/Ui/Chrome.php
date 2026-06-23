@@ -25,46 +25,42 @@ final class Chrome
     {
         $b = SugarBoxer::new();
 
-        $header = $b->leaf(' Phlix  ·  ' . self::headerLabel($title, $trail, $cols))->withMinHeight(1);
-        $content = $b->leaf($body)->withBorder(true);
-        $status = $b->leaf(' ' . $hint)->withMinHeight(1);
+        // header = 1 fixed line, content = FILLS (flex/grow), status = 1 fixed line.
+        // The content panel keeps its border (so the body width stays cols-4); the
+        // header/status are borderless single lines, and a 1-row gap separates the
+        // sections (sugar-boxer draws an inter-panel divider on a borderless leaf's
+        // only row at spacing 0, so use spacing 1 — the blank line reads as
+        // breathing room). The content grows to fill everything left over.
+        $header = $b->leaf(' Phlix  ·  ' . self::headerLabel($title, $trail, $cols))->withBorder(false)->withMinHeight(1);
+        $content = $b->leaf($body)->withBorder(true)->withGrow();
+        $status = $b->leaf(' ' . $hint)->withBorder(false)->withMinHeight(1);
 
-        $root = $b->vertical($header, $content, $status);
+        $root = $b->vertical($header, $content, $status)->withSpacing(1);
 
         return $b->render($root, max(1, $cols), max(1, $rows));
     }
 
-    /** @var array<string,int> */
-    private static array $contentHeightCache = [];
+    /**
+     * Chrome height overhead around the content body: root border (2) + two
+     * spacing gaps (2) + header line (1) + status line (1) + content-panel
+     * border (2) = 8. Kept in sync with {@see frame()}'s layout.
+     */
+    private const CHROME_HEIGHT = 8;
 
     /**
-     * How many body lines the bordered content region can actually show at a
-     * given terminal size.
+     * How many body lines the content panel shows at a given terminal height.
      *
-     * sugar-boxer's vertical split distributes height by weight, so the content
-     * region is only a fraction of $rows — NOT `rows - chrome`. A screen that
-     * sizes a scrolling body (a grid window, a table viewport) must clamp it to
-     * THIS height, or its lower rows — including the selected one — get clipped
-     * by the frame. Measured by probing the real frame once per size (memoized,
-     * deterministic).
+     * The content panel now FILLS the frame (sugar-boxer flex/grow), so the body
+     * is a deterministic `rows - CHROME_HEIGHT` — no probing. This equals EXACTLY
+     * the number of body lines {@see frame()} displays (0 when the terminal is too
+     * short to fit the chrome at all). A screen that windows a scrolling body (a
+     * grid, a table viewport) sizes it to THIS value (less any in-content header
+     * lines of its own) so its rows fill the panel and the selected row is never
+     * clipped; callers floor their own viewport so a 0 here is safe.
      */
-    public static function contentHeight(int $cols, int $rows): int
+    public static function bodyHeight(int $rows): int
     {
-        $key = $cols . ':' . $rows;
-        if (isset(self::$contentHeightCache[$key])) {
-            return self::$contentHeightCache[$key];
-        }
-
-        // A tall body of uniquely-tagged lines; count how many survive the frame.
-        $lines = [];
-        for ($i = 1, $n = max(1, $rows); $i <= $n; $i++) {
-            $lines[] = "\x01" . $i . "\x01";
-        }
-        $rendered = self::frame('', implode("\n", $lines), '', $cols, $rows);
-        $stripped = preg_replace('/\e\[[0-9;]*m/', '', $rendered) ?? $rendered;
-        preg_match_all('/\x01\d+\x01/', $stripped, $matches);
-
-        return self::$contentHeightCache[$key] = max(1, count(array_unique($matches[0])));
+        return max(0, $rows - self::CHROME_HEIGHT);
     }
 
     /**
