@@ -18,6 +18,8 @@ use Phlix\Console\Api\Dto\LetterIndex;
 use Phlix\Console\Api\Dto\Library;
 use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\Dto\MediaPage;
+use Phlix\Console\Api\Dto\Photo;
+use Phlix\Console\Api\Dto\PhotoAlbum;
 use Phlix\Console\Api\Dto\PlaybackInfo;
 use Phlix\Console\Api\Dto\PlaybackMarkers;
 use Phlix\Console\Api\Dto\SubtitleTrack;
@@ -267,6 +269,42 @@ final class ApiClient
     {
         return $this->authed('GET', '/api/v1/books/' . rawurlencode($id))
             ->then(static fn (array $data): Book => Book::fromArray(Coerce::map($data['book'] ?? null)));
+    }
+
+    // ---- photos --------------------------------------------------------
+
+    /**
+     * The date-grouped photo albums for a library (required) — each album
+     * carries its full photo list, so no separate flat-photo fetch is needed.
+     * The server returns every album in one call, sorted date-descending.
+     *
+     * @return PromiseInterface<list<PhotoAlbum>>
+     */
+    public function photoAlbums(string $libraryId): PromiseInterface
+    {
+        return $this->authed('GET', '/api/v1/photo/albums', ['library_id' => $libraryId])
+            ->then(static function (array $data): array {
+                $albums = [];
+                foreach (Coerce::map($data['albums'] ?? null) as $row) {
+                    if (is_array($row)) {
+                        $albums[] = PhotoAlbum::fromArray($row);
+                    }
+                }
+
+                return $albums;
+            });
+    }
+
+    /**
+     * A single photo's detail — the shape that adds the full EXIF map alongside
+     * the signed thumbnail/full URLs (no `library_id` needed; looked up by id).
+     *
+     * @return PromiseInterface<Photo>
+     */
+    public function photo(string $id): PromiseInterface
+    {
+        return $this->authed('GET', '/api/v1/photo/photos/' . rawurlencode($id))
+            ->then(static fn (array $data): Photo => Photo::fromArray(Coerce::map($data['photo'] ?? null)));
     }
 
     // ---- audiobooks ----------------------------------------------------
