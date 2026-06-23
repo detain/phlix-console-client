@@ -52,6 +52,7 @@ use Phlix\Console\Msg\SubmitLoginMsg;
 use Phlix\Console\Msg\SubmitServerMsg;
 use Phlix\Console\Msg\ToastTickMsg;
 use Phlix\Console\Msg\ToggleAudioMsg;
+use Phlix\Console\Msg\ToggleMetricsMsg;
 use Phlix\Console\Msg\TrackResolvedMsg;
 use Phlix\Console\Route;
 use Phlix\Console\Screen\AlbumScreen;
@@ -886,7 +887,7 @@ final class AppTest extends TestCase
         self::assertNotNull($next->palette());
         self::assertInstanceOf(\Closure::class, $cmd, 'opening fires the libraries fetch');
         $labels = array_map(static fn ($a): string => $a->label, $next->palette()->actions());
-        self::assertSame(['Search', 'Home', 'Settings', 'Log out', 'Quit'], $labels);
+        self::assertSame(['Search', 'Home', 'Settings', 'Show metrics', 'Log out', 'Quit'], $labels);
     }
 
     public function testCtrlKTogglesThePaletteClosed(): void
@@ -2283,6 +2284,220 @@ final class AppTest extends TestCase
 
         self::assertContains('Pause playback', $labels, 'a playing audiobook adds a Pause action');
         self::assertContains('Stop playback', $labels);
+    }
+
+    // ---- metrics / HUD overlay -----------------------------------------
+
+    /**
+     * A now-playing music App over a REAL, full-height BrowseScreen (not the
+     * empty teardown spy) so the HUD (top-left) and the now-playing bar (bottom
+     * row) occupy different rows — proving they coexist on a normal terminal.
+     */
+    private function playingMusicApp(): App
+    {
+        $transport = (new FakeTransport())->json(200, $this->itemResponse(self::STREAM));
+        $api = new ApiClient('https://srv', $transport);
+        $factory = function (string $url, ?int $startMs = null): FakeAudioPlayer {
+            return $this->lastAudioPlayer = new FakeAudioPlayer($url);
+        };
+        $browse = new BrowseScreen(
+            AuthUser::fromArray(['id' => 'u1', 'username' => 'joe']),
+            new LibrariesStore($api),
+            new MediaStore($api),
+            new PosterLoader(Mosaic::halfBlock()),
+            cols: 80,
+            rows: 24,
+        );
+        $app = new App(
+            new Config('https://srv'),
+            new AuthStore($api, TokenStore::default()),
+            $api,
+            new LibrariesStore($api),
+            new MediaStore($api),
+            new PosterLoader(Mosaic::halfBlock()),
+            [['route' => Route::Browse, 'screen' => $browse]],
+        );
+
+        return $this->startPlaying($app->withAudioFactory($factory));
+    }
+
+    public function testToggleMetricsFlipsTheVisibilityFlagAndShowsTheHud(): void
+    {
+        $app = $this->browsing();
+        // Hidden by default: none of the HUD labels appear.
+        self::assertStringNotContainsString('Mem', $app->view());
+
+        [$on] = $app->update(new ToggleMetricsMsg());
+
+        self::assertNotSame($app, $on, 'toggling returns a new App copy');
+        $view = $on->view();
+        self::assertStringContainsString('Mem', $view, 'the HUD shows the memory metric');
+        self::assertStringContainsString('Route', $view);
+        self::assertStringContainsString('Theme', $view);
+        self::assertStringContainsString('Audio', $view);
+        // The route name of the top (Browse) frame is shown.
+        self::assertStringContainsString('Browse', $view);
+    }
+
+    public function testToggleMetricsOffHidesTheHudAgain(): void
+    {
+        [$on] = $this->browsing()->update(new ToggleMetricsMsg());
+        self::assertStringContainsString('Mem', $on->view());
+
+        [$off] = $on->update(new ToggleMetricsMsg());
+
+        self::assertStringNotContainsString('Mem', $off->view(), 'a second toggle hides the HUD');
+        self::assertStringNotContainsString('Theme  Nocturne', $off->view());
+    }
+
+    public function testThePaletteActionLabelFlipsShowHideAndEmitsToggleMetrics(): void
+    {
+        // Hidden → the palette offers "Show metrics".
+        [$open] = $this->browsing()->update($this->ctrlK());
+        $labels = array_map(static fn ($a): string => $a->label, $open->palette()->actions());
+        self::assertContains('Show metrics', $labels);
+        self::assertNotContains('Hide metrics', $labels);
+
+        // Visible → the palette offers "Hide metrics".
+        [$shown] = $this->browsing()->update(new ToggleMetricsMsg());
+        [$openShown] = $shown->update($this->ctrlK());
+        $shownLabels = array_map(static fn ($a): string => $a->label, $openShown->palette()->actions());
+        self::assertContains('Hide metrics', $shownLabels);
+        self::assertNotContains('Show metrics', $shownLabels);
+    }
+
+    public function testThePaletteMetricsActionDispatchesToggleMetrics(): void
+    {
+        [$open] = $this->browsing()->update($this->ctrlK());
+        // Rank the "Show metrics" action, then select it.
+        $typed = $open;
+        foreach (['s', 'h', 'o', 'w', ' ', 'm', 'e', 't'] as $rune) {
+            [$typed] = $typed->update($rune === ' ' ? new KeyMsg(KeyType::Space) : new KeyMsg(KeyType::Char, $rune));
+        }
+        self::assertSame('Show metrics', $typed->palette()->selectedAction()?->label);
+
+        [, $cmd] = $typed->update(new KeyMsg(KeyType::Enter));
+
+        self::assertInstanceOf(ToggleMetricsMsg::class, $this->runCmd($cmd));
+    }
+
+    public function testTheHudShowsTheCurrentRouteAndDepthAfterDrillIn(): void
+    {
+        // Drill Browse → Library, turn the HUD on: it reflects the live route +
+        // stack depth (read off the current App, no counters).
+        [$lib] = $this->browsing()->update(new OpenLibraryMsg('lib-a', 'Movies', 'movie'));
+        [$on] = $lib->update(new ToggleMetricsMsg());
+
+        $view = $on->view();
+        self::assertStringContainsString('Library', $view, 'the HUD route is the top frame');
+        self::assertStringContainsString('Depth  2', $view, 'the stack depth is shown');
+    }
+
+    public function testTheHudReportsTheLiveTheme(): void
+    {
+        $on = $this->browsing()->withTheme(Theme::midnight());
+        [$on] = $on->update(new ToggleMetricsMsg());
+
+        self::assertStringContainsString('Theme  Midnight', $on->view(), 'the HUD names the active theme');
+    }
+
+    public function testTheHudAudioLineIsIdleWhenNothingPlays(): void
+    {
+        [$on] = $this->browsing()->update(new ToggleMetricsMsg());
+
+        self::assertStringContainsString('Audio  idle', $on->view());
+    }
+
+    public function testTheHudAudioLineShowsAPlayingMusicTrack(): void
+    {
+        // A now-playing music session: the Audio line names the track.
+        $playing = $this->startPlaying($this->audioApp());
+        [$on] = $playing->update(new ToggleMetricsMsg());
+
+        self::assertStringContainsString('Audio  music: Come Together', $on->view());
+    }
+
+    public function testTheHudAudioLineShowsAPausedMusicTrack(): void
+    {
+        $playing = $this->startPlaying($this->audioApp());
+        [$paused] = $playing->update(new ToggleAudioMsg());
+        [$on] = $paused->update(new ToggleMetricsMsg());
+
+        self::assertStringContainsString('Audio  music: Come Together (paused)', $on->view());
+    }
+
+    public function testTheHudAudioLineShowsAPlayingAudiobook(): void
+    {
+        // A now-playing audiobook session: the Audio line names the chapter and is
+        // tagged "audiobook" (not "music").
+        $playing = $this->startAudiobook($this->audiobookApp());
+        [$on] = $playing->update(new ToggleMetricsMsg());
+
+        self::assertStringContainsString('Audio  audiobook: Beginnings', $on->view());
+    }
+
+    public function testTheMetricsFlagSurvivesNavigation(): void
+    {
+        // Turn the HUD on, then drill in: the flag is threaded through the push
+        // copy, so the HUD is still shown on the new screen.
+        [$on] = $this->browsing()->update(new ToggleMetricsMsg());
+        self::assertStringContainsString('Mem', $on->view());
+
+        [$lib] = $on->update(new OpenLibraryMsg('lib-a', 'Movies', 'movie'));
+
+        self::assertStringContainsString('Mem', $lib->view(), 'the HUD survives a drill-in (flag threaded through push)');
+
+        // …and back out (threaded through pop).
+        [$back] = $lib->update(new NavigateBackMsg());
+        self::assertStringContainsString('Mem', $back->view(), 'the HUD survives a pop');
+    }
+
+    public function testTheMetricsFlagSurvivesAResize(): void
+    {
+        [$on] = $this->browsing()->update(new ToggleMetricsMsg());
+
+        [$resized] = $on->update(new WindowSizeMsg(120, 40));
+
+        $view = $resized->view();
+        self::assertStringContainsString('Mem', $view, 'the HUD survives a resize (flag threaded through resized())');
+        self::assertStringContainsString('Term   120×40', $view, 'the HUD reflects the new terminal size');
+    }
+
+    public function testThePaletteStillCompositesWithTheHudOn(): void
+    {
+        // With the HUD on AND the palette open, both render (compose order intact:
+        // the HUD sits under the palette modal).
+        [$on] = $this->browsing()->update(new ToggleMetricsMsg());
+        [$open] = $on->update($this->ctrlK());
+
+        $view = $open->view();
+        self::assertStringContainsString('Mem', $view, 'the HUD is still drawn');
+        self::assertStringContainsString('Quit', $view, 'the palette box floats over the HUD');
+    }
+
+    public function testAToastStillCompositesWithTheHudOn(): void
+    {
+        [$on] = $this->browsing()->update(new ToggleMetricsMsg());
+        [$toasted] = $on->update(ShowToastMsg::error('HUD_TOAST_PROOF'));
+
+        // The toast is a modal that floats over the top rows; the HUD's lower
+        // rows still show beneath it (compose order intact: HUD under, toast over).
+        $view = $toasted->view();
+        self::assertStringContainsString('Theme  Nocturne', $view, 'the HUD is still drawn under the toast');
+        self::assertStringContainsString('HUD_TOAST_PROOF', $view, 'the toast floats over the HUD');
+    }
+
+    public function testTheHudCompositesOverThePlayingNowPlayingBar(): void
+    {
+        // On a real full-height screen the HUD (top-left, rows 0-7) and the
+        // now-playing bar (bottom row) occupy different rows — neither clobbers
+        // the other.
+        [$on] = $this->playingMusicApp()->update(new ToggleMetricsMsg());
+
+        $view = $on->view();
+        self::assertStringContainsString('Mem', $view, 'the HUD is in the top-left');
+        self::assertStringContainsString('▶ Come Together', $view, 'the now-playing bar still shows on the bottom row');
+        self::assertStringContainsString('Audio  music: Come Together', $view, 'the HUD names the playing track');
     }
 
     /** Drain a (possibly batched) Cmd, running every child (audiobook progress POSTs are fire-and-forget). */

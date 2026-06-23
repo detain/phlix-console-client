@@ -50,6 +50,7 @@ use Phlix\Console\Msg\SubmitLoginMsg;
 use Phlix\Console\Msg\SubmitServerMsg;
 use Phlix\Console\Msg\ToastTickMsg;
 use Phlix\Console\Msg\ToggleAudioMsg;
+use Phlix\Console\Msg\ToggleMetricsMsg;
 use Phlix\Console\Msg\TrackResolvedMsg;
 use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Screen\AlbumScreen;
@@ -82,6 +83,7 @@ use Phlix\Console\Store\MusicStore;
 use Phlix\Console\Store\PhotosStore;
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\CommandPalette;
+use Phlix\Console\Ui\MetricsOverlay;
 use Phlix\Console\Ui\NowPlayingBar;
 use Phlix\Console\Ui\PaletteAction;
 use Phlix\Console\Ui\Theme;
@@ -138,6 +140,7 @@ final class App implements Model
      * @param ?Theme $theme the active theme; null defaults to {@see Theme::nocturne()} (the identity look)
      * @param ?NowPlayingSession $nowPlaying the App-owned playback session (music or audiobook; persists across navigation), or null when nothing plays
      * @param ?(\Closure(string, ?int): \SugarCraft\Reel\AudioPlayer) $audioFactory builds the player for a stream URL; null defaults to the production ffplay/mpv factory
+     * @param bool $metricsVisible whether the diagnostic metrics / HUD overlay is shown (toggled from the palette; default off)
      */
     public function __construct(
         private readonly Config $config,
@@ -156,6 +159,7 @@ final class App implements Model
         ?Theme $theme = null,
         private readonly ?NowPlayingSession $nowPlaying = null,
         ?\Closure $audioFactory = null,
+        private readonly bool $metricsVisible = false,
     ) {
         $this->toast = $toast ?? self::defaultToast();
         $this->theme = $theme ?? Theme::nocturne();
@@ -301,6 +305,9 @@ final class App implements Model
         if ($msg instanceof StopAudioMsg) {
             return $this->stopAudio();
         }
+        if ($msg instanceof ToggleMetricsMsg) {
+            return [$this->withMetricsVisible(!$this->metricsVisible), null];
+        }
         if ($msg instanceof PlayAudiobookMsg) {
             return $this->playAudiobook($msg->audiobook, $msg->chapters, $msg->startMs);
         }
@@ -359,6 +366,12 @@ final class App implements Model
         if ($this->nowPlaying !== null) {
             $view = $this->compositeNowPlayingBar($view, $this->nowPlaying);
         }
+        // The diagnostic HUD sits in the top-left UNDER the modals: drawn over the
+        // base (+ now-playing bar) but before the palette/toast so those modal
+        // overlays still layer on top of it.
+        if ($this->metricsVisible) {
+            $view = MetricsOverlay::render($view, $this->metricsLines(), $this->cols, $this->rows, $this->theme);
+        }
         // The command palette dims + centers its box over the screen; toasts then
         // float over everything (palette included).
         if ($this->palette !== null) {
@@ -386,6 +399,54 @@ final class App implements Model
         $lines[count($lines) - 1] = $bar;
 
         return implode("\n", $lines);
+    }
+
+    /**
+     * The diagnostic HUD's `Label  value` lines — runtime metrics + current app
+     * state, all read straight off the live App + PHP (no counters / no timing).
+     * The labels are padded to a common width so the values line up.
+     *
+     * @return list<string>
+     */
+    private function metricsLines(): array
+    {
+        $mem = memory_get_usage(true) / 1048576;
+        $peak = memory_get_peak_usage(true) / 1048576;
+
+        $topFrame = $this->topFrame();
+        $route = $topFrame !== null ? $topFrame['route']->name : '—';
+
+        return [
+            self::metric('Mem', sprintf('%.1f / %.1f MB', $mem, $peak)),
+            self::metric('Term', $this->cols . '×' . $this->rows),
+            self::metric('Route', $route),
+            self::metric('Depth', (string) count($this->stack)),
+            self::metric('Theme', $this->theme->name),
+            self::metric('Audio', $this->audioMetric()),
+        ];
+    }
+
+    /** The `Audio` HUD value: `idle`, or `music|audiobook: <title>` (+ paused). */
+    private function audioMetric(): string
+    {
+        $np = $this->nowPlaying;
+        if ($np === null) {
+            return 'idle';
+        }
+
+        $kind = $np instanceof AudiobookSession ? 'audiobook' : 'music';
+        $suffix = $np->paused() ? ' (paused)' : '';
+
+        return $kind . ': ' . $np->title() . $suffix;
+    }
+
+    /**
+     * One padded `Label  value` HUD row: the label column is a fixed 7 cells so
+     * the values line up and even the widest label (5 chars) keeps a 2-space gap.
+     */
+    private static function metric(string $label, string $value): string
+    {
+        return str_pad($label, 7) . $value;
     }
 
     private function baseView(): string
@@ -481,6 +542,7 @@ final class App implements Model
             $this->theme,
             $this->nowPlaying,
             $this->audioFactory,
+            $this->metricsVisible,
         );
     }
 
@@ -545,6 +607,9 @@ final class App implements Model
             new PaletteAction('Search', new OpenSearchMsg()),
             new PaletteAction('Home', new GoHomeMsg()),
             new PaletteAction('Settings', new OpenSettingsMsg()),
+            // The metrics / HUD overlay is toggled from the palette (no global key,
+            // so no conflict); the label flips with the current visibility.
+            new PaletteAction($this->metricsVisible ? 'Hide metrics' : 'Show metrics', new ToggleMetricsMsg()),
         ];
         // Playback controls are universal (no key conflict) — surfaced in the
         // palette only while a session (music or audiobook) is playing, so they
@@ -620,6 +685,7 @@ final class App implements Model
             $this->theme,
             $this->nowPlaying,
             $this->audioFactory,
+            $this->metricsVisible,
         );
     }
 
@@ -1352,7 +1418,7 @@ final class App implements Model
         return new self(
             $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
             $stack, null, $this->cols, $this->rows, $this->toast, $this->toastTicking, $this->palette, $this->theme,
-            $this->nowPlaying, $this->audioFactory,
+            $this->nowPlaying, $this->audioFactory, $this->metricsVisible,
         );
     }
 
@@ -1380,7 +1446,7 @@ final class App implements Model
         $app = new self(
             $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
             $stack, null, $cols, $rows, $this->toast, $this->toastTicking, $this->palette?->resizedTo($cols, $rows), $this->theme,
-            $this->nowPlaying, $this->audioFactory,
+            $this->nowPlaying, $this->audioFactory, $this->metricsVisible,
         );
 
         return [$app, $cmds === [] ? null : Cmd::batch(...$cmds)];
@@ -1441,7 +1507,7 @@ final class App implements Model
         return new self(
             $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
             $this->stack, null, $this->cols, $this->rows, $this->toast, $this->toastTicking, $this->palette, $theme,
-            $this->nowPlaying, $this->audioFactory,
+            $this->nowPlaying, $this->audioFactory, $this->metricsVisible,
         );
     }
 
@@ -1455,7 +1521,7 @@ final class App implements Model
         return new self(
             $config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
             $this->stack, null, $this->cols, $this->rows, $this->toast, $this->toastTicking, $this->palette, $this->theme,
-            $this->nowPlaying, $this->audioFactory,
+            $this->nowPlaying, $this->audioFactory, $this->metricsVisible,
         );
     }
 
@@ -1470,7 +1536,7 @@ final class App implements Model
         return new self(
             $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
             $this->stack, null, $this->cols, $this->rows, $this->toast, $this->toastTicking, $this->palette, $this->theme,
-            $nowPlaying, $this->audioFactory,
+            $nowPlaying, $this->audioFactory, $this->metricsVisible,
         );
     }
 
@@ -1486,7 +1552,21 @@ final class App implements Model
         return new self(
             $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
             $this->stack, null, $this->cols, $this->rows, $this->toast, $this->toastTicking, $this->palette, $this->theme,
-            $this->nowPlaying, $audioFactory,
+            $this->nowPlaying, $audioFactory, $this->metricsVisible,
+        );
+    }
+
+    /**
+     * A copy with the metrics / HUD overlay toggled (or set explicitly). Every
+     * other field is preserved — the flag persists across navigation because it
+     * is threaded through every {@see withStack}/push/pop copy.
+     */
+    private function withMetricsVisible(bool $metricsVisible): self
+    {
+        return new self(
+            $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
+            $this->stack, null, $this->cols, $this->rows, $this->toast, $this->toastTicking, $this->palette, $this->theme,
+            $this->nowPlaying, $this->audioFactory, $metricsVisible,
         );
     }
 }
