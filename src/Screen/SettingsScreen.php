@@ -78,7 +78,9 @@ final class SettingsScreen implements Model, Themed
             return [new self($this->form, $this->currentTheme, $this->currentInterval, $this->error, $msg->cols, $msg->rows), null];
         }
 
-        [$form, $cmd] = $this->form->update($msg);
+        /** @var array{0: Form, 1: ?\Closure} $result candy-forms' Form::update inherits Model's loose `:array` return, so narrow it. */
+        $result = $this->form->update($msg);
+        [$form, $cmd] = $result;
 
         // Esc / Ctrl-C cancels — no save, pop back to the previous screen.
         if ($form->isAborted()) {
