@@ -2541,6 +2541,191 @@ final class AppTest extends TestCase
         }
         $this->runCmd($cmd);
     }
+
+    // ---- shimmer (loading-skeleton animation) --------------------------
+
+    /**
+     * An App whose top screen is a freshly-pushed (still-loading) LibraryScreen.
+     * The OpenLibrary transition runs through update()'s chokepoint, so the
+     * shimmer tick is already armed on return.
+     *
+     * @return array{App, ?\Closure} the [app, cmd] from the OpenLibrary update
+     */
+    private function loadingLibraryApp(): array
+    {
+        return $this->browsing()->update(new OpenLibraryMsg('lib-a', 'Movies', 'movie'));
+    }
+
+    /** Drive a top LibraryScreen to its loaded state by feeding it a range. */
+    private function loadLibrary(App $app, int $total = 200): App
+    {
+        $items = [];
+        for ($i = 0; $i < min($total, 24); $i++) {
+            $items[$i] = MediaItem::fromArray(['id' => (string) $i, 'name' => "m{$i}", 'type' => 'movie', 'metadata' => ['title' => "M{$i}"]]);
+        }
+        [$loaded] = $app->update(new MediaRangeLoadedMsg(new MediaRange($items, $total), 0));
+
+        return $loaded;
+    }
+
+    /**
+     * Run a (possibly batched) Cmd and collect the Msgs its children produce
+     * (awaiting any async ones). A bare tick yields no Msg here (its TickRequest
+     * is not run).
+     *
+     * @return list<Msg>
+     */
+    private function collectBatch(?\Closure $cmd): array
+    {
+        if ($cmd === null) {
+            return [];
+        }
+        $result = $cmd();
+        if ($result instanceof BatchMsg) {
+            // Recurse: a batch's children may themselves be batches (init() batches
+            // the range + letter-index fetch, then maybeArmShimmer batches THAT with
+            // the tick).
+            $msgs = [];
+            foreach ($result->cmds as $child) {
+                foreach ($this->collectBatch($child) as $m) {
+                    $msgs[] = $m;
+                }
+            }
+
+            return $msgs;
+        }
+        if ($result instanceof AsyncCmd) {
+            $msg = $this->await($result->promise);
+
+            return $msg instanceof Msg ? [$msg] : [];
+        }
+
+        return $result instanceof Msg ? [$result] : [];
+    }
+
+    /** Whether running $cmd ultimately produces a ShimmerTickMsg (through any batch). */
+    private function armsShimmerTick(?\Closure $cmd): bool
+    {
+        if ($cmd === null) {
+            return false;
+        }
+
+        $result = $cmd();
+        if ($result instanceof \SugarCraft\Core\TickRequest) {
+            return ($result->produce)() instanceof \Phlix\Console\Msg\ShimmerTickMsg;
+        }
+        if ($result instanceof BatchMsg) {
+            foreach ($result->cmds as $child) {
+                if ($this->armsShimmerTick($child)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    public function testLandingOnALoadingScreenArmsOneShimmerTick(): void
+    {
+        [$loading, $cmd] = $this->loadingLibraryApp();
+
+        self::assertTrue($loading->screen()?->isLoading() ?? false, 'the pushed library is loading');
+        self::assertTrue($loading->isShimmerTicking(), 'the shimmer tick is armed');
+        self::assertTrue($this->armsShimmerTick($cmd), 'the returned Cmd carries a ShimmerTickMsg tick (batched with the load Cmd)');
+    }
+
+    public function testTheShimmerArmDoesNotDropTheScreensOwnLoadCmd(): void
+    {
+        // OpenLibrary's own first-window fetch must survive being batched with the
+        // shimmer tick — running the batch yields BOTH a range fetch and a tick.
+        [, $cmd] = $this->loadingLibraryApp();
+
+        self::assertInstanceOf(\Closure::class, $cmd, 'a Cmd is returned');
+        self::assertTrue($this->armsShimmerTick($cmd), 'the shimmer tick is present');
+        $produced = $this->collectBatch($cmd);
+        $hasRangeFetch = array_filter($produced, static fn (Msg $m): bool => $m instanceof MediaRangeLoadedMsg);
+        self::assertNotEmpty($hasRangeFetch, "the library's own window fetch was not dropped");
+    }
+
+    public function testAShimmerTickAdvancesThePhaseAndReArmsWhileLoading(): void
+    {
+        [$loading] = $this->loadingLibraryApp();
+        self::assertSame(0, $loading->shimmerPhase());
+
+        [$ticked, $cmd] = $loading->update(new \Phlix\Console\Msg\ShimmerTickMsg());
+
+        self::assertSame(1, $ticked->shimmerPhase(), 'the phase advanced');
+        self::assertTrue($ticked->isShimmerTicking(), 'still ticking while loading');
+        self::assertTrue($this->armsShimmerTick($cmd), 'the tick re-arms itself while loading');
+    }
+
+    public function testTheShimmerTickStopsOnceTheScreenIsNoLongerLoading(): void
+    {
+        [$loading] = $this->loadingLibraryApp();
+        $loaded = $this->loadLibrary($loading);
+        self::assertFalse($loaded->screen()?->isLoading() ?? true, 'the library finished loading');
+
+        [$stopped, $cmd] = $loaded->update(new \Phlix\Console\Msg\ShimmerTickMsg());
+
+        self::assertFalse($stopped->isShimmerTicking(), 'the tick stops when nothing is loading');
+        self::assertFalse($this->armsShimmerTick($cmd), 'no re-arm once loaded');
+    }
+
+    public function testOnlyOneShimmerChainRuns(): void
+    {
+        // A second update while already ticking must NOT arm a second chain.
+        [$loading] = $this->loadingLibraryApp();
+        self::assertTrue($loading->isShimmerTicking());
+
+        // A no-op key on the still-loading screen routes through the chokepoint
+        // again — but the in-flight tick already covers the animation.
+        [$again, $cmd] = $loading->update(new KeyMsg(KeyType::Char, 'z'));
+
+        self::assertTrue($again->isShimmerTicking(), 'still a single chain');
+        self::assertFalse($this->armsShimmerTick($cmd), 'no SECOND shimmer tick is armed');
+    }
+
+    public function testANonLoadingTopScreenNeverArmsAShimmerTick(): void
+    {
+        // Browse is not Loadable; an update on it must not start a shimmer.
+        $browse = $this->browsing();
+        self::assertFalse($browse->isShimmerTicking());
+
+        [$after, $cmd] = $browse->update(new KeyMsg(KeyType::Char, 'z'));
+
+        self::assertFalse($after->isShimmerTicking(), 'a non-loading screen never arms a shimmer');
+        self::assertFalse($this->armsShimmerTick($cmd));
+    }
+
+    public function testBaseViewAppliesTheShimmerPhaseToTheLoadingBody(): void
+    {
+        // Advancing the phase changes the loading body's shimmer (the band moves),
+        // proving the App threads its phase into the Shimmering top screen's render.
+        [$loading] = $this->loadingLibraryApp();
+
+        $atZero = $loading->view();
+        [$advanced] = $loading->update(new \Phlix\Console\Msg\ShimmerTickMsg());
+        $atOne = $advanced->view();
+
+        self::assertStringContainsString('░', $atZero, 'the loading body shows the skeleton');
+        self::assertNotSame($atZero, $atOne, 'the rendered shimmer reflects the advanced phase');
+    }
+
+    public function testStoppingDoesNotLeaveAFreeRunningTick(): void
+    {
+        // After the screen loads, repeated stray ticks keep returning "stopped"
+        // with no re-arm — the animation never free-runs.
+        [$loading] = $this->loadingLibraryApp();
+        $loaded = $this->loadLibrary($loading);
+
+        [$once, $cmd1] = $loaded->update(new \Phlix\Console\Msg\ShimmerTickMsg());
+        [$twice, $cmd2] = $once->update(new \Phlix\Console\Msg\ShimmerTickMsg());
+
+        self::assertFalse($once->isShimmerTicking());
+        self::assertFalse($twice->isShimmerTicking());
+        self::assertFalse($this->armsShimmerTick($cmd1));
+        self::assertFalse($this->armsShimmerTick($cmd2));
+    }
 }
 
 /**

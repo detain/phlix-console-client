@@ -45,6 +45,7 @@ use Phlix\Console\Msg\RequestLogoutMsg;
 use Phlix\Console\Msg\RequestQuitMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\SettingsSavedMsg;
+use Phlix\Console\Msg\ShimmerTickMsg;
 use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Msg\StopAudioMsg;
 use Phlix\Console\Msg\SubmitLoginMsg;
@@ -63,6 +64,7 @@ use Phlix\Console\Screen\Breadcrumbed;
 use Phlix\Console\Screen\BrowseScreen;
 use Phlix\Console\Screen\DetailScreen;
 use Phlix\Console\Screen\LibraryScreen;
+use Phlix\Console\Screen\Loadable;
 use Phlix\Console\Screen\LoginScreen;
 use Phlix\Console\Screen\MusicScreen;
 use Phlix\Console\Screen\CapturesSlash;
@@ -73,6 +75,7 @@ use Phlix\Console\Screen\PlayerScreen;
 use Phlix\Console\Screen\SearchScreen;
 use Phlix\Console\Screen\ServerScreen;
 use Phlix\Console\Screen\SettingsScreen;
+use Phlix\Console\Screen\Shimmering;
 use Phlix\Console\Screen\StatsScreen;
 use Phlix\Console\Screen\Teardownable;
 use Phlix\Console\Screen\Themed;
@@ -121,6 +124,12 @@ final class App implements Model
     /** Seconds a toast stays up before it auto-dismisses. */
     private const TOAST_DURATION = 4.0;
 
+    /**
+     * Seconds between shimmer-skeleton animation frames (the band advances one
+     * phase per tick). ~0.12s ≈ 8 fps — a smooth sweep without flooding the loop.
+     */
+    private const SHIMMER_INTERVAL = 0.12;
+
     /** The single toast host, floating above whatever screen is on top. */
     private readonly Toast $toast;
 
@@ -143,6 +152,8 @@ final class App implements Model
      * @param ?NowPlayingSession $nowPlaying the App-owned playback session (music or audiobook; persists across navigation), or null when nothing plays
      * @param ?(\Closure(string, ?int): \SugarCraft\Reel\AudioPlayer) $audioFactory builds the player for a stream URL; null defaults to the production ffplay/mpv factory
      * @param bool $metricsVisible whether the diagnostic metrics / HUD overlay is shown (toggled from the palette; default off)
+     * @param int $shimmerPhase the current loading-skeleton animation phase, applied to a {@see Shimmering} top screen each render (advances only while a Loadable top screen is loading)
+     * @param bool $shimmerTicking whether the gated shimmer animation tick is already in flight (so any update landing on a loading screen doesn't start a SECOND chain)
      */
     public function __construct(
         private readonly Config $config,
@@ -162,6 +173,8 @@ final class App implements Model
         private readonly ?NowPlayingSession $nowPlaying = null,
         ?\Closure $audioFactory = null,
         private readonly bool $metricsVisible = false,
+        private readonly int $shimmerPhase = 0,
+        private readonly bool $shimmerTicking = false,
     ) {
         $this->toast = $toast ?? self::defaultToast();
         $this->theme = $theme ?? Theme::nocturne();
@@ -220,6 +233,21 @@ final class App implements Model
             return [$this, Cmd::quit()];
         }
 
+        // A SINGLE chokepoint: whatever the dispatch lands on, if the resulting top
+        // screen is a still-loading Loadable, arm the shimmer animation (once). This
+        // is how a transition INTO a loading grid (OpenLibrary/Search/…) — or any
+        // update that leaves a loading screen on top — starts the skeleton sweep.
+        return $this->maybeArmShimmer($this->dispatch($msg));
+    }
+
+    /**
+     * The per-Msg router. Returns `[nextApp, ?Cmd]`; {@see update()} runs the
+     * result through {@see maybeArmShimmer()} so a loading top screen animates.
+     *
+     * @return array{App, ?\Closure}
+     */
+    private function dispatch(Msg $msg): array
+    {
         if ($msg instanceof WindowSizeMsg) {
             return $this->resized($msg->cols, $msg->rows);
         }
@@ -349,6 +377,9 @@ final class App implements Model
         if ($msg instanceof ToastTickMsg) {
             return $this->onToastTick();
         }
+        if ($msg instanceof ShimmerTickMsg) {
+            return $this->onShimmerTick();
+        }
 
         // Anything else (keys, focus, async results) → the active (top) screen.
         $top = $this->topScreen();
@@ -469,6 +500,12 @@ final class App implements Model
             if ($rendered instanceof Breadcrumbed) {
                 $rendered = $rendered->withCrumbs($this->breadcrumbTrail());
             }
+            // The shimmer phase reaches a loading screen the same transient way: the
+            // App owns the animation clock, so it hands the current phase to a
+            // Shimmering top screen just before it renders its skeleton body.
+            if ($rendered instanceof Shimmering) {
+                $rendered = $rendered->withShimmerPhase($this->shimmerPhase);
+            }
 
             return $rendered->view();
         }
@@ -548,6 +585,83 @@ final class App implements Model
             $this->nowPlaying,
             $this->audioFactory,
             $this->metricsVisible,
+            $this->shimmerPhase,
+            $this->shimmerTicking,
+        );
+    }
+
+    // ---- shimmer (loading-skeleton animation) --------------------------
+    //
+    // The loading grids show an animated shimmer skeleton driven by a phase the
+    // App advances on a tick. The tick is GATED — armed only while a Loadable top
+    // screen is loading, stopped the moment it isn't — and SINGLE-CHAIN: a
+    // $shimmerTicking flag (mirroring $toastTicking) means a burst of updates on a
+    // loading screen can never start a second heartbeat. The pattern is the toast
+    // prune tick relocated to the loading-skeleton animation.
+
+    /** Wrap-around modulus for the phase counter (keeps it a small bounded int). */
+    private const SHIMMER_PHASE_MODULUS = 100_000;
+
+    /** Whether the top screen is a {@see Loadable} that is still loading. */
+    private function topIsLoading(): bool
+    {
+        $top = $this->topScreen();
+
+        return $top instanceof Loadable && $top->isLoading();
+    }
+
+    /**
+     * If the update is about to leave a still-loading Loadable on top and no
+     * shimmer tick is in flight, flip $shimmerTicking on and BATCH a shimmer tick
+     * onto the outgoing Cmd (never dropping it). Otherwise the pair passes through
+     * unchanged — so a tick can't start twice (single chain) and never runs while
+     * nothing is loading (gated). Called at the single {@see update()} chokepoint.
+     *
+     * @param array{App, ?\Closure} $result the [app, cmd] the dispatch produced
+     * @return array{App, ?\Closure}
+     */
+    private function maybeArmShimmer(array $result): array
+    {
+        [$app, $cmd] = $result;
+        if (!$app->topIsLoading() || $app->shimmerTicking) {
+            return $result;
+        }
+
+        $armed = $app->withShimmer($app->shimmerPhase, true);
+        $tick = self::shimmerTickCmd();
+
+        return [$armed, $cmd === null ? $tick : Cmd::batch($cmd, $tick)];
+    }
+
+    /**
+     * One shimmer frame: advance the phase, then re-arm WHILE a Loadable top
+     * screen is still loading (keeping $shimmerTicking true) or STOP otherwise
+     * (clear $shimmerTicking, no re-arm — a later transition into a loading screen
+     * re-arms via {@see maybeArmShimmer()}). Mirrors {@see onToastTick()}.
+     */
+    private function onShimmerTick(): array
+    {
+        $phase = ($this->shimmerPhase + 1) % self::SHIMMER_PHASE_MODULUS;
+
+        if ($this->topIsLoading()) {
+            return [$this->withShimmer($phase, true), self::shimmerTickCmd()];
+        }
+
+        return [$this->withShimmer($phase, false), null];
+    }
+
+    private static function shimmerTickCmd(): \Closure
+    {
+        return Cmd::tick(self::SHIMMER_INTERVAL, static fn (): Msg => new ShimmerTickMsg());
+    }
+
+    /** A copy carrying the shimmer animation $phase + whether its tick is in flight. */
+    private function withShimmer(int $phase, bool $ticking): self
+    {
+        return new self(
+            $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
+            $this->stack, null, $this->cols, $this->rows, $this->toast, $this->toastTicking, $this->palette, $this->theme,
+            $this->nowPlaying, $this->audioFactory, $this->metricsVisible, $phase, $ticking,
         );
     }
 
@@ -692,6 +806,8 @@ final class App implements Model
             $this->nowPlaying,
             $this->audioFactory,
             $this->metricsVisible,
+            $this->shimmerPhase,
+            $this->shimmerTicking,
         );
     }
 
@@ -1434,7 +1550,7 @@ final class App implements Model
         return new self(
             $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
             $stack, null, $this->cols, $this->rows, $this->toast, $this->toastTicking, $this->palette, $this->theme,
-            $this->nowPlaying, $this->audioFactory, $this->metricsVisible,
+            $this->nowPlaying, $this->audioFactory, $this->metricsVisible, $this->shimmerPhase, $this->shimmerTicking,
         );
     }
 
@@ -1462,7 +1578,7 @@ final class App implements Model
         $app = new self(
             $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
             $stack, null, $cols, $rows, $this->toast, $this->toastTicking, $this->palette?->resizedTo($cols, $rows), $this->theme,
-            $this->nowPlaying, $this->audioFactory, $this->metricsVisible,
+            $this->nowPlaying, $this->audioFactory, $this->metricsVisible, $this->shimmerPhase, $this->shimmerTicking,
         );
 
         return [$app, $cmds === [] ? null : Cmd::batch(...$cmds)];
@@ -1513,6 +1629,18 @@ final class App implements Model
         return $this->nowPlaying;
     }
 
+    /** The current loading-skeleton animation phase (advances while a Loadable top screen loads). */
+    public function shimmerPhase(): int
+    {
+        return $this->shimmerPhase;
+    }
+
+    /** Whether a gated shimmer animation tick is currently in flight (the single-chain guard). */
+    public function isShimmerTicking(): bool
+    {
+        return $this->shimmerTicking;
+    }
+
     /**
      * A copy switched to $theme (T2 uses this to apply a live theme change). The
      * theme is applied transiently to the top screen on the next render, so the
@@ -1523,7 +1651,7 @@ final class App implements Model
         return new self(
             $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
             $this->stack, null, $this->cols, $this->rows, $this->toast, $this->toastTicking, $this->palette, $theme,
-            $this->nowPlaying, $this->audioFactory, $this->metricsVisible,
+            $this->nowPlaying, $this->audioFactory, $this->metricsVisible, $this->shimmerPhase, $this->shimmerTicking,
         );
     }
 
@@ -1537,7 +1665,7 @@ final class App implements Model
         return new self(
             $config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
             $this->stack, null, $this->cols, $this->rows, $this->toast, $this->toastTicking, $this->palette, $this->theme,
-            $this->nowPlaying, $this->audioFactory, $this->metricsVisible,
+            $this->nowPlaying, $this->audioFactory, $this->metricsVisible, $this->shimmerPhase, $this->shimmerTicking,
         );
     }
 
@@ -1552,7 +1680,7 @@ final class App implements Model
         return new self(
             $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
             $this->stack, null, $this->cols, $this->rows, $this->toast, $this->toastTicking, $this->palette, $this->theme,
-            $nowPlaying, $this->audioFactory, $this->metricsVisible,
+            $nowPlaying, $this->audioFactory, $this->metricsVisible, $this->shimmerPhase, $this->shimmerTicking,
         );
     }
 
@@ -1568,7 +1696,7 @@ final class App implements Model
         return new self(
             $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
             $this->stack, null, $this->cols, $this->rows, $this->toast, $this->toastTicking, $this->palette, $this->theme,
-            $this->nowPlaying, $audioFactory, $this->metricsVisible,
+            $this->nowPlaying, $audioFactory, $this->metricsVisible, $this->shimmerPhase, $this->shimmerTicking,
         );
     }
 
@@ -1582,7 +1710,7 @@ final class App implements Model
         return new self(
             $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
             $this->stack, null, $this->cols, $this->rows, $this->toast, $this->toastTicking, $this->palette, $this->theme,
-            $this->nowPlaying, $this->audioFactory, $metricsVisible,
+            $this->nowPlaying, $this->audioFactory, $metricsVisible, $this->shimmerPhase, $this->shimmerTicking,
         );
     }
 }

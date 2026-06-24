@@ -18,6 +18,7 @@ use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Store\MediaRange;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Ui\Chrome;
+use Phlix\Console\Ui\Skeleton;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Model;
@@ -40,10 +41,11 @@ use SugarCraft\Sprinkles\Style;
  * Implements {@see CapturesSlash} so `/` types into the box instead of
  * re-opening search.
  */
-final class SearchScreen implements Breadcrumbed, CapturesSlash, Themed
+final class SearchScreen implements Breadcrumbed, CapturesSlash, Loadable, Shimmering, Themed
 {
     use SubscriptionCapable;
     use ThemedScreen;
+    use ShimmeringScreen;
 
     private const CARD_WIDTH = 14;
     private const POSTER_HEIGHT = 9;
@@ -124,10 +126,17 @@ final class SearchScreen implements Breadcrumbed, CapturesSlash, Themed
             return Chrome::frame('Search', $body, self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
         }
 
-        $total = $this->grid->total();
         if (!$this->loaded) {
-            $count = 'Searching…';
-        } elseif ($total === 0) {
+            // A query is in flight: keep the live input + "Searching…" lines, but
+            // show a shimmer skeleton (animated by the App's gated shimmer tick via
+            // $this->shimmerPhase) where the results grid will land.
+            $body = $inputLine . "\n" . 'Searching…' . "\n" . Skeleton::bars($this->cols - 4, max(1, Chrome::bodyHeight($this->rows) - 2), $this->shimmerPhase(), $this->theme());
+
+            return Chrome::frame('Search', $body, self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
+        }
+
+        $total = $this->grid->total();
+        if ($total === 0) {
             $count = 'No results for "' . $this->searchText . '"';
         } else {
             $count = $total . ' result' . ($total === 1 ? '' : 's') . '   ·   ' . ($this->grid->cursorIndex() + 1) . '/' . $total;
@@ -401,6 +410,16 @@ final class SearchScreen implements Breadcrumbed, CapturesSlash, Themed
     public function hasSearched(): bool
     {
         return $this->hasSearched;
+    }
+
+    /**
+     * True exactly while the screen shows its "Searching…" shimmer body — i.e.
+     * a query has been issued and its first page is still in flight. The initial
+     * "type to search" prompt is NOT a loading state.
+     */
+    public function isLoading(): bool
+    {
+        return $this->hasSearched && !$this->loaded && $this->error === null;
     }
 
     public function grid(): PosterGrid

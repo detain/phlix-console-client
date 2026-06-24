@@ -217,6 +217,52 @@ final class SearchScreenTest extends TestCase
         self::assertStringContainsString('Searching', $applied->view());
     }
 
+    /** A screen with a query issued but its first page still in flight. */
+    private function searching(): \Phlix\Console\Screen\SearchScreen
+    {
+        $screen = $this->screenWith((new FakeTransport())->json(200, $this->pageResponse(0, 3, 3, 50)));
+        [$typed] = $screen->update(new KeyMsg(KeyType::Char, 'm'));
+        [$applied] = $typed->update(new SearchDebouncedMsg(1));
+
+        return $applied;
+    }
+
+    public function testTheInitialPromptIsNotALoadingState(): void
+    {
+        // Before any search, the "type to search" prompt is shown — not loading,
+        // so no shimmer band (▒) and isLoading() is false.
+        $screen = $this->screenWith(new FakeTransport())->withShimmerPhase(5);
+
+        self::assertFalse($screen->isLoading(), 'the prompt is not a loading state');
+        self::assertStringNotContainsString('▒', $screen->view(), 'no shimmer before a search runs');
+    }
+
+    public function testTheSearchingBodyShowsTheShimmerSkeleton(): void
+    {
+        $view = $this->searching()->withShimmerPhase(5)->view();
+
+        self::assertStringContainsString('Searching', $view, 'the input + status lines remain');
+        self::assertStringContainsString('▒', $view, 'the in-flight results area shows the shimmer band');
+    }
+
+    public function testSearchScreenIsLoadingWhileAQueryIsInFlight(): void
+    {
+        self::assertTrue($this->searching()->isLoading(), 'a query in flight is a loading state');
+    }
+
+    public function testTheSkeletonIsGoneOnceResultsLand(): void
+    {
+        $screen = $this->screenWith((new FakeTransport())->json(200, $this->pageResponse(0, 3, 3, 50)));
+        [$typed] = $screen->update(new KeyMsg(KeyType::Char, 'm'));
+        [$applied, $fetch] = $typed->update(new SearchDebouncedMsg(1));
+        $range = $this->runCmd($fetch);
+        [$loaded] = $applied->update($range);
+
+        self::assertFalse($loaded->isLoading(), 'results landed → no longer loading');
+        self::assertStringNotContainsString('▒', $loaded->withShimmerPhase(5)->view(), 'the shimmer band is gone');
+        self::assertStringContainsString('3 results', $loaded->view());
+    }
+
     public function testVisibleResultsSchedulePosterLoadsAndAttach(): void
     {
         $transport = (new FakeTransport())->json(200, $this->pageResponse(0, 3, 3, 50, posters: true));
