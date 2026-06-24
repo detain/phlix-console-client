@@ -8,7 +8,6 @@ use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\AuthUser;
 use Phlix\Console\Api\Dto\ContinueWatchingItem;
 use Phlix\Console\Api\Dto\Library;
-use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\Dto\MediaPage;
 use Phlix\Console\Api\MediaQuery;
 use Phlix\Console\Media\PosterCardFactory;
@@ -287,9 +286,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
 
         $cards = [];
         foreach ($page->items as $item) {
-            if ($item instanceof MediaItem) {
-                $cards[] = PosterCardFactory::fromMediaItem($item);
-            }
+            $cards[] = PosterCardFactory::fromMediaItem($item);
         }
 
         $rail = $this->libraryRails[$libraryId]->withCards($cards);

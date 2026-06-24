@@ -1859,6 +1859,50 @@ final class AppTest extends TestCase
         self::assertSame(1, $player?->stopCalls, 'quitting stops the music');
     }
 
+    public function testLogoutTearsDownAndClearsTheActiveAudio(): void
+    {
+        $playing = $this->startPlaying($this->audioApp());
+        $player = $this->lastAudioPlayer;
+
+        // Logging out ends the session: the App-owned audio must STOP (no leaked
+        // ffplay/mpv) and be CLEARED (no now-playing bar stranded on the login screen).
+        [$loggedOut] = $playing->update(new RequestLogoutMsg());
+
+        self::assertSame(1, $player?->stopCalls, 'logout stops the music (no leaked ffplay)');
+        self::assertNull($loggedOut->nowPlaying(), 'logout clears the now-playing session');
+        self::assertSame(Route::Login, $loggedOut->route());
+        self::assertStringNotContainsString('▶ Come Together', $loggedOut->view(), 'the now-playing bar is gone from the login screen');
+    }
+
+    public function testSessionExpiredTearsDownAndClearsTheActiveAudio(): void
+    {
+        $playing = $this->startPlaying($this->audioApp());
+        $player = $this->lastAudioPlayer;
+
+        // A bounce to login on session-expiry must also stop + clear the audio.
+        [$expired] = $playing->update(new SessionExpiredMsg('expired'));
+
+        self::assertSame(1, $player?->stopCalls, 'session-expiry stops the music');
+        self::assertNull($expired->nowPlaying(), 'session-expiry clears the now-playing session');
+        self::assertSame(Route::Login, $expired->route());
+    }
+
+    public function testLogoutTearsDownAndClearsAPlayingAudiobook(): void
+    {
+        $playing = $this->startAudiobook($this->audiobookApp());
+        $player = $this->lastAbPlayer;
+
+        [$loggedOut] = $playing->update(new RequestLogoutMsg());
+
+        self::assertSame(1, $player?->stopCalls, 'logout stops the audiobook');
+        self::assertNull($loggedOut->nowPlaying(), 'logout clears the audiobook session');
+        // With the session cleared, a stray post-logout tick is inert — no progress
+        // POST fires with the dropped token.
+        [$same, $cmd] = $loggedOut->update(new AudiobookTickMsg(0));
+        self::assertSame($loggedOut, $same);
+        self::assertNull($cmd, 'no heartbeat survives logout');
+    }
+
     public function testThePaletteGainsPauseAndStopActionsWhilePlaying(): void
     {
         $playing = $this->startPlaying($this->audioApp());

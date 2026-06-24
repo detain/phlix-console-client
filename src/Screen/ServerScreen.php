@@ -63,7 +63,9 @@ final class ServerScreen implements Model, Themed
             return [new self($this->form, $this->error, $msg->cols, $msg->rows), null];
         }
 
-        [$form, $cmd] = $this->form->update($msg);
+        /** @var array{0: Form, 1: ?\Closure} $result candy-forms' Form::update inherits Model's loose `:array` return, so narrow it. */
+        $result = $this->form->update($msg);
+        [$form, $cmd] = $result;
 
         if ($form->isAborted()) {
             return [$this, Cmd::quit()];

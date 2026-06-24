@@ -36,8 +36,6 @@ final class CommandPalette
     private function __construct(
         private Hermit $hermit,
         private array $actions,
-        private int $cols,
-        private int $rows,
         private int $winWidth,
         private int $winHeight,
     ) {
@@ -51,7 +49,7 @@ final class CommandPalette
         [$w, $h] = self::dims($cols, $rows, count($actions));
         $hermit = self::buildHermit($actions, $w, $h);
 
-        return new self($hermit, $actions, $cols, $rows, $w, $h);
+        return new self($hermit, $actions, $w, $h);
     }
 
     /**
@@ -108,8 +106,6 @@ final class CommandPalette
         [$w, $h] = self::dims($cols, $rows, count($this->actions));
 
         $next = clone $this;
-        $next->cols = $cols;
-        $next->rows = $rows;
         $next->winWidth = $w;
         $next->winHeight = $h;
         // setWindowWidth/Height return clones that keep the filter/cursor/items.
@@ -143,7 +139,6 @@ final class CommandPalette
     // ---- helpers -------------------------------------------------------
 
     /**
-     * @param list<PaletteAction> $actions
      * @return array{int, int} [winWidth, winHeight]
      */
     private static function dims(int $cols, int $rows, int $actionCount): array
@@ -198,7 +193,11 @@ final class CommandPalette
         return $this->hermit->filterText();
     }
 
-    /** The currently visible (filtered + ranked) action labels, in order. */
+    /**
+     * The currently visible (filtered + ranked) action labels, in order.
+     *
+     * @return list<string>
+     */
     public function visibleLabels(): array
     {
         return array_map(static fn ($item): string => $item->value(), $this->hermit->items());
