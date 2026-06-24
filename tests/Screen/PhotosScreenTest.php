@@ -126,6 +126,40 @@ final class PhotosScreenTest extends TestCase
         self::assertStringContainsString('Photos', $view);
     }
 
+    public function testLoadingBodyShowsTheShimmerSkeleton(): void
+    {
+        // The shimmer band's mid glyph (▒) is unique to the Skeleton; at a
+        // mid-sweep phase it is on screen in the loading body.
+        $view = $this->screenWith(new FakeTransport())->withShimmerPhase(5)->view();
+
+        self::assertStringContainsString('▒', $view, 'the loading body renders the shimmer band');
+    }
+
+    public function testTheSkeletonIsGoneOnceLoaded(): void
+    {
+        $view = $this->loadedScreen(30)->withShimmerPhase(5)->view();
+
+        self::assertStringNotContainsString('▒', $view, 'the shimmer band disappears once the albums are loaded');
+        self::assertStringContainsString('30 albums', $view);
+    }
+
+    public function testIsLoadingIsTrueBeforeLoadAndFalseAfter(): void
+    {
+        self::assertTrue($this->screenWith(new FakeTransport())->isLoading(), 'a fresh screen is loading');
+        self::assertFalse($this->loadedScreen(30)->isLoading(), 'a populated screen is not loading');
+    }
+
+    public function testWithShimmerPhaseAdvancesTheLoadingBody(): void
+    {
+        $screen = $this->screenWith(new FakeTransport());
+
+        self::assertNotSame(
+            $screen->withShimmerPhase(0)->view(),
+            $screen->withShimmerPhase(5)->view(),
+            'the loading skeleton reflects the shimmer phase',
+        );
+    }
+
     public function testAlbumsLoadedPopulatesTheGrid(): void
     {
         $loaded = $this->loadedScreen(30);
