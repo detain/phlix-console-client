@@ -72,7 +72,6 @@ final class AudiobookDetailScreen implements Breadcrumbed, Themed
     private bool $loaded = false;
     /** @var list<AudiobookChapter> */
     private array $chapters = [];
-    private bool $chaptersLoaded = false;
     private int $selected = 0;
     private ?string $error = null;
     /** @var list<string> */
@@ -383,7 +382,6 @@ final class AudiobookDetailScreen implements Breadcrumbed, Themed
     {
         $next = clone $this;
         $next->chapters = $chapters;
-        $next->chaptersLoaded = true;
         $next->selected = $chapters === [] ? 0 : min($this->selected, count($chapters) - 1);
 
         return $next;

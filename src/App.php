@@ -395,18 +395,19 @@ final class App implements Model
     public function view(): string
     {
         $view = $this->baseView();
+        // The diagnostic HUD sits in the top-left UNDER everything else: drawn over
+        // the base but before the now-playing bar + the modals.
+        if ($this->metricsVisible) {
+            $view = MetricsOverlay::render($view, $this->metricsLines(), $this->cols, $this->rows, $this->theme);
+        }
         // The App owns the playback audio (music OR audiobook), so a persistent
         // now-playing bar is composited onto the bottom row of every screen
         // (replacing the chrome's last line) — playback stays visible as the user
-        // navigates. The palette + toasts then layer ON TOP of the bar.
+        // navigates. It is drawn AFTER the HUD so the bar always wins the bottom
+        // row even on a very short terminal where the (taller) HUD reaches it. The
+        // palette + toasts then layer ON TOP of both.
         if ($this->nowPlaying !== null) {
             $view = $this->compositeNowPlayingBar($view, $this->nowPlaying);
-        }
-        // The diagnostic HUD sits in the top-left UNDER the modals: drawn over the
-        // base (+ now-playing bar) but before the palette/toast so those modal
-        // overlays still layer on top of it.
-        if ($this->metricsVisible) {
-            $view = MetricsOverlay::render($view, $this->metricsLines(), $this->cols, $this->rows, $this->theme);
         }
         // The command palette dims + centers its box over the screen; toasts then
         // float over everything (palette included).
@@ -775,9 +776,7 @@ final class App implements Model
 
         $actions = [];
         foreach ($libraries as $library) {
-            if ($library instanceof Library) {
-                $actions[] = new PaletteAction('Go to ' . $library->name, new OpenLibraryMsg($library->id, $library->name, $library->type, $library->itemCount));
-            }
+            $actions[] = new PaletteAction('Go to ' . $library->name, new OpenLibraryMsg($library->id, $library->name, $library->type, $library->itemCount));
         }
         foreach ($this->staticActions() as $action) {
             $actions[] = $action;
@@ -1480,11 +1479,15 @@ final class App implements Model
     private function replace(Route $route, Model $screen): self
     {
         // The whole current stack is discarded — release any screen's external
-        // resources first (e.g. a player's ffmpeg/ffplay) so a SessionExpired or
-        // logout mid-playback can't leak a subprocess.
+        // resources first (e.g. a player's ffmpeg/ffplay) AND the App-owned audio
+        // session (the now-playing music/audiobook), so a SessionExpired or logout
+        // mid-playback can't leak an ffplay/mpv subprocess or strand the
+        // now-playing bar on the login screen. (Audio is App-owned since it became
+        // persistent across navigation, so tearing down the frames is not enough.)
         $this->tearDownFrames($this->stack);
+        $this->nowPlaying?->teardown();
 
-        return $this->withStack([['route' => $route, 'screen' => $screen]]);
+        return $this->withNowPlaying(null)->withStack([['route' => $route, 'screen' => $screen]]);
     }
 
     /** Push a frame on top (drill-in). */
