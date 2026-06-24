@@ -23,6 +23,7 @@ use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\FilterBar;
 use Phlix\Console\Ui\LetterRail;
+use Phlix\Console\Ui\Skeleton;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Model;
@@ -44,10 +45,11 @@ use SugarCraft\Gallery\PosterGrid;
  * (the candy-core / sugar-gallery pattern) so the screen stays immutable without
  * a giant positional constructor.
  */
-final class LibraryScreen implements Breadcrumbed, CapturesSlash, Themed
+final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shimmering, Themed
 {
     use SubscriptionCapable;
     use ThemedScreen;
+    use ShimmeringScreen;
 
     private const CARD_WIDTH = 14;
     private const POSTER_HEIGHT = 9;
@@ -148,10 +150,17 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Themed
             return Chrome::frame($this->name, "\n  {$this->error}", self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
         }
 
-        $total = $this->grid->total();
         if (!$this->loaded) {
-            $header = 'Loading…';
-        } elseif ($total === 0) {
+            // First-load: a full-body shimmer skeleton (animated by the App's
+            // gated shimmer tick via $this->shimmerPhase) under a "Loading…" line,
+            // until the first window (and the A–Z index) arrives.
+            $body = 'Loading…' . "\n\n" . Skeleton::bars($this->cols - 4, max(1, Chrome::bodyHeight($this->rows) - 2), $this->shimmerPhase(), $this->theme());
+
+            return Chrome::frame($this->name, $body, $this->filtering ? self::FILTER_HINT : self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
+        }
+
+        $total = $this->grid->total();
+        if ($total === 0) {
             $header = 'No items';
         } else {
             $header = $total . ' items   ·   ' . ($this->grid->cursorIndex() + 1) . '/' . $total;
@@ -528,6 +537,15 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Themed
     public function isLoaded(): bool
     {
         return $this->loaded;
+    }
+
+    /**
+     * True exactly while the screen shows its shimmer body — the first load AND
+     * a re-fetch after a filter/sort change (which resets `loaded` to false).
+     */
+    public function isLoading(): bool
+    {
+        return !$this->loaded && $this->error === null;
     }
 
     public function error(): ?string
