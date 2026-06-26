@@ -69,7 +69,7 @@ final class BookDetailScreen implements Breadcrumbed, Themed
     ) {
     }
 
-    public function init(): ?\Closure
+    public function init(): \Closure
     {
         return $this->fetchBook();
     }
@@ -209,7 +209,7 @@ final class BookDetailScreen implements Breadcrumbed, Themed
 
     private function headerTitle(): string
     {
-        return $this->book?->title ?? $this->title;
+        return $this->book->title ?? $this->title;
     }
 
     // ---- immutable copies (clone-mutate) -------------------------------

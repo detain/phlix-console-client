@@ -96,7 +96,7 @@ final readonly class MediaQuery
             $params['order'] = $this->order;
         }
         if ($this->genres !== []) {
-            $params['genres'] = array_values($this->genres);
+            $params['genres'] = $this->genres;
         }
         if ($this->yearFrom !== null) {
             $params['yearFrom'] = $this->yearFrom;
@@ -105,10 +105,10 @@ final readonly class MediaQuery
             $params['yearTo'] = $this->yearTo;
         }
         if ($this->ratings !== []) {
-            $params['ratings'] = array_values($this->ratings);
+            $params['ratings'] = $this->ratings;
         }
         if ($this->actors !== []) {
-            $params['actors'] = array_values($this->actors);
+            $params['actors'] = $this->actors;
         }
         if ($this->match !== null) {
             $params['match'] = $this->match;

@@ -77,7 +77,7 @@ final class PhotosScreen implements Breadcrumbed, Loadable, Shimmering, Themed
             ->reset(0);
     }
 
-    public function init(): ?\Closure
+    public function init(): \Closure
     {
         return Cmd::promise(fn () => $this->store->albums($this->libraryId)->then(
             static fn (array $albums): Msg => new PhotoAlbumsLoadedMsg($albums),

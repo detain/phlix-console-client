@@ -87,7 +87,7 @@ final class BooksScreen implements Breadcrumbed, Loadable, Shimmering, Themed
         $this->requestedRange = [0, $this->initialWindowEnd()];
     }
 
-    public function init(): ?\Closure
+    public function init(): \Closure
     {
         return $this->fetchRange(0, $this->initialWindowEnd());
     }

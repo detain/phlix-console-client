@@ -95,7 +95,7 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
         $this->filterBar = FilterBar::new();
     }
 
-    public function init(): ?\Closure
+    public function init(): \Closure
     {
         // Before the total is known, fetch a viewport-sized window from offset 0,
         // plus the A–Z index (only valid for the default name-ascending sort).
@@ -429,7 +429,7 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
         $generation = $this->generation;
 
         return Cmd::promise(fn () => $this->media->letterIndex($this->query)->then(
-            static fn (LetterIndex $index): ?Msg => new LetterIndexLoadedMsg($index, $generation),
+            static fn (LetterIndex $index): Msg => new LetterIndexLoadedMsg($index, $generation),
             static fn (\Throwable $e): ?Msg => null, // the A–Z rail is optional; fail quietly
         ));
     }

@@ -104,7 +104,7 @@ final class DetailScreen implements Breadcrumbed, Themed
     ) {
     }
 
-    public function init(): ?\Closure
+    public function init(): \Closure
     {
         return $this->fetchItem();
     }
@@ -567,7 +567,7 @@ final class DetailScreen implements Breadcrumbed, Themed
 
     private function headerTitle(): string
     {
-        return $this->item?->name ?? $this->name;
+        return $this->item->name ?? $this->name;
     }
 
     // ---- immutable copies (clone-mutate) -------------------------------

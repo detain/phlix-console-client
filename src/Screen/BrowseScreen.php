@@ -97,7 +97,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
         $this->sidebar = Sidebar::new(self::SIDEBAR_WIDTH);
     }
 
-    public function init(): ?\Closure
+    public function init(): \Closure
     {
         return Cmd::batch($this->fetchContinueWatching(), $this->fetchLibraries());
     }
@@ -177,7 +177,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
     private function fetchContinueWatching(): \Closure
     {
         return Cmd::promise(fn () => $this->media->continueWatching()->then(
-            static fn (array $items): ?Msg => new ContinueWatchingLoadedMsg($items),
+            static fn (array $items): Msg => new ContinueWatchingLoadedMsg($items),
             static fn (\Throwable $e): ?Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(self::SESSION_EXPIRED)
                 : null,
@@ -189,7 +189,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
         $query = MediaQuery::forLibrary($libraryId, limit: self::PER_LIBRARY_LIMIT);
 
         return Cmd::promise(fn () => $this->media->page($query)->then(
-            static fn (MediaPage $page): ?Msg => new LibraryMediaLoadedMsg($libraryId, $page),
+            static fn (MediaPage $page): Msg => new LibraryMediaLoadedMsg($libraryId, $page),
             static fn (\Throwable $e): ?Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(self::SESSION_EXPIRED)
                 : null,

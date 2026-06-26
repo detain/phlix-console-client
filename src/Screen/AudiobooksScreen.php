@@ -64,7 +64,7 @@ final class AudiobooksScreen implements Breadcrumbed, Themed
     ) {
     }
 
-    public function init(): ?\Closure
+    public function init(): \Closure
     {
         return Cmd::promise(fn () => $this->store->all($this->libraryId)->then(
             static fn (array $audiobooks): Msg => new AudiobooksLoadedMsg($audiobooks),
