@@ -11,12 +11,17 @@ use Phlix\Console\Api\Dto\Admin\AdminDashboard;
 use Phlix\Console\Api\Dto\Admin\AdminUser;
 use Phlix\Console\Api\Dto\Admin\Backup;
 use Phlix\Console\Api\Dto\Admin\BackupSchedule;
+use Phlix\Console\Api\Dto\Admin\Channel;
 use Phlix\Console\Api\Dto\Admin\DlnaServerStatus;
+use Phlix\Console\Api\Dto\Admin\GuideProgram;
 use Phlix\Console\Api\Dto\Admin\LogFile;
 use Phlix\Console\Api\Dto\Admin\LogTail;
 use Phlix\Console\Api\Dto\Admin\Plugin;
+use Phlix\Console\Api\Dto\Admin\Recording;
 use Phlix\Console\Api\Dto\Admin\RemoteAccessStatus;
+use Phlix\Console\Api\Dto\Admin\SeriesRule;
 use Phlix\Console\Api\Dto\Admin\ServerSettings;
+use Phlix\Console\Api\Dto\Admin\Tuner;
 use Phlix\Console\Config\TokenBundle;
 use Phlix\Console\Tests\Api\FakeTransport;
 use PHPUnit\Framework\TestCase;
@@ -1507,6 +1512,419 @@ final class AdminClientTest extends TestCase
 
         self::assertInstanceOf(ApiError::class, $error);
         self::assertSame('Library not found', $error->getMessage());
+    }
+
+    // ---- live tv -------------------------------------------------------
+
+    public function testLiveTvTunersReadsTheTopLevelNamedKey(): void
+    {
+        // The AdminLiveTvController uses the THIRD envelope: the data rides a
+        // top-level named key (`tuners`) alongside `success`.
+        $transport = (new FakeTransport())->json(200, [
+            'success' => true,
+            'tuners' => [
+                ['id' => 't-1', 'tuner_id' => 'hdhr-1', 'type' => 'hdhomerun', 'name' => 'Living Room', 'enabled' => 1, 'status' => 'online'],
+                ['id' => 't-2', 'tuner_id' => 'iptv-1', 'type' => 'iptv', 'name' => 'IPTV', 'enabled' => 0, 'status' => 'offline'],
+            ],
+        ]);
+
+        $tuners = $this->await($this->clientWith($transport)->liveTvTuners());
+
+        self::assertContainsOnlyInstancesOf(Tuner::class, $tuners);
+        self::assertCount(2, $tuners);
+        self::assertSame('Living Room', $tuners[0]->name);
+        self::assertTrue($tuners[0]->enabled);
+        self::assertFalse($tuners[1]->enabled);
+        self::assertSame('GET', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/livetv/tuners', $transport->requestAt(0)['url']);
+    }
+
+    public function testLiveTvTunersIgnoresAnEnvelopeDataKey(): void
+    {
+        // Regression guard: the list rides the top-level `tuners` key, NOT a
+        // dashboard-style `{success, data:{tuners}}` wrapper.
+        $transport = (new FakeTransport())->json(200, [
+            'success' => true,
+            'data' => ['tuners' => [['id' => 't-9', 'name' => 'ghost']]],
+        ]);
+
+        $tuners = $this->await($this->clientWith($transport)->liveTvTuners());
+
+        self::assertSame([], $tuners, 'tuners are read top-level, not from data');
+    }
+
+    public function testLiveTvTunersToleratesAMissingTunersKey(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true]);
+
+        self::assertSame([], $this->await($this->clientWith($transport)->liveTvTuners()));
+    }
+
+    public function testLiveTvTunersSkipsNonArrayRows(): void
+    {
+        $transport = (new FakeTransport())->json(200, [
+            'tuners' => [['id' => 't-1', 'name' => 'Living Room'], 'nope', 7],
+        ]);
+
+        $tuners = $this->await($this->clientWith($transport)->liveTvTuners());
+
+        self::assertCount(1, $tuners);
+        self::assertSame('Living Room', $tuners[0]->name);
+    }
+
+    public function testLiveTvTunersAttachesTheBearerToken(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['tuners' => []]);
+
+        $this->await($this->clientWith($transport)->liveTvTuners());
+
+        self::assertSame('Bearer access-1', $transport->requestAt(0)['headers']['Authorization'] ?? null);
+    }
+
+    public function testScanTunersRediscoversAndReadsTheNamedKey(): void
+    {
+        $transport = (new FakeTransport())->json(200, [
+            'success' => true,
+            'tuners' => [['id' => 't-1', 'name' => 'Living Room']],
+        ]);
+
+        $tuners = $this->await($this->clientWith($transport)->scanTuners());
+
+        self::assertCount(1, $tuners);
+        self::assertSame('Living Room', $tuners[0]->name);
+        self::assertSame('GET', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/livetv/tuners/scan', $transport->requestAt(0)['url']);
+    }
+
+    public function testScanTunersSurfacesTheFriendlyMessageOnA500NotTheGenericHttpText(): void
+    {
+        // LIST-method landmine: the real AdminLiveTvController::error() emits
+        // {success:false, message:…} with NO `error` key, but ApiClient::decode()
+        // only reads `error`, so without the AdminClient's reThrowFriendly() the
+        // rejection would degrade to "Request failed (HTTP 500)".
+        $transport = (new FakeTransport())->json(500, ['success' => false, 'message' => 'Tuner scan failed']);
+
+        $error = $this->awaitError($this->clientWith($transport)->scanTuners());
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('Tuner scan failed', $error->getMessage());
+        self::assertStringNotContainsString('Request failed', $error->getMessage());
+    }
+
+    public function testLiveTvFallsBackToTheGenericMessageWhenTheBodyCarriesNeitherMessageNorError(): void
+    {
+        // When the failure body has no friendly text at all, reThrowFriendly()
+        // leaves the original ApiError (the generic "Request failed (HTTP …)")
+        // untouched.
+        $transport = (new FakeTransport())->json(500, ['success' => false]);
+
+        $error = $this->awaitError($this->clientWith($transport)->liveTvTuners());
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('Request failed (HTTP 500)', $error->getMessage());
+    }
+
+    public function testLiveTvTunersPropagatesAnAuthErrorUntouched(): void
+    {
+        // A 401 must stay an AuthError (NOT re-wrapped by reThrowFriendly) so the
+        // screen routes to a session expiry. An empty refresh token means the 401
+        // is not retried.
+        $transport = (new FakeTransport())->json(401, ['error' => 'Unauthorized']);
+        $api = new ApiClient(self::BASE, $transport);
+        $api->setToken(new TokenBundle('access-1', '', 'Bearer', time() + 3600));
+
+        $error = $this->awaitError((new AdminClient($api))->liveTvTuners());
+
+        self::assertInstanceOf(\Phlix\Console\Api\AuthError::class, $error);
+    }
+
+    public function testSetTunerEnabledPutsTheFlagAndResolvesTheTuner(): void
+    {
+        $transport = (new FakeTransport())->json(200, [
+            'success' => true,
+            'tuner' => ['id' => 't-1', 'name' => 'Living Room', 'enabled' => 0, 'status' => 'online'],
+        ]);
+
+        $tuner = $this->await($this->clientWith($transport)->setTunerEnabled('t-1', false));
+
+        self::assertInstanceOf(Tuner::class, $tuner);
+        self::assertSame('Living Room', $tuner->name);
+        self::assertFalse($tuner->enabled);
+        self::assertSame('PUT', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/livetv/tuners/t-1', $transport->requestAt(0)['url']);
+        /** @var array<string,mixed> $body */
+        $body = json_decode($transport->requestAt(0)['body'], true);
+        self::assertFalse($body['enabled']);
+    }
+
+    public function testSetTunerEnabledToleratesAMissingTunerKey(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true]);
+
+        $tuner = $this->await($this->clientWith($transport)->setTunerEnabled('t-1', true));
+
+        self::assertInstanceOf(Tuner::class, $tuner);
+        self::assertSame('', $tuner->id);
+    }
+
+    public function testSetTunerEnabledSurfacesTheFriendlyMessageOnA404NotTheGenericHttpText(): void
+    {
+        // Mutating-method counterpart of the list landmine: {success:false, message:…}.
+        $transport = (new FakeTransport())->json(404, ['success' => false, 'message' => 'Tuner not found']);
+
+        $error = $this->awaitError($this->clientWith($transport)->setTunerEnabled('missing', true));
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('Tuner not found', $error->getMessage());
+        self::assertStringNotContainsString('Request failed', $error->getMessage());
+    }
+
+    public function testDeleteTunerSendsADeleteAndResolvesNull(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true]);
+
+        $result = $this->await($this->clientWith($transport)->deleteTuner('t-1'));
+
+        self::assertNull($result);
+        self::assertSame('DELETE', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/livetv/tuners/t-1', $transport->requestAt(0)['url']);
+    }
+
+    public function testDeleteTunerRejectsWithTheFriendlyMessageOnA404(): void
+    {
+        $transport = (new FakeTransport())->json(404, ['success' => false, 'message' => 'Tuner not found']);
+
+        $error = $this->awaitError($this->clientWith($transport)->deleteTuner('missing'));
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('Tuner not found', $error->getMessage());
+        self::assertStringNotContainsString('Request failed', $error->getMessage());
+    }
+
+    public function testLiveTvChannelsReadsTheNamedKey(): void
+    {
+        $transport = (new FakeTransport())->json(200, [
+            'success' => true,
+            'channels' => [
+                ['id' => 'c-1', 'channel_id' => 'wxyz.1', 'name' => 'WXYZ', 'number' => 7, 'visibility' => 'visible', 'enabled' => 1],
+                ['id' => 'c-2', 'channel_id' => 'abcd.1', 'name' => 'ABCD', 'number' => 9, 'visibility' => 'hidden', 'enabled' => 1],
+            ],
+        ]);
+
+        $channels = $this->await($this->clientWith($transport)->liveTvChannels());
+
+        self::assertContainsOnlyInstancesOf(Channel::class, $channels);
+        self::assertCount(2, $channels);
+        self::assertTrue($channels[0]->enabled);
+        self::assertFalse($channels[1]->enabled, 'hidden visibility disables');
+        self::assertStringContainsString('/api/v1/admin/livetv/channels', $transport->requestAt(0)['url']);
+    }
+
+    public function testSetChannelEnabledPutsTheFlagAndResolvesTheChannel(): void
+    {
+        $transport = (new FakeTransport())->json(200, [
+            'success' => true,
+            'channel' => ['id' => 'c-1', 'name' => 'WXYZ', 'visibility' => 'hidden', 'enabled' => 1],
+        ]);
+
+        $channel = $this->await($this->clientWith($transport)->setChannelEnabled('c-1', false));
+
+        self::assertInstanceOf(Channel::class, $channel);
+        self::assertSame('WXYZ', $channel->name);
+        self::assertFalse($channel->enabled);
+        self::assertSame('PUT', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/livetv/channels/c-1', $transport->requestAt(0)['url']);
+        /** @var array<string,mixed> $body */
+        $body = json_decode($transport->requestAt(0)['body'], true);
+        self::assertFalse($body['enabled']);
+    }
+
+    public function testSetChannelEnabledToleratesAMissingChannelKey(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true]);
+
+        $channel = $this->await($this->clientWith($transport)->setChannelEnabled('c-1', true));
+
+        self::assertInstanceOf(Channel::class, $channel);
+        self::assertSame('', $channel->id);
+    }
+
+    public function testLiveTvGuideReadsTheNamedKeyWithoutAChannelFilter(): void
+    {
+        $transport = (new FakeTransport())->json(200, [
+            'success' => true,
+            'programs' => [
+                ['id' => 'p-1', 'channel_id' => 'wxyz.1', 'title' => 'The Show', 'start_time' => 1750000000, 'end_time' => 1750003600],
+            ],
+        ]);
+
+        $programs = $this->await($this->clientWith($transport)->liveTvGuide());
+
+        self::assertContainsOnlyInstancesOf(GuideProgram::class, $programs);
+        self::assertCount(1, $programs);
+        self::assertSame('The Show', $programs[0]->title);
+        self::assertStringContainsString('/api/v1/admin/livetv/guide', $transport->requestAt(0)['url']);
+        self::assertStringNotContainsString('channel_id=', $transport->requestAt(0)['url']);
+    }
+
+    public function testLiveTvGuideAppliesTheChannelFilterQuery(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['programs' => []]);
+
+        $this->await($this->clientWith($transport)->liveTvGuide('wxyz.1'));
+
+        self::assertStringContainsString('channel_id=wxyz.1', $transport->requestAt(0)['url']);
+    }
+
+    public function testRefreshGuideResolvesTheImportedIntCount(): void
+    {
+        // On refresh, the `programs` key is the INT count of imported programs.
+        $transport = (new FakeTransport())->json(200, ['success' => true, 'programs' => 142]);
+
+        $count = $this->await($this->clientWith($transport)->refreshGuide());
+
+        self::assertSame(142, $count);
+        self::assertSame('POST', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/livetv/guide/refresh', $transport->requestAt(0)['url']);
+    }
+
+    public function testRefreshGuideResolvesZeroWhenTheCountIsAbsent(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true]);
+
+        self::assertSame(0, $this->await($this->clientWith($transport)->refreshGuide()));
+    }
+
+    public function testRefreshGuideRejectsWithTheFriendlyMessageOnA500(): void
+    {
+        $transport = (new FakeTransport())->json(500, ['success' => false, 'message' => 'EPG source unreachable']);
+
+        $error = $this->awaitError($this->clientWith($transport)->refreshGuide());
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('EPG source unreachable', $error->getMessage());
+        self::assertStringNotContainsString('Request failed', $error->getMessage());
+    }
+
+    public function testRecordingsReadsTheNamedKey(): void
+    {
+        $transport = (new FakeTransport())->json(200, [
+            'success' => true,
+            'recordings' => [
+                ['recording_id' => 'rec-1', 'channel_id' => 'wxyz.1', 'title' => 'The Show', 'status' => 'recording', 'storage_size' => 1024],
+            ],
+        ]);
+
+        $recordings = $this->await($this->clientWith($transport)->recordings());
+
+        self::assertContainsOnlyInstancesOf(Recording::class, $recordings);
+        self::assertCount(1, $recordings);
+        self::assertSame('The Show', $recordings[0]->title);
+        self::assertSame(1024, $recordings[0]->storageSize);
+        self::assertStringContainsString('/api/v1/admin/livetv/recordings', $transport->requestAt(0)['url']);
+        self::assertStringNotContainsString('status=', $transport->requestAt(0)['url']);
+    }
+
+    public function testRecordingsAppliesTheStatusFilterQuery(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['recordings' => []]);
+
+        $this->await($this->clientWith($transport)->recordings('completed'));
+
+        self::assertStringContainsString('status=completed', $transport->requestAt(0)['url']);
+    }
+
+    public function testUpcomingRecordingsSendsTheLimitAndReadsTheNamedKey(): void
+    {
+        $transport = (new FakeTransport())->json(200, [
+            'success' => true,
+            'recordings' => [['recording_id' => 'rec-1', 'title' => 'The Show']],
+        ]);
+
+        $recordings = $this->await($this->clientWith($transport)->upcomingRecordings(5));
+
+        self::assertCount(1, $recordings);
+        self::assertSame('The Show', $recordings[0]->title);
+        self::assertStringContainsString('/api/v1/admin/livetv/recordings/upcoming', $transport->requestAt(0)['url']);
+        self::assertStringContainsString('limit=5', $transport->requestAt(0)['url']);
+    }
+
+    public function testUpcomingRecordingsDefaultsTheLimitToTen(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['recordings' => []]);
+
+        $this->await($this->clientWith($transport)->upcomingRecordings());
+
+        self::assertStringContainsString('limit=10', $transport->requestAt(0)['url']);
+    }
+
+    public function testDeleteRecordingSendsADeleteAndResolvesNull(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true]);
+
+        $result = $this->await($this->clientWith($transport)->deleteRecording('rec-1'));
+
+        self::assertNull($result);
+        self::assertSame('DELETE', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/livetv/recordings/rec-1', $transport->requestAt(0)['url']);
+    }
+
+    public function testDeleteRecordingRejectsWithTheFriendlyMessageOnA404(): void
+    {
+        $transport = (new FakeTransport())->json(404, ['success' => false, 'message' => 'Recording not found']);
+
+        $error = $this->awaitError($this->clientWith($transport)->deleteRecording('missing'));
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('Recording not found', $error->getMessage());
+        self::assertStringNotContainsString('Request failed', $error->getMessage());
+    }
+
+    public function testSeriesRulesReadsTheNamedKey(): void
+    {
+        $transport = (new FakeTransport())->json(200, [
+            'success' => true,
+            'rules' => [
+                ['rule_id' => 'sr-1', 'series_id' => 'SH1', 'title' => 'The Show', 'priority' => 5, 'days_ahead' => 14, 'is_active' => 1],
+            ],
+        ]);
+
+        $rules = $this->await($this->clientWith($transport)->seriesRules());
+
+        self::assertContainsOnlyInstancesOf(SeriesRule::class, $rules);
+        self::assertCount(1, $rules);
+        self::assertSame('The Show', $rules[0]->title);
+        self::assertTrue($rules[0]->isActive);
+        self::assertStringContainsString('/api/v1/admin/livetv/series-rules', $transport->requestAt(0)['url']);
+    }
+
+    public function testSeriesRulesToleratesAMissingRulesKey(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true]);
+
+        self::assertSame([], $this->await($this->clientWith($transport)->seriesRules()));
+    }
+
+    public function testDeleteSeriesRuleSendsADeleteAndResolvesNull(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true]);
+
+        $result = $this->await($this->clientWith($transport)->deleteSeriesRule('sr-1'));
+
+        self::assertNull($result);
+        self::assertSame('DELETE', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/livetv/series-rules/sr-1', $transport->requestAt(0)['url']);
+    }
+
+    public function testDeleteSeriesRuleRejectsWithTheFriendlyMessageOnA404(): void
+    {
+        $transport = (new FakeTransport())->json(404, ['success' => false, 'message' => 'Rule not found']);
+
+        $error = $this->awaitError($this->clientWith($transport)->deleteSeriesRule('missing'));
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('Rule not found', $error->getMessage());
+        self::assertStringNotContainsString('Request failed', $error->getMessage());
     }
 
     // ---- helpers -------------------------------------------------------
