@@ -18,7 +18,7 @@ final readonly class Chapter
     }
 
     /**
-     * @param array<string,mixed> $data `{start_seconds, end_seconds, title}`
+     * @param array<array-key,mixed> $data `{start_seconds, end_seconds, title}`
      */
     public static function fromArray(array $data): self
     {

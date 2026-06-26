@@ -19,7 +19,7 @@ final readonly class ContinueWatchingItem
     }
 
     /**
-     * @param array<string,mixed> $row
+     * @param array<array-key,mixed> $row
      */
     public static function fromArray(array $row): self
     {

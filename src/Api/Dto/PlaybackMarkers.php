@@ -82,7 +82,7 @@ final readonly class PlaybackMarkers
      * A marker object passes through; anything else (null, scalar) becomes null
      * so {@see Marker::fromArray()} yields a null marker.
      *
-     * @return array<string,mixed>|null
+     * @return array<array-key,mixed>|null
      */
     private static function nullableMap(mixed $value): ?array
     {

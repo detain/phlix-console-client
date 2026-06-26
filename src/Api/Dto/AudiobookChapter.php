@@ -30,7 +30,7 @@ final readonly class AudiobookChapter
      * the row omits it (the raw detail chapters do) and to `"Chapter N"` for a
      * missing title (1-based off the resolved index).
      *
-     * @param array<string,mixed> $data
+     * @param array<array-key,mixed> $data
      */
     public static function fromArray(array $data, int $ordinal): self
     {

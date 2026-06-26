@@ -32,7 +32,7 @@ final readonly class PhotoAlbum
      * `photo_count` falls back to the mapped photo count only when the key is
      * absent (an explicit 0 is preserved).
      *
-     * @param array<string,mixed> $data
+     * @param array<array-key,mixed> $data
      */
     public static function fromArray(array $data): self
     {

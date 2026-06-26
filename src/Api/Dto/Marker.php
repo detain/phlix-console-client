@@ -20,7 +20,7 @@ final readonly class Marker
      * Build from `{start_seconds, end_seconds}`, or null when the marker is
      * absent (the server sends `intro_marker`/`outro_marker` as null).
      *
-     * @param array<string,mixed>|null $data
+     * @param array<array-key,mixed>|null $data
      */
     public static function fromArray(?array $data): ?self
     {
