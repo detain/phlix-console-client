@@ -72,21 +72,18 @@ final class AdminClient
 
     /**
      * List the available server log files (most-recently-modified first, per the
-     * server). The envelope's `data.files` list is mapped through {@see LogFile};
-     * a non-list payload yields an empty list.
+     * server). LogController returns a TOP-LEVEL `{files: [...]}` (no
+     * `{success, data}` envelope — admin envelopes are per-controller); a
+     * non-list payload yields an empty list.
      *
      * @return PromiseInterface<list<LogFile>>
      */
     public function logFiles(): PromiseInterface
     {
-        return $this->api->send('GET', self::LOGS)->then(static function (array $body): array {
-            $data = Coerce::map($body['data'] ?? null);
-
-            return self::mapList(
-                $data['files'] ?? null,
-                static fn (array $row): LogFile => LogFile::fromArray($row),
-            );
-        });
+        return $this->api->send('GET', self::LOGS)->then(static fn (array $body): array => self::mapList(
+            $body['files'] ?? null,
+            static fn (array $row): LogFile => LogFile::fromArray($row),
+        ));
     }
 
     /**
@@ -98,7 +95,7 @@ final class AdminClient
     public function tailLog(string $file, int $lines): PromiseInterface
     {
         return $this->api->send('GET', self::LOGS . '/tail', ['file' => $file, 'lines' => $lines])
-            ->then(static fn (array $body): LogTail => LogTail::fromArray(Coerce::map($body['data'] ?? null)));
+            ->then(static fn (array $body): LogTail => LogTail::fromArray($body));
     }
 
     /**
@@ -111,7 +108,7 @@ final class AdminClient
     public function tailAllLogs(int $lines): PromiseInterface
     {
         return $this->api->send('GET', self::LOGS . '/tail-all', ['lines' => $lines])
-            ->then(static fn (array $body): LogTail => LogTail::fromArray(Coerce::map($body['data'] ?? null)));
+            ->then(static fn (array $body): LogTail => LogTail::fromArray($body));
     }
 
     // ---- users ---------------------------------------------------------

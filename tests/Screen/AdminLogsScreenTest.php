@@ -29,37 +29,33 @@ use SugarCraft\Core\Msg\WindowSizeMsg;
 
 final class AdminLogsScreenTest extends TestCase
 {
-    private function envelope(mixed $data): array
-    {
-        return ['success' => true, 'data' => $data, 'count' => is_array($data) ? count($data) : 1];
-    }
-
     private function fileListPayload(): array
     {
-        return $this->envelope([
+        // LogController returns a TOP-LEVEL shape (no `{success, data}` envelope).
+        return [
             'files' => [
                 ['name' => 'app.log', 'size' => 4096, 'modified_at' => '2026-06-26T12:00:00-04:00'],
                 ['name' => 'error.log', 'size' => 128, 'modified_at' => '2026-06-25T09:00:00-04:00'],
             ],
-        ]);
+        ];
     }
 
     private function tailPayload(): array
     {
-        return $this->envelope([
+        return [
             'file' => 'app.log',
             'lines' => array_map(static fn (int $n): string => "log line {$n}", range(1, 60)),
             'truncated' => true,
-        ]);
+        ];
     }
 
     private function allTailPayload(): array
     {
-        return $this->envelope([
+        return [
             'files' => ['app.log', 'error.log'],
             'lines' => ['app.log    started', 'error.log  oops'],
             'truncated' => false,
-        ]);
+        ];
     }
 
     private function screenWith(FakeTransport $transport): AdminLogsScreen
@@ -310,7 +306,7 @@ final class AdminLogsScreenTest extends TestCase
     {
         $transport = (new FakeTransport())
             ->json(200, $this->fileListPayload())
-            ->json(200, $this->envelope(['file' => 'app.log', 'lines' => [], 'truncated' => false]));
+            ->json(200, ['file' => 'app.log', 'lines' => [], 'truncated' => false]);
         $screen = $this->withFiles($transport);
 
         [$tailing, $cmd] = $screen->update(new KeyMsg(KeyType::Down));
@@ -325,7 +321,7 @@ final class AdminLogsScreenTest extends TestCase
         // A defensive guard: a file row with no name re-fetches the list rather
         // than tailing an empty path.
         $transport = (new FakeTransport())
-            ->json(200, $this->envelope(['files' => [['name' => '', 'size' => 0, 'modified_at' => 'x']]]))
+            ->json(200, ['files' => [['name' => '', 'size' => 0, 'modified_at' => 'x']]])
             ->json(200, $this->fileListPayload());
         $screen = $this->withFiles($transport);
 
