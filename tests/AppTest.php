@@ -59,6 +59,7 @@ use Phlix\Console\Msg\ToggleMetricsMsg;
 use Phlix\Console\Msg\TrackResolvedMsg;
 use Phlix\Console\Route;
 use Phlix\Console\Screen\AdminDashboardScreen;
+use Phlix\Console\Screen\AdminLogsScreen;
 use Phlix\Console\Screen\AdminMenuScreen;
 use Phlix\Console\Screen\AlbumScreen;
 use Phlix\Console\Screen\AudiobookDetailScreen;
@@ -1493,6 +1494,19 @@ final class AppTest extends TestCase
         self::assertInstanceOf(AdminDashboardScreen::class, $dashboard->screen());
         self::assertSame(3, $dashboard->stackDepth(), 'the dashboard is pushed onto the admin menu');
         self::assertInstanceOf(\Closure::class, $cmd, 'the dashboard fetches on push');
+    }
+
+    public function testOpenAdminSectionLogsPushesTheLogsScreenWithAFetch(): void
+    {
+        [$adminApp] = $this->appWithAdminUser(true);
+        [$admin] = $adminApp->update(new OpenAdminMsg());
+
+        [$logs, $cmd] = $admin->update(new OpenAdminSectionMsg(Route::AdminLogs));
+
+        self::assertSame(Route::AdminLogs, $logs->route());
+        self::assertInstanceOf(AdminLogsScreen::class, $logs->screen());
+        self::assertSame(3, $logs->stackDepth(), 'the logs screen is pushed onto the admin menu');
+        self::assertInstanceOf(\Closure::class, $cmd, 'the logs screen fetches the file list on push');
     }
 
     public function testOpenAdminSectionForAnUnwiredSectionIsANoOp(): void
