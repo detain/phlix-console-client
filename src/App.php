@@ -7,6 +7,7 @@ namespace Phlix\Console;
 use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\AuthError;
+use Phlix\Console\Api\Cast\CastClient;
 use Phlix\Console\Api\Dto\Album;
 use Phlix\Console\Api\Dto\Audiobook;
 use Phlix\Console\Api\Dto\AudiobookChapter;
@@ -42,6 +43,7 @@ use Phlix\Console\Msg\OpenStatsMsg;
 use Phlix\Console\Msg\PaletteLibrariesLoadedMsg;
 use Phlix\Console\Msg\PlayAudiobookMsg;
 use Phlix\Console\Msg\PlayNextMsg;
+use Phlix\Console\Msg\CastRequestedMsg;
 use Phlix\Console\Msg\PlayRequestedMsg;
 use Phlix\Console\Msg\PlayTrackMsg;
 use Phlix\Console\Msg\RequestLogoutMsg;
@@ -70,6 +72,7 @@ use Phlix\Console\Screen\AudiobooksScreen;
 use Phlix\Console\Screen\BookDetailScreen;
 use Phlix\Console\Screen\BooksScreen;
 use Phlix\Console\Screen\Breadcrumbed;
+use Phlix\Console\Screen\CastScreen;
 use Phlix\Console\Screen\BrowseScreen;
 use Phlix\Console\Screen\DetailScreen;
 use Phlix\Console\Screen\LibraryScreen;
@@ -364,6 +367,9 @@ final class App implements Model
         }
         if ($msg instanceof PlayRequestedMsg) {
             return $this->openPlayer($msg->item);
+        }
+        if ($msg instanceof CastRequestedMsg) {
+            return $this->openCast($msg->item);
         }
         if ($msg instanceof PlayNextMsg) {
             // Replace the current player frame with the next episode's (binge
@@ -1557,6 +1563,26 @@ final class App implements Model
         );
 
         return [$this->push(Route::Player, $screen), $screen->init()];
+    }
+
+    /**
+     * Open the "Cast to…" screen for an item with a signed stream. The
+     * {@see CastClient} is built locally from the shared ApiClient (the App holds
+     * no CastClient field).
+     *
+     * @return array{App, ?\Closure}
+     */
+    private function openCast(MediaItem $item): array
+    {
+        $screen = new CastScreen(
+            new CastClient($this->api),
+            $item,
+            $this->api->baseUrl(),
+            cols: $this->cols,
+            rows: $this->rows,
+        );
+
+        return [$this->push(Route::Cast, $screen), $screen->init()];
     }
 
     // ---- helpers -------------------------------------------------------
