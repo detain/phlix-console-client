@@ -41,4 +41,5 @@ enum Route
     case AdminLibraries;
     case AdminDlna;
     case AdminRemote;
+    case AdminLiveTv;
 }

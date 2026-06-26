@@ -6,7 +6,6 @@ namespace Phlix\Console\Screen;
 
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenAdminSectionMsg;
-use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Route;
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\Table;
@@ -18,13 +17,12 @@ use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\SubscriptionCapable;
 
 /**
- * The admin area's section index: a borderless {@see Table} listing every planned
- * admin surface (Dashboard, Users, Server Settings, …, DLNA) so the whole admin
- * structure is visible up front. Wired surfaces (Dashboard, Logs, …) open; the
- * rest render dimmed "(coming soon)". Cast is NOT an admin section — it ships as a
- * DetailScreen `C` action. ↑/↓ move the selection; Enter on an available
- * section emits an {@see OpenAdminSectionMsg} (the App pushes that section's
- * screen); Enter on an unavailable one surfaces an info toast; Esc/q go back.
+ * The admin area's section index: a borderless {@see Table} listing every admin
+ * surface (Dashboard, Users, Server Settings, …, Live TV) so the whole admin
+ * structure is visible up front. EVERY surface is now wired and available (Live TV
+ * was the last). Cast is NOT an admin section — it ships as a DetailScreen `C`
+ * action. ↑/↓ move the selection; Enter on a section emits an
+ * {@see OpenAdminSectionMsg} (the App pushes that section's screen); Esc/q go back.
  *
  * Stable collaborators are readonly; the selection is private mutable view state
  * copied via clone-mutate (the established screen idiom). The screen is the
@@ -37,13 +35,13 @@ final class AdminMenuScreen implements Breadcrumbed, Themed
     use ThemedScreen;
 
     private const HINT = '↑↓  select      ⏎  open      Esc  back';
-    private const COMING_SOON = ' (coming soon)';
     private const STATUS_WIDTH = 16;
 
     /**
-     * The full planned admin section set, in display order. Each entry is the
-     * section's label, the {@see Route} to push when selected (null = not yet a
-     * destination), and whether it is available in this build.
+     * The full admin section set, in display order. Each entry is the section's
+     * label, the {@see Route} to push when selected, and whether it is available
+     * (every surface is now wired, so all are available — the keys are kept for a
+     * stable section schema and the App's routing).
      *
      * @var list<array{label: string, route: ?Route, available: bool}>
      */
@@ -57,7 +55,7 @@ final class AdminMenuScreen implements Breadcrumbed, Themed
         ['label' => 'Backup', 'route' => Route::AdminBackup, 'available' => true],
         ['label' => 'DLNA', 'route' => Route::AdminDlna, 'available' => true],
         ['label' => 'Remote Access', 'route' => Route::AdminRemote, 'available' => true],
-        ['label' => 'Live TV', 'route' => null, 'available' => false],
+        ['label' => 'Live TV', 'route' => Route::AdminLiveTv, 'available' => true],
     ];
 
     private int $selected = 0;
@@ -117,13 +115,11 @@ final class AdminMenuScreen implements Breadcrumbed, Themed
     /** @return array{self, ?\Closure} */
     private function openSelected(): array
     {
-        $section = self::SECTIONS[$this->selected];
-        $route = $section['route'];
-        if ($section['available'] && $route !== null) {
-            return [$this, Cmd::send(new OpenAdminSectionMsg($route))];
-        }
+        // Every section is wired now; Enter opens the selected one. The `?? Admin`
+        // satisfies the nullable schema type — no live row has a null route.
+        $route = self::SECTIONS[$this->selected]['route'] ?? Route::Admin;
 
-        return [$this, Cmd::send(ShowToastMsg::info($section['label'] . ' is coming soon'))];
+        return [$this, Cmd::send(new OpenAdminSectionMsg($route))];
     }
 
     private function moveSelection(int $delta): self
@@ -145,10 +141,7 @@ final class AdminMenuScreen implements Breadcrumbed, Themed
     {
         $rows = [];
         foreach (self::SECTIONS as $section) {
-            $rows[] = [
-                $section['label'],
-                $section['available'] ? 'Available' : self::COMING_SOON,
-            ];
+            $rows[] = [$section['label'], 'Available'];
         }
 
         return Table::render([

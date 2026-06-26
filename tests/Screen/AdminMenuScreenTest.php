@@ -6,7 +6,6 @@ namespace Phlix\Console\Tests\Screen;
 
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenAdminSectionMsg;
-use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Route;
 use Phlix\Console\Screen\AdminMenuScreen;
 use Phlix\Console\Ui\Theme;
@@ -15,7 +14,6 @@ use SugarCraft\Core\Msg;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
-use SugarCraft\Toast\ToastType;
 
 final class AdminMenuScreenTest extends TestCase
 {
@@ -50,11 +48,13 @@ final class AdminMenuScreenTest extends TestCase
         ], $labels, 'Cast is no longer an admin section — it ships as a DetailScreen action');
         self::assertNotContains('Cast', $labels, 'the stale Cast section row is removed');
 
+        // EVERY section is now wired and available — Live TV was the last.
         $available = array_column(
             array_values(array_filter($sections, static fn (array $s): bool => $s['available'])),
             'label',
         );
-        self::assertSame(['Dashboard', 'Users', 'Server Settings', 'Plugins', 'Libraries', 'Logs', 'Backup', 'DLNA', 'Remote Access'], $available, 'every surface through Remote Access is wired; only Live TV remains');
+        self::assertSame($labels, $available, 'every admin surface is now available — no unavailable rows remain');
+        self::assertNotContains(false, array_column($sections, 'available'), 'no section is unavailable');
 
         $byLabel = array_column($sections, null, 'label');
         self::assertSame(Route::AdminDashboard, $byLabel['Dashboard']['route']);
@@ -66,20 +66,18 @@ final class AdminMenuScreenTest extends TestCase
         self::assertSame(Route::AdminBackup, $byLabel['Backup']['route']);
         self::assertSame(Route::AdminDlna, $byLabel['DLNA']['route']);
         self::assertSame(Route::AdminRemote, $byLabel['Remote Access']['route']);
-
-        // Only Live TV remains unavailable (no route yet).
-        self::assertFalse($byLabel['Live TV']['available']);
-        self::assertNull($byLabel['Live TV']['route']);
-        self::assertTrue($byLabel['Remote Access']['available']);
+        self::assertSame(Route::AdminLiveTv, $byLabel['Live TV']['route'], 'Live TV is now wired');
+        self::assertTrue($byLabel['Live TV']['available']);
     }
 
-    public function testRendersEverySectionAndTheComingSoonMarker(): void
+    public function testRendersEverySectionAsAvailable(): void
     {
         $view = $this->screen()->view();
 
         self::assertStringContainsString('Dashboard', $view);
         self::assertStringContainsString('DLNA', $view);
-        self::assertStringContainsString('coming soon', $view, 'unavailable sections are marked');
+        self::assertStringContainsString('Live TV', $view);
+        self::assertStringNotContainsString('coming soon', $view, 'no section is unavailable anymore');
         self::assertStringContainsString('Available', $view);
     }
 
@@ -201,9 +199,9 @@ final class AdminMenuScreenTest extends TestCase
         self::assertSame(Route::AdminRemote, $msg->section);
     }
 
-    public function testEnterOnAnUnavailableSectionEmitsAComingSoonToast(): void
+    public function testEnterOnLiveTvEmitsOpenAdminSectionForLiveTv(): void
     {
-        // Move to "Live TV" (index 9), the only remaining unavailable section.
+        // Move to "Live TV" (index 9), now the last wired surface.
         $screen = $this->screen();
         for ($i = 0; $i < 9; $i++) {
             [$screen] = $screen->update(new KeyMsg(KeyType::Down));
@@ -213,10 +211,8 @@ final class AdminMenuScreenTest extends TestCase
         [, $cmd] = $screen->update(new KeyMsg(KeyType::Enter));
 
         $msg = $this->runCmd($cmd);
-        self::assertInstanceOf(ShowToastMsg::class, $msg);
-        self::assertSame(ToastType::Info, $msg->type);
-        self::assertStringContainsString('Live TV', $msg->message);
-        self::assertStringContainsString('coming soon', $msg->message);
+        self::assertInstanceOf(OpenAdminSectionMsg::class, $msg);
+        self::assertSame(Route::AdminLiveTv, $msg->section);
     }
 
     public function testEscapeAndQGoBack(): void
