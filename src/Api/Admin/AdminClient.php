@@ -12,6 +12,7 @@ use Phlix\Console\Api\Dto\Admin\BackupSchedule;
 use Phlix\Console\Api\Dto\Admin\LogFile;
 use Phlix\Console\Api\Dto\Admin\LogTail;
 use Phlix\Console\Api\Dto\Admin\Plugin;
+use Phlix\Console\Api\Dto\Admin\ServerSettings;
 use Phlix\Console\Api\Dto\Coerce;
 use React\Promise\PromiseInterface;
 
@@ -42,6 +43,9 @@ final class AdminClient
 
     /** The base path every backup-management endpoint hangs off. */
     private const BACKUP = '/api/v1/admin/backup';
+
+    /** The base path the server-settings endpoints hang off. */
+    private const SETTINGS = '/api/v1/admin/settings';
 
     public function __construct(
         private readonly ApiClient $api,
@@ -425,6 +429,40 @@ final class AdminClient
     {
         return $this->api->send($method, self::BACKUP . $suffix, [], $body === [] ? null : $body)
             ->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
+    }
+
+    // ---- server settings -----------------------------------------------
+
+    /**
+     * Fetch the full server-settings set. UNLIKE the users / plugins endpoints
+     * (and LIKE the dashboard / backup), {@see \Phlix\Server\Http\Controllers\Admin\AdminSettingsController}
+     * IS enveloped (admin envelopes are per-controller), so the
+     * `{settings, overridden, types}` maps are read from `$body['data']`. A
+     * top-level `{settings}` with no `data` wrapper yields an empty set.
+     *
+     * @return PromiseInterface<ServerSettings>
+     */
+    public function serverSettings(): PromiseInterface
+    {
+        return $this->api->send('GET', self::SETTINGS)
+            ->then(static fn (array $body): ServerSettings => ServerSettings::fromArray(Coerce::map($body['data'] ?? null)));
+    }
+
+    /**
+     * Update one setting. The PUT body is `{settings:{$key:$value}}`; the value
+     * is already coerced to its internal type by the caller (a real bool / int /
+     * float / string / array). Resolves the server `message` (the PUT response
+     * carries no `types`, so the screen refetches via GET). Rejects with the
+     * server `error` on a 400 (validation / invalid payload) or 500 — the
+     * {@see \Phlix\Console\Api\ApiError} carries it as the exception message.
+     *
+     * @param bool|int|float|string|array<array-key,mixed> $value
+     * @return PromiseInterface<string>
+     */
+    public function updateServerSetting(string $key, bool|int|float|string|array $value): PromiseInterface
+    {
+        return $this->api->send('PUT', self::SETTINGS, [], ['settings' => [$key => $value]])
+            ->then(static fn (array $body): string => Coerce::str($body['message'] ?? ''));
     }
 
     /**

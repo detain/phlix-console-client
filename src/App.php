@@ -65,6 +65,7 @@ use Phlix\Console\Screen\AdminDashboardScreen;
 use Phlix\Console\Screen\AdminLogsScreen;
 use Phlix\Console\Screen\AdminMenuScreen;
 use Phlix\Console\Screen\AdminPluginsScreen;
+use Phlix\Console\Screen\AdminSettingsScreen;
 use Phlix\Console\Screen\AdminUsersScreen;
 use Phlix\Console\Screen\AlbumScreen;
 use Phlix\Console\Screen\AudiobookDetailScreen;
@@ -1204,6 +1205,11 @@ final class App implements Model
             $screen = new AdminBackupScreen(new AdminClient($this->api), $this->cols, $this->rows);
 
             return [$this->push(Route::AdminBackup, $screen), $screen->init()];
+        }
+        if ($section === Route::AdminSettings) {
+            $screen = new AdminSettingsScreen(new AdminClient($this->api), $this->cols, $this->rows);
+
+            return [$this->push(Route::AdminSettings, $screen), $screen->init()];
         }
 
         return [$this, null];
