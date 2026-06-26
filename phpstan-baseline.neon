@@ -1,0 +1,1087 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Method Phlix\\Console\\Api\\ApiClient\:\:endSession\(\) return type with generic interface React\\Promise\\PromiseInterface does not specify its types\: T$#'
+			identifier: missingType.generics
+			count: 1
+			path: src/Api/ApiClient.php
+
+		-
+			message: '#^Method Phlix\\Console\\Api\\ApiClient\:\:refresh\(\) should return React\\Promise\\PromiseInterface\<Phlix\\Console\\Config\\TokenBundle\> but returns React\\Promise\\PromiseInterface\<mixed\>\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Api/ApiClient.php
+
+		-
+			message: '#^Parameter \#1 \$array \(list\<int\>\) of array_values is already a list, call has no effect\.$#'
+			identifier: arrayValues.list
+			count: 1
+			path: src/Api/ApiClient.php
+
+		-
+			message: '#^Parameter \#1 \$data of static method Phlix\\Console\\Api\\Dto\\Album\:\:fromArray\(\) expects array\<string, mixed\>, array\<mixed, mixed\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Api/ApiClient.php
+
+		-
+			message: '#^Parameter \#1 \$data of static method Phlix\\Console\\Api\\Dto\\AudiobookChapter\:\:fromArray\(\) expects array\<string, mixed\>, array\<mixed, mixed\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Api/ApiClient.php
+
+		-
+			message: '#^Parameter \#1 \$data of static method Phlix\\Console\\Api\\Dto\\Library\:\:fromArray\(\) expects array\<string, mixed\>, array\<mixed, mixed\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Api/ApiClient.php
+
+		-
+			message: '#^Parameter \#1 \$data of static method Phlix\\Console\\Api\\Dto\\PhotoAlbum\:\:fromArray\(\) expects array\<string, mixed\>, array\<mixed, mixed\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Api/ApiClient.php
+
+		-
+			message: '#^Parameter \#1 \$data of static method Phlix\\Console\\Api\\Dto\\SubtitleTrack\:\:fromArray\(\) expects array\<string, mixed\>, array\<mixed, mixed\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Api/ApiClient.php
+
+		-
+			message: '#^Parameter \#1 \$row of static method Phlix\\Console\\Api\\Dto\\ContinueWatchingItem\:\:fromArray\(\) expects array\<string, mixed\>, array\<mixed, mixed\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Api/ApiClient.php
+
+		-
+			message: '#^Property Phlix\\Console\\Api\\ApiClient\:\:\$refreshInFlight \(React\\Promise\\PromiseInterface\<Phlix\\Console\\Config\\TokenBundle\>\|null\) does not accept React\\Promise\\PromiseInterface\<mixed\>\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: src/Api/ApiClient.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>refreshToken" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: src/Api/ApiClient.php
+
+		-
+			message: '#^Parameter \#1 \$data of static method Phlix\\Console\\Api\\Dto\\Track\:\:fromArray\(\) expects array\<string, mixed\>, array\<mixed, mixed\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Api/Dto/Album.php
+
+		-
+			message: '#^Parameter \#1 \$data of static method Phlix\\Console\\Api\\Dto\\Audiobook\:\:fromArray\(\) expects array\<string, mixed\>, array\<mixed, mixed\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Api/Dto/AudiobookPage.php
+
+		-
+			message: '#^Parameter \#1 \$array \(list\<int\>\) of array_values is already a list, call has no effect\.$#'
+			identifier: arrayValues.list
+			count: 1
+			path: src/Api/Dto/AudiobookProgress.php
+
+		-
+			message: '#^Parameter \#1 \$data of static method Phlix\\Console\\Api\\Dto\\Book\:\:fromArray\(\) expects array\<string, mixed\>, array\<mixed, mixed\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Api/Dto/BookPage.php
+
+		-
+			message: '#^Parameter \#1 \$data of static method Phlix\\Console\\Api\\Dto\\LetterBucket\:\:fromArray\(\) expects array\<string, mixed\>, array\<mixed, mixed\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Api/Dto/LetterIndex.php
+
+		-
+			message: '#^Parameter \#1 \$data of static method Phlix\\Console\\Api\\Dto\\MediaItem\:\:fromArray\(\) expects array\<string, mixed\>, array\<mixed, mixed\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Api/Dto/MediaPage.php
+
+		-
+			message: '#^Parameter \#1 \$data of static method Phlix\\Console\\Api\\Dto\\PhotoExif\:\:fromArray\(\) expects array\<string, mixed\>, array\<mixed, mixed\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Api/Dto/Photo.php
+
+		-
+			message: '#^Parameter \#1 \$data of static method Phlix\\Console\\Api\\Dto\\Photo\:\:fromArray\(\) expects array\<string, mixed\>, array\<mixed, mixed\> given\.$#'
+			identifier: argument.type
+			count: 2
+			path: src/Api/Dto/PhotoAlbum.php
+
+		-
+			message: '#^Method Phlix\\Console\\Api\\Dto\\PlaybackMarkers\:\:nullableMap\(\) should return array\<string, mixed\>\|null but returns array\<mixed, mixed\>\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Api/Dto/PlaybackMarkers.php
+
+		-
+			message: '#^Parameter \#1 \$data of static method Phlix\\Console\\Api\\Dto\\Chapter\:\:fromArray\(\) expects array\<string, mixed\>, array\<mixed, mixed\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Api/Dto/PlaybackMarkers.php
+
+		-
+			message: '#^Parameter \#1 \$array \(non\-empty\-list\<string\>\) of array_values is already a list, call has no effect\.$#'
+			identifier: arrayValues.list
+			count: 3
+			path: src/Api/MediaQuery.php
+
+		-
+			message: '#^Anonymous function never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:baseView\(\) should return string but returns string\|SugarCraft\\Core\\View\.$#'
+			identifier: return.type
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:dispatch\(\) should return array\{Phlix\\Console\\App, Closure\|null\} but returns array\.$#'
+			identifier: return.type
+			count: 37
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:goBrowse\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:goHome\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:goLogin\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:goServerSetup\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:handlePaletteKey\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:onAudiobookTick\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:onLoginSubmitted\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:onNowPlayingTick\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:onPaletteLibraries\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:onServerSubmitted\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:onShimmerTick\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:onToastTick\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:onTrackResolved\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:openAlbum\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:openAudiobook\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:openBook\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:openDetail\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:openLibrary\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:openPalette\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:openPhoto\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:openPhotoAlbum\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:openPlayer\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:openSearch\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:openSettings\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:openStats\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:playAudiobook\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:playTrack\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:requestLogout\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:requestQuit\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:saveSettings\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:showToast\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:skipAudio\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:stopAudio\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Method Phlix\\Console\\App\:\:toggleAudio\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Property Phlix\\Console\\App\:\:\$audioFactory \(Closure\(string, int\|null\=\)\: SugarCraft\\Reel\\AudioPlayer\) does not accept Closure\(string, int\|null\)\: SugarCraft\\Reel\\AudioPlayer\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between array\{route\: Phlix\\Console\\Route, screen\: SugarCraft\\Core\\Model\} and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: src/App.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>title" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: src/Audio/MusicSession.php
+
+		-
+			message: '#^Parameter \#1 \$data of static method Phlix\\Console\\Config\\TokenBundle\:\:fromArray\(\) expects array\<string, mixed\>, array\<mixed, mixed\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Config/TokenStore.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\AlbumScreen\:\:handleKey\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/AlbumScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\AlbumScreen\:\:onEnter\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/AlbumScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\AlbumScreen\:\:update\(\) should return array\{SugarCraft\\Core\\Model, Closure\|null\} but returns array\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Screen/AlbumScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\AudiobookDetailScreen\:\:handleKey\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/AudiobookDetailScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\AudiobookDetailScreen\:\:init\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: src/Screen/AudiobookDetailScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\AudiobookDetailScreen\:\:play\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/AudiobookDetailScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\AudiobookDetailScreen\:\:update\(\) should return array\{SugarCraft\\Core\\Model, Closure\|null\} but returns array\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Screen/AudiobookDetailScreen.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>title" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: src/Screen/AudiobookDetailScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\AudiobooksScreen\:\:handleKey\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/AudiobooksScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\AudiobooksScreen\:\:init\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: src/Screen/AudiobooksScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\AudiobooksScreen\:\:update\(\) should return array\{SugarCraft\\Core\\Model, Closure\|null\} but returns array\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Screen/AudiobooksScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\BookDetailScreen\:\:init\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: src/Screen/BookDetailScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\BookDetailScreen\:\:onLoaded\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/BookDetailScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\BookDetailScreen\:\:update\(\) should return array\{SugarCraft\\Core\\Model, Closure\|null\} but returns array\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Screen/BookDetailScreen.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>title" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: src/Screen/BookDetailScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\BooksScreen\:\:afterGridChange\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/BooksScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\BooksScreen\:\:handleKey\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/BooksScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\BooksScreen\:\:init\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: src/Screen/BooksScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\BooksScreen\:\:onRange\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/BooksScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\BooksScreen\:\:onResize\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/BooksScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\BooksScreen\:\:update\(\) should return array\{SugarCraft\\Core\\Model, Closure\|null\} but returns array\.$#'
+			identifier: return.type
+			count: 3
+			path: src/Screen/BooksScreen.php
+
+		-
+			message: '#^Parameter \#1 \$onFulfilled of method React\\Promise\\PromiseInterface\<Phlix\\Console\\Api\\Dto\\Book\>\:\:then\(\) expects \(callable\(Phlix\\Console\\Api\\Dto\\Book\)\: \(React\\Promise\\PromiseInterface\<string\>\|string\)\)\|null, Closure\(Phlix\\Console\\Api\\Dto\\Book\)\: \(React\\Promise\\PromiseInterface\<string\>\|null\) given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Screen/BooksScreen.php
+
+		-
+			message: '#^Anonymous function never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 2
+			path: src/Screen/BrowseScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\BrowseScreen\:\:handleKey\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/BrowseScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\BrowseScreen\:\:handleRailsKey\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/BrowseScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\BrowseScreen\:\:handleSidebarKey\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/BrowseScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\BrowseScreen\:\:init\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: src/Screen/BrowseScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\BrowseScreen\:\:onContinueWatching\(\) has parameter \$items with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/BrowseScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\BrowseScreen\:\:onContinueWatching\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/BrowseScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\BrowseScreen\:\:onLibraries\(\) has parameter \$libraries with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/BrowseScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\BrowseScreen\:\:onLibraries\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/BrowseScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\BrowseScreen\:\:onLibraryMedia\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/BrowseScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\BrowseScreen\:\:openLibrary\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/BrowseScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\BrowseScreen\:\:update\(\) should return array\{SugarCraft\\Core\\Model, Closure\|null\} but returns array\.$#'
+			identifier: return.type
+			count: 4
+			path: src/Screen/BrowseScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\DetailScreen\:\:afterChildGridChange\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/DetailScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\DetailScreen\:\:handleContainerKey\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/DetailScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\DetailScreen\:\:handleKey\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/DetailScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\DetailScreen\:\:init\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: src/Screen/DetailScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\DetailScreen\:\:onChildren\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/DetailScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\DetailScreen\:\:onLoaded\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/DetailScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\DetailScreen\:\:onResize\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/DetailScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\DetailScreen\:\:update\(\) should return array\{SugarCraft\\Core\\Model, Closure\|null\} but returns array\.$#'
+			identifier: return.type
+			count: 4
+			path: src/Screen/DetailScreen.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: src/Screen/DetailScreen.php
+
+		-
+			message: '#^Anonymous function never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: src/Screen/LibraryScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\LibraryScreen\:\:afterGridChange\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/LibraryScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\LibraryScreen\:\:applyFilters\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/LibraryScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\LibraryScreen\:\:handleFilterKey\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/LibraryScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\LibraryScreen\:\:handleKey\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/LibraryScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\LibraryScreen\:\:init\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: src/Screen/LibraryScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\LibraryScreen\:\:jumpToLetter\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/LibraryScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\LibraryScreen\:\:onRange\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/LibraryScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\LibraryScreen\:\:onResize\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/LibraryScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\LibraryScreen\:\:update\(\) should return array\{SugarCraft\\Core\\Model, Closure\|null\} but returns array\.$#'
+			identifier: return.type
+			count: 4
+			path: src/Screen/LibraryScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\MusicScreen\:\:handleKey\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/MusicScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\MusicScreen\:\:init\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: src/Screen/MusicScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\MusicScreen\:\:update\(\) should return array\{SugarCraft\\Core\\Model, Closure\|null\} but returns array\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Screen/MusicScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PhotoAlbumScreen\:\:afterGridChange\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/PhotoAlbumScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PhotoAlbumScreen\:\:handleKey\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/PhotoAlbumScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PhotoAlbumScreen\:\:onResize\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/PhotoAlbumScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PhotoAlbumScreen\:\:update\(\) should return array\{SugarCraft\\Core\\Model, Closure\|null\} but returns array\.$#'
+			identifier: return.type
+			count: 2
+			path: src/Screen/PhotoAlbumScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PhotoViewerScreen\:\:advanceSlide\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/PhotoViewerScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PhotoViewerScreen\:\:batchOrNull\(\) has parameter \$cmds with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/PhotoViewerScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PhotoViewerScreen\:\:handleKey\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/PhotoViewerScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PhotoViewerScreen\:\:move\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/PhotoViewerScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PhotoViewerScreen\:\:onResize\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/PhotoViewerScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PhotoViewerScreen\:\:toggleExif\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/PhotoViewerScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PhotoViewerScreen\:\:toggleSlideshow\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/PhotoViewerScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PhotoViewerScreen\:\:update\(\) should return array\{SugarCraft\\Core\\Model, Closure\|null\} but returns array\.$#'
+			identifier: return.type
+			count: 3
+			path: src/Screen/PhotoViewerScreen.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: src/Screen/PhotoViewerScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PhotosScreen\:\:afterGridChange\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/PhotosScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PhotosScreen\:\:handleKey\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/PhotosScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PhotosScreen\:\:init\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: src/Screen/PhotosScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PhotosScreen\:\:onAlbums\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/PhotosScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PhotosScreen\:\:onResize\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/PhotosScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PhotosScreen\:\:update\(\) should return array\{SugarCraft\\Core\\Model, Closure\|null\} but returns array\.$#'
+			identifier: return.type
+			count: 3
+			path: src/Screen/PhotosScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PlayerScreen\:\:advanceTo\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/PlayerScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PlayerScreen\:\:forwardToInner\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/PlayerScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PlayerScreen\:\:handleKey\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/PlayerScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PlayerScreen\:\:init\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: src/Screen/PlayerScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PlayerScreen\:\:onPrepareFailed\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/PlayerScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PlayerScreen\:\:onProgressTick\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/PlayerScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PlayerScreen\:\:onReady\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/PlayerScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PlayerScreen\:\:onResize\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/PlayerScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PlayerScreen\:\:onResumeInfo\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/PlayerScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PlayerScreen\:\:onSessionStarted\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/PlayerScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PlayerScreen\:\:onTranscodePoll\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/PlayerScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PlayerScreen\:\:onTranscodeStarted\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/PlayerScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PlayerScreen\:\:onTranscodeStatus\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/PlayerScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PlayerScreen\:\:onUpNextTick\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/PlayerScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PlayerScreen\:\:seekBy\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/PlayerScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PlayerScreen\:\:skipMarker\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/PlayerScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PlayerScreen\:\:startOver\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/PlayerScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PlayerScreen\:\:toggleCaptions\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/PlayerScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\PlayerScreen\:\:update\(\) should return array\{SugarCraft\\Core\\Model, Closure\|null\} but returns array\.$#'
+			identifier: return.type
+			count: 12
+			path: src/Screen/PlayerScreen.php
+
+		-
+			message: '#^Parameter \#1 \$onFulfilled of method React\\Promise\\PromiseInterface\<mixed\>\:\:then\(\) expects \(callable\(mixed\)\: \(React\\Promise\\PromiseInterface\<null\>\|null\)\)\|null, Closure\(bool\)\: null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Screen/PlayerScreen.php
+
+		-
+			message: '#^Property Phlix\\Console\\Screen\\PlayerScreen\:\:\$siblings type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/PlayerScreen.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>chapters" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: src/Screen/PlayerScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\SearchScreen\:\:afterGridChange\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/SearchScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\SearchScreen\:\:applySearch\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/SearchScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\SearchScreen\:\:editSearch\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/SearchScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\SearchScreen\:\:handleKey\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/SearchScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\SearchScreen\:\:onRange\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/SearchScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\SearchScreen\:\:onResize\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/SearchScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\SearchScreen\:\:update\(\) should return array\{SugarCraft\\Core\\Model, Closure\|null\} but returns array\.$#'
+			identifier: return.type
+			count: 4
+			path: src/Screen/SearchScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\StatsScreen\:\:handleKey\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Screen/StatsScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\StatsScreen\:\:init\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: src/Screen/StatsScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Screen\\StatsScreen\:\:update\(\) should return array\{SugarCraft\\Core\\Model, Closure\|null\} but returns array\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Screen/StatsScreen.php
+
+		-
+			message: '#^Method Phlix\\Console\\Store\\AudiobooksStore\:\:all\(\) should return React\\Promise\\PromiseInterface\<list\<Phlix\\Console\\Api\\Dto\\Audiobook\>\> but returns React\\Promise\\PromiseInterface\<mixed\>\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Store/AudiobooksStore.php
+
+		-
+			message: '#^Method Phlix\\Console\\Store\\AudiobooksStore\:\:audiobook\(\) should return React\\Promise\\PromiseInterface\<Phlix\\Console\\Api\\Dto\\Audiobook\> but returns React\\Promise\\PromiseInterface\<mixed\>\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Store/AudiobooksStore.php
+
+		-
+			message: '#^Method Phlix\\Console\\Store\\AudiobooksStore\:\:chapters\(\) should return React\\Promise\\PromiseInterface\<list\<Phlix\\Console\\Api\\Dto\\AudiobookChapter\>\> but returns React\\Promise\\PromiseInterface\<mixed\>\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Store/AudiobooksStore.php
+
+		-
+			message: '#^Method Phlix\\Console\\Store\\BooksStore\:\:book\(\) should return React\\Promise\\PromiseInterface\<Phlix\\Console\\Api\\Dto\\Book\> but returns React\\Promise\\PromiseInterface\<mixed\>\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Store/BooksStore.php
+
+		-
+			message: '#^Method Phlix\\Console\\Store\\BooksStore\:\:page\(\) should return React\\Promise\\PromiseInterface\<Phlix\\Console\\Api\\Dto\\BookPage\> but returns React\\Promise\\PromiseInterface\<mixed\>\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Store/BooksStore.php
+
+		-
+			message: '#^Method Phlix\\Console\\Store\\MediaStore\:\:item\(\) should return React\\Promise\\PromiseInterface\<Phlix\\Console\\Api\\Dto\\MediaItem\> but returns React\\Promise\\PromiseInterface\<mixed\>\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Store/MediaStore.php
+
+		-
+			message: '#^Method Phlix\\Console\\Store\\MediaStore\:\:page\(\) should return React\\Promise\\PromiseInterface\<Phlix\\Console\\Api\\Dto\\MediaPage\> but returns React\\Promise\\PromiseInterface\<mixed\>\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Store/MediaStore.php
+
+		-
+			message: '#^Method Phlix\\Console\\Store\\MusicStore\:\:albums\(\) should return React\\Promise\\PromiseInterface\<list\<Phlix\\Console\\Api\\Dto\\Album\>\> but returns React\\Promise\\PromiseInterface\<mixed\>\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Store/MusicStore.php
+
+		-
+			message: '#^Property Phlix\\Console\\Store\\MusicStore\:\:\$inFlight \(React\\Promise\\PromiseInterface\<list\<Phlix\\Console\\Api\\Dto\\Album\>\>\|null\) does not accept React\\Promise\\PromiseInterface\<mixed\>\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: src/Store/MusicStore.php
+
+		-
+			message: '#^Method Phlix\\Console\\Store\\PhotosStore\:\:albums\(\) should return React\\Promise\\PromiseInterface\<list\<Phlix\\Console\\Api\\Dto\\PhotoAlbum\>\> but returns React\\Promise\\PromiseInterface\<mixed\>\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Store/PhotosStore.php
+
+		-
+			message: '#^Method Phlix\\Console\\Store\\PhotosStore\:\:photo\(\) should return React\\Promise\\PromiseInterface\<Phlix\\Console\\Api\\Dto\\Photo\> but returns React\\Promise\\PromiseInterface\<mixed\>\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Store/PhotosStore.php
