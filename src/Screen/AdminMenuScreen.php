@@ -53,7 +53,7 @@ final class AdminMenuScreen implements Breadcrumbed, Themed
         ['label' => 'Plugins', 'route' => Route::AdminPlugins, 'available' => true],
         ['label' => 'Libraries', 'route' => null, 'available' => false],
         ['label' => 'Logs', 'route' => Route::AdminLogs, 'available' => true],
-        ['label' => 'Backup', 'route' => null, 'available' => false],
+        ['label' => 'Backup', 'route' => Route::AdminBackup, 'available' => true],
         ['label' => 'Live TV', 'route' => null, 'available' => false],
         ['label' => 'Remote Access', 'route' => null, 'available' => false],
         ['label' => 'DLNA', 'route' => null, 'available' => false],

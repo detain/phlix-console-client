@@ -9,6 +9,8 @@ use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\ApiError;
 use Phlix\Console\Api\Dto\Admin\AdminDashboard;
 use Phlix\Console\Api\Dto\Admin\AdminUser;
+use Phlix\Console\Api\Dto\Admin\Backup;
+use Phlix\Console\Api\Dto\Admin\BackupSchedule;
 use Phlix\Console\Api\Dto\Admin\LogFile;
 use Phlix\Console\Api\Dto\Admin\LogTail;
 use Phlix\Console\Api\Dto\Admin\Plugin;
@@ -568,6 +570,214 @@ final class AdminClientTest extends TestCase
 
         self::assertInstanceOf(ApiError::class, $error);
         self::assertSame('Plugin not found', $error->getMessage());
+    }
+
+    // ---- backups -------------------------------------------------------
+
+    public function testBackupsReadsTheEnvelopedDataList(): void
+    {
+        // UNLIKE users / plugins, BackupController IS enveloped — the list is under `data`.
+        $transport = (new FakeTransport())->json(200, $this->envelope([
+            ['id' => 'b-1', 'label' => 'nightly', 'size_bytes' => 2048, 'is_s3' => 0, 'created_at' => '2026-06-26 12:00:00'],
+            ['id' => 'b-2', 'label' => '', 'size_bytes' => 4096, 'is_s3' => 1, 'created_at' => '2026-06-25 12:00:00'],
+        ]));
+
+        $backups = $this->await($this->clientWith($transport)->backups());
+
+        self::assertContainsOnlyInstancesOf(Backup::class, $backups);
+        self::assertCount(2, $backups);
+        self::assertSame('nightly', $backups[0]->label);
+        self::assertSame(2048, $backups[0]->sizeBytes);
+        self::assertTrue($backups[1]->isS3);
+        self::assertStringContainsString('/api/v1/admin/backup/list', $transport->requestAt(0)['url']);
+    }
+
+    public function testBackupsToleratesAMissingDataKey(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true]);
+
+        $backups = $this->await($this->clientWith($transport)->backups());
+
+        self::assertSame([], $backups);
+    }
+
+    public function testBackupsSkipsNonArrayRows(): void
+    {
+        $transport = (new FakeTransport())->json(200, $this->envelope([
+            ['id' => 'b-1'], 'nope', 7,
+        ]));
+
+        $backups = $this->await($this->clientWith($transport)->backups());
+
+        self::assertCount(1, $backups);
+        self::assertSame('b-1', $backups[0]->id);
+    }
+
+    public function testCreateBackupPostsTheLabelAndResolvesTheMessage(): void
+    {
+        $transport = (new FakeTransport())->json(200, [
+            'success' => true,
+            'message' => 'Backup created successfully',
+            'data' => ['backup_id' => 'b-9'],
+        ]);
+
+        $message = $this->await($this->clientWith($transport)->createBackup('pre-upgrade'));
+
+        self::assertSame('Backup created successfully', $message);
+        self::assertSame('POST', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/backup/create', $transport->requestAt(0)['url']);
+        /** @var array<string,mixed> $body */
+        $body = json_decode($transport->requestAt(0)['body'], true);
+        self::assertSame('pre-upgrade', $body['label']);
+    }
+
+    public function testCreateBackupWithNullLabelSendsNoBody(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true, 'message' => 'Backup created successfully']);
+
+        $this->await($this->clientWith($transport)->createBackup(null));
+
+        self::assertSame('', $transport->requestAt(0)['body'], 'a null label sends no JSON body');
+    }
+
+    public function testCreateBackupRejectsWithTheServerErrorOnA500(): void
+    {
+        $transport = (new FakeTransport())->json(500, ['success' => false, 'error' => 'Backup creation failed']);
+
+        $error = $this->awaitError($this->clientWith($transport)->createBackup(null));
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('Backup creation failed', $error->getMessage());
+    }
+
+    public function testDeleteBackupSendsADeleteAndResolvesTheMessage(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true, 'message' => 'Backup deleted successfully']);
+
+        $message = $this->await($this->clientWith($transport)->deleteBackup('b-1'));
+
+        self::assertSame('Backup deleted successfully', $message);
+        self::assertSame('DELETE', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/backup/b-1', $transport->requestAt(0)['url']);
+    }
+
+    public function testDeleteBackupRejectsWithTheServerErrorOnA404(): void
+    {
+        $transport = (new FakeTransport())->json(404, ['success' => false, 'error' => 'Backup not found']);
+
+        $error = $this->awaitError($this->clientWith($transport)->deleteBackup('missing'));
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('Backup not found', $error->getMessage());
+    }
+
+    public function testRestoreBackupPostsAndResolvesTheMessage(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true, 'message' => 'Restore completed']);
+
+        $message = $this->await($this->clientWith($transport)->restoreBackup('b-1'));
+
+        self::assertSame('Restore completed', $message);
+        self::assertSame('POST', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/backup/b-1/restore', $transport->requestAt(0)['url']);
+    }
+
+    public function testRestoreBackupRejectsWithTheServerErrorOnA500(): void
+    {
+        $transport = (new FakeTransport())->json(500, ['success' => false, 'error' => 'Checksum mismatch']);
+
+        $error = $this->awaitError($this->clientWith($transport)->restoreBackup('b-1'));
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('Checksum mismatch', $error->getMessage());
+    }
+
+    public function testUploadBackupToS3PostsAndResolvesTheMessage(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true, 'message' => 'Backup uploaded to S3 successfully']);
+
+        $message = $this->await($this->clientWith($transport)->uploadBackupToS3('b-1'));
+
+        self::assertSame('Backup uploaded to S3 successfully', $message);
+        self::assertSame('POST', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/backup/b-1/upload-s3', $transport->requestAt(0)['url']);
+    }
+
+    public function testUploadBackupToS3RejectsWithTheServerErrorOnA500(): void
+    {
+        $transport = (new FakeTransport())->json(500, ['success' => false, 'error' => 'S3 upload failed']);
+
+        $error = $this->awaitError($this->clientWith($transport)->uploadBackupToS3('b-1'));
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('S3 upload failed', $error->getMessage());
+    }
+
+    public function testBackupScheduleReadsTheEnvelopedData(): void
+    {
+        $transport = (new FakeTransport())->json(200, $this->envelope([
+            'auto_backup_interval_days' => 7,
+            'retention_count' => 5,
+            'next_scheduled_backup' => 1893456000,
+            'next_scheduled_backup_iso' => '2030-01-01T00:00:00+00:00',
+        ]));
+
+        $schedule = $this->await($this->clientWith($transport)->backupSchedule());
+
+        self::assertInstanceOf(BackupSchedule::class, $schedule);
+        self::assertSame(7, $schedule->autoBackupIntervalDays);
+        self::assertSame(5, $schedule->retentionCount);
+        self::assertSame('2030-01-01T00:00:00+00:00', $schedule->nextScheduledBackup);
+        self::assertStringContainsString('/api/v1/admin/backup/schedule', $transport->requestAt(0)['url']);
+    }
+
+    public function testBackupScheduleToleratesAMissingDataKey(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true]);
+
+        $schedule = $this->await($this->clientWith($transport)->backupSchedule());
+
+        self::assertSame(0, $schedule->autoBackupIntervalDays);
+    }
+
+    public function testUpdateBackupSchedulePutsBothFieldsAndMapsTheResponse(): void
+    {
+        $transport = (new FakeTransport())->json(200, [
+            'success' => true,
+            'message' => 'Schedule updated successfully',
+            'data' => ['auto_backup_interval_days' => 14, 'retention_count' => 3],
+        ]);
+
+        $schedule = $this->await($this->clientWith($transport)->updateBackupSchedule(14, 3));
+
+        self::assertInstanceOf(BackupSchedule::class, $schedule);
+        self::assertSame(14, $schedule->autoBackupIntervalDays);
+        self::assertSame(3, $schedule->retentionCount);
+        self::assertSame('PUT', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/backup/schedule', $transport->requestAt(0)['url']);
+        /** @var array<string,mixed> $body */
+        $body = json_decode($transport->requestAt(0)['body'], true);
+        self::assertSame(14, $body['auto_backup_interval_days']);
+        self::assertSame(3, $body['retention_count']);
+    }
+
+    public function testUpdateBackupScheduleRejectsWithTheServerErrorOnA400(): void
+    {
+        $transport = (new FakeTransport())->json(400, ['success' => false, 'error' => 'Invalid retention count']);
+
+        $error = $this->awaitError($this->clientWith($transport)->updateBackupSchedule(7, 0));
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('Invalid retention count', $error->getMessage());
+    }
+
+    public function testABackupActionAttachesTheBearerToken(): void
+    {
+        $transport = (new FakeTransport())->json(200, $this->envelope([]));
+
+        $this->await($this->clientWith($transport)->backups());
+
+        self::assertSame('Bearer access-1', $transport->requestAt(0)['headers']['Authorization'] ?? null);
     }
 
     // ---- helpers -------------------------------------------------------
