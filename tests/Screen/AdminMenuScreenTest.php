@@ -54,15 +54,22 @@ final class AdminMenuScreenTest extends TestCase
             array_values(array_filter($sections, static fn (array $s): bool => $s['available'])),
             'label',
         );
-        self::assertSame(['Dashboard', 'Users', 'Server Settings', 'Plugins', 'Logs', 'Backup'], $available, 'Dashboard, Users, Server Settings, Plugins, Logs and Backup are wired');
+        self::assertSame(['Dashboard', 'Users', 'Server Settings', 'Plugins', 'Libraries', 'Logs', 'Backup'], $available, 'Dashboard, Users, Server Settings, Plugins, Libraries, Logs and Backup are wired');
 
         $byLabel = array_column($sections, null, 'label');
         self::assertSame(Route::AdminDashboard, $byLabel['Dashboard']['route']);
         self::assertSame(Route::AdminUsers, $byLabel['Users']['route']);
         self::assertSame(Route::AdminSettings, $byLabel['Server Settings']['route']);
         self::assertSame(Route::AdminPlugins, $byLabel['Plugins']['route']);
+        self::assertSame(Route::AdminLibraries, $byLabel['Libraries']['route']);
         self::assertSame(Route::AdminLogs, $byLabel['Logs']['route']);
         self::assertSame(Route::AdminBackup, $byLabel['Backup']['route']);
+
+        // Live TV / Remote Access / DLNA remain unavailable (no route yet).
+        self::assertFalse($byLabel['Live TV']['available']);
+        self::assertNull($byLabel['Live TV']['route']);
+        self::assertFalse($byLabel['Remote Access']['available']);
+        self::assertFalse($byLabel['DLNA']['available']);
     }
 
     public function testRendersEverySectionAndTheComingSoonMarker(): void
@@ -143,6 +150,22 @@ final class AdminMenuScreenTest extends TestCase
         $msg = $this->runCmd($cmd);
         self::assertInstanceOf(OpenAdminSectionMsg::class, $msg);
         self::assertSame(Route::AdminSettings, $msg->section);
+    }
+
+    public function testEnterOnLibrariesEmitsOpenAdminSectionForLibraries(): void
+    {
+        // Move to "Libraries" (index 4), now a wired surface.
+        $screen = $this->screen();
+        for ($i = 0; $i < 4; $i++) {
+            [$screen] = $screen->update(new KeyMsg(KeyType::Down));
+        }
+        self::assertSame('Libraries', $screen->selectedLabel());
+
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Enter));
+
+        $msg = $this->runCmd($cmd);
+        self::assertInstanceOf(OpenAdminSectionMsg::class, $msg);
+        self::assertSame(Route::AdminLibraries, $msg->section);
     }
 
     public function testEnterOnAnUnavailableSectionEmitsAComingSoonToast(): void

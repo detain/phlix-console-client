@@ -60,6 +60,7 @@ use Phlix\Console\Msg\ToggleMetricsMsg;
 use Phlix\Console\Msg\TrackResolvedMsg;
 use Phlix\Console\Route;
 use Phlix\Console\Screen\AdminBackupScreen;
+use Phlix\Console\Screen\AdminLibrariesScreen;
 use Phlix\Console\Screen\AdminDashboardScreen;
 use Phlix\Console\Screen\AdminLogsScreen;
 use Phlix\Console\Screen\AdminMenuScreen;
@@ -1571,6 +1572,19 @@ final class AppTest extends TestCase
         self::assertInstanceOf(AdminBackupScreen::class, $backup->screen());
         self::assertSame(3, $backup->stackDepth(), 'the backup screen is pushed onto the admin menu');
         self::assertInstanceOf(\Closure::class, $cmd, 'the backup screen fetches the list + schedule on push');
+    }
+
+    public function testOpenAdminSectionLibrariesPushesTheLibrariesScreenWithAFetch(): void
+    {
+        [$adminApp] = $this->appWithAdminUser(true);
+        [$admin] = $adminApp->update(new OpenAdminMsg());
+
+        [$libraries, $cmd] = $admin->update(new OpenAdminSectionMsg(Route::AdminLibraries));
+
+        self::assertSame(Route::AdminLibraries, $libraries->route());
+        self::assertInstanceOf(AdminLibrariesScreen::class, $libraries->screen());
+        self::assertSame(3, $libraries->stackDepth(), 'the libraries screen is pushed onto the admin menu');
+        self::assertInstanceOf(\Closure::class, $cmd, 'the libraries screen fetches the list on push');
     }
 
     public function testOpenAdminSectionSettingsPushesTheSettingsScreenWithAFetch(): void

@@ -38,4 +38,5 @@ enum Route
     case AdminLogs;
     case AdminBackup;
     case AdminSettings;
+    case AdminLibraries;
 }
