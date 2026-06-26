@@ -100,6 +100,7 @@ final class BooksScreen implements Breadcrumbed, Loadable, Shimmering, Themed
         return max(0, $this->grid->columns() * ($this->grid->visibleRows() + self::OVERSCAN) - 1);
     }
 
+    /** @return array{self, ?\Closure} */
     public function update(Msg $msg): array
     {
         if ($msg instanceof WindowSizeMsg) {
@@ -154,6 +155,7 @@ final class BooksScreen implements Breadcrumbed, Loadable, Shimmering, Themed
 
     // ---- input ---------------------------------------------------------
 
+    /** @return array{self, ?\Closure} */
     private function handleKey(KeyMsg $msg): array
     {
         if ($msg->type === KeyType::Escape) {
@@ -186,6 +188,7 @@ final class BooksScreen implements Breadcrumbed, Loadable, Shimmering, Themed
         return $this->afterGridChange($grid);
     }
 
+    /** @return array{self, ?\Closure} */
     private function onResize(int $cols, int $rows): array
     {
         $grid = $this->grid->withViewport(self::viewportCols($cols), self::viewportRows($rows));
@@ -203,6 +206,8 @@ final class BooksScreen implements Breadcrumbed, Loadable, Shimmering, Themed
     /**
      * After the grid's cursor/viewport moved: fetch the new visible window (if
      * not already covered) and load covers for the cells now on screen.
+     *
+     * @return array{self, ?\Closure}
      */
     private function afterGridChange(PosterGrid $grid): array
     {
@@ -228,6 +233,8 @@ final class BooksScreen implements Breadcrumbed, Loadable, Shimmering, Themed
 
     /**
      * @param array<int, Book> $books absolute index → book
+     *
+     * @return array{self, ?\Closure}
      */
     private function onRange(array $books, int $generation): array
     {

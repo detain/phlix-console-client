@@ -87,6 +87,7 @@ final class PhotosScreen implements Breadcrumbed, Loadable, Shimmering, Themed
         ));
     }
 
+    /** @return array{self, ?\Closure} */
     public function update(Msg $msg): array
     {
         if ($msg instanceof WindowSizeMsg) {
@@ -137,6 +138,7 @@ final class PhotosScreen implements Breadcrumbed, Loadable, Shimmering, Themed
 
     // ---- input ---------------------------------------------------------
 
+    /** @return array{self, ?\Closure} */
     private function handleKey(KeyMsg $msg): array
     {
         if ($msg->type === KeyType::Escape) {
@@ -167,6 +169,7 @@ final class PhotosScreen implements Breadcrumbed, Loadable, Shimmering, Themed
         return $this->afterGridChange($grid);
     }
 
+    /** @return array{self, ?\Closure} */
     private function onResize(int $cols, int $rows): array
     {
         $grid = $this->grid->withViewport(self::viewportCols($cols), self::viewportRows($rows));
@@ -186,6 +189,8 @@ final class PhotosScreen implements Breadcrumbed, Loadable, Shimmering, Themed
      * cover thumbnail) and load the covers for the cells now on screen.
      *
      * @param list<\Phlix\Console\Api\Dto\PhotoAlbum> $albums
+     *
+     * @return array{self, ?\Closure}
      */
     private function onAlbums(array $albums): array
     {
@@ -210,6 +215,8 @@ final class PhotosScreen implements Breadcrumbed, Loadable, Shimmering, Themed
      * After the grid's cursor/viewport moved: load covers for the cells now on
      * screen. All album data is already in memory, so there is NO range fetch —
      * only the lazy thumbnail render for newly-visible cells.
+     *
+     * @return array{self, ?\Closure}
      */
     private function afterGridChange(PosterGrid $grid): array
     {

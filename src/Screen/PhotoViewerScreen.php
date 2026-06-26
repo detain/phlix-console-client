@@ -100,6 +100,7 @@ final class PhotoViewerScreen implements Breadcrumbed, Themed
         return $this->batchOrNull($this->loadCmdList());
     }
 
+    /** @return array{self, ?\Closure} */
     public function update(Msg $msg): array
     {
         if ($msg instanceof WindowSizeMsg) {
@@ -145,6 +146,7 @@ final class PhotoViewerScreen implements Breadcrumbed, Themed
 
     // ---- input ---------------------------------------------------------
 
+    /** @return array{self, ?\Closure} */
     private function handleKey(KeyMsg $msg): array
     {
         return match (true) {
@@ -162,6 +164,8 @@ final class PhotoViewerScreen implements Breadcrumbed, Themed
      * Loads the new photo's image + EXIF (bumping the load generation so stale
      * results drop); while the slideshow runs, also bumps the slide epoch and
      * re-arms the tick so manual paging resets the countdown.
+     *
+     * @return array{self, ?\Closure}
      */
     private function move(int $delta): array
     {
@@ -197,6 +201,8 @@ final class PhotoViewerScreen implements Breadcrumbed, Themed
      * with the panel), so the image reloads at the new width under a fresh
      * generation; the placeholder shows in the meantime. EXIF is already cached
      * (or in flight) so its refetch is free — keeping the reload uniform.
+     *
+     * @return array{self, ?\Closure}
      */
     private function toggleExif(): array
     {
@@ -212,6 +218,8 @@ final class PhotoViewerScreen implements Breadcrumbed, Themed
      * Toggle the slideshow. Turning it on arms the first tick; turning it off
      * bumps the epoch so the pending tick is dropped. Either way the bump
      * supersedes any in-flight countdown.
+     *
+     * @return array{self, ?\Closure}
      */
     private function toggleSlideshow(): array
     {
@@ -226,6 +234,8 @@ final class PhotoViewerScreen implements Breadcrumbed, Themed
      * Advance one photo on a valid slide tick (wrapping at the end), then re-arm
      * the SAME epoch to continue the chain (no bump — a bump would orphan it). A
      * single/empty album keeps the timer alive with no change.
+     *
+     * @return array{self, ?\Closure}
      */
     private function advanceSlide(): array
     {
@@ -248,6 +258,7 @@ final class PhotoViewerScreen implements Breadcrumbed, Themed
         return [$next, Cmd::batch(...$cmds)];
     }
 
+    /** @return array{self, ?\Closure} */
     private function onResize(int $cols, int $rows): array
     {
         $next = clone $this;
@@ -379,7 +390,11 @@ final class PhotoViewerScreen implements Breadcrumbed, Themed
         return rtrim($this->baseUrl, '/') . '/' . ltrim($url, '/');
     }
 
-    /** Batch the Cmds, or null when there are none (so init()/update can return null cleanly). */
+    /**
+     * Batch the Cmds, or null when there are none (so init()/update can return null cleanly).
+     *
+     * @param list<\Closure> $cmds
+     */
     private function batchOrNull(array $cmds): ?\Closure
     {
         return $cmds === [] ? null : Cmd::batch(...$cmds);

@@ -74,6 +74,7 @@ final class BookDetailScreen implements Breadcrumbed, Themed
         return $this->fetchBook();
     }
 
+    /** @return array{self, ?\Closure} */
     public function update(Msg $msg): array
     {
         if ($msg instanceof WindowSizeMsg) {
@@ -131,6 +132,7 @@ final class BookDetailScreen implements Breadcrumbed, Themed
         ));
     }
 
+    /** @return array{self, ?\Closure} */
     private function onLoaded(Book $book): array
     {
         $next = clone $this;

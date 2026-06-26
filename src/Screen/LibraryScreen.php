@@ -112,6 +112,7 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
         return max(0, $this->grid->columns() * ($this->grid->visibleRows() + self::OVERSCAN) - 1);
     }
 
+    /** @return array{self, ?\Closure} */
     public function update(Msg $msg): array
     {
         if ($msg instanceof WindowSizeMsg) {
@@ -186,6 +187,7 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
 
     // ---- input ---------------------------------------------------------
 
+    /** @return array{self, ?\Closure} */
     private function handleKey(KeyMsg $msg): array
     {
         if ($this->filtering) {
@@ -230,7 +232,11 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
         return $this->afterGridChange($grid);
     }
 
-    /** Jump the grid to the bucket for a typed letter (`#`/digits → non-alpha). */
+    /**
+     * Jump the grid to the bucket for a typed letter (`#`/digits → non-alpha).
+     *
+     * @return array{self, ?\Closure}
+     */
     private function jumpToLetter(string $rune): array
     {
         if ($this->letterIndex === null || !$this->isNameAscending()) {
@@ -276,6 +282,7 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
         return $next;
     }
 
+    /** @return array{self, ?\Closure} */
     private function handleFilterKey(KeyMsg $msg): array
     {
         if ($msg->type === KeyType::Escape) {
@@ -312,6 +319,8 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
     /**
      * Rebuild the query from the filter bar, reset the grid, bump the generation
      * (so in-flight results from the old query are dropped), and refetch.
+     *
+     * @return array{self, ?\Closure}
      */
     private function applyFilters(FilterBar $bar): array
     {
@@ -344,6 +353,7 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
         );
     }
 
+    /** @return array{self, ?\Closure} */
     private function onResize(int $cols, int $rows): array
     {
         $grid = $this->grid->withViewport(self::viewportCols($cols), self::viewportRows($rows));
@@ -361,6 +371,8 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
     /**
      * After the grid's cursor/viewport moved: fetch the new visible window (if
      * not already covered) and load posters for the cells now on screen.
+     *
+     * @return array{self, ?\Closure}
      */
     private function afterGridChange(PosterGrid $grid): array
     {
@@ -384,6 +396,7 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
         return [$next, $cmds === [] ? null : Cmd::batch(...$cmds)];
     }
 
+    /** @return array{self, ?\Closure} */
     private function onRange(MediaRange $range, int $generation): array
     {
         if ($generation !== $this->generation) {

@@ -96,7 +96,11 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     private ?string $sessionId = null;
     private ?float $resumeSeconds = null;
     private bool $resumeApplied = false;
-    /** The season's episodes (the up-next queue), or null for a non-episode / no queue. */
+    /**
+     * The season's episodes (the up-next queue), or null for a non-episode / no queue.
+     *
+     * @var list<MediaItem>|null
+     */
     private ?array $siblings = null;
     private int $currentIndex = -1;
     /** Remaining seconds on the end-of-episode up-next countdown, or null when inactive. */
@@ -155,6 +159,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         return Cmd::batch(...$cmds);
     }
 
+    /** @return array{self, ?\Closure} */
     public function update(Msg $msg): array
     {
         if ($msg instanceof WindowSizeMsg) {
@@ -292,7 +297,11 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         ));
     }
 
-    /** Skip the intro/outro segment under the playhead by seeking to its end. */
+    /**
+     * Skip the intro/outro segment under the playhead by seeking to its end.
+     *
+     * @return array{self, ?\Closure}
+     */
     private function skipMarker(): array
     {
         $inner = $this->inner;
@@ -313,7 +322,11 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         return [$next, $wasEnded ? $this->tickCmd($seeked) : null];
     }
 
-    /** Restart playback from the beginning and dismiss the resume hint. */
+    /**
+     * Restart playback from the beginning and dismiss the resume hint.
+     *
+     * @return array{self, ?\Closure}
+     */
     private function startOver(): array
     {
         $inner = $this->inner;
@@ -406,6 +419,8 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     /**
      * Leave for another episode: report a final position + end the session +
      * tear down, then ask the App to swap in the next/prev episode's player.
+     *
+     * @return array{self, ?\Closure}
      */
     private function advanceTo(MediaItem $item): array
     {
@@ -416,6 +431,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         return [$this, Cmd::batch(...$exit)];
     }
 
+    /** @return array{self, ?\Closure} */
     private function onUpNextTick(): array
     {
         // Cancelled — the viewer scrubbed back out of the ended state (or it was
@@ -455,6 +471,8 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     /**
      * Toggle captions. The track is fetched lazily on first enable (tracks →
      * default track → WebVTT, in one Cmd); afterwards `c` just flips visibility.
+     *
+     * @return array{self, ?\Closure}
      */
     private function toggleCaptions(): array
     {
@@ -530,6 +548,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         ));
     }
 
+    /** @return array{self, ?\Closure} */
     private function onSessionStarted(string $sessionId): array
     {
         $next = clone $this;
@@ -539,6 +558,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         return [$next, $this->progressTickCmd()];
     }
 
+    /** @return array{self, ?\Closure} */
     private function onProgressTick(): array
     {
         // Report the current position (if still reportable) and re-arm the heartbeat.
@@ -608,6 +628,8 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
      * Direct-play failed. The first time, fall back to a server HLS transcode
      * (the file may have a codec/container ffmpeg here can't direct-play);
      * thereafter (or if the transcode path also fails) show the error.
+     *
+     * @return array{self, ?\Closure}
      */
     private function onPrepareFailed(string $reason): array
     {
@@ -632,6 +654,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         ));
     }
 
+    /** @return array{self, ?\Closure} */
     private function onTranscodeStarted(TranscodeJob $job): array
     {
         $next = clone $this;
@@ -646,6 +669,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         return [$next, $this->transcodePollCmd()];
     }
 
+    /** @return array{self, ?\Closure} */
     private function onTranscodePoll(): array
     {
         $jobId = $this->transcodeJob;
@@ -659,6 +683,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         ))];
     }
 
+    /** @return array{self, ?\Closure} */
     private function onTranscodeStatus(TranscodeJob $job): array
     {
         if ($job->isFailed()) {
@@ -680,6 +705,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         return Cmd::tick(self::TRANSCODE_POLL_INTERVAL, static fn (): Msg => new TranscodePollMsg());
     }
 
+    /** @return array{self, ?\Closure} */
     private function onReady(Player $player): array
     {
         // Auto-play: Space toggles the inner player out of its paused initial
@@ -699,6 +725,8 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     /**
      * The saved resume position arrived. Seek the (playing) video to it once,
      * unless it's trivial or the player isn't ready yet (then onReady applies it).
+     *
+     * @return array{self, ?\Closure}
      */
     private function onResumeInfo(?float $seconds): array
     {
@@ -735,6 +763,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
 
     // ---- input ---------------------------------------------------------
 
+    /** @return array{self, ?\Closure} */
     private function handleKey(KeyMsg $msg): array
     {
         // Esc / q → report a final position, end the session, tear down the
@@ -805,7 +834,11 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         return $this->forwardToInner($msg);
     }
 
-    /** Seek the inner player by $delta seconds (time domain), re-arming the tick if it had ended. */
+    /**
+     * Seek the inner player by $delta seconds (time domain), re-arming the tick if it had ended.
+     *
+     * @return array{self, ?\Closure}
+     */
     private function seekBy(float $delta): array
     {
         $inner = $this->inner;
@@ -825,6 +858,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         return [$next, $wasEnded ? $this->tickCmd($seeked) : null];
     }
 
+    /** @return array{self, ?\Closure} */
     private function forwardToInner(Msg $msg): array
     {
         $inner = $this->inner;
@@ -848,6 +882,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         return [$next, $cmd];
     }
 
+    /** @return array{self, ?\Closure} */
     private function onResize(int $cols, int $rows): array
     {
         $next = clone $this;
