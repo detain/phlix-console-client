@@ -40,4 +40,5 @@ enum Route
     case AdminSettings;
     case AdminLibraries;
     case AdminDlna;
+    case AdminRemote;
 }
