@@ -53,13 +53,14 @@ final class AdminMenuScreenTest extends TestCase
             array_values(array_filter($sections, static fn (array $s): bool => $s['available'])),
             'label',
         );
-        self::assertSame(['Dashboard', 'Users', 'Plugins', 'Logs'], $available, 'Dashboard, Users, Plugins and Logs are wired');
+        self::assertSame(['Dashboard', 'Users', 'Plugins', 'Logs', 'Backup'], $available, 'Dashboard, Users, Plugins, Logs and Backup are wired');
 
         $byLabel = array_column($sections, null, 'label');
         self::assertSame(Route::AdminDashboard, $byLabel['Dashboard']['route']);
         self::assertSame(Route::AdminUsers, $byLabel['Users']['route']);
         self::assertSame(Route::AdminPlugins, $byLabel['Plugins']['route']);
         self::assertSame(Route::AdminLogs, $byLabel['Logs']['route']);
+        self::assertSame(Route::AdminBackup, $byLabel['Backup']['route']);
     }
 
     public function testRendersEverySectionAndTheComingSoonMarker(): void

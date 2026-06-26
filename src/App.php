@@ -58,6 +58,7 @@ use Phlix\Console\Msg\ToggleAudioMsg;
 use Phlix\Console\Msg\ToggleMetricsMsg;
 use Phlix\Console\Msg\TrackResolvedMsg;
 use Phlix\Console\Media\PosterLoader;
+use Phlix\Console\Screen\AdminBackupScreen;
 use Phlix\Console\Screen\AdminDashboardScreen;
 use Phlix\Console\Screen\AdminLogsScreen;
 use Phlix\Console\Screen\AdminMenuScreen;
@@ -1192,6 +1193,11 @@ final class App implements Model
             $screen = new AdminLogsScreen(new AdminClient($this->api), $this->cols, $this->rows);
 
             return [$this->push(Route::AdminLogs, $screen), $screen->init()];
+        }
+        if ($section === Route::AdminBackup) {
+            $screen = new AdminBackupScreen(new AdminClient($this->api), $this->cols, $this->rows);
+
+            return [$this->push(Route::AdminBackup, $screen), $screen->init()];
         }
 
         return [$this, null];
