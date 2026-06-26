@@ -36,7 +36,7 @@ final readonly class Track
      * Build from either a raw album-track row (audio fields under `metadata`) or
      * a flat `/music/tracks` row (audio fields at the top level).
      *
-     * @param array<string,mixed> $data
+     * @param array<array-key,mixed> $data
      */
     public static function fromArray(array $data): self
     {

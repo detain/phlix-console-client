@@ -34,7 +34,7 @@ final readonly class Book
      * Build from either a raw list row (title/author under `metadata`, no signed
      * URLs) or a detail row (the same row plus signed cover/read/download URLs).
      *
-     * @param array<string,mixed> $data
+     * @param array<array-key,mixed> $data
      */
     public static function fromArray(array $data): self
     {
