@@ -508,7 +508,10 @@ final class App implements Model
                 $rendered = $rendered->withShimmerPhase($this->shimmerPhase);
             }
 
-            return $rendered->view();
+            /** @var string $body Phlix screens always render a string body */
+            $body = $rendered->view();
+
+            return $body;
         }
 
         // Loading: no active screen.
@@ -536,6 +539,7 @@ final class App implements Model
 
     // ---- toasts --------------------------------------------------------
 
+    /** @return array{App, ?\Closure} */
     private function showToast(ShowToastMsg $msg): array
     {
         $toast = $this->toast->alert($msg->type, $msg->message);
@@ -546,6 +550,7 @@ final class App implements Model
         return [$this->withToast($toast, true), $cmd];
     }
 
+    /** @return array{App, ?\Closure} */
     private function onToastTick(): array
     {
         $toast = $this->toast->pruneExpired();
@@ -639,6 +644,8 @@ final class App implements Model
      * screen is still loading (keeping $shimmerTicking true) or STOP otherwise
      * (clear $shimmerTicking, no re-arm — a later transition into a loading screen
      * re-arms via {@see maybeArmShimmer()}). Mirrors {@see onToastTick()}.
+     *
+     * @return array{App, ?\Closure}
      */
     private function onShimmerTick(): array
     {
@@ -681,6 +688,7 @@ final class App implements Model
             && !($this->topScreen() instanceof CapturesSlash);
     }
 
+    /** @return array{App, ?\Closure} */
     private function openPalette(): array
     {
         $palette = CommandPalette::open($this->staticActions(), $this->cols, $this->rows);
@@ -689,6 +697,7 @@ final class App implements Model
         return [$this->withPalette($palette), $this->fetchPaletteLibraries()];
     }
 
+    /** @return array{App, ?\Closure} */
     private function handlePaletteKey(CommandPalette $palette, KeyMsg $msg): array
     {
         if ($this->isPaletteToggle($msg) || $msg->type === KeyType::Escape) {
@@ -767,6 +776,7 @@ final class App implements Model
 
     /**
      * @param list<Library> $libraries
+     * @return array{App, ?\Closure}
      */
     private function onPaletteLibraries(array $libraries): array
     {
@@ -812,6 +822,7 @@ final class App implements Model
 
     // ---- transitions ---------------------------------------------------
 
+    /** @return array{App, ?\Closure} */
     private function onServerSubmitted(string $url): array
     {
         $url = Config::normalizeUrl($url);
@@ -829,6 +840,7 @@ final class App implements Model
         return [$this->withStack([]), self::restoreCmd($this->auth)];
     }
 
+    /** @return array{App, ?\Closure} */
     private function goServerSetup(?string $error): array
     {
         $screen = ServerScreen::create($error, $this->cols, $this->rows);
@@ -836,6 +848,7 @@ final class App implements Model
         return [$this->replace(Route::ServerSetup, $screen), $screen->init()];
     }
 
+    /** @return array{App, ?\Closure} */
     private function onLoginSubmitted(string $username, string $password): array
     {
         $cmd = Cmd::promise(fn () => $this->auth->login($username, $password)->then(
@@ -847,6 +860,7 @@ final class App implements Model
         return [$this, $cmd];
     }
 
+    /** @return array{App, ?\Closure} */
     private function goBrowse(AuthUser $user): array
     {
         $screen = new BrowseScreen(
@@ -861,6 +875,7 @@ final class App implements Model
         return [$this->replace(Route::Browse, $screen), $screen->init()];
     }
 
+    /** @return array{App, ?\Closure} */
     private function goLogin(?string $error): array
     {
         $screen = LoginScreen::create($error, $this->cols, $this->rows);
@@ -868,7 +883,11 @@ final class App implements Model
         return [$this->replace(Route::Login, $screen), $screen->init()];
     }
 
-    /** Pop the stack back to its root (the browse home). */
+    /**
+     * Pop the stack back to its root (the browse home).
+     *
+     * @return array{App, ?\Closure}
+     */
     private function goHome(): array
     {
         $app = $this;
@@ -879,6 +898,7 @@ final class App implements Model
         return [$app, null];
     }
 
+    /** @return array{App, ?\Closure} */
     private function requestLogout(): array
     {
         // Drop the stored token so the next launch shows login, then go there.
@@ -887,6 +907,7 @@ final class App implements Model
         return $this->goLogin(null);
     }
 
+    /** @return array{App, ?\Closure} */
     private function requestQuit(): array
     {
         // Mirror the Ctrl-C path: tear down a Teardownable top screen (the
@@ -901,6 +922,7 @@ final class App implements Model
         return [$this, Cmd::quit()];
     }
 
+    /** @return array{App, ?\Closure} */
     private function openLibrary(string $libraryId, string $name, string $type = '', int $itemCount = 0): array
     {
         // Library type decides the screen: music gets the album list; book gets
@@ -970,6 +992,7 @@ final class App implements Model
         return [$this->push(Route::Library, $screen), $screen->init()];
     }
 
+    /** @return array{App, ?\Closure} */
     private function openAlbum(Album $album): array
     {
         // The AlbumScreen is now a pure list that EMITS play/control Msgs; the
@@ -980,6 +1003,7 @@ final class App implements Model
         return [$this->push(Route::Album, $screen), $screen->init()];
     }
 
+    /** @return array{App, ?\Closure} */
     private function openBook(string $id, string $title): array
     {
         // A fresh BooksStore (the App holds no books field) — the detail fetches
@@ -997,6 +1021,7 @@ final class App implements Model
         return [$this->push(Route::BookDetail, $screen), $screen->init()];
     }
 
+    /** @return array{App, ?\Closure} */
     private function openAudiobook(string $id, string $title): array
     {
         // A fresh AudiobooksStore (the App holds no audiobooks field) — the
@@ -1015,6 +1040,7 @@ final class App implements Model
         return [$this->push(Route::AudiobookDetail, $screen), $screen->init()];
     }
 
+    /** @return array{App, ?\Closure} */
     private function openPhotoAlbum(PhotoAlbum $album): array
     {
         // The album carries its photos (each with a signed thumbnail), so the
@@ -1030,6 +1056,7 @@ final class App implements Model
         return [$this->push(Route::PhotoAlbum, $screen), $screen->init()];
     }
 
+    /** @return array{App, ?\Closure} */
     private function openPhoto(PhotoAlbum $album, int $index): array
     {
         // A PhotosStore is built locally (the App holds no photos field, like
@@ -1049,6 +1076,7 @@ final class App implements Model
         return [$this->push(Route::PhotoViewer, $screen), $screen->init()];
     }
 
+    /** @return array{App, ?\Closure} */
     private function openDetail(string $id, string $name): array
     {
         $screen = new DetailScreen(
@@ -1063,6 +1091,7 @@ final class App implements Model
         return [$this->push(Route::Detail, $screen), $screen->init()];
     }
 
+    /** @return array{App, ?\Closure} */
     private function openSearch(): array
     {
         $screen = new SearchScreen(
@@ -1075,6 +1104,7 @@ final class App implements Model
         return [$this->push(Route::Search, $screen), $screen->init()];
     }
 
+    /** @return array{App, ?\Closure} */
     private function openSettings(): array
     {
         $screen = SettingsScreen::create(
@@ -1087,6 +1117,7 @@ final class App implements Model
         return [$this->push(Route::Settings, $screen), $screen->init()];
     }
 
+    /** @return array{App, ?\Closure} */
     private function openStats(): array
     {
         // The stats panel aggregates the libraries the App already fetches, so it
@@ -1103,6 +1134,8 @@ final class App implements Model
      * user returns to the screen they opened it from. The theme applies LIVE
      * because {@see baseView()} re-applies $this->theme each render; the new
      * interval flows into future {@see openPhoto()} pushes via $this->config.
+     *
+     * @return array{App, ?\Closure}
      */
     private function saveSettings(string $themeName, int $slideshowInterval): array
     {
@@ -1137,6 +1170,8 @@ final class App implements Model
      * its heartbeat is superseded (epoch bumped) so the outgoing track can't keep
      * ticking/auto-advancing while the new track resolves — exactly as the old
      * AlbumScreen::play did.
+     *
+     * @return array{App, ?\Closure}
      */
     private function playTrack(Album $album, int $index): array
     {
@@ -1179,6 +1214,8 @@ final class App implements Model
      * The stream URL resolved — stop any current player, spawn the new one, open
      * (or replace) the App's now-playing session, and arm the 1-second heartbeat
      * under a fresh epoch. Mirrors the old AlbumScreen::onAudioStarted.
+     *
+     * @return array{App, ?\Closure}
      */
     private function onTrackResolved(Album $album, int $index, string $url): array
     {
@@ -1200,6 +1237,8 @@ final class App implements Model
      * (re-resolve + play, bumping the epoch) or stop at the last one. A tick from
      * a superseded heartbeat — or while nothing plays / paused — is dropped.
      * Mirrors the old AlbumScreen::onAudioTick EXACTLY.
+     *
+     * @return array{App, ?\Closure}
      */
     private function onNowPlayingTick(int $epoch): array
     {
@@ -1235,6 +1274,8 @@ final class App implements Model
      * starts a fresh heartbeat no leftover tick can double, re-armed with the
      * RIGHT tick Msg for the session kind (music vs audiobook never cross-fire).
      * Mirrors the old AlbumScreen/AudiobookDetailScreen togglePause.
+     *
+     * @return array{App, ?\Closure}
      */
     private function toggleAudio(): array
     {
@@ -1270,6 +1311,8 @@ final class App implements Model
      * Move the session to the track $delta away (next/prev), if in range — the
      * resolve→onTrackResolved chain bumps the epoch (and playTrack supersedes the
      * current heartbeat). A no-op when nothing plays or the move runs off an end.
+     *
+     * @return array{App, ?\Closure}
      */
     private function skipAudio(int $delta): array
     {
@@ -1287,7 +1330,11 @@ final class App implements Model
         return $this->playTrack($np->album(), $target);
     }
 
-    /** Stop + clear the active session (tears the player down; bar disappears). */
+    /**
+     * Stop + clear the active session (tears the player down; bar disappears).
+     *
+     * @return array{App, ?\Closure}
+     */
     private function stopAudio(): array
     {
         $this->nowPlaying?->teardown();
@@ -1320,6 +1367,7 @@ final class App implements Model
      * surfaces an error toast and plays nothing.
      *
      * @param list<AudiobookChapter> $chapters
+     * @return array{App, ?\Closure}
      */
     private function playAudiobook(Audiobook $audiobook, array $chapters, int $startMs): array
     {
@@ -1354,6 +1402,8 @@ final class App implements Model
      * ~10 ticks a throttled progress save fires. A tick from a superseded
      * heartbeat — or while nothing plays / not an AudiobookSession / paused — is
      * dropped. Mirrors the old AudiobookDetailScreen::onAudiobookTick EXACTLY.
+     *
+     * @return array{App, ?\Closure}
      */
     private function onAudiobookTick(int $epoch): array
     {
@@ -1419,6 +1469,7 @@ final class App implements Model
         return rtrim($this->api->baseUrl(), '/') . '/' . ltrim($url, '/');
     }
 
+    /** @return array{App, ?\Closure} */
     private function openPlayer(MediaItem $item): array
     {
         $screen = new PlayerScreen(
