@@ -554,6 +554,23 @@ final class ApiClient
             ->then(static fn (array $data): PlaybackMarkers => PlaybackMarkers::fromArray($data));
     }
 
+    // ---- admin seam ----------------------------------------------------
+
+    /**
+     * The single public authed-JSON seam admin code uses: an authed request that
+     * attaches the Bearer token, refreshes-and-retries once on a 401, and resolves
+     * the decoded JSON body. Admin clients ({@see \Phlix\Console\Api\Admin\AdminClient})
+     * call this rather than reaching into the private {@see authed()} internal.
+     *
+     * @param array<string,scalar|list<string>> $query
+     * @param array<string,mixed>|null          $body
+     * @return PromiseInterface<array<string,mixed>>
+     */
+    public function send(string $method, string $path, array $query = [], ?array $body = null): PromiseInterface
+    {
+        return $this->authed($method, $path, $query, $body);
+    }
+
     // ---- internals -----------------------------------------------------
 
     /**

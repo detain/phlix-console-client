@@ -136,6 +136,54 @@ final class ApiClientTest extends TestCase
         self::assertSame('Bearer tok-abc', $t->requestAt(0)['headers']['Authorization']);
     }
 
+    // ---- send (admin seam) --------------------------------------------
+
+    public function testSendAttachesBearerAndReturnsTheDecodedBody(): void
+    {
+        $t = (new FakeTransport())->json(200, ['success' => true, 'data' => ['x' => 1], 'count' => 1]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('tok-abc', 'ref', 'Bearer', null));
+
+        $body = $this->await($client->send('GET', '/api/v1/admin/dashboard/storage'));
+
+        self::assertSame(['success' => true, 'data' => ['x' => 1], 'count' => 1], $body);
+        $req = $t->requestAt(0);
+        self::assertSame('GET', $req['method']);
+        self::assertSame(self::BASE . '/api/v1/admin/dashboard/storage', $req['url']);
+        self::assertSame('Bearer tok-abc', $req['headers']['Authorization']);
+    }
+
+    public function testSendBuildsTheQueryStringAndPostsTheBody(): void
+    {
+        $t = (new FakeTransport())->json(200, ['success' => true, 'data' => []]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $this->await($client->send('POST', '/api/v1/admin/thing', ['limit' => 10], ['name' => 'x']));
+
+        $req = $t->requestAt(0);
+        self::assertSame('POST', $req['method']);
+        self::assertStringContainsString('limit=10', $req['url']);
+        self::assertSame(['name' => 'x'], json_decode($req['body'], true));
+    }
+
+    public function testSendRefreshesAndRetriesOnce(): void
+    {
+        // First call → 401; the refresh → new tokens; the retry → 200.
+        $t = (new FakeTransport())
+            ->json(401, ['error' => 'expired'])
+            ->json(200, $this->authResponse('access-2', 'refresh-2'))
+            ->json(200, ['success' => true, 'data' => ['ok' => true]]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('stale', 'ref', 'Bearer', null));
+
+        $body = $this->await($client->send('GET', '/api/v1/admin/dashboard/now-playing'));
+
+        self::assertSame(['success' => true, 'data' => ['ok' => true]], $body);
+        self::assertSame(3, $t->requestCount(), '401 → refresh → retry');
+        self::assertSame('Bearer access-2', $t->requestAt(2)['headers']['Authorization'], 'the retry uses the refreshed token');
+    }
+
     public function testLibrariesMapsList(): void
     {
         $t = (new FakeTransport())->json(200, ['libraries' => [
