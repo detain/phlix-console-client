@@ -11,16 +11,21 @@ use Phlix\Console\Api\Dto\Admin\AdminDashboard;
 use Phlix\Console\Api\Dto\Admin\AdminUser;
 use Phlix\Console\Api\Dto\Admin\Backup;
 use Phlix\Console\Api\Dto\Admin\BackupSchedule;
+use Phlix\Console\Api\Dto\Admin\Channel;
 use Phlix\Console\Api\Dto\Admin\DlnaServerStatus;
+use Phlix\Console\Api\Dto\Admin\GuideProgram;
 use Phlix\Console\Api\Dto\Admin\LogFile;
 use Phlix\Console\Api\Dto\Admin\LogTail;
 use Phlix\Console\Api\Dto\Admin\HubStatus;
 use Phlix\Console\Api\Dto\Admin\Plugin;
 use Phlix\Console\Api\Dto\Admin\PortForwardStatus;
+use Phlix\Console\Api\Dto\Admin\Recording;
 use Phlix\Console\Api\Dto\Admin\RelayStatus;
 use Phlix\Console\Api\Dto\Admin\RemoteAccessStatus;
 use Phlix\Console\Api\Dto\Admin\ScanJob;
+use Phlix\Console\Api\Dto\Admin\SeriesRule;
 use Phlix\Console\Api\Dto\Admin\ServerSettings;
+use Phlix\Console\Api\Dto\Admin\Tuner;
 use Phlix\Console\Api\Dto\Admin\SubdomainStatus;
 use Phlix\Console\Api\Dto\Coerce;
 use Phlix\Console\Api\Dto\Library;
@@ -65,6 +70,9 @@ final class AdminClient
 
     /** The base path every library endpoint hangs off. */
     private const LIBRARIES = '/api/v1/libraries';
+
+    /** The base path every Live-TV endpoint hangs off. */
+    private const LIVETV = '/api/v1/admin/livetv';
 
     public function __construct(
         private readonly ApiClient $api,
@@ -541,19 +549,7 @@ final class AdminClient
     {
         return $this->api->send('POST', self::DLNA . $suffix)->then(
             static fn (array $resp): string => $confirmation,
-            static function (\Throwable $e): never {
-                // Let an AuthError (401) propagate untouched so the screen can
-                // surface a session expiry; only the non-auth ApiError failures
-                // (409 / 500) carry the friendly `message` to re-surface.
-                if ($e instanceof ApiError && !$e instanceof AuthError) {
-                    $message = $e->body['message'] ?? null;
-                    if (is_string($message) && $message !== '') {
-                        throw new ApiError($message, $e->statusCode, $e->body, $e);
-                    }
-                }
-
-                throw $e;
-            },
+            self::reThrowFriendly(...),
         );
     }
 
@@ -703,16 +699,7 @@ final class AdminClient
     {
         return $this->api->send('POST', self::REMOTE . $suffix)->then(
             static fn (array $resp): string => $confirm($resp),
-            static function (\Throwable $e): never {
-                if ($e instanceof ApiError && !$e instanceof AuthError) {
-                    $message = $e->body['message'] ?? null;
-                    if (is_string($message) && $message !== '') {
-                        throw new ApiError($message, $e->statusCode, $e->body, $e);
-                    }
-                }
-
-                throw $e;
-            },
+            self::reThrowFriendly(...),
         );
     }
 
@@ -803,6 +790,242 @@ final class AdminClient
     {
         return $this->api->send('POST', self::LIBRARIES . $suffix)
             ->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
+    }
+
+    // ---- live tv -------------------------------------------------------
+
+    /**
+     * List the configured Live-TV tuners. {@see \Phlix\Server\Http\Controllers\Admin\AdminLiveTvController}
+     * uses a THIRD envelope pattern — the data rides a TOP-LEVEL NAMED KEY
+     * alongside `success` (`{success, tuners:[...]}`, NOT `{success, data}` and NOT
+     * bare), so the list is read straight from `$body['tuners']`. A `{data:{tuners}}`
+     * wrapper (the WRONG envelope) therefore yields an empty list. A rejection
+     * re-surfaces the server's friendly `message` (see {@see reThrowFriendly()}).
+     *
+     * @return PromiseInterface<list<Tuner>>
+     */
+    public function liveTvTuners(): PromiseInterface
+    {
+        return $this->api->send('GET', self::LIVETV . '/tuners')->then(static function (array $body): array {
+            return self::mapList(
+                $body['tuners'] ?? null,
+                static fn (array $row): Tuner => Tuner::fromArray($row),
+            );
+        })->otherwise(self::reThrowFriendly(...));
+    }
+
+    /**
+     * Re-discover tuners (GET `/tuners/scan` rescans hardware/IPTV sources and
+     * returns the refreshed set). Reads the top-level `tuners` named key. A
+     * rejection re-surfaces the server's friendly `message` (see
+     * {@see reThrowFriendly()}).
+     *
+     * @return PromiseInterface<list<Tuner>>
+     */
+    public function scanTuners(): PromiseInterface
+    {
+        return $this->api->send('GET', self::LIVETV . '/tuners/scan')->then(static function (array $body): array {
+            return self::mapList(
+                $body['tuners'] ?? null,
+                static fn (array $row): Tuner => Tuner::fromArray($row),
+            );
+        })->otherwise(self::reThrowFriendly(...));
+    }
+
+    /**
+     * Enable/disable a tuner (PUT `{enabled}`). Resolves the single updated
+     * {@see Tuner} from the top-level `tuner` named key; a missing/non-array `tuner`
+     * yields the tolerant empty default. Rejects with the server `error` on non-2xx.
+     *
+     * @return PromiseInterface<Tuner>
+     */
+    public function setTunerEnabled(string $id, bool $enabled): PromiseInterface
+    {
+        return $this->api->send('PUT', self::LIVETV . '/tuners/' . rawurlencode($id), [], ['enabled' => $enabled])
+            ->then(static function (array $body): Tuner {
+                $tuner = $body['tuner'] ?? null;
+
+                return Tuner::fromArray(is_array($tuner) ? $tuner : []);
+            })->otherwise(self::reThrowFriendly(...));
+    }
+
+    /**
+     * Delete a tuner. The server returns `{success:true}` (or an empty body), so
+     * this resolves null; rejects with the server `error` on non-2xx.
+     *
+     * @return PromiseInterface<null>
+     */
+    public function deleteTuner(string $id): PromiseInterface
+    {
+        return $this->api->send('DELETE', self::LIVETV . '/tuners/' . rawurlencode($id))
+            ->then(static fn (array $body): ?Tuner => null)
+            ->otherwise(self::reThrowFriendly(...));
+    }
+
+    /**
+     * List the Live-TV channels. Reads the top-level `channels` named key; a
+     * `{data:{channels}}` wrapper yields an empty list.
+     *
+     * @return PromiseInterface<list<Channel>>
+     */
+    public function liveTvChannels(): PromiseInterface
+    {
+        return $this->api->send('GET', self::LIVETV . '/channels')->then(static function (array $body): array {
+            return self::mapList(
+                $body['channels'] ?? null,
+                static fn (array $row): Channel => Channel::fromArray($row),
+            );
+        })->otherwise(self::reThrowFriendly(...));
+    }
+
+    /**
+     * Enable/disable a channel (PUT `{enabled}`; the server maps it onto
+     * `visibility`). Resolves the single updated {@see Channel} from the top-level
+     * `channel` named key. Rejects with the server `error` on non-2xx.
+     *
+     * @return PromiseInterface<Channel>
+     */
+    public function setChannelEnabled(string $id, bool $enabled): PromiseInterface
+    {
+        return $this->api->send('PUT', self::LIVETV . '/channels/' . rawurlencode($id), [], ['enabled' => $enabled])
+            ->then(static function (array $body): Channel {
+                $channel = $body['channel'] ?? null;
+
+                return Channel::fromArray(is_array($channel) ? $channel : []);
+            })->otherwise(self::reThrowFriendly(...));
+    }
+
+    /**
+     * List the guide programs, optionally scoped to a single channel (GET `/guide`
+     * with an optional `channel_id`). Reads the top-level `programs` named key; a
+     * `{data:{programs}}` wrapper yields an empty list.
+     *
+     * @return PromiseInterface<list<GuideProgram>>
+     */
+    public function liveTvGuide(?string $channelId = null): PromiseInterface
+    {
+        $query = $channelId === null ? [] : ['channel_id' => $channelId];
+
+        return $this->api->send('GET', self::LIVETV . '/guide', $query)->then(static function (array $body): array {
+            return self::mapList(
+                $body['programs'] ?? null,
+                static fn (array $row): GuideProgram => GuideProgram::fromArray($row),
+            );
+        })->otherwise(self::reThrowFriendly(...));
+    }
+
+    /**
+     * Refresh the EPG (POST `/guide/refresh`). UNLIKE the guide LIST, the refresh
+     * response's `programs` key is the INT count of programs imported, so this
+     * resolves that count. Rejects with the server `error` on non-2xx.
+     *
+     * @return PromiseInterface<int>
+     */
+    public function refreshGuide(): PromiseInterface
+    {
+        return $this->api->send('POST', self::LIVETV . '/guide/refresh')
+            ->then(static fn (array $body): int => Coerce::int($body['programs'] ?? 0))
+            ->otherwise(self::reThrowFriendly(...));
+    }
+
+    /**
+     * List recordings, optionally filtered by status (GET `/recordings` with an
+     * optional `status`). Reads the top-level `recordings` named key; a
+     * `{data:{recordings}}` wrapper yields an empty list.
+     *
+     * @return PromiseInterface<list<Recording>>
+     */
+    public function recordings(?string $status = null): PromiseInterface
+    {
+        $query = $status === null ? [] : ['status' => $status];
+
+        return $this->api->send('GET', self::LIVETV . '/recordings', $query)->then(static function (array $body): array {
+            return self::mapList(
+                $body['recordings'] ?? null,
+                static fn (array $row): Recording => Recording::fromArray($row),
+            );
+        })->otherwise(self::reThrowFriendly(...));
+    }
+
+    /**
+     * List the next upcoming recordings (GET `/recordings/upcoming?limit`). Reads
+     * the top-level `recordings` named key.
+     *
+     * @return PromiseInterface<list<Recording>>
+     */
+    public function upcomingRecordings(int $limit = 10): PromiseInterface
+    {
+        return $this->api->send('GET', self::LIVETV . '/recordings/upcoming', ['limit' => $limit])
+            ->then(static function (array $body): array {
+                return self::mapList(
+                    $body['recordings'] ?? null,
+                    static fn (array $row): Recording => Recording::fromArray($row),
+                );
+            })->otherwise(self::reThrowFriendly(...));
+    }
+
+    /**
+     * Delete a recording. The server returns `{success:true}` (or an empty body),
+     * so this resolves null; rejects with the server `error` on non-2xx.
+     *
+     * @return PromiseInterface<null>
+     */
+    public function deleteRecording(string $id): PromiseInterface
+    {
+        return $this->api->send('DELETE', self::LIVETV . '/recordings/' . rawurlencode($id))
+            ->then(static fn (array $body): ?Recording => null)
+            ->otherwise(self::reThrowFriendly(...));
+    }
+
+    /**
+     * List the series-recording rules. Reads the top-level `rules` named key; a
+     * `{data:{rules}}` wrapper yields an empty list.
+     *
+     * @return PromiseInterface<list<SeriesRule>>
+     */
+    public function seriesRules(): PromiseInterface
+    {
+        return $this->api->send('GET', self::LIVETV . '/series-rules')->then(static function (array $body): array {
+            return self::mapList(
+                $body['rules'] ?? null,
+                static fn (array $row): SeriesRule => SeriesRule::fromArray($row),
+            );
+        })->otherwise(self::reThrowFriendly(...));
+    }
+
+    /**
+     * Delete a series rule. The server returns `{success:true}` (or an empty
+     * body), so this resolves null; rejects with the server `error` on non-2xx.
+     *
+     * @return PromiseInterface<null>
+     */
+    public function deleteSeriesRule(string $id): PromiseInterface
+    {
+        return $this->api->send('DELETE', self::LIVETV . '/series-rules/' . rawurlencode($id))
+            ->then(static fn (array $body): ?SeriesRule => null)
+            ->otherwise(self::reThrowFriendly(...));
+    }
+
+    /**
+     * Re-throw a rejected {@see ApiError} carrying the server's FRIENDLY text. The
+     * admin controllers that wrap failures in an `error()` helper emit
+     * `{success:false, message:…}` with NO `error` key (DLNA, Remote Access,
+     * Live TV), but {@see ApiClient::decode()} only reads `error`, so without this
+     * the failure degrades to the generic "Request failed (HTTP …)". This prefers
+     * `body['message']`, then `body['error']`, re-throwing a new {@see ApiError}
+     * whose message is the friendly text. An {@see AuthError} (401) is let through
+     * UNTOUCHED so the screen can route to a session expiry rather than a toast.
+     */
+    private static function reThrowFriendly(\Throwable $e): never
+    {
+        if ($e instanceof ApiError && !$e instanceof AuthError) {
+            $message = $e->body['message'] ?? $e->body['error'] ?? null;
+            if (is_string($message) && $message !== '') {
+                throw new ApiError($message, $e->statusCode, $e->body, $e);
+            }
+        }
+
+        throw $e;
     }
 
     /**
