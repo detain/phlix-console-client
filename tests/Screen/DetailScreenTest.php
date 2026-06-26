@@ -13,6 +13,7 @@ use Phlix\Console\Msg\DetailFailedMsg;
 use Phlix\Console\Msg\DetailLoadedMsg;
 use Phlix\Console\Msg\DetailPosterLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
+use Phlix\Console\Msg\CastRequestedMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\PlayRequestedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
@@ -183,6 +184,35 @@ final class DetailScreenTest extends TestCase
         self::assertNull($cmd, 'nothing to play');
         self::assertTrue($next->showsPlayNotice());
         self::assertStringContainsString('no playable source', $next->view());
+    }
+
+    public function testCastKeyOnAPlayableItemRequestsCast(): void
+    {
+        // The default detailResponse carries a signed stream_url.
+        $loaded = $this->loaded();
+
+        [$same, $cmd] = $loaded->update(new KeyMsg(KeyType::Char, 'C'));
+
+        $msg = $cmd?->__invoke();
+        self::assertInstanceOf(CastRequestedMsg::class, $msg);
+        self::assertSame('m1', $msg->item->id);
+        self::assertSame('https://srv/media/m1/stream?sig=x', $msg->item->streamUrl);
+        self::assertFalse($same->showsPlayNotice(), 'casting shows no play notice');
+    }
+
+    public function testCastKeyWithoutAStreamIsANoOp(): void
+    {
+        $loaded = $this->loaded(['stream_url' => null]);
+
+        [$next, $cmd] = $loaded->update(new KeyMsg(KeyType::Char, 'C'));
+
+        self::assertNull($cmd, 'nothing to cast');
+        self::assertSame($loaded, $next, 'no state change without a stream');
+    }
+
+    public function testHintMentionsCast(): void
+    {
+        self::assertStringContainsString('cast', $this->loaded()->view());
     }
 
     public function testUpAndDownScrollTheSynopsisAndClampAtTheTop(): void

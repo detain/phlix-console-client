@@ -43,6 +43,7 @@ use Phlix\Console\Msg\OpenStatsMsg;
 use Phlix\Console\Msg\PaletteLibrariesLoadedMsg;
 use Phlix\Console\Msg\PlayAudiobookMsg;
 use Phlix\Console\Msg\PlayNextMsg;
+use Phlix\Console\Msg\CastRequestedMsg;
 use Phlix\Console\Msg\PlayRequestedMsg;
 use Phlix\Console\Msg\PlayTrackMsg;
 use Phlix\Console\Msg\RequestLogoutMsg;
@@ -78,6 +79,7 @@ use Phlix\Console\Screen\MusicScreen;
 use Phlix\Console\Screen\PhotoAlbumScreen;
 use Phlix\Console\Screen\PhotosScreen;
 use Phlix\Console\Screen\PhotoViewerScreen;
+use Phlix\Console\Screen\CastScreen;
 use Phlix\Console\Screen\PlayerScreen;
 use Phlix\Console\Screen\SearchScreen;
 use Phlix\Console\Screen\ServerScreen;
@@ -560,6 +562,25 @@ final class AppTest extends TestCase
         self::assertSame(2, $player->stackDepth(), 'player is pushed onto Browse');
         // The build Cmd is returned but intentionally NOT invoked here — running it
         // would spawn real ffmpeg. The player's own tests drive it with a fake factory.
+        self::assertInstanceOf(\Closure::class, $cmd);
+    }
+
+    public function testCastRequestPushesTheCastScreen(): void
+    {
+        $browse = $this->browsing();
+        $item = MediaItem::fromArray([
+            'id' => 'm1',
+            'name' => 'The Matrix',
+            'type' => 'movie',
+            'stream_url' => 'https://srv/media/m1/stream?sig=x',
+        ]);
+
+        [$cast, $cmd] = $browse->update(new CastRequestedMsg($item));
+
+        self::assertSame(Route::Cast, $cast->route());
+        self::assertInstanceOf(CastScreen::class, $cast->screen());
+        self::assertSame(2, $cast->stackDepth(), 'cast is pushed onto Browse');
+        // The discovery fetch is returned (and intentionally not invoked here).
         self::assertInstanceOf(\Closure::class, $cmd);
     }
 

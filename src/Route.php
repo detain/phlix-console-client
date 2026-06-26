@@ -18,6 +18,7 @@ enum Route
     case Library;
     case Detail;
     case Player;
+    case Cast;
     case Search;
     case Settings;
     case Stats;

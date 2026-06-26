@@ -17,6 +17,7 @@ use Phlix\Console\Msg\DetailLoadedMsg;
 use Phlix\Console\Msg\DetailPosterLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
+use Phlix\Console\Msg\CastRequestedMsg;
 use Phlix\Console\Msg\PlayRequestedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Store\MediaRange;
@@ -72,7 +73,7 @@ final class DetailScreen implements Breadcrumbed, Themed
     private const OVERSCAN = 1;
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
     private const PLAY_NOTICE = '▶  This title has no playable source.';
-    private const HINT = '↑↓  scroll synopsis      p  play      Esc  back';
+    private const HINT = '↑↓  scroll synopsis      p  play      C  cast      Esc  back';
     private const CONTAINER_HINT = '↑↓←→  move      ⏎  open      Esc  back';
     private const LOADING_HINT = 'Esc  back';
 
@@ -182,6 +183,14 @@ final class DetailScreen implements Breadcrumbed, Themed
             $next->playNotice = true;
 
             return [$next, null];
+        }
+        // Leaf: Cast → send the signed stream to a discovered device (mirrors `p`).
+        if ($msg->type === KeyType::Char && $msg->rune === 'C') {
+            if ($this->item !== null && $this->item->streamUrl !== null) {
+                return [$this, Cmd::send(new CastRequestedMsg($this->item))];
+            }
+
+            return [$this, null];
         }
         if ($msg->type === KeyType::Up) {
             return [$this->scrollSynopsis(-1), null];
