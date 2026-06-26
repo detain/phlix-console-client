@@ -1,0 +1,9 @@
+parameters:
+    level: 9
+    phpVersion: 80300
+    paths:
+        - src
+    tmpDir: .phpstan.cache
+
+includes:
+    - phpstan-baseline.neon
