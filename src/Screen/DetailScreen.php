@@ -109,6 +109,7 @@ final class DetailScreen implements Breadcrumbed, Themed
         return $this->fetchItem();
     }
 
+    /** @return array{self, ?\Closure} */
     public function update(Msg $msg): array
     {
         if ($msg instanceof WindowSizeMsg) {
@@ -161,6 +162,7 @@ final class DetailScreen implements Breadcrumbed, Themed
 
     // ---- input ---------------------------------------------------------
 
+    /** @return array{self, ?\Closure} */
     private function handleKey(KeyMsg $msg): array
     {
         if ($msg->type === KeyType::Escape) {
@@ -191,6 +193,7 @@ final class DetailScreen implements Breadcrumbed, Themed
         return [$this, null];
     }
 
+    /** @return array{self, ?\Closure} */
     private function handleContainerKey(KeyMsg $msg, PosterGrid $grid): array
     {
         if ($msg->type === KeyType::Enter) {
@@ -232,6 +235,7 @@ final class DetailScreen implements Breadcrumbed, Themed
         return $next;
     }
 
+    /** @return array{self, ?\Closure} */
     private function onResize(int $cols, int $rows): array
     {
         $next = clone $this;
@@ -259,6 +263,7 @@ final class DetailScreen implements Breadcrumbed, Themed
         ));
     }
 
+    /** @return array{self, ?\Closure} */
     private function onLoaded(MediaItem $item): array
     {
         $next = clone $this;
@@ -306,6 +311,7 @@ final class DetailScreen implements Breadcrumbed, Themed
         ));
     }
 
+    /** @return array{self, ?\Closure} */
     private function onChildren(string $parentId, MediaRange $range): array
     {
         if ($parentId !== $this->id || $this->childGrid === null) {
@@ -343,6 +349,8 @@ final class DetailScreen implements Breadcrumbed, Themed
     /**
      * After the child grid's cursor/viewport moved: fetch the newly visible
      * window (if not already covered) and load posters for the cells on screen.
+     *
+     * @return array{self, ?\Closure}
      */
     private function afterChildGridChange(PosterGrid $grid): array
     {

@@ -102,6 +102,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
         return Cmd::batch($this->fetchContinueWatching(), $this->fetchLibraries());
     }
 
+    /** @return array{self, ?\Closure} */
     public function update(Msg $msg): array
     {
         if ($msg instanceof WindowSizeMsg) {
@@ -217,6 +218,11 @@ final class BrowseScreen implements Breadcrumbed, Themed
 
     // ---- message handlers ----------------------------------------------
 
+    /**
+     * @param list<mixed> $libraries each element is validated as a {@see Library} below
+     *
+     * @return array{self, ?\Closure}
+     */
     private function onLibraries(array $libraries): array
     {
         $rails = [];
@@ -249,6 +255,11 @@ final class BrowseScreen implements Breadcrumbed, Themed
         return [$next, $cmds === [] ? null : Cmd::batch(...$cmds)];
     }
 
+    /**
+     * @param list<mixed> $items each element is validated as a {@see ContinueWatchingItem} below
+     *
+     * @return array{self, ?\Closure}
+     */
     private function onContinueWatching(array $items): array
     {
         if ($items === []) {
@@ -278,6 +289,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
         return [$next, $next->loadPostersFor(self::CONTINUE_ID, $rail)];
     }
 
+    /** @return array{self, ?\Closure} */
     private function onLibraryMedia(string $libraryId, MediaPage $page): array
     {
         if (!isset($this->libraryRails[$libraryId])) {
@@ -313,6 +325,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
 
     // ---- navigation ----------------------------------------------------
 
+    /** @return array{self, ?\Closure} */
     private function handleKey(KeyMsg $msg): array
     {
         if ($msg->type === KeyType::Escape || ($msg->type === KeyType::Char && $msg->rune === 'q')) {
@@ -327,6 +340,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
             : $this->handleRailsKey($msg);
     }
 
+    /** @return array{self, ?\Closure} */
     private function handleSidebarKey(KeyMsg $msg): array
     {
         if ($this->sidebar->isEmpty()) {
@@ -345,6 +359,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
         return [$this, null];
     }
 
+    /** @return array{self, ?\Closure} */
     private function handleRailsKey(KeyMsg $msg): array
     {
         $ids = $this->orderedRailIds();
@@ -385,7 +400,11 @@ final class BrowseScreen implements Breadcrumbed, Themed
         return [$this, null];
     }
 
-    /** Open the given library id's grid (a no-op for an unknown/null id). */
+    /**
+     * Open the given library id's grid (a no-op for an unknown/null id).
+     *
+     * @return array{self, ?\Closure}
+     */
     private function openLibrary(?string $libraryId): array
     {
         $rail = $libraryId !== null ? $this->railById($libraryId) : null;
