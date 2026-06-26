@@ -9,6 +9,7 @@ use Phlix\Console\Api\Dto\Admin\AdminDashboard;
 use Phlix\Console\Api\Dto\Admin\AdminUser;
 use Phlix\Console\Api\Dto\Admin\LogFile;
 use Phlix\Console\Api\Dto\Admin\LogTail;
+use Phlix\Console\Api\Dto\Admin\Plugin;
 use Phlix\Console\Api\Dto\Coerce;
 use React\Promise\PromiseInterface;
 
@@ -33,6 +34,9 @@ final class AdminClient
 
     /** The base path every user-management endpoint hangs off. */
     private const USERS = '/api/v1/admin/users';
+
+    /** The base path every plugin-management endpoint hangs off. */
+    private const PLUGINS = '/api/v1/admin/plugins';
 
     public function __construct(
         private readonly ApiClient $api,
@@ -216,6 +220,95 @@ final class AdminClient
     {
         return $this->api->send($method, self::USERS . $suffix, [], $body)
             ->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
+    }
+
+    // ---- plugins -------------------------------------------------------
+
+    /**
+     * List the installed plugins. Like the user endpoints (and UNLIKE the
+     * dashboard), {@see \Phlix\Server\Http\Controllers\PluginAdminController}
+     * returns its payload at the TOP LEVEL with NO `{success, data}` envelope, so
+     * the list is read straight from `$body['plugins']`. A non-list payload yields
+     * an empty list.
+     *
+     * @return PromiseInterface<list<Plugin>>
+     */
+    public function plugins(): PromiseInterface
+    {
+        return $this->api->send('GET', self::PLUGINS)->then(static function (array $body): array {
+            return self::mapList(
+                $body['plugins'] ?? null,
+                static fn (array $row): Plugin => Plugin::fromArray($row),
+            );
+        });
+    }
+
+    /**
+     * Install a plugin from a URL. The body is `{url}`; on 201 the server returns
+     * `{plugin: ManifestJson}` (the freshly-installed plugin). Rejects with the
+     * server `error` on 400 (missing / non-HTTPS URL) or 422 (install / signature
+     * failure) — the {@see \Phlix\Console\Api\ApiError} carries it as the exception
+     * message.
+     *
+     * @return PromiseInterface<Plugin>
+     */
+    public function installPlugin(string $url): PromiseInterface
+    {
+        return $this->api->send('POST', self::PLUGINS . '/install', [], ['url' => $url])
+            ->then(static fn (array $body): Plugin => self::plugin($body));
+    }
+
+    /**
+     * Enable a previously-installed plugin. Resolves the refreshed
+     * {@see Plugin} (the server returns `{plugin: {name, enabled: true}}`); rejects
+     * with the server `error` on 404 / 422.
+     *
+     * @return PromiseInterface<Plugin>
+     */
+    public function enablePlugin(string $name): PromiseInterface
+    {
+        return $this->api->send('POST', self::PLUGINS . '/' . rawurlencode($name) . '/enable')
+            ->then(static fn (array $body): Plugin => self::plugin($body));
+    }
+
+    /**
+     * Disable a currently-enabled plugin. Resolves the refreshed {@see Plugin}
+     * (the server returns `{plugin: {name, enabled: false}}`); rejects with the
+     * server `error` on 404.
+     *
+     * @return PromiseInterface<Plugin>
+     */
+    public function disablePlugin(string $name): PromiseInterface
+    {
+        return $this->api->send('POST', self::PLUGINS . '/' . rawurlencode($name) . '/disable')
+            ->then(static fn (array $body): Plugin => self::plugin($body));
+    }
+
+    /**
+     * Uninstall a plugin entirely (removes files + DB row). The server returns
+     * `204 No Content`, so this resolves null; rejects with the server `error` on
+     * 404.
+     *
+     * @return PromiseInterface<null>
+     */
+    public function uninstallPlugin(string $name): PromiseInterface
+    {
+        return $this->api->send('DELETE', self::PLUGINS . '/' . rawurlencode($name))
+            ->then(static fn (array $body): ?Plugin => null);
+    }
+
+    /**
+     * Map a `{plugin: {...}}` action response to a {@see Plugin}; a missing/
+     * non-array `plugin` key yields a tolerant empty plugin (so a thin
+     * enable/disable shape never breaks the mapping).
+     *
+     * @param array<string,mixed> $body
+     */
+    private static function plugin(array $body): Plugin
+    {
+        $plugin = $body['plugin'] ?? null;
+
+        return Plugin::fromArray(is_array($plugin) ? $plugin : []);
     }
 
     /**

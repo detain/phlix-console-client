@@ -11,6 +11,7 @@ use Phlix\Console\Api\Dto\Admin\AdminDashboard;
 use Phlix\Console\Api\Dto\Admin\AdminUser;
 use Phlix\Console\Api\Dto\Admin\LogFile;
 use Phlix\Console\Api\Dto\Admin\LogTail;
+use Phlix\Console\Api\Dto\Admin\Plugin;
 use Phlix\Console\Config\TokenBundle;
 use Phlix\Console\Tests\Api\FakeTransport;
 use PHPUnit\Framework\TestCase;
@@ -408,6 +409,165 @@ final class AdminClientTest extends TestCase
 
         self::assertInstanceOf(ApiError::class, $error);
         self::assertSame('User not found', $error->getMessage());
+    }
+
+    // ---- plugins -------------------------------------------------------
+
+    public function testPluginsMapsTheTopLevelList(): void
+    {
+        // The real PluginAdminController returns the list at the TOP LEVEL, with
+        // NO {success, data} envelope (envelopes are per-controller).
+        $transport = (new FakeTransport())->json(200, [
+            'plugins' => [
+                ['name' => 'trakt', 'version' => '1.0', 'type' => 'scrobbler', 'enabled' => true, 'installed_at' => '2026-06-26T12:00:00-04:00', 'signed' => true],
+                ['name' => 'lastfm', 'version' => '2.0', 'type' => 'scrobbler', 'enabled' => false, 'signed' => false],
+            ],
+        ]);
+
+        $plugins = $this->await($this->clientWith($transport)->plugins());
+
+        self::assertContainsOnlyInstancesOf(Plugin::class, $plugins);
+        self::assertCount(2, $plugins);
+        self::assertSame('trakt', $plugins[0]->name);
+        self::assertTrue($plugins[0]->enabled);
+        self::assertFalse($plugins[1]->enabled);
+        self::assertStringContainsString('/api/v1/admin/plugins', $transport->requestAt(0)['url']);
+    }
+
+    public function testPluginsToleratesAMissingPluginsKey(): void
+    {
+        $transport = (new FakeTransport())->json(200, []);
+
+        $plugins = $this->await($this->clientWith($transport)->plugins());
+
+        self::assertSame([], $plugins);
+    }
+
+    public function testPluginsIgnoresAnEnvelopeDataKey(): void
+    {
+        // Guard against regressing to a dashboard-style `{success, data:{plugins}}`
+        // read: PluginAdminController is top-level, so a `data` wrapper must NOT
+        // be where the list is found.
+        $transport = (new FakeTransport())->json(200, [
+            'data' => ['plugins' => [['name' => 'ghost']]],
+        ]);
+
+        $plugins = $this->await($this->clientWith($transport)->plugins());
+
+        self::assertSame([], $plugins, 'plugins are read top-level, not from data');
+    }
+
+    public function testPluginsSkipsNonArrayRows(): void
+    {
+        $transport = (new FakeTransport())->json(200, [
+            'plugins' => [['name' => 'trakt'], 'nope', 7],
+        ]);
+
+        $plugins = $this->await($this->clientWith($transport)->plugins());
+
+        self::assertCount(1, $plugins);
+        self::assertSame('trakt', $plugins[0]->name);
+    }
+
+    public function testPluginsAttachesTheBearerToken(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['plugins' => []]);
+
+        $this->await($this->clientWith($transport)->plugins());
+
+        self::assertSame('Bearer access-1', $transport->requestAt(0)['headers']['Authorization'] ?? null);
+    }
+
+    public function testEnablePluginPostsAndResolvesThePlugin(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['plugin' => ['name' => 'trakt', 'enabled' => true]]);
+
+        $plugin = $this->await($this->clientWith($transport)->enablePlugin('trakt'));
+
+        self::assertInstanceOf(Plugin::class, $plugin);
+        self::assertSame('trakt', $plugin->name);
+        self::assertTrue($plugin->enabled);
+        self::assertSame('POST', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/plugins/trakt/enable', $transport->requestAt(0)['url']);
+    }
+
+    public function testDisablePluginResolvesTheDisabledPlugin(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['plugin' => ['name' => 'trakt', 'enabled' => false]]);
+
+        $plugin = $this->await($this->clientWith($transport)->disablePlugin('trakt'));
+
+        self::assertFalse($plugin->enabled);
+        self::assertStringContainsString('/api/v1/admin/plugins/trakt/disable', $transport->requestAt(0)['url']);
+    }
+
+    public function testDisablePluginToleratesAMissingPluginKey(): void
+    {
+        $transport = (new FakeTransport())->json(200, []);
+
+        $plugin = $this->await($this->clientWith($transport)->disablePlugin('trakt'));
+
+        self::assertInstanceOf(Plugin::class, $plugin);
+        self::assertSame('', $plugin->name);
+    }
+
+    public function testInstallPluginPostsTheUrlAndResolvesThePlugin(): void
+    {
+        $transport = (new FakeTransport())->json(201, [
+            'plugin' => ['name' => 'trakt', 'version' => '1.0', 'type' => 'scrobbler', 'signed' => true],
+        ]);
+
+        $plugin = $this->await($this->clientWith($transport)->installPlugin('https://github.com/owner/repo'));
+
+        self::assertSame('trakt', $plugin->name);
+        self::assertSame('1.0', $plugin->version);
+        self::assertSame('POST', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/plugins/install', $transport->requestAt(0)['url']);
+        /** @var array<string,mixed> $body */
+        $body = json_decode($transport->requestAt(0)['body'], true);
+        self::assertSame('https://github.com/owner/repo', $body['url']);
+    }
+
+    public function testInstallPluginRejectsWithTheServerErrorOnA400(): void
+    {
+        $transport = (new FakeTransport())->json(400, ['error' => 'Install URL must be an https:// archive']);
+
+        $error = $this->awaitError($this->clientWith($transport)->installPlugin('http://insecure'));
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('Install URL must be an https:// archive', $error->getMessage());
+    }
+
+    public function testInstallPluginRejectsWithTheServerErrorOnA422(): void
+    {
+        $transport = (new FakeTransport())->json(422, ['error' => 'Plugin signature invalid']);
+
+        $error = $this->awaitError($this->clientWith($transport)->installPlugin('https://bad'));
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('Plugin signature invalid', $error->getMessage());
+    }
+
+    public function testUninstallPluginSendsADeleteAndResolvesNull(): void
+    {
+        // The server returns 204 No Content (an empty body decodes to []).
+        $transport = (new FakeTransport())->json(204, []);
+
+        $result = $this->await($this->clientWith($transport)->uninstallPlugin('trakt'));
+
+        self::assertNull($result);
+        self::assertSame('DELETE', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/plugins/trakt', $transport->requestAt(0)['url']);
+    }
+
+    public function testUninstallPluginRejectsWithTheServerErrorOnA404(): void
+    {
+        $transport = (new FakeTransport())->json(404, ['error' => 'Plugin not found']);
+
+        $error = $this->awaitError($this->clientWith($transport)->uninstallPlugin('missing'));
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('Plugin not found', $error->getMessage());
     }
 
     // ---- helpers -------------------------------------------------------
