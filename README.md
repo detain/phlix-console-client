@@ -6,7 +6,7 @@ command palette, and an in-terminal video player. Posters and video render as
 **sixel / kitty / iTerm2 / half-block ANSI** via the
 [SugarCraft](https://sugarcraft.github.io/) stack.
 
-> **Status: Phases 0–6 complete.** The build plan is
+> **Status: Phases 0–8 complete.** The build plan is
 > [`../phlix_console_client.md`](../phlix_console_client.md). Working today: log
 > in, browse your libraries as poster rails beside a sidebar, open a library into
 > a virtualized poster grid (scroll, filter, sort, A–Z jump), open any poster
@@ -43,7 +43,42 @@ command palette, and an in-terminal video player. Posters and video render as
 >   auto-advancing **slideshow** (`s`). Thumbnails and full images render directly
 >   from signed URLs.
 >
-> Theming / settings (Phase 7) land in a later phase.
+> Phase 7 adds **theming, settings, and polish**: three built-in themes —
+> **Nocturne** (default), **Daylight**, and **Midnight** — plus a **Settings**
+> screen (reachable from the command palette) for picking the theme and the
+> photo-slideshow interval, applied live. A persistent **Now-Playing bar** spans
+> every screen so music and audiobook audio keeps playing (and stays controllable)
+> as you navigate; the palette also toggles a diagnostic **metrics HUD** overlay
+> and opens a read-only **Stats** screen, and lists load behind **animated shimmer
+> skeletons**.
+>
+> Phase 8 adds **full admin parity plus casting** (the **Admin** action appears in
+> the command palette only when you're signed in as an admin). It opens an **admin
+> menu** with every section wired:
+>
+> - **Dashboard** — now-playing sessions, storage usage, top users, top media, and
+>   recent activity.
+> - **Users** — list with a status filter (All / Pending / Active / Disabled) and
+>   per-row actions: approve, disable, reject, delete, toggle admin, reset password
+>   (the new password is revealed once).
+> - **Plugins** — list with enable / disable / uninstall and install-from-URL.
+> - **Logs** — a file list with a single-file or merged "all logs" tail viewer.
+> - **Backup** — list / create / delete / restore / upload-to-S3, plus a backup
+>   schedule editor.
+> - **Server Settings** — per-key typed editing (bool toggles inline; int / float /
+>   string / JSON via a validated input).
+> - **Libraries** — scan / rescan / match-metadata with a live scan-status readout.
+> - **DLNA server** — status with start / stop.
+> - **Remote Access** — Hub, subdomain, relay, and port-forward status with their
+>   toggles (the interactive pairing wizard stays on the web admin).
+> - **Live TV** — five tabbed sections (Tuners · Channels · Guide · Recordings ·
+>   Series Rules) with list + simple actions (create / edit are deferred to the web
+>   admin).
+>
+> **Cast** is not an admin section — press `C` on a media **detail** screen to
+> discover **Chromecast / Roku / AirPlay / DLNA** devices on the network, send the
+> item, and drive a transport overlay (pause / resume / stop). Seek is intentionally
+> omitted — the cast backends don't expose a uniform playback position.
 
 ## Requirements
 
@@ -61,13 +96,6 @@ Packagist (`sugarcraft/*`, currently tracking `dev-master`).
 ```sh
 composer install
 ```
-
-> **Temporary:** `sugarcraft/sugar-reel` and `sugarcraft/candy-focus` are not yet
-> registered on Packagist (their repos live under `github.com/sugarcraft/`), so
-> `composer.json` carries a `vcs` repository entry for each. Once they're
-> submitted to Packagist, delete those `repositories` entries — nothing else
-> changes. (`candy-shine`, `sugar-crumbs`, and `sugar-gallery` already resolve
-> from Packagist.)
 
 ### Developing against unreleased library changes
 
@@ -93,13 +121,22 @@ bin/phlix run
 ```
 
 Keys: `↑↓←→` move · `⏎` open · `/` search (or filter, in a grid) · Ctrl-K / `:`
-command palette · A–Z jump · `p` play · `Tab` switch focus on the home screen ·
-`Esc` back · `Ctrl-C` quit.
+command palette · A–Z jump · `p` play · `C` cast (on a detail screen) · `Tab`
+switch focus on the home screen · `Esc` back · `Ctrl-C` quit.
+
+The command palette also opens **Settings** (theme + slideshow interval) and the
+read-only **Stats** screen, toggles the **metrics HUD**, and — when you're signed
+in as an admin — exposes the **Admin** menu (see *Status* above).
 
 **In the player:** `Space` play/pause · `←`/`→` seek ±10s · `0`–`9` seek to % ·
 `[` / `]` speed · `m` cycle render mode · `s` skip intro/outro · `o` start over ·
 `c` captions · `n` / `p` next / previous episode · `f` toggle chrome · `q`/`Esc`
 back.
+
+**Cast** — on a media **detail** screen, `C` opens a device picker (Chromecast /
+Roku / AirPlay / DLNA discovered on the network); pick one to send the item, then
+drive a transport overlay (`Space` pause/resume, `x` stop, `Esc` back). Seek is
+omitted by design (no uniform position across the cast backends).
 
 **Music** — an album list → a track table; `⏎` plays a track (`Space` pause,
 `n`/`p` next/previous). **Audiobooks** — a list → a chapter table; `⏎` plays a
