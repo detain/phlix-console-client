@@ -28,7 +28,7 @@ final readonly class Photo
      * Build from either an album/list row (no `exif`) or a detail row (with the
      * full `exif` map). The signed thumbnail/full URLs are present in both.
      *
-     * @param array<string,mixed> $data
+     * @param array<array-key,mixed> $data
      */
     public static function fromArray(array $data): self
     {

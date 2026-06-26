@@ -28,7 +28,7 @@ final readonly class Library
     }
 
     /**
-     * @param array<string,mixed> $data
+     * @param array<array-key,mixed> $data
      */
     public static function fromArray(array $data): self
     {

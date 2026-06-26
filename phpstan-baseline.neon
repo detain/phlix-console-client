@@ -13,100 +13,10 @@ parameters:
 			path: src/Api/ApiClient.php
 
 		-
-			message: '#^Parameter \#1 \$data of static method Phlix\\Console\\Api\\Dto\\Album\:\:fromArray\(\) expects array\<string, mixed\>, array\<mixed, mixed\> given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/Api/ApiClient.php
-
-		-
-			message: '#^Parameter \#1 \$data of static method Phlix\\Console\\Api\\Dto\\AudiobookChapter\:\:fromArray\(\) expects array\<string, mixed\>, array\<mixed, mixed\> given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/Api/ApiClient.php
-
-		-
-			message: '#^Parameter \#1 \$data of static method Phlix\\Console\\Api\\Dto\\Library\:\:fromArray\(\) expects array\<string, mixed\>, array\<mixed, mixed\> given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/Api/ApiClient.php
-
-		-
-			message: '#^Parameter \#1 \$data of static method Phlix\\Console\\Api\\Dto\\PhotoAlbum\:\:fromArray\(\) expects array\<string, mixed\>, array\<mixed, mixed\> given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/Api/ApiClient.php
-
-		-
-			message: '#^Parameter \#1 \$data of static method Phlix\\Console\\Api\\Dto\\SubtitleTrack\:\:fromArray\(\) expects array\<string, mixed\>, array\<mixed, mixed\> given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/Api/ApiClient.php
-
-		-
-			message: '#^Parameter \#1 \$row of static method Phlix\\Console\\Api\\Dto\\ContinueWatchingItem\:\:fromArray\(\) expects array\<string, mixed\>, array\<mixed, mixed\> given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/Api/ApiClient.php
-
-		-
 			message: '#^Property Phlix\\Console\\Api\\ApiClient\:\:\$refreshInFlight \(React\\Promise\\PromiseInterface\<Phlix\\Console\\Config\\TokenBundle\>\|null\) does not accept React\\Promise\\PromiseInterface\<mixed\>\.$#'
 			identifier: assign.propertyType
 			count: 1
 			path: src/Api/ApiClient.php
-
-		-
-			message: '#^Parameter \#1 \$data of static method Phlix\\Console\\Api\\Dto\\Track\:\:fromArray\(\) expects array\<string, mixed\>, array\<mixed, mixed\> given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/Api/Dto/Album.php
-
-		-
-			message: '#^Parameter \#1 \$data of static method Phlix\\Console\\Api\\Dto\\Audiobook\:\:fromArray\(\) expects array\<string, mixed\>, array\<mixed, mixed\> given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/Api/Dto/AudiobookPage.php
-
-		-
-			message: '#^Parameter \#1 \$data of static method Phlix\\Console\\Api\\Dto\\Book\:\:fromArray\(\) expects array\<string, mixed\>, array\<mixed, mixed\> given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/Api/Dto/BookPage.php
-
-		-
-			message: '#^Parameter \#1 \$data of static method Phlix\\Console\\Api\\Dto\\LetterBucket\:\:fromArray\(\) expects array\<string, mixed\>, array\<mixed, mixed\> given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/Api/Dto/LetterIndex.php
-
-		-
-			message: '#^Parameter \#1 \$data of static method Phlix\\Console\\Api\\Dto\\MediaItem\:\:fromArray\(\) expects array\<string, mixed\>, array\<mixed, mixed\> given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/Api/Dto/MediaPage.php
-
-		-
-			message: '#^Parameter \#1 \$data of static method Phlix\\Console\\Api\\Dto\\PhotoExif\:\:fromArray\(\) expects array\<string, mixed\>, array\<mixed, mixed\> given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/Api/Dto/Photo.php
-
-		-
-			message: '#^Parameter \#1 \$data of static method Phlix\\Console\\Api\\Dto\\Photo\:\:fromArray\(\) expects array\<string, mixed\>, array\<mixed, mixed\> given\.$#'
-			identifier: argument.type
-			count: 2
-			path: src/Api/Dto/PhotoAlbum.php
-
-		-
-			message: '#^Method Phlix\\Console\\Api\\Dto\\PlaybackMarkers\:\:nullableMap\(\) should return array\<string, mixed\>\|null but returns array\<mixed, mixed\>\|null\.$#'
-			identifier: return.type
-			count: 1
-			path: src/Api/Dto/PlaybackMarkers.php
-
-		-
-			message: '#^Parameter \#1 \$data of static method Phlix\\Console\\Api\\Dto\\Chapter\:\:fromArray\(\) expects array\<string, mixed\>, array\<mixed, mixed\> given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/Api/Dto/PlaybackMarkers.php
 
 		-
 			message: '#^Method Phlix\\Console\\App\:\:baseView\(\) should return string but returns string\|SugarCraft\\Core\\View\.$#'
@@ -329,12 +239,6 @@ parameters:
 			identifier: assign.propertyType
 			count: 1
 			path: src/App.php
-
-		-
-			message: '#^Parameter \#1 \$data of static method Phlix\\Console\\Config\\TokenBundle\:\:fromArray\(\) expects array\<string, mixed\>, array\<mixed, mixed\> given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/Config/TokenStore.php
 
 		-
 			message: '#^Method Phlix\\Console\\Screen\\AlbumScreen\:\:handleKey\(\) return type has no value type specified in iterable type array\.$#'

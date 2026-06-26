@@ -41,7 +41,7 @@ final readonly class Audiobook
      * Build from either a raw list row (fields under `metadata`, no signed URL)
      * or a flat detail row (fields hoisted, plus the signed `stream_url`).
      *
-     * @param array<string,mixed> $data
+     * @param array<array-key,mixed> $data
      */
     public static function fromArray(array $data): self
     {

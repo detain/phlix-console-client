@@ -46,7 +46,7 @@ final readonly class PhotoExif
      * Build from the server's raw EXIF map, coercing each known key through the
      * helper that matches its declared type. Absent keys become null.
      *
-     * @param array<string,mixed> $data
+     * @param array<array-key,mixed> $data
      */
     public static function fromArray(array $data): self
     {

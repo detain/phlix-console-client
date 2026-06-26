@@ -46,7 +46,7 @@ final readonly class MediaItem
     /**
      * Build from a shaped media item (the `items[]` / `item` server shape).
      *
-     * @param array<string,mixed> $data
+     * @param array<array-key,mixed> $data
      */
     public static function fromArray(array $data): self
     {
