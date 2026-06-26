@@ -7,6 +7,8 @@ namespace Phlix\Console\Api\Admin;
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\Dto\Admin\AdminDashboard;
 use Phlix\Console\Api\Dto\Admin\AdminUser;
+use Phlix\Console\Api\Dto\Admin\Backup;
+use Phlix\Console\Api\Dto\Admin\BackupSchedule;
 use Phlix\Console\Api\Dto\Admin\LogFile;
 use Phlix\Console\Api\Dto\Admin\LogTail;
 use Phlix\Console\Api\Dto\Admin\Plugin;
@@ -37,6 +39,9 @@ final class AdminClient
 
     /** The base path every plugin-management endpoint hangs off. */
     private const PLUGINS = '/api/v1/admin/plugins';
+
+    /** The base path every backup-management endpoint hangs off. */
+    private const BACKUP = '/api/v1/admin/backup';
 
     public function __construct(
         private readonly ApiClient $api,
@@ -309,6 +314,117 @@ final class AdminClient
         $plugin = $body['plugin'] ?? null;
 
         return Plugin::fromArray(is_array($plugin) ? $plugin : []);
+    }
+
+    // ---- backups -------------------------------------------------------
+
+    /**
+     * List the backup archives (most-recent first, per the server). UNLIKE the
+     * users / plugins endpoints, {@see \Phlix\Server\Http\Controllers\Admin\BackupController}
+     * IS enveloped (admin envelopes are per-controller), so the list is read from
+     * `$body['data']`. A non-list payload yields an empty list.
+     *
+     * @return PromiseInterface<list<Backup>>
+     */
+    public function backups(): PromiseInterface
+    {
+        return $this->api->send('GET', self::BACKUP . '/list')->then(static function (array $body): array {
+            return self::mapList(
+                $body['data'] ?? null,
+                static fn (array $row): Backup => Backup::fromArray($row),
+            );
+        });
+    }
+
+    /**
+     * Create a new backup. The body carries an optional `{label}` (null when the
+     * user gives none). Resolves the server `message`; rejects with the server
+     * `error` on a 500 (the {@see \Phlix\Console\Api\ApiError} carries it as the
+     * exception message).
+     *
+     * @return PromiseInterface<string>
+     */
+    public function createBackup(?string $label): PromiseInterface
+    {
+        $body = $label === null ? [] : ['label' => $label];
+
+        return $this->backupAction('POST', '/create', $body);
+    }
+
+    /**
+     * Delete a backup by id. Resolves the server `message`; rejects with the
+     * server `error` on 400 (missing id) or 404 (unknown id).
+     *
+     * @return PromiseInterface<string>
+     */
+    public function deleteBackup(string $id): PromiseInterface
+    {
+        return $this->backupAction('DELETE', '/' . rawurlencode($id));
+    }
+
+    /**
+     * Restore from a backup — DESTRUCTIVE: overwrites the current data. Resolves
+     * the server `message`; rejects with the server `error` on 400 / 500.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function restoreBackup(string $id): PromiseInterface
+    {
+        return $this->backupAction('POST', '/' . rawurlencode($id) . '/restore');
+    }
+
+    /**
+     * Upload a backup to S3. Resolves the server `message`; rejects with the
+     * server `error` on 400 / 500.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function uploadBackupToS3(string $id): PromiseInterface
+    {
+        return $this->backupAction('POST', '/' . rawurlencode($id) . '/upload-s3');
+    }
+
+    /**
+     * Fetch the backup schedule (auto-interval, retention, next-run). The
+     * enveloped payload is read from `$body['data']` and mapped tolerantly.
+     *
+     * @return PromiseInterface<BackupSchedule>
+     */
+    public function backupSchedule(): PromiseInterface
+    {
+        return $this->api->send('GET', self::BACKUP . '/schedule')
+            ->then(static fn (array $body): BackupSchedule => BackupSchedule::fromArray(Coerce::map($body['data'] ?? null)));
+    }
+
+    /**
+     * Update the backup schedule (interval days + retention count). The PUT body
+     * carries both fields; the enveloped response `data` is mapped back into a
+     * {@see BackupSchedule}. Rejects with the server `error` on 400 (invalid
+     * interval / retention).
+     *
+     * @return PromiseInterface<BackupSchedule>
+     */
+    public function updateBackupSchedule(int $intervalDays, int $retentionCount): PromiseInterface
+    {
+        return $this->api->send('PUT', self::BACKUP . '/schedule', [], [
+            'auto_backup_interval_days' => $intervalDays,
+            'retention_count' => $retentionCount,
+        ])->then(static fn (array $body): BackupSchedule => BackupSchedule::fromArray(Coerce::map($body['data'] ?? null)));
+    }
+
+    /**
+     * Fire one mutating backup action and resolve the server `message`. The
+     * shared {@see ApiClient::send()} rejects non-2xx with the server `error`
+     * carried on the {@see \Phlix\Console\Api\ApiError}, so this never inspects
+     * status.
+     *
+     * @param array<string,mixed> $body
+     * @return PromiseInterface<string>
+     */
+    private function backupAction(string $method, string $suffix, array $body = []): PromiseInterface
+    {
+        return $this->api->send($method, self::BACKUP . $suffix, [], $body === [] ? null : $body)
+            ->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
     }
 
     /**
