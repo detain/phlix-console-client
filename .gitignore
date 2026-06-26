@@ -5,3 +5,4 @@
 *.log
 /.phpunit.cache
 /.caliber/
+.phpstan.cache/
