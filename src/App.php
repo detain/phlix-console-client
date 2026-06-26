@@ -62,6 +62,7 @@ use Phlix\Console\Msg\TrackResolvedMsg;
 use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Screen\AdminBackupScreen;
 use Phlix\Console\Screen\AdminDashboardScreen;
+use Phlix\Console\Screen\AdminDlnaScreen;
 use Phlix\Console\Screen\AdminLibrariesScreen;
 use Phlix\Console\Screen\AdminLogsScreen;
 use Phlix\Console\Screen\AdminMenuScreen;
@@ -1216,6 +1217,11 @@ final class App implements Model
             $screen = new AdminLibrariesScreen(new AdminClient($this->api), $this->cols, $this->rows);
 
             return [$this->push(Route::AdminLibraries, $screen), $screen->init()];
+        }
+        if ($section === Route::AdminDlna) {
+            $screen = new AdminDlnaScreen(new AdminClient($this->api), $this->cols, $this->rows);
+
+            return [$this->push(Route::AdminDlna, $screen), $screen->init()];
         }
 
         return [$this, null];
