@@ -926,6 +926,151 @@ final class AdminClientTest extends TestCase
         self::assertSame('Validation failed', $error->getMessage());
     }
 
+    // ---- libraries -----------------------------------------------------
+
+    /** The real top-level `GET /libraries` shape (NO `{success,data}` envelope). */
+    private function librariesPayload(): array
+    {
+        return [
+            'libraries' => [
+                ['id' => 'lib-1', 'name' => 'Movies', 'type' => 'movie', 'item_count' => 42],
+                ['id' => 'lib-2', 'name' => 'Shows', 'type' => 'series', 'item_count' => 7],
+            ],
+        ];
+    }
+
+    public function testLibrariesReadsTheTopLevelLibrariesList(): void
+    {
+        $transport = (new FakeTransport())->json(200, $this->librariesPayload());
+
+        $libraries = $this->await($this->clientWith($transport)->libraries());
+
+        self::assertCount(2, $libraries);
+        self::assertContainsOnlyInstancesOf(\Phlix\Console\Api\Dto\Library::class, $libraries);
+        self::assertSame('Movies', $libraries[0]->name);
+        self::assertSame(42, $libraries[0]->itemCount);
+        self::assertSame('GET', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/libraries', $transport->requestAt(0)['url']);
+    }
+
+    public function testLibrariesIgnoresAnEnvelopeDataKey(): void
+    {
+        // Regression guard: a `{data:{libraries}}` wrapper must yield an EMPTY list —
+        // the endpoint is TOP-LEVEL, so a re-introduced `['data']` read would fail.
+        $transport = (new FakeTransport())->json(200, ['data' => $this->librariesPayload()]);
+
+        $libraries = $this->await($this->clientWith($transport)->libraries());
+
+        self::assertSame([], $libraries);
+    }
+
+    public function testLibrariesSkipsNonArrayRowsAndToleratesANonListPayload(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['libraries' => 'nope']);
+        self::assertSame([], $this->await($this->clientWith($transport)->libraries()));
+
+        $transport = (new FakeTransport())->json(200, ['libraries' => [['id' => 'lib-1'], 'junk', 5]]);
+        $libraries = $this->await($this->clientWith($transport)->libraries());
+        self::assertCount(1, $libraries);
+        self::assertSame('lib-1', $libraries[0]->id);
+    }
+
+    public function testLibrariesSendsTheBearerToken(): void
+    {
+        $transport = (new FakeTransport())->json(200, $this->librariesPayload());
+
+        $this->await($this->clientWith($transport)->libraries());
+
+        self::assertSame('Bearer access-1', $transport->requestAt(0)['headers']['Authorization'] ?? null);
+    }
+
+    public function testScanLibraryPostsTheScanPathAndResolvesTheMessageOn202(): void
+    {
+        // 202 is a success (the 2xx range ApiClient::send accepts).
+        $transport = (new FakeTransport())->json(202, ['job_id' => 'job-1', 'status' => 'queued', 'message' => 'Library scan queued']);
+
+        $message = $this->await($this->clientWith($transport)->scanLibrary('lib-1'));
+
+        self::assertSame('Library scan queued', $message);
+        self::assertSame('POST', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/libraries/lib-1/scan', $transport->requestAt(0)['url']);
+    }
+
+    public function testRescanLibraryPostsTheRescanPathAndResolvesTheMessage(): void
+    {
+        $transport = (new FakeTransport())->json(202, ['job_id' => 'job-2', 'status' => 'queued', 'message' => 'Library rescan queued']);
+
+        $message = $this->await($this->clientWith($transport)->rescanLibrary('lib-1'));
+
+        self::assertSame('Library rescan queued', $message);
+        self::assertStringContainsString('/api/v1/libraries/lib-1/rescan', $transport->requestAt(0)['url']);
+    }
+
+    public function testMatchLibraryMetadataPostsTheMatchPathAndResolvesTheMessage(): void
+    {
+        $transport = (new FakeTransport())->json(202, ['job_id' => 'job-3', 'status' => 'queued', 'message' => 'Metadata match queued']);
+
+        $message = $this->await($this->clientWith($transport)->matchLibraryMetadata('lib-1'));
+
+        self::assertSame('Metadata match queued', $message);
+        self::assertStringContainsString('/api/v1/libraries/lib-1/match-metadata', $transport->requestAt(0)['url']);
+    }
+
+    public function testScanLibraryResolvesAnEmptyMessageWhenAbsent(): void
+    {
+        $transport = (new FakeTransport())->json(202, ['job_id' => 'job-1', 'status' => 'queued']);
+
+        self::assertSame('', $this->await($this->clientWith($transport)->scanLibrary('lib-1')));
+    }
+
+    public function testScanLibraryRejectsWithTheServerErrorOnA404(): void
+    {
+        $transport = (new FakeTransport())->json(404, ['error' => 'Library not found']);
+
+        $error = $this->awaitError($this->clientWith($transport)->scanLibrary('nope'));
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('Library not found', $error->getMessage());
+    }
+
+    public function testLibraryScanStatusReadsTheTopLevelScanStatus(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['scan_status' => [
+            'id' => 'job-1', 'library_id' => 'lib-1', 'type' => 'scan', 'status' => 'running',
+            'items_found' => 12, 'items_added' => 3, 'items_updated' => 1, 'items_removed' => 0,
+            'current_path' => '/media/movies/a.mkv',
+        ]]);
+
+        $job = $this->await($this->clientWith($transport)->libraryScanStatus('lib-1'));
+
+        self::assertInstanceOf(\Phlix\Console\Api\Dto\Admin\ScanJob::class, $job);
+        self::assertSame('running', $job->status);
+        self::assertSame(12, $job->itemsFound);
+        self::assertTrue($job->isActive());
+        self::assertSame('GET', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/libraries/lib-1/scan-status', $transport->requestAt(0)['url']);
+    }
+
+    public function testLibraryScanStatusResolvesNullWhenNoJobYet(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['scan_status' => null]);
+        self::assertNull($this->await($this->clientWith($transport)->libraryScanStatus('lib-1')));
+
+        // A missing key (or a non-array value) is likewise treated as "no job".
+        $transport = (new FakeTransport())->json(200, []);
+        self::assertNull($this->await($this->clientWith($transport)->libraryScanStatus('lib-1')));
+    }
+
+    public function testLibraryScanStatusRejectsWithTheServerErrorOnA404(): void
+    {
+        $transport = (new FakeTransport())->json(404, ['error' => 'Library not found']);
+
+        $error = $this->awaitError($this->clientWith($transport)->libraryScanStatus('nope'));
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('Library not found', $error->getMessage());
+    }
+
     // ---- helpers -------------------------------------------------------
 
     private function await(PromiseInterface $promise, float $timeout = 2.0): mixed
