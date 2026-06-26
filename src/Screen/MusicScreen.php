@@ -60,7 +60,7 @@ final class MusicScreen implements Breadcrumbed, Themed
     ) {
     }
 
-    public function init(): ?\Closure
+    public function init(): \Closure
     {
         return Cmd::promise(fn () => $this->music->albums()->then(
             static fn (array $albums): Msg => new AlbumsLoadedMsg($albums),

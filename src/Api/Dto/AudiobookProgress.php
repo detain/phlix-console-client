@@ -48,7 +48,7 @@ final readonly class AudiobookProgress
             userId: Coerce::str($data['user_id'] ?? ''),
             positionMs: Coerce::int($data['position_ms'] ?? null, 0),
             currentChapterIndex: Coerce::int($data['current_chapter_index'] ?? null, 0),
-            completedChapters: array_values($completed),
+            completedChapters: $completed,
             percentComplete: Coerce::float($data['percent_complete'] ?? null, 0.0),
             lastPlayedAt: Coerce::nint($data['last_played_at'] ?? null),
         );

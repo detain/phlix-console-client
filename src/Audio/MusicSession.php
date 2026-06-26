@@ -101,7 +101,7 @@ final class MusicSession implements NowPlayingSession
     /** The now-playing title — the track's title (empty when the track is gone). */
     public function title(): string
     {
-        return $this->track()?->title ?? '';
+        return $this->track()->title ?? '';
     }
 
     /**
