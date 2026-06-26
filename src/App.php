@@ -64,6 +64,7 @@ use Phlix\Console\Screen\AdminBackupScreen;
 use Phlix\Console\Screen\AdminDashboardScreen;
 use Phlix\Console\Screen\AdminDlnaScreen;
 use Phlix\Console\Screen\AdminLibrariesScreen;
+use Phlix\Console\Screen\AdminLiveTvScreen;
 use Phlix\Console\Screen\AdminLogsScreen;
 use Phlix\Console\Screen\AdminMenuScreen;
 use Phlix\Console\Screen\AdminPluginsScreen;
@@ -1228,6 +1229,11 @@ final class App implements Model
             $screen = new AdminRemoteAccessScreen(new AdminClient($this->api), $this->cols, $this->rows);
 
             return [$this->push(Route::AdminRemote, $screen), $screen->init()];
+        }
+        if ($section === Route::AdminLiveTv) {
+            $screen = new AdminLiveTvScreen(new AdminClient($this->api), $this->cols, $this->rows);
+
+            return [$this->push(Route::AdminLiveTv, $screen), $screen->init()];
         }
 
         return [$this, null];
