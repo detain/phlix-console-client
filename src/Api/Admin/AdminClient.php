@@ -6,6 +6,8 @@ namespace Phlix\Console\Api\Admin;
 
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\Dto\Admin\AdminDashboard;
+use Phlix\Console\Api\Dto\Admin\LogFile;
+use Phlix\Console\Api\Dto\Admin\LogTail;
 use Phlix\Console\Api\Dto\Coerce;
 use React\Promise\PromiseInterface;
 
@@ -24,6 +26,9 @@ final class AdminClient
 {
     /** The base path every dashboard endpoint hangs off. */
     private const DASHBOARD = '/api/v1/admin/dashboard';
+
+    /** The base path every log endpoint hangs off. */
+    private const LOGS = '/api/v1/admin/logs';
 
     public function __construct(
         private readonly ApiClient $api,
@@ -59,5 +64,74 @@ final class AdminClient
                 Coerce::map($results['activity']['data'] ?? null),
             );
         });
+    }
+
+    /**
+     * List the available server log files (most-recently-modified first, per the
+     * server). The envelope's `data.files` list is mapped through {@see LogFile};
+     * a non-list payload yields an empty list.
+     *
+     * @return PromiseInterface<list<LogFile>>
+     */
+    public function logFiles(): PromiseInterface
+    {
+        return $this->api->send('GET', self::LOGS)->then(static function (array $body): array {
+            $data = Coerce::map($body['data'] ?? null);
+
+            return self::mapList(
+                $data['files'] ?? null,
+                static fn (array $row): LogFile => LogFile::fromArray($row),
+            );
+        });
+    }
+
+    /**
+     * Tail the last $lines lines of a single log file. The returned
+     * {@see LogTail} carries the `file`, its `lines`, and a `truncated` flag.
+     *
+     * @return PromiseInterface<LogTail>
+     */
+    public function tailLog(string $file, int $lines): PromiseInterface
+    {
+        return $this->api->send('GET', self::LOGS . '/tail', ['file' => $file, 'lines' => $lines])
+            ->then(static fn (array $body): LogTail => LogTail::fromArray(Coerce::map($body['data'] ?? null)));
+    }
+
+    /**
+     * Tail the last $lines lines across *every* log file, pre-merged
+     * chronologically by the server. The returned {@see LogTail} carries the
+     * merged source `files`, the prefixed `lines`, and a `truncated` flag.
+     *
+     * @return PromiseInterface<LogTail>
+     */
+    public function tailAllLogs(int $lines): PromiseInterface
+    {
+        return $this->api->send('GET', self::LOGS . '/tail-all', ['lines' => $lines])
+            ->then(static fn (array $body): LogTail => LogTail::fromArray(Coerce::map($body['data'] ?? null)));
+    }
+
+    /**
+     * Map every array row of a loosely-typed list payload through $factory,
+     * skipping any non-array entry. Returns a re-indexed `list<T>`.
+     *
+     * @template T
+     * @param mixed                               $rows
+     * @param \Closure(array<array-key,mixed>): T $factory
+     * @return list<T>
+     */
+    private static function mapList(mixed $rows, \Closure $factory): array
+    {
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($rows as $row) {
+            if (is_array($row)) {
+                $out[] = $factory($row);
+            }
+        }
+
+        return $out;
     }
 }

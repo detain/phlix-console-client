@@ -8,6 +8,8 @@ use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\ApiError;
 use Phlix\Console\Api\Dto\Admin\AdminDashboard;
+use Phlix\Console\Api\Dto\Admin\LogFile;
+use Phlix\Console\Api\Dto\Admin\LogTail;
 use Phlix\Console\Config\TokenBundle;
 use Phlix\Console\Tests\Api\FakeTransport;
 use PHPUnit\Framework\TestCase;
@@ -131,6 +133,108 @@ final class AdminClientTest extends TestCase
             ->json(200, $this->envelope([]));
 
         $error = $this->awaitError($this->clientWith($transport)->dashboard());
+
+        self::assertInstanceOf(ApiError::class, $error);
+    }
+
+    // ---- logs ----------------------------------------------------------
+
+    public function testLogFilesMapsTheFileList(): void
+    {
+        $transport = (new FakeTransport())->json(200, $this->envelope([
+            'files' => [
+                ['name' => 'app.log', 'size' => 4096, 'modified_at' => '2026-06-26T12:00:00-04:00'],
+                ['name' => 'error.log', 'size' => 128, 'modified_at' => '2026-06-25T09:00:00-04:00'],
+            ],
+        ]));
+
+        $files = $this->await($this->clientWith($transport)->logFiles());
+
+        self::assertContainsOnlyInstancesOf(LogFile::class, $files);
+        self::assertCount(2, $files);
+        self::assertSame('app.log', $files[0]->name);
+        self::assertSame(4096, $files[0]->size);
+        self::assertStringContainsString('/api/v1/admin/logs', $transport->requestAt(0)['url']);
+    }
+
+    public function testLogFilesToleratesAMissingFilesKey(): void
+    {
+        $transport = (new FakeTransport())->json(200, $this->envelope([]));
+
+        $files = $this->await($this->clientWith($transport)->logFiles());
+
+        self::assertSame([], $files);
+    }
+
+    public function testLogFilesSkipsNonArrayRows(): void
+    {
+        $transport = (new FakeTransport())->json(200, $this->envelope([
+            'files' => [['name' => 'app.log'], 'not-an-array', 99],
+        ]));
+
+        $files = $this->await($this->clientWith($transport)->logFiles());
+
+        self::assertCount(1, $files);
+        self::assertSame('app.log', $files[0]->name);
+    }
+
+    public function testTailLogTailsASingleFileWithQuery(): void
+    {
+        $transport = (new FakeTransport())->json(200, $this->envelope([
+            'file' => 'app.log',
+            'lines' => ['hello', 'world'],
+            'truncated' => true,
+        ]));
+
+        $tail = $this->await($this->clientWith($transport)->tailLog('app.log', 200));
+
+        self::assertInstanceOf(LogTail::class, $tail);
+        self::assertSame('app.log', $tail->file);
+        self::assertSame(['hello', 'world'], $tail->lines);
+        self::assertTrue($tail->truncated);
+
+        $url = $transport->requestAt(0)['url'];
+        self::assertStringContainsString('/api/v1/admin/logs/tail', $url);
+        self::assertStringContainsString('file=app.log', $url);
+        self::assertStringContainsString('lines=200', $url);
+    }
+
+    public function testTailAllLogsMergesEveryFile(): void
+    {
+        $transport = (new FakeTransport())->json(200, $this->envelope([
+            'files' => ['app.log', 'error.log'],
+            'lines' => ['app.log    hi', 'error.log  boom'],
+            'truncated' => false,
+        ]));
+
+        $tail = $this->await($this->clientWith($transport)->tailAllLogs(50));
+
+        self::assertInstanceOf(LogTail::class, $tail);
+        self::assertNull($tail->file);
+        self::assertSame(['app.log', 'error.log'], $tail->files);
+        self::assertCount(2, $tail->lines);
+
+        $url = $transport->requestAt(0)['url'];
+        self::assertStringContainsString('/api/v1/admin/logs/tail-all', $url);
+        self::assertStringContainsString('lines=50', $url);
+    }
+
+    public function testTailLogAttachesTheBearerToken(): void
+    {
+        $transport = (new FakeTransport())->json(200, $this->envelope([
+            'file' => 'app.log', 'lines' => [], 'truncated' => false,
+        ]));
+
+        $this->await($this->clientWith($transport)->tailLog('app.log', 200));
+
+        self::assertSame('Bearer access-1', $transport->requestAt(0)['headers']['Authorization'] ?? null);
+    }
+
+    public function testTailLogRejectsOnAServerError(): void
+    {
+        $transport = (new FakeTransport())->json(404, ['error' => 'Log file not found']);
+
+        $error = $this->awaitError($this->clientWith($transport)->tailLog('missing.log', 200));
 
         self::assertInstanceOf(ApiError::class, $error);
     }

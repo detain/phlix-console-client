@@ -59,6 +59,7 @@ use Phlix\Console\Msg\ToggleMetricsMsg;
 use Phlix\Console\Msg\TrackResolvedMsg;
 use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Screen\AdminDashboardScreen;
+use Phlix\Console\Screen\AdminLogsScreen;
 use Phlix\Console\Screen\AdminMenuScreen;
 use Phlix\Console\Screen\AlbumScreen;
 use Phlix\Console\Screen\AudiobookDetailScreen;
@@ -1160,11 +1161,11 @@ final class App implements Model
     }
 
     /**
-     * Open one admin section (from the menu). Dashboard pushes the
-     * {@see AdminDashboardScreen} with an {@see AdminClient} built LOCALLY from the
-     * shared {@see ApiClient} (the App holds no AdminClient field — mirroring the
-     * BooksStore-built-locally pattern). Any not-yet-wired section is a no-op (the
-     * menu only emits available sections).
+     * Open one admin section (from the menu). Each wired section pushes its screen
+     * with an {@see AdminClient} built LOCALLY from the shared {@see ApiClient} (the
+     * App holds no AdminClient field — mirroring the BooksStore-built-locally
+     * pattern). Any not-yet-wired section is a no-op (the menu only emits available
+     * sections).
      *
      * @return array{App, ?\Closure}
      */
@@ -1174,6 +1175,11 @@ final class App implements Model
             $screen = new AdminDashboardScreen(new AdminClient($this->api), $this->cols, $this->rows);
 
             return [$this->push(Route::AdminDashboard, $screen), $screen->init()];
+        }
+        if ($section === Route::AdminLogs) {
+            $screen = new AdminLogsScreen(new AdminClient($this->api), $this->cols, $this->rows);
+
+            return [$this->push(Route::AdminLogs, $screen), $screen->init()];
         }
 
         return [$this, null];
