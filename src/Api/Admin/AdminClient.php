@@ -6,6 +6,7 @@ namespace Phlix\Console\Api\Admin;
 
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\Dto\Admin\AdminDashboard;
+use Phlix\Console\Api\Dto\Admin\AdminUser;
 use Phlix\Console\Api\Dto\Admin\LogFile;
 use Phlix\Console\Api\Dto\Admin\LogTail;
 use Phlix\Console\Api\Dto\Coerce;
@@ -29,6 +30,9 @@ final class AdminClient
 
     /** The base path every log endpoint hangs off. */
     private const LOGS = '/api/v1/admin/logs';
+
+    /** The base path every user-management endpoint hangs off. */
+    private const USERS = '/api/v1/admin/users';
 
     public function __construct(
         private readonly ApiClient $api,
@@ -108,6 +112,113 @@ final class AdminClient
     {
         return $this->api->send('GET', self::LOGS . '/tail-all', ['lines' => $lines])
             ->then(static fn (array $body): LogTail => LogTail::fromArray(Coerce::map($body['data'] ?? null)));
+    }
+
+    // ---- users ---------------------------------------------------------
+
+    /**
+     * List the server's users, optionally filtered by account status
+     * (`pending|active|disabled`; null = all). UNLIKE the dashboard endpoints, the
+     * admin `AdminUserController` returns its payload at the TOP LEVEL with NO
+     * `{success, data}` envelope (envelopes are per-controller, and the admin route
+     * group has no response-wrapping middleware), so the list is read straight from
+     * `$body['users']`. A non-list payload yields an empty list.
+     *
+     * @return PromiseInterface<list<AdminUser>>
+     */
+    public function users(?string $status = null): PromiseInterface
+    {
+        $query = $status === null ? [] : ['status' => $status];
+
+        return $this->api->send('GET', self::USERS, $query)->then(static function (array $body): array {
+            return self::mapList(
+                $body['users'] ?? null,
+                static fn (array $row): AdminUser => AdminUser::fromArray($row),
+            );
+        });
+    }
+
+    /**
+     * Approve a pending signup (status → active). Resolves the server `message`;
+     * rejects with the server `error` on 400/404 (the {@see \Phlix\Console\Api\ApiError}
+     * carries it as the exception message).
+     *
+     * @return PromiseInterface<string>
+     */
+    public function approveUser(string $id): PromiseInterface
+    {
+        return $this->userAction('POST', '/' . rawurlencode($id) . '/approve');
+    }
+
+    /**
+     * Disable a user (status → disabled). Resolves the server `message`; rejects
+     * with the server `error` on 400 (self / last admin) or 404.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function disableUser(string $id): PromiseInterface
+    {
+        return $this->userAction('POST', '/' . rawurlencode($id) . '/disable');
+    }
+
+    /**
+     * Reject (delete) a still-pending signup. Resolves the server `message`;
+     * rejects with the server `error` on 400 (already active) or 404.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function rejectUser(string $id): PromiseInterface
+    {
+        return $this->userAction('POST', '/' . rawurlencode($id) . '/reject');
+    }
+
+    /**
+     * Delete a user outright. Resolves the server `message`; rejects with the
+     * server `error` on 400 (last admin) or 404.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function deleteUser(string $id): PromiseInterface
+    {
+        return $this->userAction('DELETE', '/' . rawurlencode($id));
+    }
+
+    /**
+     * Promote/demote a user's admin flag. Resolves the server `message`; rejects
+     * with the server `error` on 400 (self / last admin) or 404.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function setUserAdmin(string $id, bool $isAdmin): PromiseInterface
+    {
+        return $this->userAction('POST', '/' . rawurlencode($id) . '/set-admin', ['is_admin' => $isAdmin]);
+    }
+
+    /**
+     * Reset a user's password to a server-generated value, shown ONCE. Resolves
+     * the `new_password` string (NOT the message — the caller reveals it); rejects
+     * with the server `error` on 404.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function resetUserPassword(string $id): PromiseInterface
+    {
+        return $this->api->send('POST', self::USERS . '/' . rawurlencode($id) . '/reset-password')
+            ->then(static fn (array $body): string => Coerce::str($body['new_password'] ?? ''));
+    }
+
+    /**
+     * Fire one mutating user action and resolve the server `message`. The shared
+     * {@see ApiClient::send()} rejects non-2xx with the server `error` carried on
+     * the {@see \Phlix\Console\Api\ApiError}, so this never has to inspect status.
+     *
+     * @param array<string,mixed>|null $body
+     * @return PromiseInterface<string>
+     */
+    private function userAction(string $method, string $suffix, ?array $body = null): PromiseInterface
+    {
+        return $this->api->send($method, self::USERS . $suffix, [], $body)
+            ->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
     }
 
     /**

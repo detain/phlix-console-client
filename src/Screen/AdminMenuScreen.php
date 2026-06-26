@@ -48,7 +48,7 @@ final class AdminMenuScreen implements Breadcrumbed, Themed
      */
     private const SECTIONS = [
         ['label' => 'Dashboard', 'route' => Route::AdminDashboard, 'available' => true],
-        ['label' => 'Users', 'route' => null, 'available' => false],
+        ['label' => 'Users', 'route' => Route::AdminUsers, 'available' => true],
         ['label' => 'Server Settings', 'route' => null, 'available' => false],
         ['label' => 'Plugins', 'route' => null, 'available' => false],
         ['label' => 'Libraries', 'route' => null, 'available' => false],

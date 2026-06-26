@@ -53,10 +53,11 @@ final class AdminMenuScreenTest extends TestCase
             array_values(array_filter($sections, static fn (array $s): bool => $s['available'])),
             'label',
         );
-        self::assertSame(['Dashboard', 'Logs'], $available, 'Dashboard and Logs are wired');
+        self::assertSame(['Dashboard', 'Users', 'Logs'], $available, 'Dashboard, Users and Logs are wired');
 
         $byLabel = array_column($sections, null, 'label');
         self::assertSame(Route::AdminDashboard, $byLabel['Dashboard']['route']);
+        self::assertSame(Route::AdminUsers, $byLabel['Users']['route']);
         self::assertSame(Route::AdminLogs, $byLabel['Logs']['route']);
     }
 
@@ -96,17 +97,30 @@ final class AdminMenuScreenTest extends TestCase
         self::assertSame(Route::AdminDashboard, $msg->section);
     }
 
-    public function testEnterOnAnUnavailableSectionEmitsAComingSoonToast(): void
+    public function testEnterOnUsersEmitsOpenAdminSectionForUsers(): void
     {
-        // Move to "Users" (index 1), which is not available.
+        // Move to "Users" (index 1), now a wired surface.
         [$onUsers] = $this->screen()->update(new KeyMsg(KeyType::Down));
 
         [, $cmd] = $onUsers->update(new KeyMsg(KeyType::Enter));
 
         $msg = $this->runCmd($cmd);
+        self::assertInstanceOf(OpenAdminSectionMsg::class, $msg);
+        self::assertSame(Route::AdminUsers, $msg->section);
+    }
+
+    public function testEnterOnAnUnavailableSectionEmitsAComingSoonToast(): void
+    {
+        // Move to "Server Settings" (index 2), which is not available.
+        [$step1] = $this->screen()->update(new KeyMsg(KeyType::Down));
+        [$onSettings] = $step1->update(new KeyMsg(KeyType::Down));
+
+        [, $cmd] = $onSettings->update(new KeyMsg(KeyType::Enter));
+
+        $msg = $this->runCmd($cmd);
         self::assertInstanceOf(ShowToastMsg::class, $msg);
         self::assertSame(ToastType::Info, $msg->type);
-        self::assertStringContainsString('Users', $msg->message);
+        self::assertStringContainsString('Server Settings', $msg->message);
         self::assertStringContainsString('coming soon', $msg->message);
     }
 

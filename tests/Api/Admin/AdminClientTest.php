@@ -8,6 +8,7 @@ use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\ApiError;
 use Phlix\Console\Api\Dto\Admin\AdminDashboard;
+use Phlix\Console\Api\Dto\Admin\AdminUser;
 use Phlix\Console\Api\Dto\Admin\LogFile;
 use Phlix\Console\Api\Dto\Admin\LogTail;
 use Phlix\Console\Config\TokenBundle;
@@ -237,6 +238,163 @@ final class AdminClientTest extends TestCase
         $error = $this->awaitError($this->clientWith($transport)->tailLog('missing.log', 200));
 
         self::assertInstanceOf(ApiError::class, $error);
+    }
+
+    // ---- users ---------------------------------------------------------
+
+    public function testUsersMapsTheUserList(): void
+    {
+        // The real AdminUserController returns the list at the TOP LEVEL, with NO
+        // {success, data} envelope (envelopes are per-controller).
+        $transport = (new FakeTransport())->json(200, [
+            'users' => [
+                ['id' => 'u-1', 'username' => 'bob', 'email' => 'bob@x', 'is_admin' => 1, 'status' => 'active', 'last_login' => '2026-06-26'],
+                ['id' => 'u-2', 'username' => 'amy', 'email' => 'amy@x', 'is_admin' => 0, 'status' => 'pending'],
+            ],
+        ]);
+
+        $users = $this->await($this->clientWith($transport)->users());
+
+        self::assertContainsOnlyInstancesOf(AdminUser::class, $users);
+        self::assertCount(2, $users);
+        self::assertSame('bob', $users[0]->username);
+        self::assertTrue($users[0]->isAdmin);
+        self::assertSame('pending', $users[1]->status);
+        self::assertStringContainsString('/api/v1/admin/users', $transport->requestAt(0)['url']);
+        // No status query when none is requested.
+        self::assertStringNotContainsString('status=', $transport->requestAt(0)['url']);
+    }
+
+    public function testUsersAppliesTheStatusFilterQuery(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['users' => []]);
+
+        $this->await($this->clientWith($transport)->users('pending'));
+
+        self::assertStringContainsString('status=pending', $transport->requestAt(0)['url']);
+    }
+
+    public function testUsersToleratesAMissingUsersKey(): void
+    {
+        $transport = (new FakeTransport())->json(200, []);
+
+        $users = $this->await($this->clientWith($transport)->users());
+
+        self::assertSame([], $users);
+    }
+
+    public function testUsersIgnoresAnEnvelopeDataKey(): void
+    {
+        // Guard against regressing to the dashboard-style `{success, data:{users}}`
+        // read: the real users endpoint is top-level, so a `data` wrapper must NOT
+        // be where the list is found.
+        $transport = (new FakeTransport())->json(200, [
+            'data' => ['users' => [['id' => 'u-9', 'username' => 'ghost']]],
+        ]);
+
+        $users = $this->await($this->clientWith($transport)->users());
+
+        self::assertSame([], $users, 'the list is read top-level, not from data');
+    }
+
+    public function testUsersSkipsNonArrayRows(): void
+    {
+        $transport = (new FakeTransport())->json(200, [
+            'users' => [['id' => 'u-1', 'username' => 'bob'], 'nope', 7],
+        ]);
+
+        $users = $this->await($this->clientWith($transport)->users());
+
+        self::assertCount(1, $users);
+        self::assertSame('bob', $users[0]->username);
+    }
+
+    public function testApproveUserPostsAndResolvesTheMessage(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['message' => 'User approved successfully']);
+
+        $message = $this->await($this->clientWith($transport)->approveUser('u-1'));
+
+        self::assertSame('User approved successfully', $message);
+        self::assertSame('POST', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/users/u-1/approve', $transport->requestAt(0)['url']);
+    }
+
+    public function testDisableUserResolvesTheMessage(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['message' => 'User disabled successfully']);
+
+        $message = $this->await($this->clientWith($transport)->disableUser('u-1'));
+
+        self::assertSame('User disabled successfully', $message);
+        self::assertStringContainsString('/api/v1/admin/users/u-1/disable', $transport->requestAt(0)['url']);
+    }
+
+    public function testRejectUserResolvesTheMessage(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['message' => 'User rejected successfully']);
+
+        $message = $this->await($this->clientWith($transport)->rejectUser('u-1'));
+
+        self::assertSame('User rejected successfully', $message);
+        self::assertStringContainsString('/api/v1/admin/users/u-1/reject', $transport->requestAt(0)['url']);
+    }
+
+    public function testDeleteUserSendsADeleteAndResolvesTheMessage(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['message' => 'User deleted successfully']);
+
+        $message = $this->await($this->clientWith($transport)->deleteUser('u-1'));
+
+        self::assertSame('User deleted successfully', $message);
+        self::assertSame('DELETE', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/users/u-1', $transport->requestAt(0)['url']);
+    }
+
+    public function testSetUserAdminSendsTheBoolFlagInTheBody(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['message' => 'User admin status updated successfully']);
+
+        $message = $this->await($this->clientWith($transport)->setUserAdmin('u-1', true));
+
+        self::assertSame('User admin status updated successfully', $message);
+        self::assertStringContainsString('/api/v1/admin/users/u-1/set-admin', $transport->requestAt(0)['url']);
+        /** @var array<string,mixed> $body */
+        $body = json_decode($transport->requestAt(0)['body'], true);
+        self::assertTrue($body['is_admin']);
+    }
+
+    public function testResetUserPasswordResolvesTheNewPassword(): void
+    {
+        $transport = (new FakeTransport())->json(200, [
+            'message' => 'Password reset successfully',
+            'new_password' => 'Hunter2!xyz',
+        ]);
+
+        $password = $this->await($this->clientWith($transport)->resetUserPassword('u-1'));
+
+        self::assertSame('Hunter2!xyz', $password);
+        self::assertStringContainsString('/api/v1/admin/users/u-1/reset-password', $transport->requestAt(0)['url']);
+    }
+
+    public function testAUserActionRejectsWithTheServerErrorOnA400(): void
+    {
+        $transport = (new FakeTransport())->json(400, ['error' => 'Cannot disable the last admin']);
+
+        $error = $this->awaitError($this->clientWith($transport)->disableUser('u-1'));
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('Cannot disable the last admin', $error->getMessage());
+    }
+
+    public function testAUserActionRejectsWithTheServerErrorOnA404(): void
+    {
+        $transport = (new FakeTransport())->json(404, ['error' => 'User not found']);
+
+        $error = $this->awaitError($this->clientWith($transport)->approveUser('missing'));
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('User not found', $error->getMessage());
     }
 
     // ---- helpers -------------------------------------------------------
