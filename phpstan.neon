@@ -4,6 +4,3 @@ parameters:
     paths:
         - src
     tmpDir: .phpstan.cache
-
-includes:
-    - phpstan-baseline.neon

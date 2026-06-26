@@ -86,6 +86,7 @@ final class SearchScreen implements Breadcrumbed, CapturesSlash, Loadable, Shimm
         return null; // nothing to fetch until the user types
     }
 
+    /** @return array{self, ?\Closure} */
     public function update(Msg $msg): array
     {
         if ($msg instanceof WindowSizeMsg) {
@@ -149,6 +150,7 @@ final class SearchScreen implements Breadcrumbed, CapturesSlash, Loadable, Shimm
 
     // ---- input ---------------------------------------------------------
 
+    /** @return array{self, ?\Closure} */
     private function handleKey(KeyMsg $msg): array
     {
         if ($msg->type === KeyType::Escape) {
@@ -191,7 +193,11 @@ final class SearchScreen implements Breadcrumbed, CapturesSlash, Loadable, Shimm
         return $this->afterGridChange($grid);
     }
 
-    /** Edit the query text and (re)arm the debounce timer. */
+    /**
+     * Edit the query text and (re)arm the debounce timer.
+     *
+     * @return array{self, ?\Closure}
+     */
     private function editSearch(string $text): array
     {
         $next = clone $this;
@@ -202,7 +208,11 @@ final class SearchScreen implements Breadcrumbed, CapturesSlash, Loadable, Shimm
         return [$next, Cmd::tick(self::SEARCH_DEBOUNCE, static fn (): Msg => new SearchDebouncedMsg($seq))];
     }
 
-    /** Apply the debounced query: rebuild it, reset the grid, refetch. */
+    /**
+     * Apply the debounced query: rebuild it, reset the grid, refetch.
+     *
+     * @return array{self, ?\Closure}
+     */
     private function applySearch(): array
     {
         $next = clone $this;
@@ -237,6 +247,7 @@ final class SearchScreen implements Breadcrumbed, CapturesSlash, Loadable, Shimm
 
     // ---- data ----------------------------------------------------------
 
+    /** @return array{self, ?\Closure} */
     private function afterGridChange(PosterGrid $grid): array
     {
         [$start, $end] = $grid->visibleRange(self::OVERSCAN);
@@ -259,6 +270,7 @@ final class SearchScreen implements Breadcrumbed, CapturesSlash, Loadable, Shimm
         return [$next, $cmds === [] ? null : Cmd::batch(...$cmds)];
     }
 
+    /** @return array{self, ?\Closure} */
     private function onRange(MediaRange $range, int $generation): array
     {
         if ($generation !== $this->generation) {
@@ -353,6 +365,7 @@ final class SearchScreen implements Breadcrumbed, CapturesSlash, Loadable, Shimm
         return $cards;
     }
 
+    /** @return array{self, ?\Closure} */
     private function onResize(int $cols, int $rows): array
     {
         $grid = $this->grid->withViewport(self::viewportCols($cols), self::viewportRows($rows));

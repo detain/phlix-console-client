@@ -79,6 +79,7 @@ final class PhotoAlbumScreen implements Breadcrumbed, Themed
         return $this->loadCoversIn($this->grid, ...$this->grid->visibleRange(self::OVERSCAN));
     }
 
+    /** @return array{self, ?\Closure} */
     public function update(Msg $msg): array
     {
         if ($msg instanceof WindowSizeMsg) {
@@ -110,6 +111,7 @@ final class PhotoAlbumScreen implements Breadcrumbed, Themed
 
     // ---- input ---------------------------------------------------------
 
+    /** @return array{self, ?\Closure} */
     private function handleKey(KeyMsg $msg): array
     {
         if ($msg->type === KeyType::Escape) {
@@ -142,6 +144,7 @@ final class PhotoAlbumScreen implements Breadcrumbed, Themed
         return $this->afterGridChange($grid);
     }
 
+    /** @return array{self, ?\Closure} */
     private function onResize(int $cols, int $rows): array
     {
         $grid = $this->grid->withViewport(self::viewportCols($cols), self::viewportRows($rows));
@@ -160,6 +163,8 @@ final class PhotoAlbumScreen implements Breadcrumbed, Themed
      * After the grid's cursor/viewport moved: load thumbnails for the cells now
      * on screen. All photo data is already in memory, so there is NO fetch — only
      * the lazy thumbnail render for newly-visible cells.
+     *
+     * @return array{self, ?\Closure}
      */
     private function afterGridChange(PosterGrid $grid): array
     {

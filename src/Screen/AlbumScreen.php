@@ -65,6 +65,7 @@ final class AlbumScreen implements Breadcrumbed, Themed
         return null; // the Album already carries its tracks
     }
 
+    /** @return array{self, ?\Closure} */
     public function update(Msg $msg): array
     {
         if ($msg instanceof WindowSizeMsg) {
@@ -84,6 +85,7 @@ final class AlbumScreen implements Breadcrumbed, Themed
 
     // ---- input ---------------------------------------------------------
 
+    /** @return array{self, ?\Closure} */
     private function handleKey(KeyMsg $msg): array
     {
         if ($msg->type === KeyType::Escape || ($msg->type === KeyType::Char && $msg->rune === 'q')) {
@@ -113,7 +115,11 @@ final class AlbumScreen implements Breadcrumbed, Themed
         return [$this, null];
     }
 
-    /** Enter on the selected track: ask the App to play it (a no-op on an empty album). */
+    /**
+     * Enter on the selected track: ask the App to play it (a no-op on an empty album).
+     *
+     * @return array{self, ?\Closure}
+     */
     private function onEnter(): array
     {
         if ($this->album->tracks === []) {

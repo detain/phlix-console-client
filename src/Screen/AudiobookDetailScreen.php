@@ -98,6 +98,7 @@ final class AudiobookDetailScreen implements Breadcrumbed, Themed
         return Cmd::batch($this->fetchDetail(), $this->fetchChapters(), $this->fetchProgress());
     }
 
+    /** @return array{self, ?\Closure} */
     public function update(Msg $msg): array
     {
         if ($msg instanceof WindowSizeMsg) {
@@ -176,6 +177,7 @@ final class AudiobookDetailScreen implements Breadcrumbed, Themed
 
     // ---- input ---------------------------------------------------------
 
+    /** @return array{self, ?\Closure} */
     private function handleKey(KeyMsg $msg): array
     {
         if ($msg->type === KeyType::Escape || ($msg->type === KeyType::Char && $msg->rune === 'q')) {
@@ -209,6 +211,8 @@ final class AudiobookDetailScreen implements Breadcrumbed, Themed
      * Emit a {@see PlayAudiobookMsg} for the App to play/seek the audiobook at
      * $startMs. A no-op (no Msg) until the audiobook detail (with its stream URL)
      * has loaded — the App also guards a missing URL with an error toast.
+     *
+     * @return array{self, ?\Closure}
      */
     private function play(int $startMs): array
     {
