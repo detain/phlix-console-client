@@ -33,5 +33,6 @@ enum Route
     case Admin;
     case AdminDashboard;
     case AdminUsers;
+    case AdminPlugins;
     case AdminLogs;
 }

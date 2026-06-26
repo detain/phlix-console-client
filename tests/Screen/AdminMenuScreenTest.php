@@ -53,11 +53,12 @@ final class AdminMenuScreenTest extends TestCase
             array_values(array_filter($sections, static fn (array $s): bool => $s['available'])),
             'label',
         );
-        self::assertSame(['Dashboard', 'Users', 'Logs'], $available, 'Dashboard, Users and Logs are wired');
+        self::assertSame(['Dashboard', 'Users', 'Plugins', 'Logs'], $available, 'Dashboard, Users, Plugins and Logs are wired');
 
         $byLabel = array_column($sections, null, 'label');
         self::assertSame(Route::AdminDashboard, $byLabel['Dashboard']['route']);
         self::assertSame(Route::AdminUsers, $byLabel['Users']['route']);
+        self::assertSame(Route::AdminPlugins, $byLabel['Plugins']['route']);
         self::assertSame(Route::AdminLogs, $byLabel['Logs']['route']);
     }
 
@@ -107,6 +108,22 @@ final class AdminMenuScreenTest extends TestCase
         $msg = $this->runCmd($cmd);
         self::assertInstanceOf(OpenAdminSectionMsg::class, $msg);
         self::assertSame(Route::AdminUsers, $msg->section);
+    }
+
+    public function testEnterOnPluginsEmitsOpenAdminSectionForPlugins(): void
+    {
+        // Move to "Plugins" (index 3), now a wired surface.
+        $screen = $this->screen();
+        for ($i = 0; $i < 3; $i++) {
+            [$screen] = $screen->update(new KeyMsg(KeyType::Down));
+        }
+        self::assertSame('Plugins', $screen->selectedLabel());
+
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Enter));
+
+        $msg = $this->runCmd($cmd);
+        self::assertInstanceOf(OpenAdminSectionMsg::class, $msg);
+        self::assertSame(Route::AdminPlugins, $msg->section);
     }
 
     public function testEnterOnAnUnavailableSectionEmitsAComingSoonToast(): void

@@ -61,6 +61,7 @@ use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Screen\AdminDashboardScreen;
 use Phlix\Console\Screen\AdminLogsScreen;
 use Phlix\Console\Screen\AdminMenuScreen;
+use Phlix\Console\Screen\AdminPluginsScreen;
 use Phlix\Console\Screen\AdminUsersScreen;
 use Phlix\Console\Screen\AlbumScreen;
 use Phlix\Console\Screen\AudiobookDetailScreen;
@@ -1181,6 +1182,11 @@ final class App implements Model
             $screen = new AdminUsersScreen(new AdminClient($this->api), $this->cols, $this->rows);
 
             return [$this->push(Route::AdminUsers, $screen), $screen->init()];
+        }
+        if ($section === Route::AdminPlugins) {
+            $screen = new AdminPluginsScreen(new AdminClient($this->api), $this->cols, $this->rows);
+
+            return [$this->push(Route::AdminPlugins, $screen), $screen->init()];
         }
         if ($section === Route::AdminLogs) {
             $screen = new AdminLogsScreen(new AdminClient($this->api), $this->cols, $this->rows);
