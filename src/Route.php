@@ -30,4 +30,6 @@ enum Route
     case Photos;
     case PhotoAlbum;
     case PhotoViewer;
+    case Admin;
+    case AdminDashboard;
 }

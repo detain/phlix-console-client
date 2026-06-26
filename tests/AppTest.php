@@ -28,6 +28,8 @@ use Phlix\Console\Msg\LoginSucceededMsg;
 use Phlix\Console\Msg\MediaRangeLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\NowPlayingTickMsg;
+use Phlix\Console\Msg\OpenAdminMsg;
+use Phlix\Console\Msg\OpenAdminSectionMsg;
 use Phlix\Console\Msg\OpenAlbumMsg;
 use Phlix\Console\Msg\OpenAudiobookMsg;
 use Phlix\Console\Msg\OpenBookMsg;
@@ -56,6 +58,8 @@ use Phlix\Console\Msg\ToggleAudioMsg;
 use Phlix\Console\Msg\ToggleMetricsMsg;
 use Phlix\Console\Msg\TrackResolvedMsg;
 use Phlix\Console\Route;
+use Phlix\Console\Screen\AdminDashboardScreen;
+use Phlix\Console\Screen\AdminMenuScreen;
 use Phlix\Console\Screen\AlbumScreen;
 use Phlix\Console\Screen\AudiobookDetailScreen;
 use Phlix\Console\Screen\AudiobooksScreen;
@@ -1413,6 +1417,94 @@ final class AppTest extends TestCase
         self::assertInstanceOf(StatsScreen::class, $stats->screen());
         self::assertSame(2, $stats->stackDepth(), 'stats is pushed onto Browse');
         self::assertInstanceOf(\Closure::class, $cmd, 'the stats screen fetches the libraries on push');
+    }
+
+    // ---- admin -----------------------------------------------------------
+
+    /**
+     * An App whose AuthStore holds a logged-in user with the given admin flag —
+     * the gate the Admin palette action reads. Login flows through the real
+     * AuthStore (over a FakeTransport) so `currentUser()` is populated; the App
+     * shares that same AuthStore instance.
+     *
+     * @return array{App, ApiClient}
+     */
+    private function appWithAdminUser(bool $isAdmin): array
+    {
+        $transport = (new FakeTransport())->json(200, [
+            'access_token' => 'a', 'refresh_token' => 'r', 'token_type' => 'Bearer', 'expires_in' => 3600,
+            'user' => ['id' => 'u1', 'username' => 'root', 'is_admin' => $isAdmin ? 1 : 0, 'status' => 'active'],
+        ]);
+        [$app, $auth, $api] = $this->makeApp('https://srv', $transport);
+
+        // Populate AuthStore::currentUser() via the real login path.
+        $this->await($auth->login('root', 'secret'));
+
+        // Move onto Browse so the palette opens over an authed screen.
+        [$browse] = $app->update(new LoginSucceededMsg($auth->currentUser() ?? AuthUser::fromArray([])));
+
+        return [$browse, $api];
+    }
+
+    public function testThePaletteOffersAdminOnlyToAnAdminUser(): void
+    {
+        [$adminApp] = $this->appWithAdminUser(true);
+        [$open] = $adminApp->update($this->ctrlK());
+        $labels = array_map(static fn ($a): string => $a->label, $open->palette()->actions());
+        self::assertContains('Admin', $labels, 'an admin sees the Admin action');
+    }
+
+    public function testThePaletteHidesAdminFromANonAdminUser(): void
+    {
+        [$plainApp] = $this->appWithAdminUser(false);
+        [$open] = $plainApp->update($this->ctrlK());
+        $labels = array_map(static fn ($a): string => $a->label, $open->palette()->actions());
+        self::assertNotContains('Admin', $labels, 'a non-admin never sees the Admin action');
+    }
+
+    public function testThePaletteHidesAdminWhenLoggedOut(): void
+    {
+        // paletteApp() has no current user, so the gate is false.
+        [$open] = $this->paletteApp()->update($this->ctrlK());
+        $labels = array_map(static fn ($a): string => $a->label, $open->palette()->actions());
+        self::assertNotContains('Admin', $labels);
+    }
+
+    public function testOpenAdminPushesTheAdminMenuScreen(): void
+    {
+        [$adminApp] = $this->appWithAdminUser(true);
+
+        [$admin, $cmd] = $adminApp->update(new OpenAdminMsg());
+
+        self::assertSame(Route::Admin, $admin->route());
+        self::assertInstanceOf(AdminMenuScreen::class, $admin->screen());
+        self::assertSame(2, $admin->stackDepth(), 'the admin menu is pushed onto Browse');
+        self::assertNull($cmd, 'the admin menu has no fetch on push');
+    }
+
+    public function testOpenAdminSectionDashboardPushesTheDashboardScreenWithAFetch(): void
+    {
+        [$adminApp] = $this->appWithAdminUser(true);
+        [$admin] = $adminApp->update(new OpenAdminMsg());
+
+        [$dashboard, $cmd] = $admin->update(new OpenAdminSectionMsg(Route::AdminDashboard));
+
+        self::assertSame(Route::AdminDashboard, $dashboard->route());
+        self::assertInstanceOf(AdminDashboardScreen::class, $dashboard->screen());
+        self::assertSame(3, $dashboard->stackDepth(), 'the dashboard is pushed onto the admin menu');
+        self::assertInstanceOf(\Closure::class, $cmd, 'the dashboard fetches on push');
+    }
+
+    public function testOpenAdminSectionForAnUnwiredSectionIsANoOp(): void
+    {
+        [$adminApp] = $this->appWithAdminUser(true);
+        [$admin] = $adminApp->update(new OpenAdminMsg());
+
+        // Route::Admin is not a section destination — the handler is a no-op.
+        [$same, $cmd] = $admin->update(new OpenAdminSectionMsg(Route::Admin));
+
+        self::assertSame(2, $same->stackDepth(), 'no section screen is pushed');
+        self::assertNull($cmd);
     }
 
     // ---- music audio (App-owned session) -------------------------------
