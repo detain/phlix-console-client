@@ -1,0 +1,21 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Phlix\Console\Msg;
+
+use Phlix\Console\Api\Dto\Admin\Channel;
+use SugarCraft\Core\Msg;
+
+/**
+ * The Live-TV channel list arrived — the AdminLiveTvScreen caches it into the
+ * Channels section and renders the windowed table.
+ */
+final readonly class AdminLiveTvChannelsLoadedMsg implements Msg
+{
+    /** @param list<Channel> $channels */
+    public function __construct(
+        public array $channels,
+    ) {
+    }
+}

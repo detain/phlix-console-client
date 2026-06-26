@@ -61,6 +61,7 @@ use Phlix\Console\Msg\TrackResolvedMsg;
 use Phlix\Console\Route;
 use Phlix\Console\Screen\AdminBackupScreen;
 use Phlix\Console\Screen\AdminLibrariesScreen;
+use Phlix\Console\Screen\AdminLiveTvScreen;
 use Phlix\Console\Screen\AdminDashboardScreen;
 use Phlix\Console\Screen\AdminDlnaScreen;
 use Phlix\Console\Screen\AdminRemoteAccessScreen;
@@ -1626,6 +1627,19 @@ final class AppTest extends TestCase
         self::assertInstanceOf(AdminRemoteAccessScreen::class, $remote->screen());
         self::assertSame(3, $remote->stackDepth(), 'the remote-access screen is pushed onto the admin menu');
         self::assertInstanceOf(\Closure::class, $cmd, 'the remote-access screen fetches the statuses on push');
+    }
+
+    public function testOpenAdminSectionLiveTvPushesTheLiveTvScreenWithAFetch(): void
+    {
+        [$adminApp] = $this->appWithAdminUser(true);
+        [$admin] = $adminApp->update(new OpenAdminMsg());
+
+        [$livetv, $cmd] = $admin->update(new OpenAdminSectionMsg(Route::AdminLiveTv));
+
+        self::assertSame(Route::AdminLiveTv, $livetv->route());
+        self::assertInstanceOf(AdminLiveTvScreen::class, $livetv->screen());
+        self::assertSame(3, $livetv->stackDepth(), 'the Live TV screen is pushed onto the admin menu');
+        self::assertInstanceOf(\Closure::class, $cmd, 'the Live TV screen fetches the tuners on push');
     }
 
     public function testOpenAdminSectionForAnUnwiredSectionIsANoOp(): void
