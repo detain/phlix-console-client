@@ -75,6 +75,7 @@ final class MediaStore
             return $this->inFlight[$key];
         }
 
+        /** @var Deferred<MediaPage> $deferred */
         $deferred = new Deferred();
         $this->inFlight[$key] = $deferred->promise();
 
@@ -112,6 +113,7 @@ final class MediaStore
             return $this->itemsInFlight[$id];
         }
 
+        /** @var Deferred<MediaItem> $deferred */
         $deferred = new Deferred();
         $this->itemsInFlight[$id] = $deferred->promise();
 

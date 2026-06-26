@@ -68,6 +68,7 @@ final class PhotosStore
         // Drive a Deferred so the in-flight guard is registered before the inner
         // request can settle (react may resolve synchronously) and cleared
         // exactly once on settle/reject.
+        /** @var Deferred<list<PhotoAlbum>> $deferred */
         $deferred = new Deferred();
         $this->albumsInFlight[$libraryId] = $deferred->promise();
 
@@ -104,6 +105,7 @@ final class PhotosStore
             return $this->photosInFlight[$id];
         }
 
+        /** @var Deferred<Photo> $deferred */
         $deferred = new Deferred();
         $this->photosInFlight[$id] = $deferred->promise();
 

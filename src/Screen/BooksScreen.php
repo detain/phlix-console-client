@@ -18,6 +18,7 @@ use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Store\BooksStore;
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\Skeleton;
+use React\Promise\PromiseInterface;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Msg;
@@ -26,6 +27,8 @@ use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\SubscriptionCapable;
 use SugarCraft\Gallery\PosterCard;
 use SugarCraft\Gallery\PosterGrid;
+
+use function React\Promise\resolve;
 
 /**
  * A `book`-type library's grid: a 2-D virtualized {@see PosterGrid} over the
@@ -288,9 +291,9 @@ final class BooksScreen implements Breadcrumbed, Loadable, Shimmering, Themed
     private function loadCover(int $index, string $bookId): \Closure
     {
         return Cmd::promise(fn () => $this->books->book($bookId)->then(
-            function (Book $book): mixed {
+            function (Book $book): PromiseInterface {
                 if ($book->coverUrl === null) {
-                    return null; // no cover → keep the placeholder
+                    return resolve(null); // no cover → keep the placeholder
                 }
 
                 return $this->posters->load($this->resolveUrl($book->coverUrl), self::CARD_WIDTH, self::POSTER_HEIGHT);

@@ -58,6 +58,7 @@ final class MusicStore
         // Drive a Deferred so the in-flight guard is registered before the inner
         // request can settle (react may resolve synchronously) and cleared
         // exactly once on settle/reject.
+        /** @var Deferred<list<Album>> $deferred */
         $deferred = new Deferred();
         $this->inFlight = $deferred->promise();
 

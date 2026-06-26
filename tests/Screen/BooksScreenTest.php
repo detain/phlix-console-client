@@ -395,6 +395,32 @@ final class BooksScreenTest extends TestCase
         self::assertFalse($loaded->grid()->item(0)?->hasPoster(), 'the cell keeps its placeholder');
     }
 
+    public function testLazyCoverWithANullCoverUrlSettlesTheChainToANullMsg(): void
+    {
+        // Pins the C4 `return resolve(null)` branch: a detail row whose cover_url
+        // is null makes the FIRST then() return resolve(null) (a thenable), so the
+        // SECOND then() receives $ansi === null and yields no message — the whole
+        // per-cell cover Cmd settles to null (not a GridPosterLoadedMsg, not an
+        // unhandled rejection). Asserting the settled value (null) directly proves
+        // the resolve(null) thenable propagated, not merely that a batch was empty.
+        $transport = (new FakeTransport())
+            ->json(200, $this->booksPage(0, 1, 50))
+            ->json(200, $this->bookDetail('0', null));
+        $screen = $this->screenWith($transport, 1);
+
+        $range = $this->runBatch($screen->init())[0];
+        [, $coverCmd] = $screen->update($range);
+        self::assertInstanceOf(\Closure::class, $coverCmd, 'a cover-less cell still triggers a lazy cover load');
+
+        // The cover Cmd is a Cmd::batch over the single visible cell; unwrap it to
+        // the lone per-cell cover promise and await it: the resolve(null) branch
+        // makes the chain settle to a null Msg.
+        $batch = $coverCmd();
+        self::assertInstanceOf(BatchMsg::class, $batch);
+        self::assertCount(1, $batch->cmds, 'exactly one cover load for the single book');
+        self::assertNull($this->runCmd($batch->cmds[0]), 'the null-cover chain settles to a null Msg, keeping the placeholder');
+    }
+
     public function testLazyCoverFailureIsSwallowed(): void
     {
         // The book-detail fetch itself fails → the cover load is best-effort and
