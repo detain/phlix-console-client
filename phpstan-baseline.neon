@@ -13,12 +13,6 @@ parameters:
 			path: src/Api/ApiClient.php
 
 		-
-			message: '#^Parameter \#1 \$array \(list\<int\>\) of array_values is already a list, call has no effect\.$#'
-			identifier: arrayValues.list
-			count: 1
-			path: src/Api/ApiClient.php
-
-		-
 			message: '#^Parameter \#1 \$data of static method Phlix\\Console\\Api\\Dto\\Album\:\:fromArray\(\) expects array\<string, mixed\>, array\<mixed, mixed\> given\.$#'
 			identifier: argument.type
 			count: 1
@@ -61,12 +55,6 @@ parameters:
 			path: src/Api/ApiClient.php
 
 		-
-			message: '#^Using nullsafe property access "\?\-\>refreshToken" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
-			identifier: nullsafe.neverNull
-			count: 1
-			path: src/Api/ApiClient.php
-
-		-
 			message: '#^Parameter \#1 \$data of static method Phlix\\Console\\Api\\Dto\\Track\:\:fromArray\(\) expects array\<string, mixed\>, array\<mixed, mixed\> given\.$#'
 			identifier: argument.type
 			count: 1
@@ -77,12 +65,6 @@ parameters:
 			identifier: argument.type
 			count: 1
 			path: src/Api/Dto/AudiobookPage.php
-
-		-
-			message: '#^Parameter \#1 \$array \(list\<int\>\) of array_values is already a list, call has no effect\.$#'
-			identifier: arrayValues.list
-			count: 1
-			path: src/Api/Dto/AudiobookProgress.php
 
 		-
 			message: '#^Parameter \#1 \$data of static method Phlix\\Console\\Api\\Dto\\Book\:\:fromArray\(\) expects array\<string, mixed\>, array\<mixed, mixed\> given\.$#'
@@ -125,18 +107,6 @@ parameters:
 			identifier: argument.type
 			count: 1
 			path: src/Api/Dto/PlaybackMarkers.php
-
-		-
-			message: '#^Parameter \#1 \$array \(non\-empty\-list\<string\>\) of array_values is already a list, call has no effect\.$#'
-			identifier: arrayValues.list
-			count: 3
-			path: src/Api/MediaQuery.php
-
-		-
-			message: '#^Anonymous function never returns null so it can be removed from the return type\.$#'
-			identifier: return.unusedType
-			count: 1
-			path: src/App.php
 
 		-
 			message: '#^Method Phlix\\Console\\App\:\:baseView\(\) should return string but returns string\|SugarCraft\\Core\\View\.$#'
@@ -361,18 +331,6 @@ parameters:
 			path: src/App.php
 
 		-
-			message: '#^Strict comparison using \!\=\= between array\{route\: Phlix\\Console\\Route, screen\: SugarCraft\\Core\\Model\} and null will always evaluate to true\.$#'
-			identifier: notIdentical.alwaysTrue
-			count: 1
-			path: src/App.php
-
-		-
-			message: '#^Using nullsafe property access "\?\-\>title" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
-			identifier: nullsafe.neverNull
-			count: 1
-			path: src/Audio/MusicSession.php
-
-		-
 			message: '#^Parameter \#1 \$data of static method Phlix\\Console\\Config\\TokenBundle\:\:fromArray\(\) expects array\<string, mixed\>, array\<mixed, mixed\> given\.$#'
 			identifier: argument.type
 			count: 1
@@ -403,12 +361,6 @@ parameters:
 			path: src/Screen/AudiobookDetailScreen.php
 
 		-
-			message: '#^Method Phlix\\Console\\Screen\\AudiobookDetailScreen\:\:init\(\) never returns null so it can be removed from the return type\.$#'
-			identifier: return.unusedType
-			count: 1
-			path: src/Screen/AudiobookDetailScreen.php
-
-		-
 			message: '#^Method Phlix\\Console\\Screen\\AudiobookDetailScreen\:\:play\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -421,20 +373,8 @@ parameters:
 			path: src/Screen/AudiobookDetailScreen.php
 
 		-
-			message: '#^Using nullsafe property access "\?\-\>title" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
-			identifier: nullsafe.neverNull
-			count: 1
-			path: src/Screen/AudiobookDetailScreen.php
-
-		-
 			message: '#^Method Phlix\\Console\\Screen\\AudiobooksScreen\:\:handleKey\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
-			count: 1
-			path: src/Screen/AudiobooksScreen.php
-
-		-
-			message: '#^Method Phlix\\Console\\Screen\\AudiobooksScreen\:\:init\(\) never returns null so it can be removed from the return type\.$#'
-			identifier: return.unusedType
 			count: 1
 			path: src/Screen/AudiobooksScreen.php
 
@@ -443,12 +383,6 @@ parameters:
 			identifier: return.type
 			count: 1
 			path: src/Screen/AudiobooksScreen.php
-
-		-
-			message: '#^Method Phlix\\Console\\Screen\\BookDetailScreen\:\:init\(\) never returns null so it can be removed from the return type\.$#'
-			identifier: return.unusedType
-			count: 1
-			path: src/Screen/BookDetailScreen.php
 
 		-
 			message: '#^Method Phlix\\Console\\Screen\\BookDetailScreen\:\:onLoaded\(\) return type has no value type specified in iterable type array\.$#'
@@ -463,12 +397,6 @@ parameters:
 			path: src/Screen/BookDetailScreen.php
 
 		-
-			message: '#^Using nullsafe property access "\?\-\>title" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
-			identifier: nullsafe.neverNull
-			count: 1
-			path: src/Screen/BookDetailScreen.php
-
-		-
 			message: '#^Method Phlix\\Console\\Screen\\BooksScreen\:\:afterGridChange\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -477,12 +405,6 @@ parameters:
 		-
 			message: '#^Method Phlix\\Console\\Screen\\BooksScreen\:\:handleKey\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
-			count: 1
-			path: src/Screen/BooksScreen.php
-
-		-
-			message: '#^Method Phlix\\Console\\Screen\\BooksScreen\:\:init\(\) never returns null so it can be removed from the return type\.$#'
-			identifier: return.unusedType
 			count: 1
 			path: src/Screen/BooksScreen.php
 
@@ -511,12 +433,6 @@ parameters:
 			path: src/Screen/BooksScreen.php
 
 		-
-			message: '#^Anonymous function never returns null so it can be removed from the return type\.$#'
-			identifier: return.unusedType
-			count: 2
-			path: src/Screen/BrowseScreen.php
-
-		-
 			message: '#^Method Phlix\\Console\\Screen\\BrowseScreen\:\:handleKey\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -531,12 +447,6 @@ parameters:
 		-
 			message: '#^Method Phlix\\Console\\Screen\\BrowseScreen\:\:handleSidebarKey\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
-			count: 1
-			path: src/Screen/BrowseScreen.php
-
-		-
-			message: '#^Method Phlix\\Console\\Screen\\BrowseScreen\:\:init\(\) never returns null so it can be removed from the return type\.$#'
-			identifier: return.unusedType
 			count: 1
 			path: src/Screen/BrowseScreen.php
 
@@ -601,12 +511,6 @@ parameters:
 			path: src/Screen/DetailScreen.php
 
 		-
-			message: '#^Method Phlix\\Console\\Screen\\DetailScreen\:\:init\(\) never returns null so it can be removed from the return type\.$#'
-			identifier: return.unusedType
-			count: 1
-			path: src/Screen/DetailScreen.php
-
-		-
 			message: '#^Method Phlix\\Console\\Screen\\DetailScreen\:\:onChildren\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -631,18 +535,6 @@ parameters:
 			path: src/Screen/DetailScreen.php
 
 		-
-			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
-			identifier: nullsafe.neverNull
-			count: 1
-			path: src/Screen/DetailScreen.php
-
-		-
-			message: '#^Anonymous function never returns null so it can be removed from the return type\.$#'
-			identifier: return.unusedType
-			count: 1
-			path: src/Screen/LibraryScreen.php
-
-		-
 			message: '#^Method Phlix\\Console\\Screen\\LibraryScreen\:\:afterGridChange\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -663,12 +555,6 @@ parameters:
 		-
 			message: '#^Method Phlix\\Console\\Screen\\LibraryScreen\:\:handleKey\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
-			count: 1
-			path: src/Screen/LibraryScreen.php
-
-		-
-			message: '#^Method Phlix\\Console\\Screen\\LibraryScreen\:\:init\(\) never returns null so it can be removed from the return type\.$#'
-			identifier: return.unusedType
 			count: 1
 			path: src/Screen/LibraryScreen.php
 
@@ -699,12 +585,6 @@ parameters:
 		-
 			message: '#^Method Phlix\\Console\\Screen\\MusicScreen\:\:handleKey\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
-			count: 1
-			path: src/Screen/MusicScreen.php
-
-		-
-			message: '#^Method Phlix\\Console\\Screen\\MusicScreen\:\:init\(\) never returns null so it can be removed from the return type\.$#'
-			identifier: return.unusedType
 			count: 1
 			path: src/Screen/MusicScreen.php
 
@@ -787,12 +667,6 @@ parameters:
 			path: src/Screen/PhotoViewerScreen.php
 
 		-
-			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
-			identifier: nullsafe.neverNull
-			count: 1
-			path: src/Screen/PhotoViewerScreen.php
-
-		-
 			message: '#^Method Phlix\\Console\\Screen\\PhotosScreen\:\:afterGridChange\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -801,12 +675,6 @@ parameters:
 		-
 			message: '#^Method Phlix\\Console\\Screen\\PhotosScreen\:\:handleKey\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
-			count: 1
-			path: src/Screen/PhotosScreen.php
-
-		-
-			message: '#^Method Phlix\\Console\\Screen\\PhotosScreen\:\:init\(\) never returns null so it can be removed from the return type\.$#'
-			identifier: return.unusedType
 			count: 1
 			path: src/Screen/PhotosScreen.php
 
@@ -843,12 +711,6 @@ parameters:
 		-
 			message: '#^Method Phlix\\Console\\Screen\\PlayerScreen\:\:handleKey\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
-			count: 1
-			path: src/Screen/PlayerScreen.php
-
-		-
-			message: '#^Method Phlix\\Console\\Screen\\PlayerScreen\:\:init\(\) never returns null so it can be removed from the return type\.$#'
-			identifier: return.unusedType
 			count: 1
 			path: src/Screen/PlayerScreen.php
 
@@ -955,12 +817,6 @@ parameters:
 			path: src/Screen/PlayerScreen.php
 
 		-
-			message: '#^Using nullsafe property access "\?\-\>chapters" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
-			identifier: nullsafe.neverNull
-			count: 1
-			path: src/Screen/PlayerScreen.php
-
-		-
 			message: '#^Method Phlix\\Console\\Screen\\SearchScreen\:\:afterGridChange\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -1005,12 +861,6 @@ parameters:
 		-
 			message: '#^Method Phlix\\Console\\Screen\\StatsScreen\:\:handleKey\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
-			count: 1
-			path: src/Screen/StatsScreen.php
-
-		-
-			message: '#^Method Phlix\\Console\\Screen\\StatsScreen\:\:init\(\) never returns null so it can be removed from the return type\.$#'
-			identifier: return.unusedType
 			count: 1
 			path: src/Screen/StatsScreen.php
 

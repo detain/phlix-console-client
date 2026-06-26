@@ -135,7 +135,7 @@ final class ApiClient
             return $this->refreshInFlight;
         }
 
-        $refreshToken = $this->token?->refreshToken ?? '';
+        $refreshToken = $this->token->refreshToken ?? '';
         if ($refreshToken === '') {
             return reject(new AuthError('No refresh token available', 401));
         }
@@ -393,7 +393,7 @@ final class ApiClient
         return $this->authed('POST', '/api/v1/audiobooks/' . rawurlencode($id) . '/progress', [], [
             'position_ms' => $positionMs,
             'current_chapter_index' => $currentChapterIndex,
-            'completed_chapters' => array_values($completedChapters),
+            'completed_chapters' => $completedChapters,
             'percent_complete' => $percentComplete,
         ])->then(static fn (array $data): AudiobookProgress => AudiobookProgress::fromArray(Coerce::map($data['progress'] ?? null)));
     }

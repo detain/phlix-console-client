@@ -408,7 +408,7 @@ final class PhotoViewerScreen implements Breadcrumbed, Themed
 
     public function crumbLabel(): string
     {
-        return $this->currentPhoto()?->name ?? $this->album->date;
+        return $this->currentPhoto()->name ?? $this->album->date;
     }
 
     public function withCrumbs(array $trail): static

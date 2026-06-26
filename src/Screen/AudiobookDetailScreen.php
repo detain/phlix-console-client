@@ -89,7 +89,7 @@ final class AudiobookDetailScreen implements Breadcrumbed, Themed
     ) {
     }
 
-    public function init(): ?\Closure
+    public function init(): \Closure
     {
         // Three concurrent fetches: the detail (author/narrator/series/duration +
         // the signed stream URL), the chapter list, and the saved progress. The
@@ -362,7 +362,7 @@ final class AudiobookDetailScreen implements Breadcrumbed, Themed
 
     private function headerTitle(): string
     {
-        return $this->audiobook?->title ?? $this->title;
+        return $this->audiobook->title ?? $this->title;
     }
 
     // ---- immutable copies (clone-mutate) -------------------------------

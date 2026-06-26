@@ -759,7 +759,7 @@ final class App implements Model
     private function fetchPaletteLibraries(): \Closure
     {
         return Cmd::promise(fn () => $this->libraries->all()->then(
-            static fn (array $libraries): ?Msg => new PaletteLibrariesLoadedMsg($libraries),
+            static fn (array $libraries): Msg => new PaletteLibrariesLoadedMsg($libraries),
             // Best-effort: a failure just leaves the static actions in place.
             static fn (\Throwable $e): ?Msg => null,
         ));
@@ -1510,7 +1510,7 @@ final class App implements Model
         $popped = array_pop($stack);
         // Popping permanently discards the frame (drilling back up), so release
         // its resources (idempotent — a PlayerScreen also self-tears-down on Esc).
-        if ($popped !== null && $popped['screen'] instanceof Teardownable) {
+        if ($popped['screen'] instanceof Teardownable) {
             $popped['screen']->teardown();
         }
 

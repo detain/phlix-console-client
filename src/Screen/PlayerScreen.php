@@ -139,7 +139,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
             => Player::open($url, $cols, $rows, null, RendererFactory::autoMode(), false, 'standard');
     }
 
-    public function init(): ?\Closure
+    public function init(): \Closure
     {
         // Build the player and fetch its markers + resume + episode queue concurrently.
         $cmds = [
@@ -970,7 +970,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     /** @return list<\Phlix\Console\Api\Dto\Chapter> */
     private function chapters(): array
     {
-        return $this->markers?->chapters ?? [];
+        return $this->markers->chapters ?? [];
     }
 
     /** Resolve the item's signed stream URL against the server base (handles a relative path). */
