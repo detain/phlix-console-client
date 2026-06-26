@@ -142,12 +142,12 @@ final class AdminClientTest extends TestCase
 
     public function testLogFilesMapsTheFileList(): void
     {
-        $transport = (new FakeTransport())->json(200, $this->envelope([
+        $transport = (new FakeTransport())->json(200, [
             'files' => [
                 ['name' => 'app.log', 'size' => 4096, 'modified_at' => '2026-06-26T12:00:00-04:00'],
                 ['name' => 'error.log', 'size' => 128, 'modified_at' => '2026-06-25T09:00:00-04:00'],
             ],
-        ]));
+        ]);
 
         $files = $this->await($this->clientWith($transport)->logFiles());
 
@@ -160,7 +160,7 @@ final class AdminClientTest extends TestCase
 
     public function testLogFilesToleratesAMissingFilesKey(): void
     {
-        $transport = (new FakeTransport())->json(200, $this->envelope([]));
+        $transport = (new FakeTransport())->json(200, []);
 
         $files = $this->await($this->clientWith($transport)->logFiles());
 
@@ -169,9 +169,9 @@ final class AdminClientTest extends TestCase
 
     public function testLogFilesSkipsNonArrayRows(): void
     {
-        $transport = (new FakeTransport())->json(200, $this->envelope([
+        $transport = (new FakeTransport())->json(200, [
             'files' => [['name' => 'app.log'], 'not-an-array', 99],
-        ]));
+        ]);
 
         $files = $this->await($this->clientWith($transport)->logFiles());
 
@@ -179,13 +179,26 @@ final class AdminClientTest extends TestCase
         self::assertSame('app.log', $files[0]->name);
     }
 
+    public function testLogFilesIgnoresAnEnvelopeDataKey(): void
+    {
+        // Guard against regressing to a dashboard-style `{success, data:{files}}`
+        // read: LogController is top-level, so a `data` wrapper must NOT be read.
+        $transport = (new FakeTransport())->json(200, [
+            'data' => ['files' => [['name' => 'ghost.log']]],
+        ]);
+
+        $files = $this->await($this->clientWith($transport)->logFiles());
+
+        self::assertSame([], $files, 'log files are read top-level, not from data');
+    }
+
     public function testTailLogTailsASingleFileWithQuery(): void
     {
-        $transport = (new FakeTransport())->json(200, $this->envelope([
+        $transport = (new FakeTransport())->json(200, [
             'file' => 'app.log',
             'lines' => ['hello', 'world'],
             'truncated' => true,
-        ]));
+        ]);
 
         $tail = $this->await($this->clientWith($transport)->tailLog('app.log', 200));
 
@@ -202,11 +215,11 @@ final class AdminClientTest extends TestCase
 
     public function testTailAllLogsMergesEveryFile(): void
     {
-        $transport = (new FakeTransport())->json(200, $this->envelope([
+        $transport = (new FakeTransport())->json(200, [
             'files' => ['app.log', 'error.log'],
             'lines' => ['app.log    hi', 'error.log  boom'],
             'truncated' => false,
-        ]));
+        ]);
 
         $tail = $this->await($this->clientWith($transport)->tailAllLogs(50));
 
@@ -222,9 +235,9 @@ final class AdminClientTest extends TestCase
 
     public function testTailLogAttachesTheBearerToken(): void
     {
-        $transport = (new FakeTransport())->json(200, $this->envelope([
+        $transport = (new FakeTransport())->json(200, [
             'file' => 'app.log', 'lines' => [], 'truncated' => false,
-        ]));
+        ]);
 
         $this->await($this->clientWith($transport)->tailLog('app.log', 200));
 
