@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace Phlix\Console\Api\Admin;
 
 use Phlix\Console\Api\ApiClient;
+use Phlix\Console\Api\ApiError;
+use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Admin\AdminDashboard;
 use Phlix\Console\Api\Dto\Admin\AdminUser;
 use Phlix\Console\Api\Dto\Admin\Backup;
 use Phlix\Console\Api\Dto\Admin\BackupSchedule;
+use Phlix\Console\Api\Dto\Admin\DlnaServerStatus;
 use Phlix\Console\Api\Dto\Admin\LogFile;
 use Phlix\Console\Api\Dto\Admin\LogTail;
 use Phlix\Console\Api\Dto\Admin\Plugin;
@@ -48,6 +51,9 @@ final class AdminClient
 
     /** The base path the server-settings endpoints hang off. */
     private const SETTINGS = '/api/v1/admin/settings';
+
+    /** The base path every DLNA-server endpoint hangs off. */
+    private const DLNA = '/api/v1/admin/dlna';
 
     /** The base path every library endpoint hangs off. */
     private const LIBRARIES = '/api/v1/libraries';
@@ -468,6 +474,79 @@ final class AdminClient
     {
         return $this->api->send('PUT', self::SETTINGS, [], ['settings' => [$key => $value]])
             ->then(static fn (array $body): string => Coerce::str($body['message'] ?? ''));
+    }
+
+    // ---- DLNA server ---------------------------------------------------
+
+    /**
+     * Fetch the DLNA media-server status. Like the users / plugins endpoints
+     * (and UNLIKE the dashboard / backup / settings), the
+     * {@see \Phlix\Server\Http\Controllers\Admin\AdminDlnaServerController}
+     * returns its payload at the TOP LEVEL with NO `{success, data}` envelope, so
+     * the status is read straight from `$body` (not `$body['data']`). A
+     * `{data:{...}}` wrapper therefore yields the tolerant not-configured default.
+     *
+     * @return PromiseInterface<DlnaServerStatus>
+     */
+    public function dlnaStatus(): PromiseInterface
+    {
+        return $this->api->send('GET', self::DLNA . '/status')
+            ->then(static fn (array $body): DlnaServerStatus => DlnaServerStatus::fromArray($body));
+    }
+
+    /**
+     * Start the DLNA server. Resolves a confirmation string on a 200; on a 409
+     * (not configured / already running) or 500 the failure body carries the
+     * human text in `message`, NOT `error`, so {@see ApiClient::decode()} would
+     * surface the generic "Request failed (HTTP …)". This maps the
+     * {@see ApiError::$body}['message'] back onto the rejection so the screen
+     * toasts e.g. "DLNA server is already running".
+     *
+     * @return PromiseInterface<string>
+     */
+    public function startDlna(): PromiseInterface
+    {
+        return $this->dlnaAction('/start', 'DLNA server started');
+    }
+
+    /**
+     * Stop the DLNA server. Resolves a confirmation string on a 200; on a 409
+     * (not configured / not running) or 500 the friendly `message` is surfaced
+     * (see {@see startDlna()} for the message-not-error landmine).
+     *
+     * @return PromiseInterface<string>
+     */
+    public function stopDlna(): PromiseInterface
+    {
+        return $this->dlnaAction('/stop', 'DLNA server stopped');
+    }
+
+    /**
+     * Fire one DLNA start/stop POST and resolve the given confirmation string.
+     * On rejection, prefer the server's friendly `message` (carried on the
+     * {@see ApiError::$body}) over the generic HTTP message — the start/stop
+     * failure bodies put their human text in `message`, not `error`.
+     *
+     * @return PromiseInterface<string>
+     */
+    private function dlnaAction(string $suffix, string $confirmation): PromiseInterface
+    {
+        return $this->api->send('POST', self::DLNA . $suffix)->then(
+            static fn (array $resp): string => $confirmation,
+            static function (\Throwable $e): never {
+                // Let an AuthError (401) propagate untouched so the screen can
+                // surface a session expiry; only the non-auth ApiError failures
+                // (409 / 500) carry the friendly `message` to re-surface.
+                if ($e instanceof ApiError && !$e instanceof AuthError) {
+                    $message = $e->body['message'] ?? null;
+                    if (is_string($message) && $message !== '') {
+                        throw new ApiError($message, $e->statusCode, $e->body, $e);
+                    }
+                }
+
+                throw $e;
+            },
+        );
     }
 
     // ---- libraries -----------------------------------------------------

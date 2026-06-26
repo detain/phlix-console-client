@@ -39,4 +39,5 @@ enum Route
     case AdminBackup;
     case AdminSettings;
     case AdminLibraries;
+    case AdminDlna;
 }

@@ -11,6 +11,7 @@ use Phlix\Console\Api\Dto\Admin\AdminDashboard;
 use Phlix\Console\Api\Dto\Admin\AdminUser;
 use Phlix\Console\Api\Dto\Admin\Backup;
 use Phlix\Console\Api\Dto\Admin\BackupSchedule;
+use Phlix\Console\Api\Dto\Admin\DlnaServerStatus;
 use Phlix\Console\Api\Dto\Admin\LogFile;
 use Phlix\Console\Api\Dto\Admin\LogTail;
 use Phlix\Console\Api\Dto\Admin\Plugin;
@@ -924,6 +925,141 @@ final class AdminClientTest extends TestCase
 
         self::assertInstanceOf(ApiError::class, $error);
         self::assertSame('Validation failed', $error->getMessage());
+    }
+
+    // ---- DLNA server ---------------------------------------------------
+
+    public function testDlnaStatusReadsTheTopLevelBody(): void
+    {
+        // The AdminDlnaServerController is unenveloped — the status is at the top level.
+        $transport = (new FakeTransport())->json(200, [
+            'enabled' => true,
+            'running' => true,
+            'serverId' => 'srv-1',
+            'friendlyName' => 'Phlix',
+            'port' => 1900,
+            'baseUrl' => 'http://10.0.0.5:1900/',
+        ]);
+
+        $status = $this->await($this->clientWith($transport)->dlnaStatus());
+
+        self::assertInstanceOf(DlnaServerStatus::class, $status);
+        self::assertTrue($status->enabled);
+        self::assertTrue($status->running);
+        self::assertSame('srv-1', $status->serverId);
+        self::assertSame(1900, $status->port);
+        self::assertSame('GET', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/dlna/status', $transport->requestAt(0)['url']);
+    }
+
+    public function testDlnaStatusIgnoresAnEnvelopeDataKey(): void
+    {
+        // REGRESSION GUARD: the read is top-level, so a `{data:{enabled:…}}`
+        // wrapper must NOT be unwrapped — it yields the not-configured default.
+        $transport = (new FakeTransport())->json(200, $this->envelope([
+            'enabled' => true,
+            'running' => true,
+            'port' => 1900,
+        ]));
+
+        $status = $this->await($this->clientWith($transport)->dlnaStatus());
+
+        self::assertInstanceOf(DlnaServerStatus::class, $status);
+        self::assertFalse($status->enabled, 'an enveloped {data} wrapper must not be read');
+        self::assertFalse($status->running);
+        self::assertNull($status->port);
+        self::assertSame('Not configured', $status->stateLabel());
+    }
+
+    public function testDlnaStatusAttachesTheBearerToken(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['enabled' => false, 'running' => false]);
+
+        $this->await($this->clientWith($transport)->dlnaStatus());
+
+        self::assertSame('Bearer access-1', $transport->requestAt(0)['headers']['Authorization'] ?? null);
+    }
+
+    public function testStartDlnaResolvesTheConfirmationOnSuccess(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true]);
+
+        $message = $this->await($this->clientWith($transport)->startDlna());
+
+        self::assertSame('DLNA server started', $message);
+        self::assertSame('POST', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/dlna/start', $transport->requestAt(0)['url']);
+    }
+
+    public function testStopDlnaResolvesTheConfirmationOnSuccess(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true]);
+
+        $message = $this->await($this->clientWith($transport)->stopDlna());
+
+        self::assertSame('DLNA server stopped', $message);
+        self::assertSame('POST', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/dlna/stop', $transport->requestAt(0)['url']);
+    }
+
+    public function testStartDlnaSurfacesTheBodyMessageOnA409NotTheGenericHttpText(): void
+    {
+        // LANDMINE: failure bodies use `message`, NOT `error`, so ApiClient::decode()
+        // would build the generic "Request failed (HTTP 409)". startDlna must
+        // re-surface the friendly `body['message']` instead.
+        $transport = (new FakeTransport())->json(409, ['success' => false, 'message' => 'DLNA server is already running']);
+
+        $error = $this->awaitError($this->clientWith($transport)->startDlna());
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('DLNA server is already running', $error->getMessage());
+        self::assertSame(409, $error->statusCode);
+    }
+
+    public function testStopDlnaSurfacesTheBodyMessageOnA409(): void
+    {
+        $transport = (new FakeTransport())->json(409, ['success' => false, 'message' => 'DLNA server is not running']);
+
+        $error = $this->awaitError($this->clientWith($transport)->stopDlna());
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('DLNA server is not running', $error->getMessage());
+    }
+
+    public function testStartDlnaSurfacesTheBodyMessageOnA500(): void
+    {
+        $transport = (new FakeTransport())->json(500, ['success' => false, 'message' => 'Failed to start DLNA server']);
+
+        $error = $this->awaitError($this->clientWith($transport)->startDlna());
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('Failed to start DLNA server', $error->getMessage());
+        self::assertSame(500, $error->statusCode);
+    }
+
+    public function testStartDlnaFallsBackToTheHttpMessageWhenNoBodyMessage(): void
+    {
+        // A failure with no `message` (and no `error`) leaves the generic text intact.
+        $transport = (new FakeTransport())->json(500, ['success' => false]);
+
+        $error = $this->awaitError($this->clientWith($transport)->startDlna());
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('Request failed (HTTP 500)', $error->getMessage());
+    }
+
+    public function testStartDlnaPropagatesAnAuthErrorUntouched(): void
+    {
+        // A 401 stays an AuthError (NOT re-wrapped as a plain ApiError) so the
+        // screen can surface a session expiry rather than a toast. An empty
+        // refresh token means the 401 is not retried.
+        $transport = (new FakeTransport())->json(401, ['error' => 'Unauthorized']);
+        $api = new ApiClient(self::BASE, $transport);
+        $api->setToken(new TokenBundle('access-1', '', 'Bearer', time() + 3600));
+
+        $error = $this->awaitError((new AdminClient($api))->startDlna());
+
+        self::assertInstanceOf(\Phlix\Console\Api\AuthError::class, $error);
     }
 
     // ---- libraries -----------------------------------------------------

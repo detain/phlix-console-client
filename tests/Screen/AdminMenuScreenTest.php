@@ -46,7 +46,7 @@ final class AdminMenuScreenTest extends TestCase
         $labels = array_map(static fn (array $s): string => $s['label'], $sections);
         self::assertSame([
             'Dashboard', 'Users', 'Server Settings', 'Plugins', 'Libraries', 'Logs',
-            'Backup', 'Live TV', 'Remote Access', 'DLNA',
+            'Backup', 'DLNA', 'Live TV', 'Remote Access',
         ], $labels, 'Cast is no longer an admin section — it ships as a DetailScreen action');
         self::assertNotContains('Cast', $labels, 'the stale Cast section row is removed');
 
@@ -54,7 +54,7 @@ final class AdminMenuScreenTest extends TestCase
             array_values(array_filter($sections, static fn (array $s): bool => $s['available'])),
             'label',
         );
-        self::assertSame(['Dashboard', 'Users', 'Server Settings', 'Plugins', 'Libraries', 'Logs', 'Backup'], $available, 'Dashboard, Users, Server Settings, Plugins, Libraries, Logs and Backup are wired');
+        self::assertSame(['Dashboard', 'Users', 'Server Settings', 'Plugins', 'Libraries', 'Logs', 'Backup', 'DLNA'], $available, 'Dashboard, Users, Server Settings, Plugins, Libraries, Logs, Backup and DLNA are wired');
 
         $byLabel = array_column($sections, null, 'label');
         self::assertSame(Route::AdminDashboard, $byLabel['Dashboard']['route']);
@@ -64,12 +64,13 @@ final class AdminMenuScreenTest extends TestCase
         self::assertSame(Route::AdminLibraries, $byLabel['Libraries']['route']);
         self::assertSame(Route::AdminLogs, $byLabel['Logs']['route']);
         self::assertSame(Route::AdminBackup, $byLabel['Backup']['route']);
+        self::assertSame(Route::AdminDlna, $byLabel['DLNA']['route']);
 
-        // Live TV / Remote Access / DLNA remain unavailable (no route yet).
+        // Live TV / Remote Access remain unavailable (no route yet).
         self::assertFalse($byLabel['Live TV']['available']);
         self::assertNull($byLabel['Live TV']['route']);
         self::assertFalse($byLabel['Remote Access']['available']);
-        self::assertFalse($byLabel['DLNA']['available']);
+        self::assertNull($byLabel['Remote Access']['route']);
     }
 
     public function testRendersEverySectionAndTheComingSoonMarker(): void
@@ -168,11 +169,27 @@ final class AdminMenuScreenTest extends TestCase
         self::assertSame(Route::AdminLibraries, $msg->section);
     }
 
+    public function testEnterOnDlnaEmitsOpenAdminSectionForDlna(): void
+    {
+        // Move to "DLNA" (index 7), now a wired surface.
+        $screen = $this->screen();
+        for ($i = 0; $i < 7; $i++) {
+            [$screen] = $screen->update(new KeyMsg(KeyType::Down));
+        }
+        self::assertSame('DLNA', $screen->selectedLabel());
+
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Enter));
+
+        $msg = $this->runCmd($cmd);
+        self::assertInstanceOf(OpenAdminSectionMsg::class, $msg);
+        self::assertSame(Route::AdminDlna, $msg->section);
+    }
+
     public function testEnterOnAnUnavailableSectionEmitsAComingSoonToast(): void
     {
-        // Move to "Remote Access" (index 8), still not available.
+        // Move to "Remote Access" (index 9), still not available.
         $screen = $this->screen();
-        for ($i = 0; $i < 8; $i++) {
+        for ($i = 0; $i < 9; $i++) {
             [$screen] = $screen->update(new KeyMsg(KeyType::Down));
         }
         self::assertSame('Remote Access', $screen->selectedLabel());
