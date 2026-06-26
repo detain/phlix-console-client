@@ -46,7 +46,7 @@ final class AdminMenuScreenTest extends TestCase
         $labels = array_map(static fn (array $s): string => $s['label'], $sections);
         self::assertSame([
             'Dashboard', 'Users', 'Server Settings', 'Plugins', 'Libraries', 'Logs',
-            'Backup', 'DLNA', 'Live TV', 'Remote Access',
+            'Backup', 'DLNA', 'Remote Access', 'Live TV',
         ], $labels, 'Cast is no longer an admin section — it ships as a DetailScreen action');
         self::assertNotContains('Cast', $labels, 'the stale Cast section row is removed');
 
@@ -54,7 +54,7 @@ final class AdminMenuScreenTest extends TestCase
             array_values(array_filter($sections, static fn (array $s): bool => $s['available'])),
             'label',
         );
-        self::assertSame(['Dashboard', 'Users', 'Server Settings', 'Plugins', 'Libraries', 'Logs', 'Backup', 'DLNA'], $available, 'Dashboard, Users, Server Settings, Plugins, Libraries, Logs, Backup and DLNA are wired');
+        self::assertSame(['Dashboard', 'Users', 'Server Settings', 'Plugins', 'Libraries', 'Logs', 'Backup', 'DLNA', 'Remote Access'], $available, 'every surface through Remote Access is wired; only Live TV remains');
 
         $byLabel = array_column($sections, null, 'label');
         self::assertSame(Route::AdminDashboard, $byLabel['Dashboard']['route']);
@@ -65,12 +65,12 @@ final class AdminMenuScreenTest extends TestCase
         self::assertSame(Route::AdminLogs, $byLabel['Logs']['route']);
         self::assertSame(Route::AdminBackup, $byLabel['Backup']['route']);
         self::assertSame(Route::AdminDlna, $byLabel['DLNA']['route']);
+        self::assertSame(Route::AdminRemote, $byLabel['Remote Access']['route']);
 
-        // Live TV / Remote Access remain unavailable (no route yet).
+        // Only Live TV remains unavailable (no route yet).
         self::assertFalse($byLabel['Live TV']['available']);
         self::assertNull($byLabel['Live TV']['route']);
-        self::assertFalse($byLabel['Remote Access']['available']);
-        self::assertNull($byLabel['Remote Access']['route']);
+        self::assertTrue($byLabel['Remote Access']['available']);
     }
 
     public function testRendersEverySectionAndTheComingSoonMarker(): void
@@ -185,11 +185,11 @@ final class AdminMenuScreenTest extends TestCase
         self::assertSame(Route::AdminDlna, $msg->section);
     }
 
-    public function testEnterOnAnUnavailableSectionEmitsAComingSoonToast(): void
+    public function testEnterOnRemoteAccessEmitsOpenAdminSectionForRemote(): void
     {
-        // Move to "Remote Access" (index 9), still not available.
+        // Move to "Remote Access" (index 8), now a wired surface.
         $screen = $this->screen();
-        for ($i = 0; $i < 9; $i++) {
+        for ($i = 0; $i < 8; $i++) {
             [$screen] = $screen->update(new KeyMsg(KeyType::Down));
         }
         self::assertSame('Remote Access', $screen->selectedLabel());
@@ -197,9 +197,25 @@ final class AdminMenuScreenTest extends TestCase
         [, $cmd] = $screen->update(new KeyMsg(KeyType::Enter));
 
         $msg = $this->runCmd($cmd);
+        self::assertInstanceOf(OpenAdminSectionMsg::class, $msg);
+        self::assertSame(Route::AdminRemote, $msg->section);
+    }
+
+    public function testEnterOnAnUnavailableSectionEmitsAComingSoonToast(): void
+    {
+        // Move to "Live TV" (index 9), the only remaining unavailable section.
+        $screen = $this->screen();
+        for ($i = 0; $i < 9; $i++) {
+            [$screen] = $screen->update(new KeyMsg(KeyType::Down));
+        }
+        self::assertSame('Live TV', $screen->selectedLabel());
+
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Enter));
+
+        $msg = $this->runCmd($cmd);
         self::assertInstanceOf(ShowToastMsg::class, $msg);
         self::assertSame(ToastType::Info, $msg->type);
-        self::assertStringContainsString('Remote Access', $msg->message);
+        self::assertStringContainsString('Live TV', $msg->message);
         self::assertStringContainsString('coming soon', $msg->message);
     }
 

@@ -67,6 +67,7 @@ use Phlix\Console\Screen\AdminLibrariesScreen;
 use Phlix\Console\Screen\AdminLogsScreen;
 use Phlix\Console\Screen\AdminMenuScreen;
 use Phlix\Console\Screen\AdminPluginsScreen;
+use Phlix\Console\Screen\AdminRemoteAccessScreen;
 use Phlix\Console\Screen\AdminSettingsScreen;
 use Phlix\Console\Screen\AdminUsersScreen;
 use Phlix\Console\Screen\AlbumScreen;
@@ -1222,6 +1223,11 @@ final class App implements Model
             $screen = new AdminDlnaScreen(new AdminClient($this->api), $this->cols, $this->rows);
 
             return [$this->push(Route::AdminDlna, $screen), $screen->init()];
+        }
+        if ($section === Route::AdminRemote) {
+            $screen = new AdminRemoteAccessScreen(new AdminClient($this->api), $this->cols, $this->rows);
+
+            return [$this->push(Route::AdminRemote, $screen), $screen->init()];
         }
 
         return [$this, null];

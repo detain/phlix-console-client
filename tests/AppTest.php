@@ -63,6 +63,7 @@ use Phlix\Console\Screen\AdminBackupScreen;
 use Phlix\Console\Screen\AdminLibrariesScreen;
 use Phlix\Console\Screen\AdminDashboardScreen;
 use Phlix\Console\Screen\AdminDlnaScreen;
+use Phlix\Console\Screen\AdminRemoteAccessScreen;
 use Phlix\Console\Screen\AdminLogsScreen;
 use Phlix\Console\Screen\AdminMenuScreen;
 use Phlix\Console\Screen\AdminPluginsScreen;
@@ -1612,6 +1613,19 @@ final class AppTest extends TestCase
         self::assertInstanceOf(AdminDlnaScreen::class, $dlna->screen());
         self::assertSame(3, $dlna->stackDepth(), 'the DLNA screen is pushed onto the admin menu');
         self::assertInstanceOf(\Closure::class, $cmd, 'the DLNA screen fetches the status on push');
+    }
+
+    public function testOpenAdminSectionRemotePushesTheRemoteAccessScreenWithAFetch(): void
+    {
+        [$adminApp] = $this->appWithAdminUser(true);
+        [$admin] = $adminApp->update(new OpenAdminMsg());
+
+        [$remote, $cmd] = $admin->update(new OpenAdminSectionMsg(Route::AdminRemote));
+
+        self::assertSame(Route::AdminRemote, $remote->route());
+        self::assertInstanceOf(AdminRemoteAccessScreen::class, $remote->screen());
+        self::assertSame(3, $remote->stackDepth(), 'the remote-access screen is pushed onto the admin menu');
+        self::assertInstanceOf(\Closure::class, $cmd, 'the remote-access screen fetches the statuses on push');
     }
 
     public function testOpenAdminSectionForAnUnwiredSectionIsANoOp(): void
