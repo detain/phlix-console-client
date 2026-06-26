@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Phlix\Console;
 
+use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Album;
@@ -23,6 +24,8 @@ use Phlix\Console\Msg\AudioSkipMsg;
 use Phlix\Console\Msg\BootResolvedMsg;
 use Phlix\Console\Msg\GoHomeMsg;
 use Phlix\Console\Msg\LoginFailedMsg;
+use Phlix\Console\Msg\OpenAdminMsg;
+use Phlix\Console\Msg\OpenAdminSectionMsg;
 use Phlix\Console\Msg\LoginSucceededMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\NowPlayingTickMsg;
@@ -55,6 +58,8 @@ use Phlix\Console\Msg\ToggleAudioMsg;
 use Phlix\Console\Msg\ToggleMetricsMsg;
 use Phlix\Console\Msg\TrackResolvedMsg;
 use Phlix\Console\Media\PosterLoader;
+use Phlix\Console\Screen\AdminDashboardScreen;
+use Phlix\Console\Screen\AdminMenuScreen;
 use Phlix\Console\Screen\AlbumScreen;
 use Phlix\Console\Screen\AudiobookDetailScreen;
 use Phlix\Console\Screen\AudiobooksScreen;
@@ -316,6 +321,12 @@ final class App implements Model
         }
         if ($msg instanceof OpenStatsMsg) {
             return $this->openStats();
+        }
+        if ($msg instanceof OpenAdminMsg) {
+            return $this->openAdmin();
+        }
+        if ($msg instanceof OpenAdminSectionMsg) {
+            return $this->openAdminSection($msg->section);
         }
         if ($msg instanceof SettingsSavedMsg) {
             return $this->saveSettings($msg->themeName, $msg->slideshowInterval);
@@ -741,6 +752,12 @@ final class App implements Model
             // so no conflict); the label flips with the current visibility.
             new PaletteAction($this->metricsVisible ? 'Hide metrics' : 'Show metrics', new ToggleMetricsMsg()),
         ];
+        // The admin area is offered ONLY to an admin user — the gate is the
+        // restored/current user's is_admin flag. A non-admin (or logged-out) palette
+        // never sees it.
+        if ($this->auth->currentUser()?->isAdmin === true) {
+            $actions[] = new PaletteAction('Admin', new OpenAdminMsg());
+        }
         // Playback controls are universal (no key conflict) — surfaced in the
         // palette only while a session (music or audiobook) is playing, so they
         // reach the App-owned audio from any screen.
@@ -1126,6 +1143,40 @@ final class App implements Model
         $screen = new StatsScreen($this->libraries, $this->cols, $this->rows);
 
         return [$this->push(Route::Stats, $screen), $screen->init()];
+    }
+
+    /**
+     * Open the admin area's section index (the menu). The {@see AdminMenuScreen}
+     * is the scaffolding every later admin surface hangs off; it needs no store,
+     * so it is pushed with no fetch.
+     *
+     * @return array{App, ?\Closure}
+     */
+    private function openAdmin(): array
+    {
+        $screen = new AdminMenuScreen($this->cols, $this->rows);
+
+        return [$this->push(Route::Admin, $screen), $screen->init()];
+    }
+
+    /**
+     * Open one admin section (from the menu). Dashboard pushes the
+     * {@see AdminDashboardScreen} with an {@see AdminClient} built LOCALLY from the
+     * shared {@see ApiClient} (the App holds no AdminClient field — mirroring the
+     * BooksStore-built-locally pattern). Any not-yet-wired section is a no-op (the
+     * menu only emits available sections).
+     *
+     * @return array{App, ?\Closure}
+     */
+    private function openAdminSection(Route $section): array
+    {
+        if ($section === Route::AdminDashboard) {
+            $screen = new AdminDashboardScreen(new AdminClient($this->api), $this->cols, $this->rows);
+
+            return [$this->push(Route::AdminDashboard, $screen), $screen->init()];
+        }
+
+        return [$this, null];
     }
 
     /**
