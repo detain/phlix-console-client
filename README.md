@@ -128,11 +128,21 @@ bin/phlix frame /path/to/movie.mkv 3 60 20
 ## Test
 
 ```sh
-vendor/bin/phpunit
+vendor/bin/phpunit   # or: composer test
 ```
 
 The video-decode test self-skips when `ffmpeg` is unavailable; the poster test
 synthesizes its own image with `gd`, so the suite needs no fixtures.
+
+## Static analysis
+
+`src/` is checked with **PHPStan at level 9** (its strictest level), enforced in
+CI — any new type error fails the build. There is **no baseline and no
+suppressions**: the whole tree is level-9 clean. Config lives in `phpstan.neon`.
+
+```sh
+composer phpstan   # or: vendor/bin/phpstan analyse
+```
 
 ## License
 
