@@ -69,6 +69,7 @@ final class BooksStore
             return $this->inFlight[$key];
         }
 
+        /** @var Deferred<BookPage> $deferred */
         $deferred = new Deferred();
         $this->inFlight[$key] = $deferred->promise();
 
@@ -105,6 +106,7 @@ final class BooksStore
             return $this->booksInFlight[$id];
         }
 
+        /** @var Deferred<Book> $deferred */
         $deferred = new Deferred();
         $this->booksInFlight[$id] = $deferred->promise();
 
