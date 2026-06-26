@@ -12,8 +12,10 @@ use Phlix\Console\Api\Dto\Admin\BackupSchedule;
 use Phlix\Console\Api\Dto\Admin\LogFile;
 use Phlix\Console\Api\Dto\Admin\LogTail;
 use Phlix\Console\Api\Dto\Admin\Plugin;
+use Phlix\Console\Api\Dto\Admin\ScanJob;
 use Phlix\Console\Api\Dto\Admin\ServerSettings;
 use Phlix\Console\Api\Dto\Coerce;
+use Phlix\Console\Api\Dto\Library;
 use React\Promise\PromiseInterface;
 
 use function React\Promise\all;
@@ -46,6 +48,9 @@ final class AdminClient
 
     /** The base path the server-settings endpoints hang off. */
     private const SETTINGS = '/api/v1/admin/settings';
+
+    /** The base path every library endpoint hangs off. */
+    private const LIBRARIES = '/api/v1/libraries';
 
     public function __construct(
         private readonly ApiClient $api,
@@ -463,6 +468,95 @@ final class AdminClient
     {
         return $this->api->send('PUT', self::SETTINGS, [], ['settings' => [$key => $value]])
             ->then(static fn (array $body): string => Coerce::str($body['message'] ?? ''));
+    }
+
+    // ---- libraries -----------------------------------------------------
+
+    /**
+     * List the media libraries (each row + the router-added `item_count`). Like
+     * the users / plugins endpoints (and UNLIKE the dashboard / backup / settings),
+     * {@see \Phlix\Server\Http\Controllers\LibraryController} returns its payload at
+     * the TOP LEVEL with NO `{success, data}` envelope, so the list is read straight
+     * from `$body['libraries']`. A non-list payload yields an empty list.
+     *
+     * @return PromiseInterface<list<Library>>
+     */
+    public function libraries(): PromiseInterface
+    {
+        return $this->api->send('GET', self::LIBRARIES)->then(static function (array $body): array {
+            return self::mapList(
+                $body['libraries'] ?? null,
+                static fn (array $row): Library => Library::fromArray($row),
+            );
+        });
+    }
+
+    /**
+     * Enqueue a scan of a library (add new items). The server returns 202 with
+     * `{job_id, status, message}`; this resolves the `message`. Rejects with the
+     * server `error` on 404 (the {@see \Phlix\Console\Api\ApiError} carries it as
+     * the exception message).
+     *
+     * @return PromiseInterface<string>
+     */
+    public function scanLibrary(string $id): PromiseInterface
+    {
+        return $this->enqueue('/' . rawurlencode($id) . '/scan');
+    }
+
+    /**
+     * Enqueue a rescan of a library — DESTRUCTIVE-ish: purges then rescans. The
+     * server returns 202 with `{job_id, status, message}`; this resolves the
+     * `message`. Rejects with the server `error` on 404.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function rescanLibrary(string $id): PromiseInterface
+    {
+        return $this->enqueue('/' . rawurlencode($id) . '/rescan');
+    }
+
+    /**
+     * Enqueue a metadata re-match of a library (reuses the scan-job queue, so
+     * scan-status shows its progress too). The server returns 202 with
+     * `{job_id, status, message}`; this resolves the `message`. Rejects with the
+     * server `error` on 404.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function matchLibraryMetadata(string $id): PromiseInterface
+    {
+        return $this->enqueue('/' . rawurlencode($id) . '/match-metadata');
+    }
+
+    /**
+     * Fetch a library's latest scan-job status. Read TOP-LEVEL from
+     * `$body['scan_status']`; a null (or non-array) value means no job has run yet
+     * and resolves null. Rejects (via {@see ApiClient::send()}) on a non-2xx.
+     *
+     * @return PromiseInterface<?ScanJob>
+     */
+    public function libraryScanStatus(string $id): PromiseInterface
+    {
+        return $this->api->send('GET', self::LIBRARIES . '/' . rawurlencode($id) . '/scan-status')
+            ->then(static function (array $body): ?ScanJob {
+                $status = $body['scan_status'] ?? null;
+
+                return is_array($status) ? ScanJob::fromArray($status) : null;
+            });
+    }
+
+    /**
+     * Fire one scan-enqueue POST (scan / rescan / match-metadata) and resolve the
+     * server `message`. The server returns 202 (a success in the 2xx range that
+     * {@see ApiClient::send()} accepts); a non-2xx rejects with the server `error`.
+     *
+     * @return PromiseInterface<string>
+     */
+    private function enqueue(string $suffix): PromiseInterface
+    {
+        return $this->api->send('POST', self::LIBRARIES . $suffix)
+            ->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
     }
 
     /**
