@@ -46,18 +46,20 @@ final class AdminMenuScreenTest extends TestCase
         $labels = array_map(static fn (array $s): string => $s['label'], $sections);
         self::assertSame([
             'Dashboard', 'Users', 'Server Settings', 'Plugins', 'Libraries', 'Logs',
-            'Backup', 'Live TV', 'Remote Access', 'DLNA', 'Cast',
-        ], $labels);
+            'Backup', 'Live TV', 'Remote Access', 'DLNA',
+        ], $labels, 'Cast is no longer an admin section — it ships as a DetailScreen action');
+        self::assertNotContains('Cast', $labels, 'the stale Cast section row is removed');
 
         $available = array_column(
             array_values(array_filter($sections, static fn (array $s): bool => $s['available'])),
             'label',
         );
-        self::assertSame(['Dashboard', 'Users', 'Plugins', 'Logs', 'Backup'], $available, 'Dashboard, Users, Plugins, Logs and Backup are wired');
+        self::assertSame(['Dashboard', 'Users', 'Server Settings', 'Plugins', 'Logs', 'Backup'], $available, 'Dashboard, Users, Server Settings, Plugins, Logs and Backup are wired');
 
         $byLabel = array_column($sections, null, 'label');
         self::assertSame(Route::AdminDashboard, $byLabel['Dashboard']['route']);
         self::assertSame(Route::AdminUsers, $byLabel['Users']['route']);
+        self::assertSame(Route::AdminSettings, $byLabel['Server Settings']['route']);
         self::assertSame(Route::AdminPlugins, $byLabel['Plugins']['route']);
         self::assertSame(Route::AdminLogs, $byLabel['Logs']['route']);
         self::assertSame(Route::AdminBackup, $byLabel['Backup']['route']);
@@ -68,7 +70,7 @@ final class AdminMenuScreenTest extends TestCase
         $view = $this->screen()->view();
 
         self::assertStringContainsString('Dashboard', $view);
-        self::assertStringContainsString('Cast', $view);
+        self::assertStringContainsString('DLNA', $view);
         self::assertStringContainsString('coming soon', $view, 'unavailable sections are marked');
         self::assertStringContainsString('Available', $view);
     }
@@ -127,18 +129,37 @@ final class AdminMenuScreenTest extends TestCase
         self::assertSame(Route::AdminPlugins, $msg->section);
     }
 
+    public function testEnterOnServerSettingsEmitsOpenAdminSectionForSettings(): void
+    {
+        // Move to "Server Settings" (index 2), now a wired surface.
+        $screen = $this->screen();
+        for ($i = 0; $i < 2; $i++) {
+            [$screen] = $screen->update(new KeyMsg(KeyType::Down));
+        }
+        self::assertSame('Server Settings', $screen->selectedLabel());
+
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Enter));
+
+        $msg = $this->runCmd($cmd);
+        self::assertInstanceOf(OpenAdminSectionMsg::class, $msg);
+        self::assertSame(Route::AdminSettings, $msg->section);
+    }
+
     public function testEnterOnAnUnavailableSectionEmitsAComingSoonToast(): void
     {
-        // Move to "Server Settings" (index 2), which is not available.
-        [$step1] = $this->screen()->update(new KeyMsg(KeyType::Down));
-        [$onSettings] = $step1->update(new KeyMsg(KeyType::Down));
+        // Move to "Remote Access" (index 8), still not available.
+        $screen = $this->screen();
+        for ($i = 0; $i < 8; $i++) {
+            [$screen] = $screen->update(new KeyMsg(KeyType::Down));
+        }
+        self::assertSame('Remote Access', $screen->selectedLabel());
 
-        [, $cmd] = $onSettings->update(new KeyMsg(KeyType::Enter));
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Enter));
 
         $msg = $this->runCmd($cmd);
         self::assertInstanceOf(ShowToastMsg::class, $msg);
         self::assertSame(ToastType::Info, $msg->type);
-        self::assertStringContainsString('Server Settings', $msg->message);
+        self::assertStringContainsString('Remote Access', $msg->message);
         self::assertStringContainsString('coming soon', $msg->message);
     }
 

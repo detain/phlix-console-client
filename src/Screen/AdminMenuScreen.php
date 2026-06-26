@@ -19,9 +19,10 @@ use SugarCraft\Core\SubscriptionCapable;
 
 /**
  * The admin area's section index: a borderless {@see Table} listing every planned
- * admin surface (Dashboard, Users, Server Settings, …, Cast) so the whole admin
+ * admin surface (Dashboard, Users, Server Settings, …, DLNA) so the whole admin
  * structure is visible up front. Wired surfaces (Dashboard, Logs, …) open; the
- * rest render dimmed "(coming soon)". ↑/↓ move the selection; Enter on an available
+ * rest render dimmed "(coming soon)". Cast is NOT an admin section — it ships as a
+ * DetailScreen `C` action. ↑/↓ move the selection; Enter on an available
  * section emits an {@see OpenAdminSectionMsg} (the App pushes that section's
  * screen); Enter on an unavailable one surfaces an info toast; Esc/q go back.
  *
@@ -49,7 +50,7 @@ final class AdminMenuScreen implements Breadcrumbed, Themed
     private const SECTIONS = [
         ['label' => 'Dashboard', 'route' => Route::AdminDashboard, 'available' => true],
         ['label' => 'Users', 'route' => Route::AdminUsers, 'available' => true],
-        ['label' => 'Server Settings', 'route' => null, 'available' => false],
+        ['label' => 'Server Settings', 'route' => Route::AdminSettings, 'available' => true],
         ['label' => 'Plugins', 'route' => Route::AdminPlugins, 'available' => true],
         ['label' => 'Libraries', 'route' => null, 'available' => false],
         ['label' => 'Logs', 'route' => Route::AdminLogs, 'available' => true],
@@ -57,7 +58,6 @@ final class AdminMenuScreen implements Breadcrumbed, Themed
         ['label' => 'Live TV', 'route' => null, 'available' => false],
         ['label' => 'Remote Access', 'route' => null, 'available' => false],
         ['label' => 'DLNA', 'route' => null, 'available' => false],
-        ['label' => 'Cast', 'route' => null, 'available' => false],
     ];
 
     private int $selected = 0;

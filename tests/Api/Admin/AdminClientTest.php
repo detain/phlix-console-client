@@ -14,6 +14,7 @@ use Phlix\Console\Api\Dto\Admin\BackupSchedule;
 use Phlix\Console\Api\Dto\Admin\LogFile;
 use Phlix\Console\Api\Dto\Admin\LogTail;
 use Phlix\Console\Api\Dto\Admin\Plugin;
+use Phlix\Console\Api\Dto\Admin\ServerSettings;
 use Phlix\Console\Config\TokenBundle;
 use Phlix\Console\Tests\Api\FakeTransport;
 use PHPUnit\Framework\TestCase;
@@ -778,6 +779,151 @@ final class AdminClientTest extends TestCase
         $this->await($this->clientWith($transport)->backups());
 
         self::assertSame('Bearer access-1', $transport->requestAt(0)['headers']['Authorization'] ?? null);
+    }
+
+    // ---- server settings -----------------------------------------------
+
+    private function settingsEnvelope(): array
+    {
+        return $this->envelope([
+            'settings' => ['theme' => 'dark', 'port' => 8096, 'debug' => true],
+            'types' => ['theme' => 'string', 'port' => 'int', 'debug' => 'bool'],
+            'overridden' => ['port'],
+        ]);
+    }
+
+    public function testServerSettingsReadsTheEnvelopedData(): void
+    {
+        $transport = (new FakeTransport())->json(200, $this->settingsEnvelope());
+
+        $settings = $this->await($this->clientWith($transport)->serverSettings());
+
+        self::assertInstanceOf(ServerSettings::class, $settings);
+        self::assertCount(3, $settings->settings);
+        self::assertStringContainsString('/api/v1/admin/settings', $transport->requestAt(0)['url']);
+        self::assertSame('GET', $transport->requestAt(0)['method']);
+
+        $byKey = [];
+        foreach ($settings->settings as $setting) {
+            $byKey[$setting->key] = $setting;
+        }
+        self::assertSame('dark', $byKey['theme']->displayValue);
+        self::assertSame('8096', $byKey['port']->displayValue);
+        self::assertTrue($byKey['port']->overridden);
+        self::assertSame('true', $byKey['debug']->displayValue);
+    }
+
+    public function testServerSettingsToleratesAMissingDataKey(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true]);
+
+        $settings = $this->await($this->clientWith($transport)->serverSettings());
+
+        self::assertSame([], $settings->settings);
+    }
+
+    public function testServerSettingsIgnoresATopLevelSettingsWithNoDataWrapper(): void
+    {
+        // Inverse envelope-regression guard: this controller IS enveloped, so a
+        // top-level {settings} (no `data`) must yield EMPTY — a wrong un-enveloped
+        // read would surface the settings here and fail.
+        $transport = (new FakeTransport())->json(200, [
+            'success' => true,
+            'settings' => ['theme' => 'dark'],
+            'types' => ['theme' => 'string'],
+        ]);
+
+        $settings = $this->await($this->clientWith($transport)->serverSettings());
+
+        self::assertSame([], $settings->settings);
+    }
+
+    public function testServerSettingsAttachesTheBearerToken(): void
+    {
+        $transport = (new FakeTransport())->json(200, $this->settingsEnvelope());
+
+        $this->await($this->clientWith($transport)->serverSettings());
+
+        self::assertSame('Bearer access-1', $transport->requestAt(0)['headers']['Authorization'] ?? null);
+    }
+
+    public function testUpdateServerSettingPutsABoolAndResolvesTheMessage(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true, 'message' => 'Settings updated.']);
+
+        $message = $this->await($this->clientWith($transport)->updateServerSetting('debug', false));
+
+        self::assertSame('Settings updated.', $message);
+        self::assertSame('PUT', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/settings', $transport->requestAt(0)['url']);
+        /** @var array<string,mixed> $body */
+        $body = json_decode($transport->requestAt(0)['body'], true);
+        self::assertSame(['settings' => ['debug' => false]], $body);
+        self::assertFalse($body['settings']['debug'], 'a real bool is sent (not "false")');
+    }
+
+    public function testUpdateServerSettingPutsAnInt(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true, 'message' => 'Settings updated.']);
+
+        $this->await($this->clientWith($transport)->updateServerSetting('port', 9000));
+
+        /** @var array<string,mixed> $body */
+        $body = json_decode($transport->requestAt(0)['body'], true);
+        self::assertSame(['settings' => ['port' => 9000]], $body);
+        self::assertIsInt($body['settings']['port']);
+    }
+
+    public function testUpdateServerSettingPutsAFloat(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true, 'message' => 'Settings updated.']);
+
+        $this->await($this->clientWith($transport)->updateServerSetting('ratio', 1.5));
+
+        /** @var array<string,mixed> $body */
+        $body = json_decode($transport->requestAt(0)['body'], true);
+        self::assertSame(1.5, $body['settings']['ratio']);
+    }
+
+    public function testUpdateServerSettingPutsAString(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true, 'message' => 'Settings updated.']);
+
+        $this->await($this->clientWith($transport)->updateServerSetting('theme', 'light'));
+
+        /** @var array<string,mixed> $body */
+        $body = json_decode($transport->requestAt(0)['body'], true);
+        self::assertSame(['settings' => ['theme' => 'light']], $body);
+    }
+
+    public function testUpdateServerSettingPutsAnArray(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true, 'message' => 'Settings updated.']);
+
+        $this->await($this->clientWith($transport)->updateServerSetting('hosts', ['a', 'b']));
+
+        /** @var array<string,mixed> $body */
+        $body = json_decode($transport->requestAt(0)['body'], true);
+        self::assertSame(['settings' => ['hosts' => ['a', 'b']]], $body);
+    }
+
+    public function testUpdateServerSettingResolvesAnEmptyMessageWhenAbsent(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true]);
+
+        $message = $this->await($this->clientWith($transport)->updateServerSetting('theme', 'light'));
+
+        self::assertSame('', $message);
+    }
+
+    public function testUpdateServerSettingRejectsWithTheServerErrorOnA400(): void
+    {
+        $transport = (new FakeTransport())->json(400, ['success' => false, 'error' => 'Validation failed']);
+
+        $error = $this->awaitError($this->clientWith($transport)->updateServerSetting('port', 0));
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('Validation failed', $error->getMessage());
     }
 
     // ---- helpers -------------------------------------------------------
