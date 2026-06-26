@@ -14,9 +14,14 @@ use Phlix\Console\Api\Dto\Admin\BackupSchedule;
 use Phlix\Console\Api\Dto\Admin\DlnaServerStatus;
 use Phlix\Console\Api\Dto\Admin\LogFile;
 use Phlix\Console\Api\Dto\Admin\LogTail;
+use Phlix\Console\Api\Dto\Admin\HubStatus;
 use Phlix\Console\Api\Dto\Admin\Plugin;
+use Phlix\Console\Api\Dto\Admin\PortForwardStatus;
+use Phlix\Console\Api\Dto\Admin\RelayStatus;
+use Phlix\Console\Api\Dto\Admin\RemoteAccessStatus;
 use Phlix\Console\Api\Dto\Admin\ScanJob;
 use Phlix\Console\Api\Dto\Admin\ServerSettings;
+use Phlix\Console\Api\Dto\Admin\SubdomainStatus;
 use Phlix\Console\Api\Dto\Coerce;
 use Phlix\Console\Api\Dto\Library;
 use React\Promise\PromiseInterface;
@@ -54,6 +59,9 @@ final class AdminClient
 
     /** The base path every DLNA-server endpoint hangs off. */
     private const DLNA = '/api/v1/admin/dlna';
+
+    /** The base path every remote-access endpoint hangs off. */
+    private const REMOTE = '/api/v1/admin/remote';
 
     /** The base path every library endpoint hangs off. */
     private const LIBRARIES = '/api/v1/libraries';
@@ -537,6 +545,165 @@ final class AdminClient
                 // Let an AuthError (401) propagate untouched so the screen can
                 // surface a session expiry; only the non-auth ApiError failures
                 // (409 / 500) carry the friendly `message` to re-surface.
+                if ($e instanceof ApiError && !$e instanceof AuthError) {
+                    $message = $e->body['message'] ?? null;
+                    if (is_string($message) && $message !== '') {
+                        throw new ApiError($message, $e->statusCode, $e->body, $e);
+                    }
+                }
+
+                throw $e;
+            },
+        );
+    }
+
+    // ---- remote access -------------------------------------------------
+
+    /**
+     * Fetch all four remote-access statuses concurrently and assemble the
+     * aggregate. Each of the four GETs is unenveloped (the
+     * {@see \Phlix\Server\Http\Controllers\Admin\AdminHubController} is
+     * per-controller TOP-LEVEL), so each leg's body is read straight into its DTO
+     * (NOT `$body['data']`); a `{data:{...}}` wrapper therefore yields that
+     * sub-area's tolerant unpaired / unclaimed / disconnected / disabled default.
+     * The four GETs return 200 normally, so no per-leg tolerance is applied — a
+     * genuine rejection rejects the whole call (the screen's error + `r` retry).
+     *
+     * @return PromiseInterface<RemoteAccessStatus>
+     */
+    public function remoteStatus(): PromiseInterface
+    {
+        /** @var array<string, PromiseInterface<array<string,mixed>>> $legs */
+        $legs = [
+            'hub' => $this->api->send('GET', self::REMOTE . '/hub/status'),
+            'subdomain' => $this->api->send('GET', self::REMOTE . '/subdomain/status'),
+            'relay' => $this->api->send('GET', self::REMOTE . '/relay/status'),
+            'portforward' => $this->api->send('GET', self::REMOTE . '/portforward/status'),
+        ];
+
+        return all($legs)->then(static function (array $results): RemoteAccessStatus {
+            return RemoteAccessStatus::fromParts(
+                HubStatus::fromArray($results['hub']),
+                SubdomainStatus::fromArray($results['subdomain']),
+                RelayStatus::fromArray($results['relay']),
+                PortForwardStatus::fromArray($results['portforward']),
+            );
+        });
+    }
+
+    /**
+     * Enable the relay tunnel. Resolves a confirmation string on a 200; on a
+     * failure the friendly server `message` is surfaced (see the message-not-error
+     * landmine on {@see remoteAction()}).
+     *
+     * @return PromiseInterface<string>
+     */
+    public function relayEnable(): PromiseInterface
+    {
+        return $this->remoteAction('/relay/enable', static fn (array $resp): string => 'Relay enabled');
+    }
+
+    /**
+     * Disable the relay tunnel. Resolves a confirmation string; surfaces the
+     * friendly `message` on failure.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function relayDisable(): PromiseInterface
+    {
+        return $this->remoteAction('/relay/disable', static fn (array $resp): string => 'Relay disabled');
+    }
+
+    /**
+     * Ping the relay tunnel. Resolves "Relay ping: {latencyMs}ms" derived from the
+     * 200 body; a 409 (relay not connected) surfaces the friendly `message`.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function relayPing(): PromiseInterface
+    {
+        return $this->remoteAction(
+            '/relay/ping',
+            static fn (array $resp): string => 'Relay ping: ' . Coerce::int($resp['latencyMs'] ?? 0) . 'ms',
+        );
+    }
+
+    /**
+     * Enable port forwarding. Resolves a confirmation string; a 500 surfaces the
+     * friendly `message`.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function portForwardEnable(): PromiseInterface
+    {
+        return $this->remoteAction('/portforward/enable', static fn (array $resp): string => 'Port forwarding enabled');
+    }
+
+    /**
+     * Disable port forwarding. Resolves a confirmation string; surfaces the
+     * friendly `message` on failure.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function portForwardDisable(): PromiseInterface
+    {
+        return $this->remoteAction('/portforward/disable', static fn (array $resp): string => 'Port forwarding disabled');
+    }
+
+    /**
+     * Claim a managed subdomain. Resolves "Claimed {fqdn}" derived from the 200
+     * body; a 409 (already claimed) surfaces the friendly `message`.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function subdomainClaim(): PromiseInterface
+    {
+        return $this->remoteAction('/subdomain/claim', static function (array $resp): string {
+            $fqdn = Coerce::nstr($resp['fqdn'] ?? null) ?? Coerce::nstr($resp['subdomain'] ?? null);
+
+            return $fqdn === null ? 'Subdomain claimed' : 'Claimed ' . $fqdn;
+        });
+    }
+
+    /**
+     * Release the managed subdomain. Resolves a confirmation string; a 409 (not
+     * claimed) surfaces the friendly `message`.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function subdomainRelease(): PromiseInterface
+    {
+        return $this->remoteAction('/subdomain/release', static fn (array $resp): string => 'Subdomain released');
+    }
+
+    /**
+     * Unenroll from the hub (remove the pairing). Resolves a confirmation string;
+     * a 500 surfaces the friendly `message`.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function hubUnenroll(): PromiseInterface
+    {
+        return $this->remoteAction('/hub/unenroll', static fn (array $resp): string => 'Unenrolled from the hub');
+    }
+
+    /**
+     * Fire one remote-access POST and resolve a confirmation string derived from
+     * the 200 body. On rejection, prefer the server's friendly `message` (carried
+     * on {@see ApiError::$body}) over the generic HTTP text — the remote-access
+     * failure bodies (409 / 500) put their human text in `message`, NOT `error`,
+     * so {@see ApiClient::decode()} would otherwise surface "Request failed
+     * (HTTP …)". An {@see AuthError} (401) is let through untouched so the screen
+     * can surface a session expiry rather than a toast.
+     *
+     * @param \Closure(array<string,mixed>): string $confirm
+     * @return PromiseInterface<string>
+     */
+    private function remoteAction(string $suffix, \Closure $confirm): PromiseInterface
+    {
+        return $this->api->send('POST', self::REMOTE . $suffix)->then(
+            static fn (array $resp): string => $confirm($resp),
+            static function (\Throwable $e): never {
                 if ($e instanceof ApiError && !$e instanceof AuthError) {
                     $message = $e->body['message'] ?? null;
                     if (is_string($message) && $message !== '') {

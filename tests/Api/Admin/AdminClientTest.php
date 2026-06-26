@@ -15,6 +15,7 @@ use Phlix\Console\Api\Dto\Admin\DlnaServerStatus;
 use Phlix\Console\Api\Dto\Admin\LogFile;
 use Phlix\Console\Api\Dto\Admin\LogTail;
 use Phlix\Console\Api\Dto\Admin\Plugin;
+use Phlix\Console\Api\Dto\Admin\RemoteAccessStatus;
 use Phlix\Console\Api\Dto\Admin\ServerSettings;
 use Phlix\Console\Config\TokenBundle;
 use Phlix\Console\Tests\Api\FakeTransport;
@@ -1058,6 +1059,307 @@ final class AdminClientTest extends TestCase
         $api->setToken(new TokenBundle('access-1', '', 'Bearer', time() + 3600));
 
         $error = $this->awaitError((new AdminClient($api))->startDlna());
+
+        self::assertInstanceOf(\Phlix\Console\Api\AuthError::class, $error);
+    }
+
+    // ---- remote access -------------------------------------------------
+
+    /**
+     * A transport scripted with the four remote-access status GETs, in the order
+     * the client fires them: hub, subdomain, relay, port-forward. ALL TOP-LEVEL
+     * (the AdminHubController is unenveloped — admin envelopes are per-controller).
+     */
+    private function remoteTransport(): FakeTransport
+    {
+        return (new FakeTransport())
+            ->json(200, [
+                'paired' => true,
+                'serverId' => 'srv-9',
+                'hubUrl' => 'https://hub.example',
+                'enrolledAt' => '2026-06-26T12:00:00+00:00',
+                'lastHeartbeat' => null,
+            ])
+            ->json(200, [
+                'claimed' => true,
+                'subdomain' => 'myserver',
+                'fqdn' => 'myserver.phlix.tv',
+                'certPath' => '/c.pem',
+                'keyPath' => '/k.pem',
+            ])
+            ->json(200, [
+                'connected' => true,
+                'active' => true,
+                'endpoint' => null,
+                'establishedAt' => '2026-06-26T10:00:00+00:00',
+            ])
+            ->json(200, [
+                'enabled' => true,
+                'method' => 'upnp',
+                'externalIp' => '203.0.113.7',
+                'externalPort' => 32400,
+                'hostname' => 'home.example.com',
+            ]);
+    }
+
+    public function testRemoteStatusFansOutToTheFourEndpointsAndAssembles(): void
+    {
+        $transport = $this->remoteTransport();
+
+        $status = $this->await($this->clientWith($transport)->remoteStatus());
+
+        self::assertInstanceOf(RemoteAccessStatus::class, $status);
+        self::assertSame(4, $transport->requestCount(), 'all four sub-areas are fetched');
+
+        // Each leg read its TOP-LEVEL body into its DTO.
+        self::assertTrue($status->hub->paired);
+        self::assertSame('https://hub.example', $status->hub->hubUrl);
+        self::assertTrue($status->subdomain->claimed);
+        self::assertSame('myserver.phlix.tv', $status->subdomain->fqdn);
+        self::assertTrue($status->relay->connected);
+        self::assertTrue($status->portForward->enabled);
+        self::assertSame(32400, $status->portForward->externalPort);
+
+        // The four GET URLs (in fan-out order).
+        self::assertSame('GET', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/remote/hub/status', $transport->requestAt(0)['url']);
+        self::assertStringContainsString('/api/v1/admin/remote/subdomain/status', $transport->requestAt(1)['url']);
+        self::assertStringContainsString('/api/v1/admin/remote/relay/status', $transport->requestAt(2)['url']);
+        self::assertStringContainsString('/api/v1/admin/remote/portforward/status', $transport->requestAt(3)['url']);
+    }
+
+    public function testRemoteStatusReadsTheUnpairedAndDisabledDefaults(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, ['paired' => false])
+            ->json(200, ['claimed' => false])
+            ->json(200, ['connected' => false, 'active' => false])
+            ->json(200, ['enabled' => false]);
+
+        $status = $this->await($this->clientWith($transport)->remoteStatus());
+
+        self::assertFalse($status->hub->paired);
+        self::assertFalse($status->subdomain->claimed);
+        self::assertFalse($status->relay->connected);
+        self::assertFalse($status->portForward->enabled);
+    }
+
+    public function testRemoteStatusIgnoresAnEnvelopeDataKey(): void
+    {
+        // REGRESSION GUARD: the reads are TOP-LEVEL, so a `{data:{…}}` wrapper must
+        // NOT be unwrapped — each leg falls back to its unpaired / unclaimed /
+        // disconnected / disabled default.
+        $transport = (new FakeTransport())
+            ->json(200, $this->envelope(['paired' => true]))
+            ->json(200, $this->envelope(['claimed' => true]))
+            ->json(200, $this->envelope(['connected' => true, 'active' => true]))
+            ->json(200, $this->envelope(['enabled' => true]));
+
+        $status = $this->await($this->clientWith($transport)->remoteStatus());
+
+        self::assertFalse($status->hub->paired, 'an enveloped {data} wrapper must not be read');
+        self::assertFalse($status->subdomain->claimed);
+        self::assertFalse($status->relay->connected);
+        self::assertFalse($status->portForward->enabled);
+    }
+
+    public function testRemoteStatusAttachesTheBearerToken(): void
+    {
+        $transport = $this->remoteTransport();
+
+        $this->await($this->clientWith($transport)->remoteStatus());
+
+        self::assertSame('Bearer access-1', $transport->requestAt(0)['headers']['Authorization'] ?? null);
+    }
+
+    public function testRemoteStatusRejectsWhenALegFails(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, ['paired' => false])
+            ->json(200, ['claimed' => false])
+            ->json(500, ['success' => false, 'message' => 'Failed to load relay status.'])
+            ->json(200, ['enabled' => false]);
+
+        $error = $this->awaitError($this->clientWith($transport)->remoteStatus());
+
+        self::assertInstanceOf(ApiError::class, $error);
+    }
+
+    public function testRelayEnablePostsAndResolvesTheConfirmation(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true]);
+
+        $message = $this->await($this->clientWith($transport)->relayEnable());
+
+        self::assertSame('Relay enabled', $message);
+        self::assertSame('POST', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/remote/relay/enable', $transport->requestAt(0)['url']);
+    }
+
+    public function testRelayDisablePostsAndResolvesTheConfirmation(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true]);
+
+        $message = $this->await($this->clientWith($transport)->relayDisable());
+
+        self::assertSame('Relay disabled', $message);
+        self::assertStringContainsString('/api/v1/admin/remote/relay/disable', $transport->requestAt(0)['url']);
+    }
+
+    public function testRelayPingResolvesTheLatencyDerivedConfirmation(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true, 'latencyMs' => 42]);
+
+        $message = $this->await($this->clientWith($transport)->relayPing());
+
+        self::assertSame('Relay ping: 42ms', $message);
+        self::assertStringContainsString('/api/v1/admin/remote/relay/ping', $transport->requestAt(0)['url']);
+    }
+
+    public function testRelayPingDefaultsTheLatencyToZeroWhenAbsent(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true]);
+
+        $message = $this->await($this->clientWith($transport)->relayPing());
+
+        self::assertSame('Relay ping: 0ms', $message);
+    }
+
+    public function testRelayPingSurfacesTheBodyMessageOnA409NotTheGenericHttpText(): void
+    {
+        // LANDMINE: the 409 failure body uses `message`, NOT `error`, so
+        // ApiClient::decode() would build "Request failed (HTTP 409)". relayPing
+        // must re-surface the friendly `body['message']`.
+        $transport = (new FakeTransport())->json(409, ['success' => false, 'message' => 'Relay not connected.']);
+
+        $error = $this->awaitError($this->clientWith($transport)->relayPing());
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('Relay not connected.', $error->getMessage());
+        self::assertSame(409, $error->statusCode);
+        self::assertStringNotContainsString('HTTP 409', $error->getMessage());
+    }
+
+    public function testPortForwardEnablePostsAndResolvesTheConfirmation(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true]);
+
+        $message = $this->await($this->clientWith($transport)->portForwardEnable());
+
+        self::assertSame('Port forwarding enabled', $message);
+        self::assertStringContainsString('/api/v1/admin/remote/portforward/enable', $transport->requestAt(0)['url']);
+    }
+
+    public function testPortForwardEnableSurfacesTheBodyMessageOnA500(): void
+    {
+        $transport = (new FakeTransport())->json(500, ['success' => false, 'message' => 'Failed to enable port forwarding: upnp']);
+
+        $error = $this->awaitError($this->clientWith($transport)->portForwardEnable());
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('Failed to enable port forwarding: upnp', $error->getMessage());
+        self::assertSame(500, $error->statusCode);
+    }
+
+    public function testPortForwardDisablePostsAndResolvesTheConfirmation(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true]);
+
+        $message = $this->await($this->clientWith($transport)->portForwardDisable());
+
+        self::assertSame('Port forwarding disabled', $message);
+        self::assertStringContainsString('/api/v1/admin/remote/portforward/disable', $transport->requestAt(0)['url']);
+    }
+
+    public function testSubdomainClaimResolvesTheFqdnDerivedConfirmation(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true, 'subdomain' => 'myserver', 'fqdn' => 'myserver.phlix.tv']);
+
+        $message = $this->await($this->clientWith($transport)->subdomainClaim());
+
+        self::assertSame('Claimed myserver.phlix.tv', $message);
+        self::assertSame('POST', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/remote/subdomain/claim', $transport->requestAt(0)['url']);
+    }
+
+    public function testSubdomainClaimFallsBackToSubdomainThenGenericConfirmation(): void
+    {
+        $sub = $this->await($this->clientWith((new FakeTransport())->json(200, ['success' => true, 'subdomain' => 'myserver']))->subdomainClaim());
+        self::assertSame('Claimed myserver', $sub);
+
+        $bare = $this->await($this->clientWith((new FakeTransport())->json(200, ['success' => true]))->subdomainClaim());
+        self::assertSame('Subdomain claimed', $bare);
+    }
+
+    public function testSubdomainClaimSurfacesTheBodyMessageOnA409(): void
+    {
+        $transport = (new FakeTransport())->json(409, ['success' => false, 'message' => 'Subdomain already claimed.']);
+
+        $error = $this->awaitError($this->clientWith($transport)->subdomainClaim());
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('Subdomain already claimed.', $error->getMessage());
+        self::assertSame(409, $error->statusCode);
+    }
+
+    public function testSubdomainReleasePostsAndResolvesTheConfirmation(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true]);
+
+        $message = $this->await($this->clientWith($transport)->subdomainRelease());
+
+        self::assertSame('Subdomain released', $message);
+        self::assertStringContainsString('/api/v1/admin/remote/subdomain/release', $transport->requestAt(0)['url']);
+    }
+
+    public function testSubdomainReleaseSurfacesTheBodyMessageOnA409(): void
+    {
+        $transport = (new FakeTransport())->json(409, ['success' => false, 'message' => 'Subdomain not claimed.']);
+
+        $error = $this->awaitError($this->clientWith($transport)->subdomainRelease());
+
+        self::assertSame('Subdomain not claimed.', $error->getMessage());
+    }
+
+    public function testHubUnenrollPostsAndResolvesTheConfirmation(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true]);
+
+        $message = $this->await($this->clientWith($transport)->hubUnenroll());
+
+        self::assertSame('Unenrolled from the hub', $message);
+        self::assertSame('POST', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/remote/hub/unenroll', $transport->requestAt(0)['url']);
+    }
+
+    public function testHubUnenrollSurfacesTheBodyMessageOnA500(): void
+    {
+        $transport = (new FakeTransport())->json(500, ['success' => false, 'message' => 'Failed to unenroll.']);
+
+        $error = $this->awaitError($this->clientWith($transport)->hubUnenroll());
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('Failed to unenroll.', $error->getMessage());
+        self::assertSame(500, $error->statusCode);
+    }
+
+    public function testRemoteActionFallsBackToTheHttpMessageWhenNoBodyMessage(): void
+    {
+        $transport = (new FakeTransport())->json(500, ['success' => false]);
+
+        $error = $this->awaitError($this->clientWith($transport)->relayEnable());
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('Request failed (HTTP 500)', $error->getMessage());
+    }
+
+    public function testRemoteActionPropagatesAnAuthErrorUntouched(): void
+    {
+        $transport = (new FakeTransport())->json(401, ['error' => 'Unauthorized']);
+        $api = new ApiClient(self::BASE, $transport);
+        $api->setToken(new TokenBundle('access-1', '', 'Bearer', time() + 3600));
+
+        $error = $this->awaitError((new AdminClient($api))->relayEnable());
 
         self::assertInstanceOf(\Phlix\Console\Api\AuthError::class, $error);
     }
