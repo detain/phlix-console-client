@@ -140,7 +140,7 @@ final class App implements Model
      * Builds the audio player for a resolved stream URL (music OR audiobook) —
      * injected so tests use a recording fake instead of spawning ffplay/mpv.
      *
-     * @var \Closure(string $url, ?int $startMs=): \SugarCraft\Reel\AudioPlayer
+     * @var \Closure(string $url, ?int $startMs): \SugarCraft\Reel\AudioPlayer
      */
     private readonly \Closure $audioFactory;
 

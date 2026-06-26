@@ -87,6 +87,7 @@ final class AudiobooksStore
             return $this->listsInFlight[$key];
         }
 
+        /** @var Deferred<list<Audiobook>> $deferred */
         $deferred = new Deferred();
         $this->listsInFlight[$key] = $deferred->promise();
 
@@ -152,6 +153,7 @@ final class AudiobooksStore
             return $this->audiobooksInFlight[$id];
         }
 
+        /** @var Deferred<Audiobook> $deferred */
         $deferred = new Deferred();
         $this->audiobooksInFlight[$id] = $deferred->promise();
 
@@ -187,6 +189,7 @@ final class AudiobooksStore
             return $this->chaptersInFlight[$id];
         }
 
+        /** @var Deferred<list<AudiobookChapter>> $deferred */
         $deferred = new Deferred();
         $this->chaptersInFlight[$id] = $deferred->promise();
 

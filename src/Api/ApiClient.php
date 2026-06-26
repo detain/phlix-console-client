@@ -143,6 +143,7 @@ final class ApiClient
         // Drive a Deferred so the in-flight guard is set before the inner
         // request can settle (react/promise may resolve synchronously), and is
         // cleared exactly once when it does.
+        /** @var Deferred<TokenBundle> $deferred */
         $deferred = new Deferred();
         $this->refreshInFlight = $deferred->promise();
 
@@ -430,7 +431,11 @@ final class ApiClient
         ])->then(static fn (array $data): bool => true);
     }
 
-    /** End a playback session. @return PromiseInterface<bool> */
+    /**
+     * End a playback session.
+     *
+     * @return PromiseInterface<bool>
+     */
     public function endSession(string $sessionId): PromiseInterface
     {
         return $this->authed('DELETE', '/api/v1/sessions/' . rawurlencode($sessionId))
