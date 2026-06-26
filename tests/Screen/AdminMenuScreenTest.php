@@ -39,7 +39,7 @@ final class AdminMenuScreenTest extends TestCase
         self::assertNull($this->screen()->init());
     }
 
-    public function testListsTheFullPlannedSectionSetWithOnlyDashboardAvailable(): void
+    public function testListsTheFullPlannedSectionSetWithWiredSurfacesAvailable(): void
     {
         $sections = $this->screen()->sections();
 
@@ -49,10 +49,15 @@ final class AdminMenuScreenTest extends TestCase
             'Backup', 'Live TV', 'Remote Access', 'DLNA', 'Cast',
         ], $labels);
 
-        $available = array_values(array_filter($sections, static fn (array $s): bool => $s['available']));
-        self::assertCount(1, $available, 'only Dashboard is available in P8.0');
-        self::assertSame('Dashboard', $available[0]['label']);
-        self::assertSame(Route::AdminDashboard, $available[0]['route']);
+        $available = array_column(
+            array_values(array_filter($sections, static fn (array $s): bool => $s['available'])),
+            'label',
+        );
+        self::assertSame(['Dashboard', 'Logs'], $available, 'Dashboard and Logs are wired');
+
+        $byLabel = array_column($sections, null, 'label');
+        self::assertSame(Route::AdminDashboard, $byLabel['Dashboard']['route']);
+        self::assertSame(Route::AdminLogs, $byLabel['Logs']['route']);
     }
 
     public function testRendersEverySectionAndTheComingSoonMarker(): void

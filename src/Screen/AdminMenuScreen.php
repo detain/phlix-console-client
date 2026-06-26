@@ -20,8 +20,8 @@ use SugarCraft\Core\SubscriptionCapable;
 /**
  * The admin area's section index: a borderless {@see Table} listing every planned
  * admin surface (Dashboard, Users, Server Settings, …, Cast) so the whole admin
- * structure is visible up front. In P8.0 only **Dashboard** is wired — the rest
- * render dimmed "(coming soon)". ↑/↓ move the selection; Enter on an available
+ * structure is visible up front. Wired surfaces (Dashboard, Logs, …) open; the
+ * rest render dimmed "(coming soon)". ↑/↓ move the selection; Enter on an available
  * section emits an {@see OpenAdminSectionMsg} (the App pushes that section's
  * screen); Enter on an unavailable one surfaces an info toast; Esc/q go back.
  *
@@ -42,8 +42,7 @@ final class AdminMenuScreen implements Breadcrumbed, Themed
     /**
      * The full planned admin section set, in display order. Each entry is the
      * section's label, the {@see Route} to push when selected (null = not yet a
-     * destination), and whether it is available in this build. Only Dashboard is
-     * available in P8.0.
+     * destination), and whether it is available in this build.
      *
      * @var list<array{label: string, route: ?Route, available: bool}>
      */
@@ -53,7 +52,7 @@ final class AdminMenuScreen implements Breadcrumbed, Themed
         ['label' => 'Server Settings', 'route' => null, 'available' => false],
         ['label' => 'Plugins', 'route' => null, 'available' => false],
         ['label' => 'Libraries', 'route' => null, 'available' => false],
-        ['label' => 'Logs', 'route' => null, 'available' => false],
+        ['label' => 'Logs', 'route' => Route::AdminLogs, 'available' => true],
         ['label' => 'Backup', 'route' => null, 'available' => false],
         ['label' => 'Live TV', 'route' => null, 'available' => false],
         ['label' => 'Remote Access', 'route' => null, 'available' => false],
