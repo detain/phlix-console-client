@@ -13,6 +13,7 @@ use Phlix\Console\Msg\AdminUserActionFailedMsg;
 use Phlix\Console\Msg\AdminUsersFailedMsg;
 use Phlix\Console\Msg\AdminUsersLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
+use Phlix\Console\Msg\OpenAdminUserProfilesMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Screen\AdminUsersScreen;
@@ -825,6 +826,49 @@ final class AdminUsersScreenTest extends TestCase
         self::assertNull($cmd);
         self::assertFalse($closed->isEditing());
         self::assertSame(1, $transport->requestCount());
+    }
+
+    // ---- profiles jump-off ---------------------------------------------
+
+    public function testCapitalPOnTheSelectedUserEmitsTheOpenProfilesMsg(): void
+    {
+        $screen = $this->loaded((new FakeTransport())->json(200, $this->usersPayload()));
+
+        [$same, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'P'));
+
+        self::assertSame($screen, $same, 'opening profiles is a nav — the list is unchanged');
+        $msg = $this->runCmd($cmd);
+        self::assertInstanceOf(OpenAdminUserProfilesMsg::class, $msg);
+        self::assertSame('u-1', $msg->userId, 'the selected (first) user is bob');
+        self::assertSame('bob', $msg->userLabel);
+    }
+
+    public function testCapitalPTargetsTheSelectedRow(): void
+    {
+        $screen = $this->loaded((new FakeTransport())->json(200, $this->usersPayload()));
+        [$onAmy] = $screen->update(new KeyMsg(KeyType::Down));
+
+        $msg = $this->runCmd($onAmy->update(new KeyMsg(KeyType::Char, 'P'))[1]);
+
+        self::assertInstanceOf(OpenAdminUserProfilesMsg::class, $msg);
+        self::assertSame('u-2', $msg->userId);
+        self::assertSame('amy', $msg->userLabel);
+    }
+
+    public function testCapitalPWithNoSelectedUserIsANoOp(): void
+    {
+        $screen = $this->loaded((new FakeTransport())->json(200, $this->emptyUsers()));
+
+        [$next, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'P'));
+        self::assertSame($screen, $next);
+        self::assertNull($cmd);
+    }
+
+    public function testTheHintMentionsProfiles(): void
+    {
+        $screen = $this->loaded((new FakeTransport())->json(200, $this->usersPayload()));
+
+        self::assertStringContainsString('P profiles', $screen->view());
     }
 
     // ---- helpers -------------------------------------------------------

@@ -21,6 +21,7 @@ use Phlix\Console\Api\Dto\Admin\Plugin;
 use Phlix\Console\Api\Dto\Admin\PluginCatalogResult;
 use Phlix\Console\Api\Dto\Admin\PluginDetail;
 use Phlix\Console\Api\Dto\Admin\PortForwardCandidate;
+use Phlix\Console\Api\Dto\Admin\Profile;
 use Phlix\Console\Api\Dto\Admin\PortForwardStatus;
 use Phlix\Console\Api\Dto\Admin\Recording;
 use Phlix\Console\Api\Dto\Admin\RelayStatus;
@@ -55,6 +56,9 @@ final class AdminClient
 
     /** The base path every user-management endpoint hangs off. */
     private const USERS = '/api/v1/admin/users';
+
+    /** The base path the profile-by-id endpoints (update/delete/PIN) hang off. */
+    private const PROFILES = '/api/v1/admin/profiles';
 
     /** The base path every plugin-management endpoint hangs off. */
     private const PLUGINS = '/api/v1/admin/plugins';
@@ -303,6 +307,111 @@ final class AdminClient
     private function userAction(string $method, string $suffix, ?array $body = null): PromiseInterface
     {
         return $this->api->send($method, self::USERS . $suffix, [], $body)
+            ->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
+    }
+
+    // ---- user profiles -------------------------------------------------
+
+    /**
+     * List a user's viewer profiles. Like the user endpoints (and UNLIKE the
+     * dashboard), {@see \Phlix\Server\Http\Controllers\Admin\AdminProfileController}
+     * returns its payload at the TOP LEVEL with NO `{success, data}` envelope
+     * (admin envelopes are per-controller), so the list is read straight from
+     * `$body['profiles']` — a `{data:{profiles}}` wrapper therefore yields the
+     * tolerant empty list. Rejects with the server `error` on a 404 (unknown user).
+     *
+     * @return PromiseInterface<list<Profile>>
+     */
+    public function userProfiles(string $userId): PromiseInterface
+    {
+        return $this->api->send('GET', self::USERS . '/' . rawurlencode($userId) . '/profiles')
+            ->then(static function (array $body): array {
+                return self::mapList(
+                    $body['profiles'] ?? null,
+                    static fn (array $row): Profile => Profile::fromArray($row),
+                );
+            });
+    }
+
+    /**
+     * Create a profile under a user. The body is `{name}` plus an optional
+     * `{rating}` (the 0-6 content-rating index, omitted when null so the server
+     * applies its default). On 201 the server returns `{profile_id, message}` and
+     * this resolves the `message`. Rejects with the server `error` on a 400
+     * (name length / rating range / max-profiles reached) — the
+     * {@see \Phlix\Console\Api\ApiError} carries it as the exception message.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function createProfile(string $userId, string $name, ?int $rating): PromiseInterface
+    {
+        $body = ['name' => $name];
+        if ($rating !== null) {
+            $body['rating'] = $rating;
+        }
+
+        return $this->api->send('POST', self::USERS . '/' . rawurlencode($userId) . '/profiles', [], $body)
+            ->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
+    }
+
+    /**
+     * Update a profile. Both fields are optional: the PUT body carries ONLY the
+     * provided (non-null) fields — `{name}` and/or `{rating}` (the 0-6 index) — so an
+     * unchanged value is left as-is server-side. On 200 the server returns
+     * `{message}` and this resolves it. Rejects with the server `error` on a 400 or
+     * 404 (unknown profile).
+     *
+     * @return PromiseInterface<string>
+     */
+    public function updateProfile(string $profileId, ?string $name, ?int $rating): PromiseInterface
+    {
+        $body = [];
+        if ($name !== null) {
+            $body['name'] = $name;
+        }
+        if ($rating !== null) {
+            $body['rating'] = $rating;
+        }
+
+        return $this->api->send('PUT', self::PROFILES . '/' . rawurlencode($profileId), [], $body === [] ? null : $body)
+            ->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
+    }
+
+    /**
+     * Delete a profile. Resolves the server `message`; rejects with the server
+     * `error` on a 404 (unknown profile).
+     *
+     * @return PromiseInterface<string>
+     */
+    public function deleteProfile(string $profileId): PromiseInterface
+    {
+        return $this->api->send('DELETE', self::PROFILES . '/' . rawurlencode($profileId))
+            ->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
+    }
+
+    /**
+     * Set (or change) a profile's admin PIN. The body is `{pin}` (4 OR 6 digits —
+     * the caller client-validates so a guaranteed-400 never round-trips). Resolves
+     * the server `message`; rejects with the server `error` on a 400 (PIN length /
+     * non-digit) or 404.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function setProfilePin(string $profileId, string $pin): PromiseInterface
+    {
+        return $this->api->send('POST', self::PROFILES . '/' . rawurlencode($profileId) . '/pin', [], ['pin' => $pin])
+            ->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
+    }
+
+    /**
+     * Clear a profile's admin PIN (DELETE). Resolves the server `message`; rejects
+     * with the server `error` on a 404.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function clearProfilePin(string $profileId): PromiseInterface
+    {
+        return $this->api->send('DELETE', self::PROFILES . '/' . rawurlencode($profileId) . '/pin')
             ->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
     }
 
