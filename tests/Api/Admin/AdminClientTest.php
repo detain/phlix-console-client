@@ -17,6 +17,7 @@ use Phlix\Console\Api\Dto\Admin\GuideProgram;
 use Phlix\Console\Api\Dto\Admin\LogFile;
 use Phlix\Console\Api\Dto\Admin\LogTail;
 use Phlix\Console\Api\Dto\Admin\Plugin;
+use Phlix\Console\Api\Dto\Admin\PluginDetail;
 use Phlix\Console\Api\Dto\Admin\PortForwardCandidate;
 use Phlix\Console\Api\Dto\Admin\Recording;
 use Phlix\Console\Api\Dto\Admin\RemoteAccessStatus;
@@ -658,6 +659,149 @@ final class AdminClientTest extends TestCase
 
         self::assertInstanceOf(ApiError::class, $error);
         self::assertSame('Plugin not found', $error->getMessage());
+    }
+
+    // ---- plugin detail + settings --------------------------------------
+
+    /** @return array<string,mixed> */
+    private function pluginDetailBody(): array
+    {
+        return ['plugin' => [
+            'name' => 'trakt',
+            'version' => '1.0',
+            'type' => 'scrobbler',
+            'enabled' => true,
+            'installed_at' => '2026-06-26T12:00:00-04:00',
+            'settings_schema' => [
+                'api_key' => ['type' => 'string', 'required' => true, 'secret' => true, 'label' => 'API Key'],
+                'limit' => ['type' => 'int', 'label' => 'Limit'],
+            ],
+            'settings' => ['api_key' => '••••', 'limit' => 50],
+        ]];
+    }
+
+    public function testPluginDetailReadsTheTopLevelPluginKey(): void
+    {
+        $transport = (new FakeTransport())->json(200, $this->pluginDetailBody());
+
+        $detail = $this->await($this->clientWith($transport)->pluginDetail('trakt'));
+
+        self::assertInstanceOf(PluginDetail::class, $detail);
+        self::assertSame('trakt', $detail->name);
+        self::assertCount(2, $detail->fields);
+        self::assertSame('GET', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/plugins/trakt', $transport->requestAt(0)['url']);
+    }
+
+    public function testPluginDetailRawurlencodesTheName(): void
+    {
+        $transport = (new FakeTransport())->json(200, $this->pluginDetailBody());
+
+        $this->await($this->clientWith($transport)->pluginDetail('a b/c'));
+
+        self::assertStringContainsString('/api/v1/admin/plugins/a%20b%2Fc', $transport->requestAt(0)['url']);
+    }
+
+    public function testPluginDetailIgnoresAnEnvelopeDataWrapper(): void
+    {
+        // Guard against regressing to a `{data:{plugin}}` read: the controller is
+        // top-level, so a data wrapper must yield the tolerant empty default.
+        $transport = (new FakeTransport())->json(200, ['data' => ['plugin' => ['name' => 'ghost']]]);
+
+        $detail = $this->await($this->clientWith($transport)->pluginDetail('trakt'));
+
+        self::assertInstanceOf(PluginDetail::class, $detail);
+        self::assertSame('', $detail->name, 'the plugin is read top-level, not from data');
+        self::assertSame([], $detail->fields);
+    }
+
+    public function testPluginDetailToleratesAMissingPluginKey(): void
+    {
+        $transport = (new FakeTransport())->json(200, []);
+
+        $detail = $this->await($this->clientWith($transport)->pluginDetail('trakt'));
+
+        self::assertInstanceOf(PluginDetail::class, $detail);
+        self::assertSame('', $detail->name);
+    }
+
+    public function testPluginDetailRejectsWithTheServerErrorOnA404(): void
+    {
+        $transport = (new FakeTransport())->json(404, ['error' => 'Plugin not found']);
+
+        $error = $this->awaitError($this->clientWith($transport)->pluginDetail('missing'));
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('Plugin not found', $error->getMessage());
+    }
+
+    public function testUpdatePluginSettingPutsTheStringSettingAndResolvesTheRefreshedDetail(): void
+    {
+        $transport = (new FakeTransport())->json(200, $this->pluginDetailBody());
+
+        $detail = $this->await($this->clientWith($transport)->updatePluginSetting('trakt', 'api_key', 'newkey'));
+
+        self::assertInstanceOf(PluginDetail::class, $detail);
+        self::assertSame('trakt', $detail->name);
+        self::assertSame('PUT', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/plugins/trakt/settings', $transport->requestAt(0)['url']);
+        /** @var array<string,mixed> $body */
+        $body = json_decode($transport->requestAt(0)['body'], true);
+        self::assertSame(['settings' => ['api_key' => 'newkey']], $body);
+    }
+
+    public function testUpdatePluginSettingSendsARealBool(): void
+    {
+        $transport = (new FakeTransport())->json(200, $this->pluginDetailBody());
+
+        $this->await($this->clientWith($transport)->updatePluginSetting('trakt', 'on', true));
+
+        /** @var array<string,mixed> $body */
+        $body = json_decode($transport->requestAt(0)['body'], true);
+        self::assertSame(['settings' => ['on' => true]], $body);
+        self::assertIsBool($body['settings']['on']);
+    }
+
+    public function testUpdatePluginSettingSendsARealInt(): void
+    {
+        $transport = (new FakeTransport())->json(200, $this->pluginDetailBody());
+
+        $this->await($this->clientWith($transport)->updatePluginSetting('trakt', 'limit', 9000));
+
+        /** @var array<string,mixed> $body */
+        $body = json_decode($transport->requestAt(0)['body'], true);
+        self::assertSame(['settings' => ['limit' => 9000]], $body);
+        self::assertIsInt($body['settings']['limit']);
+    }
+
+    public function testUpdatePluginSettingSendsAnArrayValue(): void
+    {
+        $transport = (new FakeTransport())->json(200, $this->pluginDetailBody());
+
+        $this->await($this->clientWith($transport)->updatePluginSetting('trakt', 'hosts', ['a', 'b']));
+
+        /** @var array<string,mixed> $body */
+        $body = json_decode($transport->requestAt(0)['body'], true);
+        self::assertSame(['settings' => ['hosts' => ['a', 'b']]], $body);
+    }
+
+    public function testUpdatePluginSettingRejectsWithTheServerErrorOnA400(): void
+    {
+        $transport = (new FakeTransport())->json(400, ['error' => 'Invalid setting', 'code' => 'plugin.settings.invalid']);
+
+        $error = $this->awaitError($this->clientWith($transport)->updatePluginSetting('trakt', 'limit', 'nope'));
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('Invalid setting', $error->getMessage());
+    }
+
+    public function testUpdatePluginSettingRawurlencodesTheName(): void
+    {
+        $transport = (new FakeTransport())->json(200, $this->pluginDetailBody());
+
+        $this->await($this->clientWith($transport)->updatePluginSetting('a/b', 'k', 'v'));
+
+        self::assertStringContainsString('/api/v1/admin/plugins/a%2Fb/settings', $transport->requestAt(0)['url']);
     }
 
     // ---- backups -------------------------------------------------------
