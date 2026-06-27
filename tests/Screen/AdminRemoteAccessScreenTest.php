@@ -6,6 +6,9 @@ namespace Phlix\Console\Tests\Screen;
 
 use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\ApiClient;
+use Phlix\Console\Api\Dto\Admin\PortForwardCandidate;
+use Phlix\Console\Msg\AdminPortForwardCandidatesFailedMsg;
+use Phlix\Console\Msg\AdminPortForwardCandidatesLoadedMsg;
 use Phlix\Console\Msg\AdminRemoteActionDoneMsg;
 use Phlix\Console\Msg\AdminRemoteActionFailedMsg;
 use Phlix\Console\Msg\AdminRemoteFailedMsg;
@@ -365,6 +368,238 @@ final class AdminRemoteAccessScreenTest extends TestCase
         self::assertNull($cmd);
     }
 
+    // ---- port-forward candidates sub-view ------------------------------
+
+    /** Two discovered candidates (the `{candidates:[…]}` top-level shape). */
+    private function candidatesPayload(): array
+    {
+        return [
+            'candidates' => [
+                ['hostname' => 'http://192.168.1.100:32400', 'externalIp' => '203.0.113.7', 'port' => 32400],
+                ['hostname' => 'http://10.0.0.5:8096', 'externalIp' => '198.51.100.4', 'port' => 8096],
+            ],
+        ];
+    }
+
+    public function testCOnThePortForwardPanelOpensTheCandidatesSubViewAndFetches(): void
+    {
+        $transport = $this->statusTransport($this->activePayloads());
+        $transport->json(200, $this->candidatesPayload());
+        $screen = $this->loadedActiveOnTransport($transport, self::PANEL_PORTFORWARD);
+
+        // `c` opens the sub-view (loading) and fires the candidates GET.
+        [$opening, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'c'));
+        self::assertTrue($opening->isCandidatesOpen());
+        self::assertFalse($opening->isCandidatesLoaded());
+        self::assertStringContainsString('Loading port-forward candidates', $opening->view());
+        self::assertNotNull($cmd);
+
+        $loaded = $this->runCmd($cmd);
+        self::assertInstanceOf(AdminPortForwardCandidatesLoadedMsg::class, $loaded);
+        self::assertStringContainsString('/api/v1/admin/remote/portforward/candidates', $transport->requestAt(4)['url']);
+        self::assertSame('GET', $transport->requestAt(4)['method']);
+
+        // The panel selection is untouched — the status underneath is unchanged.
+        [$ready] = $opening->update($loaded);
+        self::assertTrue($ready->isCandidatesLoaded());
+        self::assertSame(self::PANEL_PORTFORWARD, $ready->selectedPanel());
+        self::assertNotNull($ready->status(), 'the four-panel status is untouched by the sub-view');
+        self::assertCount(2, $ready->candidatesList());
+    }
+
+    public function testTheCandidatesSubViewRendersTheDiscoveredRows(): void
+    {
+        $ready = $this->openedCandidates($this->candidatesPayload());
+
+        $view = $ready->view();
+        self::assertStringContainsString('Port-forward candidates', $view, 'the sub-view has its own title');
+        self::assertStringContainsString('Discovered: 2 candidates', $view);
+        self::assertStringContainsString('192.168.1.100', $view);
+        self::assertStringContainsString('203.0.113.7', $view);
+        self::assertStringContainsString('32400', $view);
+        self::assertStringContainsString('c/Esc close', $view);
+    }
+
+    public function testTheCandidatesSubViewShowsTheEmptyPlaceholder(): void
+    {
+        $ready = $this->openedCandidates(['candidates' => []]);
+
+        self::assertTrue($ready->isCandidatesLoaded());
+        self::assertSame([], $ready->candidatesList());
+        self::assertStringContainsString('No candidates discovered.', $ready->view());
+    }
+
+    public function testCClosesTheCandidatesSubViewWithoutPoppingOrChangingPanel(): void
+    {
+        $ready = $this->openedCandidates($this->candidatesPayload());
+
+        [$closed, $cmd] = $ready->update(new KeyMsg(KeyType::Char, 'c'));
+        self::assertFalse($closed->isCandidatesOpen());
+        self::assertNull($cmd, 'closing the sub-view fires no command (no NavigateBack)');
+        self::assertSame(self::PANEL_PORTFORWARD, $closed->selectedPanel());
+        self::assertStringContainsString('Port Forward', $closed->view());
+    }
+
+    public function testEscapeClosesTheCandidatesSubViewWithoutPopping(): void
+    {
+        $ready = $this->openedCandidates($this->candidatesPayload());
+
+        [$closed, $cmd] = $ready->update(new KeyMsg(KeyType::Escape));
+        self::assertFalse($closed->isCandidatesOpen());
+        self::assertNull($cmd, 'Esc closes the sub-view rather than navigating back');
+        self::assertSame(self::PANEL_PORTFORWARD, $closed->selectedPanel());
+    }
+
+    public function testTheCandidatesSubViewScrollsAndClamps(): void
+    {
+        $ready = $this->openedCandidates($this->candidatesPayload());
+        self::assertSame(0, $ready->candidatesSelectedIndex());
+
+        // Up at the top is a clamped no-op (same instance).
+        [$atTop] = $ready->update(new KeyMsg(KeyType::Up));
+        self::assertSame($ready, $atTop);
+
+        [$down] = $ready->update(new KeyMsg(KeyType::Down));
+        self::assertSame(1, $down->candidatesSelectedIndex());
+
+        // Down at the bottom is a clamped no-op.
+        [$atBottom] = $down->update(new KeyMsg(KeyType::Down));
+        self::assertSame($down, $atBottom);
+    }
+
+    public function testScrollingAnEmptyCandidatesListIsANoOp(): void
+    {
+        $ready = $this->openedCandidates(['candidates' => []]);
+        self::assertSame([], $ready->candidatesList());
+
+        [$down] = $ready->update(new KeyMsg(KeyType::Down));
+        self::assertSame($ready, $down, 'scrolling an empty list is a no-op');
+        [$up] = $ready->update(new KeyMsg(KeyType::Up));
+        self::assertSame($ready, $up);
+    }
+
+    public function testRRefetchesTheCandidatesWhileTheSubViewIsOpen(): void
+    {
+        $transport = $this->statusTransport($this->activePayloads());
+        $transport->json(200, $this->candidatesPayload());   // first open
+        $transport->json(200, ['candidates' => []]);          // `r` refetch
+        $screen = $this->loadedActiveOnTransport($transport, self::PANEL_PORTFORWARD);
+
+        [$opening, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'c'));
+        $ready = $opening->update($this->runCmd($cmd))[0];
+        self::assertCount(2, $ready->candidatesList());
+
+        // `r` re-opens in the loading state and refetches.
+        [$reloading, $rCmd] = $ready->update(new KeyMsg(KeyType::Char, 'r'));
+        self::assertTrue($reloading->isCandidatesOpen());
+        self::assertFalse($reloading->isCandidatesLoaded());
+
+        $reloaded = $this->runCmd($rCmd);
+        self::assertInstanceOf(AdminPortForwardCandidatesLoadedMsg::class, $reloaded);
+        [$after] = $reloading->update($reloaded);
+        self::assertSame([], $after->candidatesList());
+    }
+
+    public function testAnUnrelatedKeyInTheCandidatesSubViewIsANoOp(): void
+    {
+        $ready = $this->openedCandidates($this->candidatesPayload());
+
+        [$next, $cmd] = $ready->update(new KeyMsg(KeyType::Char, 'z'));
+        self::assertSame($ready, $next);
+        self::assertNull($cmd);
+    }
+
+    public function testCandidatesFetchFailureShowsAnError(): void
+    {
+        $transport = $this->statusTransport($this->activePayloads());
+        $transport->json(500, ['success' => false, 'message' => 'Failed to discover candidates.']);
+        $screen = $this->loadedActiveOnTransport($transport, self::PANEL_PORTFORWARD);
+
+        [$opening, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'c'));
+        $msg = $this->runCmd($cmd);
+        self::assertInstanceOf(AdminPortForwardCandidatesFailedMsg::class, $msg);
+
+        [$failed] = $opening->update($msg);
+        self::assertTrue($failed->isCandidatesOpen());
+        self::assertFalse($failed->isCandidatesLoaded());
+        self::assertNotNull($failed->candidatesError());
+        self::assertStringContainsString('Could not load the port-forward candidates', $failed->view());
+        self::assertStringContainsString('Press r to retry', $failed->view());
+    }
+
+    public function testCandidatesFetchAuthErrorSurfacesASessionExpiry(): void
+    {
+        $transport = $this->statusTransport($this->activePayloads());
+        $transport->json(401, ['error' => 'Unauthorized']);   // candidates, no refresh
+        $screen = $this->screenWithNoRefresh($transport);
+        $loaded = $this->runCmd($screen->init());
+        self::assertInstanceOf(AdminRemoteStatusLoadedMsg::class, $loaded);
+        $screen = $screen->update($loaded)[0];
+        for ($i = 0; $i < self::PANEL_PORTFORWARD; $i++) {
+            [$screen] = $screen->update(new KeyMsg(KeyType::Down));
+        }
+
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'c'));
+        $msg = $this->runCmd($cmd);
+
+        self::assertInstanceOf(SessionExpiredMsg::class, $msg);
+    }
+
+    public function testCandidatesLoadedIsDroppedWhenTheSubViewIsClosed(): void
+    {
+        // A candidates fetch resolving after the sub-view closed must be ignored.
+        $screen = $this->loadedActiveOn(self::PANEL_PORTFORWARD);
+
+        [$ignored, $cmd] = $screen->update(new AdminPortForwardCandidatesLoadedMsg([
+            new PortForwardCandidate('http://h:1', 'ip', 1),
+        ]));
+        self::assertSame($screen, $ignored, 'a late candidates load is dropped when the sub-view is closed');
+        self::assertNull($cmd);
+        self::assertFalse($ignored->isCandidatesOpen());
+    }
+
+    public function testCIsTheClaimKeyOnTheSubdomainPanelNotCandidates(): void
+    {
+        // Panel-scoped keys: `c` on the SUBDOMAIN panel still claims (it does NOT
+        // open the candidates sub-view, which is Port-Forward-only).
+        $transport = $this->statusTransport($this->inactivePayloads());
+        $transport->json(200, ['success' => true, 'fqdn' => 'myserver.phlix.tv']);
+        $screen = $this->loadedActiveOnTransport($transport, self::PANEL_SUBDOMAIN);
+
+        [$next, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'c'));
+        self::assertFalse($next->isCandidatesOpen(), '`c` here claims, it does not open candidates');
+        self::assertTrue($next->isBusy());
+
+        $done = $this->runCmd($cmd);
+        self::assertInstanceOf(AdminRemoteActionDoneMsg::class, $done);
+        self::assertStringContainsString('/api/v1/admin/remote/subdomain/claim', $transport->requestAt(4)['url']);
+    }
+
+    public function testCIsANoOpOnTheRelayPanelWhereNothingIsBound(): void
+    {
+        // `c` is not bound on the Relay panel — a plain no-op, no sub-view.
+        $screen = $this->loadedActiveOn(self::PANEL_RELAY);
+
+        [$next, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'c'));
+        self::assertSame($screen, $next);
+        self::assertNull($cmd);
+        self::assertFalse($next->isCandidatesOpen());
+    }
+
+    public function testCDoesNotOpenCandidatesWhileBusy(): void
+    {
+        // The candidates `c` runs through the action path, which is gated on `busy`.
+        $screen = $this->loadedActiveOn(self::PANEL_PORTFORWARD);
+
+        [$busy] = $screen->update(new KeyMsg(KeyType::Char, 'd'));
+        self::assertTrue($busy->isBusy());
+
+        [$same, $cmd] = $busy->update(new KeyMsg(KeyType::Char, 'c'));
+        self::assertSame($busy, $same);
+        self::assertNull($cmd);
+        self::assertFalse($same->isCandidatesOpen());
+    }
+
     // ---- subdomain claim / release -------------------------------------
 
     public function testSubdomainClaimWhenUnclaimedPosts(): void
@@ -685,6 +920,23 @@ final class AdminRemoteAccessScreenTest extends TestCase
         self::assertSame($panel, $screen->selectedPanel());
 
         return $screen;
+    }
+
+    /**
+     * A Port-Forward-panel screen with the candidates sub-view opened AND its fetch
+     * (yielding $payload) resolved — ready to render / scroll.
+     */
+    private function openedCandidates(array $payload): AdminRemoteAccessScreen
+    {
+        $transport = $this->statusTransport($this->activePayloads());
+        $transport->json(200, $payload);
+        $screen = $this->loadedActiveOnTransport($transport, self::PANEL_PORTFORWARD);
+
+        [$opening, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'c'));
+        $msg = $this->runCmd($cmd);
+        self::assertInstanceOf(AdminPortForwardCandidatesLoadedMsg::class, $msg);
+
+        return $opening->update($msg)[0];
     }
 
     /**

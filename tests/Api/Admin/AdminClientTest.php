@@ -17,6 +17,7 @@ use Phlix\Console\Api\Dto\Admin\GuideProgram;
 use Phlix\Console\Api\Dto\Admin\LogFile;
 use Phlix\Console\Api\Dto\Admin\LogTail;
 use Phlix\Console\Api\Dto\Admin\Plugin;
+use Phlix\Console\Api\Dto\Admin\PortForwardCandidate;
 use Phlix\Console\Api\Dto\Admin\Recording;
 use Phlix\Console\Api\Dto\Admin\RemoteAccessStatus;
 use Phlix\Console\Api\Dto\Admin\SeriesRule;
@@ -1444,6 +1445,90 @@ final class AdminClientTest extends TestCase
         $api->setToken(new TokenBundle('access-1', '', 'Bearer', time() + 3600));
 
         $error = $this->awaitError((new AdminClient($api))->relayEnable());
+
+        self::assertInstanceOf(\Phlix\Console\Api\AuthError::class, $error);
+    }
+
+    // ---- port-forward candidates ---------------------------------------
+
+    public function testPortForwardCandidatesReadsTheTopLevelList(): void
+    {
+        $transport = (new FakeTransport())->json(200, [
+            'candidates' => [
+                ['hostname' => 'http://192.168.1.100:32400', 'externalIp' => '203.0.113.7', 'port' => 32400],
+                ['hostname' => 'http://10.0.0.5:8096', 'externalIp' => '198.51.100.4', 'port' => 8096],
+            ],
+        ]);
+
+        $candidates = $this->await($this->clientWith($transport)->portForwardCandidates());
+
+        self::assertCount(2, $candidates);
+        self::assertInstanceOf(PortForwardCandidate::class, $candidates[0]);
+        self::assertSame('http://192.168.1.100:32400', $candidates[0]->hostname);
+        self::assertSame('203.0.113.7', $candidates[0]->externalIp);
+        self::assertSame(32400, $candidates[0]->port);
+        self::assertSame(8096, $candidates[1]->port);
+
+        self::assertSame('GET', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/remote/portforward/candidates', $transport->requestAt(0)['url']);
+    }
+
+    public function testPortForwardCandidatesIgnoresAnEnvelopeDataKey(): void
+    {
+        // REGRESSION GUARD: the list is read TOP-LEVEL, so a `{data:{candidates}}`
+        // wrapper must NOT be unwrapped — it yields an empty list.
+        $transport = (new FakeTransport())->json(200, $this->envelope([
+            'candidates' => [['hostname' => 'http://ghost:1', 'externalIp' => 'x', 'port' => 1]],
+        ]));
+
+        $candidates = $this->await($this->clientWith($transport)->portForwardCandidates());
+
+        self::assertSame([], $candidates, 'candidates are read top-level, not from data');
+    }
+
+    public function testPortForwardCandidatesToleratesAMissingKeyAndSkipsNonArrayRows(): void
+    {
+        $empty = $this->await($this->clientWith((new FakeTransport())->json(200, ['success' => true]))->portForwardCandidates());
+        self::assertSame([], $empty);
+
+        $transport = (new FakeTransport())->json(200, [
+            'candidates' => [['hostname' => 'http://host:9', 'externalIp' => 'ip', 'port' => 9], 'nope', 7],
+        ]);
+        $candidates = $this->await($this->clientWith($transport)->portForwardCandidates());
+        self::assertCount(1, $candidates);
+    }
+
+    public function testPortForwardCandidatesAttachesTheBearerToken(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['candidates' => []]);
+
+        $this->await($this->clientWith($transport)->portForwardCandidates());
+
+        self::assertSame('Bearer access-1', $transport->requestAt(0)['headers']['Authorization'] ?? null);
+    }
+
+    public function testPortForwardCandidatesSurfacesTheBodyMessageOnA500(): void
+    {
+        // LANDMINE: the 500 failure body uses `message`, NOT `error`, so
+        // ApiClient::decode() would build "Request failed (HTTP 500)". The client
+        // must re-surface the friendly `body['message']`.
+        $transport = (new FakeTransport())->json(500, ['success' => false, 'message' => 'Failed to discover candidates.']);
+
+        $error = $this->awaitError($this->clientWith($transport)->portForwardCandidates());
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('Failed to discover candidates.', $error->getMessage());
+        self::assertSame(500, $error->statusCode);
+        self::assertStringNotContainsString('HTTP 500', $error->getMessage());
+    }
+
+    public function testPortForwardCandidatesPropagatesAnAuthErrorUntouched(): void
+    {
+        $transport = (new FakeTransport())->json(401, ['error' => 'Unauthorized']);
+        $api = new ApiClient(self::BASE, $transport);
+        $api->setToken(new TokenBundle('access-1', '', 'Bearer', time() + 3600));
+
+        $error = $this->awaitError((new AdminClient($api))->portForwardCandidates());
 
         self::assertInstanceOf(\Phlix\Console\Api\AuthError::class, $error);
     }
