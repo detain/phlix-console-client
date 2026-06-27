@@ -421,6 +421,85 @@ final class AdminClientTest extends TestCase
         self::assertSame('User not found', $error->getMessage());
     }
 
+    public function testCreateUserPostsTheFullBodyAndResolvesTheMessage(): void
+    {
+        $transport = (new FakeTransport())->json(201, ['user_id' => 'u-9', 'message' => 'User created successfully']);
+
+        $message = $this->await($this->clientWith($transport)->createUser('alice_99', 'alice@x.com', 'sup3rsecret', true));
+
+        self::assertSame('User created successfully', $message);
+        self::assertSame('POST', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/users', $transport->requestAt(0)['url']);
+        /** @var array<string,mixed> $body */
+        $body = json_decode($transport->requestAt(0)['body'], true);
+        self::assertSame('alice_99', $body['username']);
+        self::assertSame('alice@x.com', $body['email']);
+        self::assertSame('sup3rsecret', $body['password']);
+        self::assertTrue($body['is_admin']);
+    }
+
+    public function testCreateUserRejectsWithTheServerErrorOnA400(): void
+    {
+        $transport = (new FakeTransport())->json(400, [
+            'error' => 'Email already in use',
+            'field_errors' => ['email' => 'Email already in use'],
+        ]);
+
+        $error = $this->awaitError($this->clientWith($transport)->createUser('alice_99', 'taken@x.com', 'sup3rsecret', false));
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('Email already in use', $error->getMessage());
+    }
+
+    public function testUpdateUserPutsOnlyTheProvidedFields(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['message' => 'User updated successfully']);
+
+        // Only the email changes; username/password are null and omitted.
+        $message = $this->await($this->clientWith($transport)->updateUser('u-1', null, 'new@x.com', null));
+
+        self::assertSame('User updated successfully', $message);
+        self::assertSame('PUT', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/users/u-1', $transport->requestAt(0)['url']);
+        /** @var array<string,mixed> $body */
+        $body = json_decode($transport->requestAt(0)['body'], true);
+        self::assertSame(['email' => 'new@x.com'], $body, 'only the changed field is sent');
+        self::assertArrayNotHasKey('username', $body);
+        self::assertArrayNotHasKey('password', $body);
+    }
+
+    public function testUpdateUserSendsEveryProvidedField(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['message' => 'User updated successfully']);
+
+        $this->await($this->clientWith($transport)->updateUser('u-1', 'renamed', 'r@x.com', 'newpassword1'));
+
+        /** @var array<string,mixed> $body */
+        $body = json_decode($transport->requestAt(0)['body'], true);
+        self::assertSame('renamed', $body['username']);
+        self::assertSame('r@x.com', $body['email']);
+        self::assertSame('newpassword1', $body['password']);
+    }
+
+    public function testUpdateUserWithNoChangedFieldsSendsNoBody(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['message' => 'User updated successfully']);
+
+        $this->await($this->clientWith($transport)->updateUser('u-1', null, null, null));
+
+        self::assertSame('', $transport->requestAt(0)['body'], 'no provided fields sends no JSON body');
+    }
+
+    public function testUpdateUserRejectsWithTheServerErrorOnA404(): void
+    {
+        $transport = (new FakeTransport())->json(404, ['error' => 'User not found']);
+
+        $error = $this->awaitError($this->clientWith($transport)->updateUser('missing', null, 'x@y.com', null));
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('User not found', $error->getMessage());
+    }
+
     // ---- plugins -------------------------------------------------------
 
     public function testPluginsMapsTheTopLevelList(): void

@@ -23,6 +23,9 @@ use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\SubscriptionCapable;
+use SugarCraft\Forms\Field\Input;
+use SugarCraft\Forms\Field\Select;
+use SugarCraft\Forms\Form;
 
 /**
  * The admin Users surface: a windowed {@see Table} of every server user (Username
@@ -36,18 +39,23 @@ use SugarCraft\Core\SubscriptionCapable;
  * actions (delete / reject / disable / toggle-admin) arm an inline confirm shown
  * on the status line ("Delete user 'bob'? (y/n)") — `y` performs it, `n`/Esc
  * cancel. A password reset reveals the once-shown new password prominently (a
- * toast plus the status line). On success the server message is toasted and the
- * list refetched; on failure the server `error` is toasted and the list is left
+ * toast plus the status line). `c` opens an embedded candy-forms create form
+ * (username · email · password · is-admin); `E` opens a pre-filled edit form for
+ * the selected user (a blank password leaves it unchanged, and only changed
+ * fields are sent). Both forms client-validate before any request (so a
+ * guaranteed-400 never round-trips) and intercept candy-forms' own quit so they
+ * never exit the app. On success the server message is toasted and the list
+ * refetched; on failure the server `error` is toasted and the list is left
  * unchanged; an auth failure surfaces a session expiry.
  *
  * The client is injected (built locally by the App from its shared ApiClient, so
  * the App holds no AdminClient field). Stable collaborators are readonly; the
- * loaded data, selection, filter, busy flag, the pending confirm, and the status
- * note are private mutable view state set via clone-mutate (the established
- * screen idiom).
+ * loaded data, selection, filter, busy flag, the pending confirm, the status
+ * note, and the embedded create / edit form are private mutable view state set
+ * via clone-mutate (the established screen idiom).
  *
- * SCOPE: list + filter + the per-row actions only. Create-user / edit-user forms
- * and profiles / parental-controls are deferred to a later PR.
+ * SCOPE: list + filter + per-row actions + create / edit forms. Profiles and
+ * parental-controls are deferred to a later PR.
  */
 final class AdminUsersScreen implements Breadcrumbed, Themed
 {
@@ -56,7 +64,12 @@ final class AdminUsersScreen implements Breadcrumbed, Themed
 
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
     private const LOAD_FAILED = 'Could not load the users.';
-    private const HINT = 'f filter   a approve  d disable  x delete  j reject  m admin  p reset-pw   r refresh   Esc back';
+    private const HINT = 'c create  E edit  f filter  a approve  d disable  x delete  j reject  m admin  p reset-pw  r refresh  Esc back';
+    private const FORM_HINT = 'Tab/↑↓  field      Enter  save      Esc  cancel';
+
+    /** The username rule mirrors the server: 3–50 of [A-Za-z0-9_]. */
+    private const USERNAME_PATTERN = '/^[A-Za-z0-9_]{3,50}$/';
+    private const MIN_PASSWORD = 8;
 
     /** The status filter cycle: index → server status (null = all). */
     private const FILTERS = [null, 'pending', 'active', 'disabled'];
@@ -84,6 +97,15 @@ final class AdminUsersScreen implements Breadcrumbed, Themed
 
     /** A transient status-line note (e.g. the revealed password), or null. */
     private ?string $note = null;
+
+    /** The embedded create / edit form while open, else null. */
+    private ?Form $form = null;
+
+    /** The user being edited (null while creating or with no form open). */
+    private ?AdminUser $editing = null;
+
+    /** A client-side validation note shown above an open form, or null. */
+    private ?string $formError = null;
 
     /** @var list<string> */
     private array $crumbs = [];
@@ -149,6 +171,177 @@ final class AdminUsersScreen implements Breadcrumbed, Themed
         };
     }
 
+    // ---- create / edit form (embedded candy-forms) ---------------------
+
+    /**
+     * Drive the embedded create / edit form. candy-forms' Form returns
+     * Cmd::quit() on submit/abort; we intercept that — an abort closes the form,
+     * a submit client-validates (keeping the form open with an error note on a
+     * failure, so a guaranteed-400 never round-trips) then fires the create / edit
+     * request.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function updateForm(Msg $msg, Form $form): array
+    {
+        /** @var array{0: Form, 1: ?\Closure} $result candy-forms' Form::update returns Model's loose `:array`; narrow it. */
+        $result = $form->update($msg);
+        [$next, $cmd] = $result;
+
+        if ($next->isAborted()) {
+            return [$this->closeForm(), null];
+        }
+        if ($next->isSubmitted()) {
+            return $this->editing !== null
+                ? $this->submitEdit($next, $this->editing)
+                : $this->submitCreate($next);
+        }
+
+        return [$this->withForm($next, $this->editing), $cmd];
+    }
+
+    /**
+     * Validate + fire a create. An invalid field keeps the form open with an
+     * error note and issues NO request; a valid set posts and (on the shared
+     * done/failed flow) toasts + refetches.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function submitCreate(Form $form): array
+    {
+        $username = trim($form->getString('username'));
+        $email = trim($form->getString('email'));
+        $password = $form->getString('password');
+        $isAdmin = $form->getString('is_admin') === 'Yes';
+
+        $error = self::validateUsername($username)
+            ?? self::validateEmail($email)
+            ?? self::validatePassword($password);
+        if ($error !== null) {
+            return [$this->reopenCreate($username, $email, $isAdmin, $error), null];
+        }
+
+        return [$this->closeForm()->working(), $this->mutationCmd(
+            $this->admin->createUser($username, $email, $password, $isAdmin),
+            'User created',
+        )];
+    }
+
+    /**
+     * Validate + fire an edit. Only CHANGED fields are sent: an unchanged
+     * username / email is omitted (null), and a blank password is omitted
+     * (= leave unchanged). A changed field that fails validation keeps the form
+     * open with an error note and issues NO request.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function submitEdit(Form $form, AdminUser $user): array
+    {
+        $username = trim($form->getString('username'));
+        $email = trim($form->getString('email'));
+        $password = $form->getString('password');
+
+        $newUsername = $username === $user->username ? null : $username;
+        $newEmail = $email === $user->email ? null : $email;
+        $newPassword = $password === '' ? null : $password;
+
+        $error = ($newUsername !== null ? self::validateUsername($newUsername) : null)
+            ?? ($newEmail !== null ? self::validateEmail($newEmail) : null)
+            ?? ($newPassword !== null ? self::validatePassword($newPassword) : null);
+        if ($error !== null) {
+            return [$this->reopenEdit($user, $username, $email, $error), null];
+        }
+
+        return [$this->closeForm()->working(), $this->mutationCmd(
+            $this->admin->updateUser($user->id, $newUsername, $newEmail, $newPassword),
+            'User updated',
+        )];
+    }
+
+    /**
+     * Map a create / edit promise to the shared done / failed flow (toast +
+     * refetch on success; the server `error` toasted on failure; an auth failure
+     * to a session expiry).
+     *
+     * @param PromiseInterface<string> $promise
+     */
+    private function mutationCmd(PromiseInterface $promise, string $fallback): \Closure
+    {
+        return Cmd::promise(static fn () => $promise->then(
+            static fn (string $message): Msg => new AdminUserActionDoneMsg($message === '' ? $fallback : $message),
+            static fn (\Throwable $e): Msg => $e instanceof AuthError
+                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                : new AdminUserActionFailedMsg($e->getMessage()),
+        ));
+    }
+
+    /**
+     * The create form: username · email · password · is-admin. The is-admin
+     * Select is create-only (the update endpoint does NOT change it — admin is
+     * toggled via `m` on the list).
+     */
+    private static function buildCreateForm(): Form
+    {
+        return Form::new(
+            Input::new('username')
+                ->withTitle('Username')
+                ->withPlaceholder('alice_99'),
+            Input::new('email')
+                ->withTitle('Email')
+                ->withPlaceholder('alice@example.com'),
+            Input::new('password')
+                ->withTitle('Password')
+                ->withPassword(),
+            Select::new('is_admin')
+                ->withTitle('Administrator')
+                ->withOptions('No', 'Yes'),
+        );
+    }
+
+    /**
+     * The edit form: username · email · password, pre-filled from the user (a
+     * blank password leaves it unchanged). No is-admin field — the update
+     * endpoint does not touch the admin flag.
+     */
+    private static function buildEditForm(AdminUser $user): Form
+    {
+        return Form::new(
+            Input::new('username')
+                ->withTitle('Username')
+                ->withValue($user->username),
+            Input::new('email')
+                ->withTitle('Email')
+                ->withValue($user->email),
+            Input::new('password')
+                ->withTitle('New password (blank = unchanged)')
+                ->withPassword(),
+        );
+    }
+
+    /** Validate a username (3–50 of [A-Za-z0-9_]); null when valid. */
+    private static function validateUsername(string $username): ?string
+    {
+        return preg_match(self::USERNAME_PATTERN, $username) === 1
+            ? null
+            : 'Username must be 3–50 letters, digits, or underscores.';
+    }
+
+    /** Validate an email (basic format); null when valid. */
+    private static function validateEmail(string $email): ?string
+    {
+        return filter_var($email, FILTER_VALIDATE_EMAIL) !== false
+            ? null
+            : 'Enter a valid email address.';
+    }
+
+    /** Validate a password (≥ 8 chars); null when valid. */
+    private static function validatePassword(string $password): ?string
+    {
+        return strlen($password) >= self::MIN_PASSWORD
+            ? null
+            : 'Password must be at least ' . self::MIN_PASSWORD . ' characters.';
+    }
+
     // ---- update --------------------------------------------------------
 
     /** @return array{self, ?\Closure} */
@@ -156,6 +349,10 @@ final class AdminUsersScreen implements Breadcrumbed, Themed
     {
         if ($msg instanceof WindowSizeMsg) {
             return [$this->resizedTo($msg->cols, $msg->rows), null];
+        }
+        // An open embedded form captures every other message.
+        if ($this->form !== null) {
+            return $this->updateForm($msg, $this->form);
         }
         if ($msg instanceof KeyMsg) {
             return $this->handleKey($msg);
@@ -178,6 +375,12 @@ final class AdminUsersScreen implements Breadcrumbed, Themed
 
     public function view(): string
     {
+        if ($this->form !== null) {
+            $title = $this->editing !== null ? 'Admin · Users · Edit' : 'Admin · Users · Create';
+
+            return Chrome::frame($title, $this->formBody($this->form), self::FORM_HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
+        }
+
         return Chrome::frame('Admin · Users', $this->body(), self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
     }
 
@@ -217,17 +420,22 @@ final class AdminUsersScreen implements Breadcrumbed, Themed
             return $this->refresh();
         }
 
-        // The remaining keys are per-row actions; they need a selected user and
-        // an idle screen.
+        // The remaining keys mutate; they need an idle screen.
         if ($this->busy) {
             return [$this, null];
         }
+        // Create needs no selected user; open it before the selection guard.
+        if ($rune === 'c') {
+            return [$this->openCreate(), null];
+        }
+
         $user = $this->selectedUser();
         if ($user === null) {
             return [$this, null];
         }
 
         return match ($rune) {
+            'E' => [$this->openEdit($user), null],
             'a' => $this->fire('approve', $user),
             'p' => $this->fire('reset-password', $user),
             'd' => [$this->arm(self::ACTION_DISABLE, $user), null],
@@ -363,6 +571,63 @@ final class AdminUsersScreen implements Breadcrumbed, Themed
         return $next;
     }
 
+    // ---- form open / close / reopen ------------------------------------
+
+    private function openCreate(): self
+    {
+        return $this->withForm(self::buildCreateForm(), null);
+    }
+
+    private function openEdit(AdminUser $user): self
+    {
+        return $this->withForm(self::buildEditForm($user), $user);
+    }
+
+    /** Reopen a fresh create form pre-filled with the entered values + an error. */
+    private function reopenCreate(string $username, string $email, bool $isAdmin, string $error): self
+    {
+        $form = Form::new(
+            Input::new('username')->withTitle('Username')->withValue($username),
+            Input::new('email')->withTitle('Email')->withValue($email),
+            Input::new('password')->withTitle('Password')->withPassword(),
+            Select::new('is_admin')->withTitle('Administrator')->withOptions('No', 'Yes')->withSelected($isAdmin ? 'Yes' : 'No'),
+        );
+        $next = $this->withForm($form, null);
+        $next->formError = $error;
+
+        return $next;
+    }
+
+    /** Reopen a fresh edit form pre-filled with the entered values + an error. */
+    private function reopenEdit(AdminUser $user, string $username, string $email, string $error): self
+    {
+        $form = Form::new(
+            Input::new('username')->withTitle('Username')->withValue($username),
+            Input::new('email')->withTitle('Email')->withValue($email),
+            Input::new('password')->withTitle('New password (blank = unchanged)')->withPassword(),
+        );
+        $next = $this->withForm($form, $user);
+        $next->formError = $error;
+
+        return $next;
+    }
+
+    private function closeForm(): self
+    {
+        return $this->withForm(null, null);
+    }
+
+    private function withForm(?Form $form, ?AdminUser $editing): self
+    {
+        $next = clone $this;
+        $next->form = $form;
+        $next->editing = $form === null ? null : $editing;
+        $next->formError = null;
+        $next->pending = null;
+
+        return $next;
+    }
+
     private function moveSelection(int $delta): self
     {
         $count = count($this->users);
@@ -459,6 +724,20 @@ final class AdminUsersScreen implements Breadcrumbed, Themed
         return '  f cycles the status filter · select a user and press an action key.';
     }
 
+    private function formBody(Form $form): string
+    {
+        $intro = $this->editing !== null
+            ? "Edit '{$this->editing->label()}'. A blank password is left unchanged."
+            : 'Create a user. All fields are required.';
+        $lines = [$intro];
+        if ($this->formError !== null) {
+            $lines[] = '! ' . $this->formError;
+        }
+        $lines[] = '';
+
+        return implode("\n", $lines) . $form->view();
+    }
+
     private function viewportRows(): int
     {
         // The frame body holds the header line, then the table (header + rule = 2
@@ -528,5 +807,20 @@ final class AdminUsersScreen implements Breadcrumbed, Themed
     public function note(): ?string
     {
         return $this->note;
+    }
+
+    public function isCreating(): bool
+    {
+        return $this->form !== null && $this->editing === null;
+    }
+
+    public function isEditing(): bool
+    {
+        return $this->form !== null && $this->editing !== null;
+    }
+
+    public function formError(): ?string
+    {
+        return $this->formError;
     }
 }
