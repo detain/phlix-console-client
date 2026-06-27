@@ -157,15 +157,19 @@ final class AppTest extends TestCase
      * Build an App directly over a hand-made screen stack (so a Teardownable spy
      * can be placed where a real player would be).
      *
+     * When $loggedIn is true the shared AuthStore is seeded with a logged-in user
+     * (over a FakeTransport) so the palette + global search are available — the
+     * gate {@see App::paletteAndSearchAvailable()} reads `auth->currentUser()`.
+     *
      * @param list<array{route: Route, screen: Model}> $stack
      */
-    private function appWithStack(array $stack, ?Toast $toast = null): App
+    private function appWithStack(array $stack, ?Toast $toast = null, bool $loggedIn = false): App
     {
         $api = new ApiClient('https://srv', new FakeTransport());
 
         return new App(
             new Config('https://srv'),
-            new AuthStore($api, TokenStore::default()),
+            $loggedIn ? $this->loggedInAuthStore() : new AuthStore($api, TokenStore::default()),
             $api,
             new LibrariesStore($api),
             new MediaStore($api),
@@ -173,6 +177,24 @@ final class AppTest extends TestCase
             $stack,
             toast: $toast,
         );
+    }
+
+    /**
+     * An AuthStore with a logged-in user (over its own login transport), so
+     * `currentUser()` is non-null — the {@see App::paletteAndSearchAvailable()}
+     * gate. The App reads the AuthStore only for `currentUser()`/`logout()`, so
+     * this store's private ApiClient need not be the App's media ApiClient.
+     */
+    private function loggedInAuthStore(): AuthStore
+    {
+        $transport = (new FakeTransport())->json(200, [
+            'access_token' => 'a', 'refresh_token' => 'r', 'token_type' => 'Bearer', 'expires_in' => 3600,
+            'user' => ['id' => 'u1', 'username' => 'root', 'is_admin' => 0, 'status' => 'active'],
+        ]);
+        $auth = new AuthStore(new ApiClient('https://srv', $transport), TokenStore::default());
+        $this->await($auth->login('root', 'secret'));
+
+        return $auth;
     }
 
     /** A toast pre-loaded with one alert at the given absolute expiry. */
@@ -319,8 +341,16 @@ final class AppTest extends TestCase
 
     private function browsing(): App
     {
-        [$app] = $this->makeApp('https://srv', new FakeTransport());
-        [$browse] = $app->update(new LoginSucceededMsg(AuthUser::fromArray(['id' => 'u1', 'username' => 'joe'])));
+        // Log in through the real AuthStore path (over a login transport) so
+        // `currentUser()` is populated — the App's palette + global search are
+        // gated on it ({@see App::paletteAndSearchAvailable()}).
+        $transport = (new FakeTransport())->json(200, [
+            'access_token' => 'a', 'refresh_token' => 'r', 'token_type' => 'Bearer', 'expires_in' => 3600,
+            'user' => ['id' => 'u1', 'username' => 'joe', 'is_admin' => 0, 'status' => 'active'],
+        ]);
+        [$app, $auth] = $this->makeApp('https://srv', $transport);
+        $this->await($auth->login('joe', 'secret'));
+        [$browse] = $app->update(new LoginSucceededMsg($auth->currentUser() ?? AuthUser::fromArray([])));
 
         return $browse;
     }
@@ -907,10 +937,14 @@ final class AppTest extends TestCase
         return new KeyMsg(KeyType::Char, 'k', ctrl: true);
     }
 
-    /** An App over a single browse-like frame (a teardown spy stands in). */
+    /**
+     * An App over a single browse-like frame (a teardown spy stands in), with a
+     * logged-in user so the palette + global search are available (the
+     * {@see App::paletteAndSearchAvailable()} gate).
+     */
     private function paletteApp(): App
     {
-        return $this->appWithStack([['route' => Route::Browse, 'screen' => new SpyTeardownScreen()]]);
+        return $this->appWithStack([['route' => Route::Browse, 'screen' => new SpyTeardownScreen()]], loggedIn: true);
     }
 
     public function testCtrlKOpensThePaletteWithStaticActionsAndFetchesLibraries(): void
@@ -936,7 +970,7 @@ final class AppTest extends TestCase
 
     public function testColonOpensThePaletteOnANonCapturingScreen(): void
     {
-        $app = $this->appWithStack([['route' => Route::Browse, 'screen' => new SpyTeardownScreen()]]);
+        $app = $this->appWithStack([['route' => Route::Browse, 'screen' => new SpyTeardownScreen()]], loggedIn: true);
 
         [$next] = $app->update(new KeyMsg(KeyType::Char, ':'));
 
@@ -946,7 +980,7 @@ final class AppTest extends TestCase
     public function testColonIsDelegatedWhenTheTopScreenCapturesSlash(): void
     {
         $spy = new SlashCapturingScreen();
-        $app = $this->appWithStack([['route' => Route::Library, 'screen' => $spy]]);
+        $app = $this->appWithStack([['route' => Route::Library, 'screen' => $spy]], loggedIn: true);
 
         [$next] = $app->update(new KeyMsg(KeyType::Char, ':'));
 
@@ -1131,7 +1165,7 @@ final class AppTest extends TestCase
     public function testViewCompositesTheOpenPalette(): void
     {
         $stack = [['route' => Route::Login, 'screen' => LoginScreen::create(null, 80, 24)]];
-        [$open] = $this->appWithStack($stack)->update($this->ctrlK());
+        [$open] = $this->appWithStack($stack, loggedIn: true)->update($this->ctrlK());
 
         self::assertStringContainsString('Quit', $open->view(), 'the palette box floats over the screen');
     }
@@ -1140,7 +1174,7 @@ final class AppTest extends TestCase
     {
         // A non-empty background (LoginScreen) so the palette actually composites.
         $stack = [['route' => Route::Login, 'screen' => LoginScreen::create(null, 80, 24)]];
-        [$open] = $this->appWithStack($stack)->update($this->ctrlK());
+        [$open] = $this->appWithStack($stack, loggedIn: true)->update($this->ctrlK());
         [$typed] = $open->update(new KeyMsg(KeyType::Char, 'q')); // ranks + highlights 'Quit'
 
         // The bold-highlighted matched rune ('Q' of 'Quit') survives compositing
@@ -1187,7 +1221,7 @@ final class AppTest extends TestCase
 
     public function testSlashOpensGlobalSearchOnANonCapturingScreen(): void
     {
-        $app = $this->appWithStack([['route' => Route::Browse, 'screen' => new SpyTeardownScreen()]]);
+        $app = $this->appWithStack([['route' => Route::Browse, 'screen' => new SpyTeardownScreen()]], loggedIn: true);
 
         [$next] = $app->update(new KeyMsg(KeyType::Char, '/'));
 
@@ -1198,7 +1232,7 @@ final class AppTest extends TestCase
     public function testSlashIsDelegatedWhenTheTopScreenCapturesIt(): void
     {
         $spy = new SlashCapturingScreen();
-        $app = $this->appWithStack([['route' => Route::Library, 'screen' => $spy]]);
+        $app = $this->appWithStack([['route' => Route::Library, 'screen' => $spy]], loggedIn: true);
 
         [$next] = $app->update(new KeyMsg(KeyType::Char, '/'));
 
@@ -1492,12 +1526,54 @@ final class AppTest extends TestCase
         self::assertNotContains('Admin', $labels, 'a non-admin never sees the Admin action');
     }
 
-    public function testThePaletteHidesAdminWhenLoggedOut(): void
+    // ---- palette / search gated on login -------------------------------
+    //
+    // Before login (the server-URL + login forms) the palette + global search
+    // are unavailable: `:`/`/`/Ctrl-K must fall through to the form so the user
+    // can type a URL like `http://host:8096`. The gate is
+    // App::paletteAndSearchAvailable() = auth->currentUser() !== null.
+
+    /** A logged-OUT App whose top screen is the server-URL wizard. */
+    private function loggedOutServerApp(): App
     {
-        // paletteApp() has no current user, so the gate is false.
-        [$open] = $this->paletteApp()->update($this->ctrlK());
-        $labels = array_map(static fn ($a): string => $a->label, $open->palette()->actions());
-        self::assertNotContains('Admin', $labels);
+        return $this->appWithStack([['route' => Route::ServerSetup, 'screen' => ServerScreen::create(null, 80, 24)]]);
+    }
+
+    public function testColonDoesNotOpenThePaletteWhenLoggedOut(): void
+    {
+        [$next] = $this->loggedOutServerApp()->update(new KeyMsg(KeyType::Char, ':'));
+
+        self::assertNull($next->palette(), 'pre-login `:` types into the form, never opens the palette');
+        self::assertInstanceOf(ServerScreen::class, $next->screen(), 'the key reached the wizard');
+    }
+
+    public function testCtrlKDoesNotOpenThePaletteWhenLoggedOut(): void
+    {
+        [$next] = $this->loggedOutServerApp()->update($this->ctrlK());
+
+        self::assertNull($next->palette(), 'pre-login Ctrl-K does not open the palette');
+        self::assertInstanceOf(ServerScreen::class, $next->screen());
+    }
+
+    public function testSlashDoesNotOpenGlobalSearchWhenLoggedOut(): void
+    {
+        [$next] = $this->loggedOutServerApp()->update(new KeyMsg(KeyType::Char, '/'));
+
+        self::assertNull($next->palette());
+        self::assertSame(Route::ServerSetup, $next->route(), 'pre-login `/` types into the form, never opens search');
+        self::assertInstanceOf(ServerScreen::class, $next->screen());
+    }
+
+    public function testColonAndSlashOpenThePaletteAndSearchOnceLoggedIn(): void
+    {
+        // Same keys, now WITH a session — the post-login behavior is unchanged.
+        $app = $this->appWithStack([['route' => Route::Browse, 'screen' => new SpyTeardownScreen()]], loggedIn: true);
+
+        [$colon] = $app->update(new KeyMsg(KeyType::Char, ':'));
+        self::assertNotNull($colon->palette(), 'logged in, `:` opens the palette');
+
+        [$slash] = $app->update(new KeyMsg(KeyType::Char, '/'));
+        self::assertSame(Route::Search, $slash->route(), 'logged in, `/` opens global search');
     }
 
     public function testOpenAdminPushesTheAdminMenuScreen(): void
@@ -1706,7 +1782,7 @@ final class AppTest extends TestCase
 
         $app = new App(
             new Config('https://srv'),
-            new AuthStore($api, TokenStore::default()),
+            $this->loggedInAuthStore(),
             $api,
             new LibrariesStore($api),
             new MediaStore($api),
@@ -2242,7 +2318,7 @@ final class AppTest extends TestCase
 
         $app = new App(
             new Config('https://srv'),
-            new AuthStore($api, TokenStore::default()),
+            $this->loggedInAuthStore(),
             $api,
             new LibrariesStore($api),
             new MediaStore($api),

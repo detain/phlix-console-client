@@ -24,7 +24,7 @@ use SugarCraft\Forms\Form;
  * standalone Program); this screen intercepts that and substitutes its own
  * navigation intent so the app doesn't exit.
  */
-final class ServerScreen implements Model, Themed
+final class ServerScreen implements Model, Themed, CapturesSlash
 {
     use SubscriptionCapable;
     use ThemedScreen;
