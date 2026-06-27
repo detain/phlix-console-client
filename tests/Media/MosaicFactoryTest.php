@@ -58,31 +58,31 @@ final class MosaicFactoryTest extends TestCase
         MosaicFactory::forMode('bogus');
     }
 
-    public function testPosterGridHonoursCellModesAsInline(): void
+    public function testPosterGridHonoursCellModes(): void
     {
-        // Cell-based modes tile as text → overlay flag is false.
+        // Cell-based modes tile as text (Mosaic::isInline() drives routing).
         foreach (['ascii', 'ansi256', 'truecolor', 'quarterblock', 'halfblock'] as $mode) {
-            [$mosaic, $overlay] = MosaicFactory::forPosterGrid($mode);
+            $mosaic = MosaicFactory::forPosterGrid($mode);
             self::assertSame($mode, $mosaic->protocol());
-            self::assertFalse($overlay, "{$mode} is a cell renderer (inline)");
+            self::assertTrue($mosaic->isInline(), "{$mode} is a cell renderer");
         }
     }
 
-    public function testPosterGridKeepsGraphicsModesAsOverlay(): void
+    public function testPosterGridKeepsGraphicsModes(): void
     {
-        // Graphics modes now tile via the image overlay → kept, flagged overlay.
-        [$mosaic, $overlay] = MosaicFactory::forPosterGrid('sixel');
+        // Graphics modes are kept (they tile via the image overlay), not downgraded.
+        $mosaic = MosaicFactory::forPosterGrid('sixel');
 
         self::assertSame('sixel', $mosaic->protocol());
-        self::assertTrue($overlay, 'sixel posters are painted as an overlay');
+        self::assertFalse($mosaic->isInline(), 'sixel is painted as an overlay');
     }
 
     public function testPosterGridDefaultsToInlineHalfBlock(): void
     {
         foreach ([null, 'auto'] as $mode) {
-            [$mosaic, $overlay] = MosaicFactory::forPosterGrid($mode);
+            $mosaic = MosaicFactory::forPosterGrid($mode);
             self::assertSame('halfblock', $mosaic->protocol());
-            self::assertFalse($overlay);
+            self::assertTrue($mosaic->isInline());
         }
     }
 }
