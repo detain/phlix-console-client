@@ -12,6 +12,7 @@ use Phlix\Console\Msg\AdminUserActionFailedMsg;
 use Phlix\Console\Msg\AdminUsersFailedMsg;
 use Phlix\Console\Msg\AdminUsersLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
+use Phlix\Console\Msg\OpenAdminUserProfilesMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Ui\Chrome;
@@ -54,8 +55,11 @@ use SugarCraft\Forms\Form;
  * note, and the embedded create / edit form are private mutable view state set
  * via clone-mutate (the established screen idiom).
  *
- * SCOPE: list + filter + per-row actions + create / edit forms. Profiles and
- * parental-controls are deferred to a later PR.
+ * `P` on the selected user opens that user's viewer-profiles management (the
+ * AdminUserProfilesScreen, pushed at App level via OpenAdminUserProfilesMsg).
+ *
+ * SCOPE: list + filter + per-row actions + create / edit forms + the profiles
+ * jump-off. Parental-controls beyond profiles are deferred to a later PR.
  */
 final class AdminUsersScreen implements Breadcrumbed, Themed
 {
@@ -64,7 +68,7 @@ final class AdminUsersScreen implements Breadcrumbed, Themed
 
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
     private const LOAD_FAILED = 'Could not load the users.';
-    private const HINT = 'c create  E edit  f filter  a approve  d disable  x delete  j reject  m admin  p reset-pw  r refresh  Esc back';
+    private const HINT = 'c create  E edit  P profiles  f filter  a approve  d disable  x delete  j reject  m admin  p reset-pw  r refresh  Esc back';
     private const FORM_HINT = 'Tab/↑↓  field      Enter  save      Esc  cancel';
 
     /** The username rule mirrors the server: 3–50 of [A-Za-z0-9_]. */
@@ -436,6 +440,7 @@ final class AdminUsersScreen implements Breadcrumbed, Themed
 
         return match ($rune) {
             'E' => [$this->openEdit($user), null],
+            'P' => [$this, Cmd::send(new OpenAdminUserProfilesMsg($user->id, $user->label()))],
             'a' => $this->fire('approve', $user),
             'p' => $this->fire('reset-password', $user),
             'd' => [$this->arm(self::ACTION_DISABLE, $user), null],

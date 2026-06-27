@@ -29,6 +29,7 @@ use Phlix\Console\Msg\OpenAdminMsg;
 use Phlix\Console\Msg\OpenAdminPluginCatalogMsg;
 use Phlix\Console\Msg\OpenAdminPluginDetailMsg;
 use Phlix\Console\Msg\OpenAdminSectionMsg;
+use Phlix\Console\Msg\OpenAdminUserProfilesMsg;
 use Phlix\Console\Msg\LoginSucceededMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\NowPlayingTickMsg;
@@ -71,6 +72,7 @@ use Phlix\Console\Screen\AdminLogsScreen;
 use Phlix\Console\Screen\AdminMenuScreen;
 use Phlix\Console\Screen\AdminPluginCatalogScreen;
 use Phlix\Console\Screen\AdminPluginDetailScreen;
+use Phlix\Console\Screen\AdminUserProfilesScreen;
 use Phlix\Console\Screen\AdminPluginsScreen;
 use Phlix\Console\Screen\AdminRemoteAccessScreen;
 use Phlix\Console\Screen\AdminSettingsScreen;
@@ -353,6 +355,9 @@ final class App implements Model
         }
         if ($msg instanceof OpenAdminPluginDetailMsg) {
             return $this->openPluginDetail($msg->name);
+        }
+        if ($msg instanceof OpenAdminUserProfilesMsg) {
+            return $this->openUserProfiles($msg->userId, $msg->userLabel);
         }
         if ($msg instanceof OpenAdminPluginCatalogMsg) {
             return $this->openPluginCatalog();
@@ -1283,6 +1288,21 @@ final class App implements Model
         $screen = new AdminPluginDetailScreen(new AdminClient($this->api), $name, $this->cols, $this->rows);
 
         return [$this->push(Route::AdminPluginDetail, $screen), $screen->init()];
+    }
+
+    /**
+     * Open a user's viewer-profiles management (emitted by the AdminUsersScreen `P`
+     * key). The AdminClient is built locally from the shared ApiClient (the App
+     * holds no AdminClient field — the BooksStore-built-locally pattern), so no
+     * constructor wiring is needed.
+     *
+     * @return array{App, ?\Closure}
+     */
+    private function openUserProfiles(string $userId, string $userLabel): array
+    {
+        $screen = new AdminUserProfilesScreen(new AdminClient($this->api), $userId, $userLabel, $this->cols, $this->rows);
+
+        return [$this->push(Route::AdminUserProfiles, $screen), $screen->init()];
     }
 
     /**

@@ -20,6 +20,7 @@ use Phlix\Console\Api\Dto\Admin\Plugin;
 use Phlix\Console\Api\Dto\Admin\PluginCatalogResult;
 use Phlix\Console\Api\Dto\Admin\PluginDetail;
 use Phlix\Console\Api\Dto\Admin\PortForwardCandidate;
+use Phlix\Console\Api\Dto\Admin\Profile;
 use Phlix\Console\Api\Dto\Admin\Recording;
 use Phlix\Console\Api\Dto\Admin\RemoteAccessStatus;
 use Phlix\Console\Api\Dto\Admin\SeriesRule;
@@ -2414,6 +2415,188 @@ final class AdminClientTest extends TestCase
         self::assertInstanceOf(ApiError::class, $error);
         self::assertSame('Rule not found', $error->getMessage());
         self::assertStringNotContainsString('Request failed', $error->getMessage());
+    }
+
+    // ---- user profiles -------------------------------------------------
+
+    private function profilesPayload(): array
+    {
+        return [
+            'profiles' => [
+                ['id' => 'p-1', 'name' => 'Owner', 'content_rating' => 'R', 'is_active' => 1, 'pin_required_for_admin' => 1],
+                ['id' => 'p-2', 'name' => 'Kids', 'content_rating' => 'PG', 'is_active' => 1, 'pin_required_for_admin' => 0],
+            ],
+        ];
+    }
+
+    public function testUserProfilesReadsTheTopLevelProfilesList(): void
+    {
+        $transport = (new FakeTransport())->json(200, $this->profilesPayload());
+
+        $profiles = $this->await($this->clientWith($transport)->userProfiles('u-1'));
+
+        self::assertContainsOnlyInstancesOf(Profile::class, $profiles);
+        self::assertCount(2, $profiles);
+        self::assertSame('Owner', $profiles[0]->name);
+        self::assertSame('PG', $profiles[1]->contentRating);
+        self::assertSame('GET', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/users/u-1/profiles', $transport->requestAt(0)['url']);
+    }
+
+    public function testUserProfilesIgnoresAnEnvelopeDataKey(): void
+    {
+        // Guard against regressing to the dashboard-style `{success, data:{profiles}}`
+        // read: the AdminProfileController is top-level, so a `data` wrapper must NOT
+        // be where the list is found.
+        $transport = (new FakeTransport())->json(200, [
+            'data' => ['profiles' => [['id' => 'p-9', 'name' => 'ghost']]],
+        ]);
+
+        $profiles = $this->await($this->clientWith($transport)->userProfiles('u-1'));
+
+        self::assertSame([], $profiles, 'the list is read top-level, not from data');
+    }
+
+    public function testUserProfilesToleratesAMissingProfilesKeyAndSkipsNonArrayRows(): void
+    {
+        $missing = $this->await($this->clientWith((new FakeTransport())->json(200, []))->userProfiles('u-1'));
+        self::assertSame([], $missing);
+
+        $mixed = $this->await($this->clientWith(
+            (new FakeTransport())->json(200, ['profiles' => [['id' => 'p-1', 'name' => 'ok'], 'nope', 7]]),
+        )->userProfiles('u-1'));
+        self::assertCount(1, $mixed);
+        self::assertSame('ok', $mixed[0]->name);
+    }
+
+    public function testUserProfilesRejectsWithTheServerErrorOnA404(): void
+    {
+        $transport = (new FakeTransport())->json(404, ['error' => 'User not found']);
+
+        $error = $this->awaitError($this->clientWith($transport)->userProfiles('missing'));
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('User not found', $error->getMessage());
+    }
+
+    public function testCreateProfilePostsNameAndRatingIndex(): void
+    {
+        $transport = (new FakeTransport())->json(201, ['profile_id' => 9, 'message' => 'Profile created']);
+
+        $message = $this->await($this->clientWith($transport)->createProfile('u-1', 'Kids', 1));
+
+        self::assertSame('Profile created', $message);
+        self::assertSame('POST', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/users/u-1/profiles', $transport->requestAt(0)['url']);
+        /** @var array<string,mixed> $body */
+        $body = json_decode($transport->requestAt(0)['body'], true);
+        self::assertSame('Kids', $body['name']);
+        self::assertSame(1, $body['rating']);
+    }
+
+    public function testCreateProfileOmitsRatingWhenNull(): void
+    {
+        $transport = (new FakeTransport())->json(201, ['profile_id' => 9, 'message' => 'Profile created']);
+
+        $this->await($this->clientWith($transport)->createProfile('u-1', 'Kids', null));
+
+        /** @var array<string,mixed> $body */
+        $body = json_decode($transport->requestAt(0)['body'], true);
+        self::assertSame(['name' => 'Kids'], $body, 'no rating key when null');
+        self::assertArrayNotHasKey('rating', $body);
+    }
+
+    public function testCreateProfileRejectsWithTheServerErrorOnA400(): void
+    {
+        $transport = (new FakeTransport())->json(400, ['error' => 'Maximum profiles reached']);
+
+        $error = $this->awaitError($this->clientWith($transport)->createProfile('u-1', 'Extra', 3));
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('Maximum profiles reached', $error->getMessage());
+    }
+
+    public function testUpdateProfilePutsOnlyTheProvidedFields(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['message' => 'Profile updated']);
+
+        // Only the rating changes; name is null and omitted.
+        $message = $this->await($this->clientWith($transport)->updateProfile('p-1', null, 4));
+
+        self::assertSame('Profile updated', $message);
+        self::assertSame('PUT', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/profiles/p-1', $transport->requestAt(0)['url']);
+        /** @var array<string,mixed> $body */
+        $body = json_decode($transport->requestAt(0)['body'], true);
+        self::assertSame(['rating' => 4], $body, 'only the changed field is sent');
+        self::assertArrayNotHasKey('name', $body);
+    }
+
+    public function testUpdateProfileSendsBothFieldsWhenProvided(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['message' => 'Profile updated']);
+
+        $this->await($this->clientWith($transport)->updateProfile('p-1', 'Renamed', 0));
+
+        /** @var array<string,mixed> $body */
+        $body = json_decode($transport->requestAt(0)['body'], true);
+        self::assertSame('Renamed', $body['name']);
+        self::assertSame(0, $body['rating']);
+    }
+
+    public function testUpdateProfileWithNoChangedFieldsSendsNoBody(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['message' => 'Profile updated']);
+
+        $this->await($this->clientWith($transport)->updateProfile('p-1', null, null));
+
+        self::assertSame('', $transport->requestAt(0)['body'], 'a no-op update sends no JSON body');
+    }
+
+    public function testDeleteProfileSendsADeleteAndResolvesTheMessage(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['message' => 'Profile deleted']);
+
+        $message = $this->await($this->clientWith($transport)->deleteProfile('p-1'));
+
+        self::assertSame('Profile deleted', $message);
+        self::assertSame('DELETE', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/profiles/p-1', $transport->requestAt(0)['url']);
+    }
+
+    public function testSetProfilePinPostsThePinBody(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['message' => 'PIN updated']);
+
+        $message = $this->await($this->clientWith($transport)->setProfilePin('p-1', '1234'));
+
+        self::assertSame('PIN updated', $message);
+        self::assertSame('POST', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/profiles/p-1/pin', $transport->requestAt(0)['url']);
+        /** @var array<string,mixed> $body */
+        $body = json_decode($transport->requestAt(0)['body'], true);
+        self::assertSame('1234', $body['pin']);
+    }
+
+    public function testClearProfilePinSendsADelete(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['message' => 'PIN cleared']);
+
+        $message = $this->await($this->clientWith($transport)->clearProfilePin('p-1'));
+
+        self::assertSame('PIN cleared', $message);
+        self::assertSame('DELETE', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/profiles/p-1/pin', $transport->requestAt(0)['url']);
+    }
+
+    public function testAProfileActionRejectsWithTheServerErrorOnA400(): void
+    {
+        $transport = (new FakeTransport())->json(400, ['error' => 'Invalid PIN length']);
+
+        $error = $this->awaitError($this->clientWith($transport)->setProfilePin('p-1', '12345'));
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('Invalid PIN length', $error->getMessage());
     }
 
     // ---- helpers -------------------------------------------------------
