@@ -18,6 +18,7 @@ use Phlix\Console\Api\Dto\Admin\LogFile;
 use Phlix\Console\Api\Dto\Admin\LogTail;
 use Phlix\Console\Api\Dto\Admin\HubStatus;
 use Phlix\Console\Api\Dto\Admin\Plugin;
+use Phlix\Console\Api\Dto\Admin\PluginDetail;
 use Phlix\Console\Api\Dto\Admin\PortForwardCandidate;
 use Phlix\Console\Api\Dto\Admin\PortForwardStatus;
 use Phlix\Console\Api\Dto\Admin\Recording;
@@ -377,6 +378,55 @@ final class AdminClient
     {
         return $this->api->send('DELETE', self::PLUGINS . '/' . rawurlencode($name))
             ->then(static fn (array $body): ?Plugin => null);
+    }
+
+    /**
+     * Fetch one plugin's full detail (`GET .../plugins/{name}`). Like the plugin
+     * LIST (and UNLIKE the dashboard), {@see \Phlix\Server\Http\Controllers\PluginAdminController}
+     * is unenveloped (admin envelopes are per-controller), so the detail is read
+     * straight from `$body['plugin']` — NOT `$body['data']['plugin']`; a
+     * `{data:{plugin}}` wrapper therefore yields the tolerant empty default. The
+     * name is rawurlencoded into the path. Rejects with the server `error` on 404.
+     *
+     * @return PromiseInterface<PluginDetail>
+     */
+    public function pluginDetail(string $name): PromiseInterface
+    {
+        return $this->api->send('GET', self::PLUGINS . '/' . rawurlencode($name))
+            ->then(static fn (array $body): PluginDetail => self::pluginDetailOf($body));
+    }
+
+    /**
+     * Update one plugin setting. The PUT body is `{settings:{$key:$value}}`; the
+     * value is already coerced to its field type by the caller (a real bool / int /
+     * float / string / array — and for a secret, only ever a non-blank value, since
+     * a blank secret edit is a caller-side no-op). Resolves the REFRESHED
+     * {@see PluginDetail} the server returns under `$body['plugin']` (so the screen
+     * swaps the whole detail in). Rejects with the server `error` on a 400
+     * (`plugin.settings.invalid` — unknown key / wrong type) or 404 — the
+     * {@see \Phlix\Console\Api\ApiError} carries it as the exception message.
+     *
+     * @param bool|int|float|string|array<array-key,mixed> $value
+     * @return PromiseInterface<PluginDetail>
+     */
+    public function updatePluginSetting(string $name, string $key, bool|int|float|string|array $value): PromiseInterface
+    {
+        return $this->api->send('PUT', self::PLUGINS . '/' . rawurlencode($name) . '/settings', [], ['settings' => [$key => $value]])
+            ->then(static fn (array $body): PluginDetail => self::pluginDetailOf($body));
+    }
+
+    /**
+     * Map a `{plugin: {...}}` detail response to a {@see PluginDetail}; a missing/
+     * non-array `plugin` key (e.g. a wrong `{data:{plugin}}` wrapper) yields a
+     * tolerant empty detail so the mapping never breaks.
+     *
+     * @param array<string,mixed> $body
+     */
+    private static function pluginDetailOf(array $body): PluginDetail
+    {
+        $plugin = $body['plugin'] ?? null;
+
+        return PluginDetail::fromArray(is_array($plugin) ? $plugin : []);
     }
 
     /**

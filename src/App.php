@@ -26,6 +26,7 @@ use Phlix\Console\Msg\BootResolvedMsg;
 use Phlix\Console\Msg\GoHomeMsg;
 use Phlix\Console\Msg\LoginFailedMsg;
 use Phlix\Console\Msg\OpenAdminMsg;
+use Phlix\Console\Msg\OpenAdminPluginDetailMsg;
 use Phlix\Console\Msg\OpenAdminSectionMsg;
 use Phlix\Console\Msg\LoginSucceededMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
@@ -67,6 +68,7 @@ use Phlix\Console\Screen\AdminLibrariesScreen;
 use Phlix\Console\Screen\AdminLiveTvScreen;
 use Phlix\Console\Screen\AdminLogsScreen;
 use Phlix\Console\Screen\AdminMenuScreen;
+use Phlix\Console\Screen\AdminPluginDetailScreen;
 use Phlix\Console\Screen\AdminPluginsScreen;
 use Phlix\Console\Screen\AdminRemoteAccessScreen;
 use Phlix\Console\Screen\AdminSettingsScreen;
@@ -346,6 +348,9 @@ final class App implements Model
         }
         if ($msg instanceof OpenAdminSectionMsg) {
             return $this->openAdminSection($msg->section);
+        }
+        if ($msg instanceof OpenAdminPluginDetailMsg) {
+            return $this->openPluginDetail($msg->name);
         }
         if ($msg instanceof SettingsSavedMsg) {
             return $this->saveSettings($msg->themeName, $msg->slideshowInterval);
@@ -1258,6 +1263,21 @@ final class App implements Model
         }
 
         return [$this, null];
+    }
+
+    /**
+     * Open a plugin's detail + settings editor (emitted by the AdminPluginsScreen
+     * `D` key). The AdminClient is built locally from the shared ApiClient (the App
+     * holds no AdminClient field — the BooksStore-built-locally pattern), so no
+     * constructor wiring is needed.
+     *
+     * @return array{App, ?\Closure}
+     */
+    private function openPluginDetail(string $name): array
+    {
+        $screen = new AdminPluginDetailScreen(new AdminClient($this->api), $name, $this->cols, $this->rows);
+
+        return [$this->push(Route::AdminPluginDetail, $screen), $screen->init()];
     }
 
     /**

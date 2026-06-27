@@ -12,6 +12,7 @@ use Phlix\Console\Msg\AdminPluginActionFailedMsg;
 use Phlix\Console\Msg\AdminPluginsFailedMsg;
 use Phlix\Console\Msg\AdminPluginsLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
+use Phlix\Console\Msg\OpenAdminPluginDetailMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Ui\Chrome;
@@ -55,7 +56,7 @@ final class AdminPluginsScreen implements Breadcrumbed, Themed
 
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
     private const LOAD_FAILED = 'Could not load the plugins.';
-    private const HINT = 'e enable/disable   x uninstall   i install URL   r refresh   Esc back';
+    private const HINT = 'e enable/disable   D detail/settings   x uninstall   i install URL   r refresh   Esc back';
     private const INSTALL_HINT = 'Enter  install      Esc  cancel';
 
     /** @var list<Plugin> */
@@ -206,6 +207,7 @@ final class AdminPluginsScreen implements Breadcrumbed, Themed
 
         return match ($rune) {
             'e' => $this->toggleEnable($plugin),
+            'D' => [$this, Cmd::send(new OpenAdminPluginDetailMsg($plugin->name))],
             'x' => [$this->arm($plugin), null],
             default => [$this, null],
         };

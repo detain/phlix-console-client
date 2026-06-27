@@ -29,6 +29,7 @@ use Phlix\Console\Msg\MediaRangeLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\NowPlayingTickMsg;
 use Phlix\Console\Msg\OpenAdminMsg;
+use Phlix\Console\Msg\OpenAdminPluginDetailMsg;
 use Phlix\Console\Msg\OpenAdminSectionMsg;
 use Phlix\Console\Msg\OpenAlbumMsg;
 use Phlix\Console\Msg\OpenAudiobookMsg;
@@ -67,6 +68,7 @@ use Phlix\Console\Screen\AdminDlnaScreen;
 use Phlix\Console\Screen\AdminRemoteAccessScreen;
 use Phlix\Console\Screen\AdminLogsScreen;
 use Phlix\Console\Screen\AdminMenuScreen;
+use Phlix\Console\Screen\AdminPluginDetailScreen;
 use Phlix\Console\Screen\AdminPluginsScreen;
 use Phlix\Console\Screen\AdminSettingsScreen;
 use Phlix\Console\Screen\AdminUsersScreen;
@@ -1638,6 +1640,20 @@ final class AppTest extends TestCase
         self::assertInstanceOf(AdminPluginsScreen::class, $plugins->screen());
         self::assertSame(3, $plugins->stackDepth(), 'the plugins screen is pushed onto the admin menu');
         self::assertInstanceOf(\Closure::class, $cmd, 'the plugins screen fetches the list on push');
+    }
+
+    public function testOpenAdminPluginDetailPushesThePluginDetailScreenWithAFetch(): void
+    {
+        [$adminApp] = $this->appWithAdminUser(true);
+        [$admin] = $adminApp->update(new OpenAdminMsg());
+        [$plugins] = $admin->update(new OpenAdminSectionMsg(Route::AdminPlugins));
+
+        [$detail, $cmd] = $plugins->update(new OpenAdminPluginDetailMsg('trakt'));
+
+        self::assertSame(Route::AdminPluginDetail, $detail->route());
+        self::assertInstanceOf(AdminPluginDetailScreen::class, $detail->screen());
+        self::assertSame(4, $detail->stackDepth(), 'the detail is pushed onto the plugins screen');
+        self::assertInstanceOf(\Closure::class, $cmd, 'the detail fetches on push');
     }
 
     public function testOpenAdminSectionBackupPushesTheBackupScreenWithAFetch(): void
