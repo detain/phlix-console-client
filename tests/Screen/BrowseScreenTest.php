@@ -145,6 +145,25 @@ final class BrowseScreenTest extends TestCase
         self::assertCount(1, $next->rail('continue')?->cards ?? []);
     }
 
+    public function testContinueWatchingDeduplicatesByMediaItem(): void
+    {
+        // The same title watched across several sessions/devices can arrive more
+        // than once; only one card per media item should appear (the first, most
+        // recent occurrence) so the rail isn't full of duplicates.
+        $meta = ['poster_url' => 'https://p/cw.jpg'];
+        $dup1 = ContinueWatchingItem::fromArray(['media_item_id' => 'cw1', 'name' => 'Show', 'position_ticks' => 7, 'duration_ticks' => 10, 'metadata' => $meta]);
+        $dup2 = ContinueWatchingItem::fromArray(['media_item_id' => 'cw1', 'name' => 'Show', 'position_ticks' => 3, 'duration_ticks' => 10, 'metadata' => $meta]);
+        $other = ContinueWatchingItem::fromArray(['media_item_id' => 'cw2', 'name' => 'Other', 'position_ticks' => 1, 'duration_ticks' => 10, 'metadata' => $meta]);
+
+        [$next] = $this->screen()->update(new ContinueWatchingLoadedMsg([$dup1, $dup2, $other]));
+
+        $cards = $next->rail('continue')?->cards ?? [];
+        self::assertCount(2, $cards, 'duplicate media items collapse to one card each');
+        self::assertSame(['cw1', 'cw2'], array_map(static fn ($c) => $c->id, $cards));
+        // The kept card is the first (most recent) occurrence — 70% progress.
+        self::assertEqualsWithDelta(0.7, $cards[0]->progress, 0.001);
+    }
+
     public function testEmptyContinueWatchingAddsNoRail(): void
     {
         [$next] = $this->screen()->update(new ContinueWatchingLoadedMsg([]));
