@@ -17,6 +17,7 @@ use Phlix\Console\Api\Dto\Admin\GuideProgram;
 use Phlix\Console\Api\Dto\Admin\LogFile;
 use Phlix\Console\Api\Dto\Admin\LogTail;
 use Phlix\Console\Api\Dto\Admin\Plugin;
+use Phlix\Console\Api\Dto\Admin\PluginCatalogResult;
 use Phlix\Console\Api\Dto\Admin\PluginDetail;
 use Phlix\Console\Api\Dto\Admin\PortForwardCandidate;
 use Phlix\Console\Api\Dto\Admin\Recording;
@@ -802,6 +803,132 @@ final class AdminClientTest extends TestCase
         $this->await($this->clientWith($transport)->updatePluginSetting('a/b', 'k', 'v'));
 
         self::assertStringContainsString('/api/v1/admin/plugins/a%2Fb/settings', $transport->requestAt(0)['url']);
+    }
+
+    // ---- plugin catalog ------------------------------------------------
+
+    /** @return array<string,mixed> */
+    private function catalogBody(): array
+    {
+        return [
+            'default_source' => 'https://a.com/catalog.json',
+            'sources' => ['https://a.com/catalog.json', 'https://b.com/catalog.json'],
+            'catalogs' => [
+                ['source' => 'https://a.com/catalog.json', 'name' => 'A', 'plugins' => [
+                    ['name' => 'trakt', 'title' => 'Trakt', 'repo' => 'https://github.com/owner/trakt', 'installed' => false],
+                ]],
+                ['source' => 'https://b.com/catalog.json', 'name' => 'B', 'plugins' => [
+                    ['name' => 'lastfm', 'title' => 'Last.fm', 'repo' => 'https://github.com/owner/lastfm', 'installed' => true],
+                ]],
+            ],
+            'errors' => ['https://b.com fetch failed'],
+        ];
+    }
+
+    public function testPluginCatalogReadsTheTopLevelBody(): void
+    {
+        $transport = (new FakeTransport())->json(200, $this->catalogBody());
+
+        $result = $this->await($this->clientWith($transport)->pluginCatalog());
+
+        self::assertInstanceOf(PluginCatalogResult::class, $result);
+        self::assertSame('https://a.com/catalog.json', $result->defaultSource);
+        self::assertCount(2, $result->sources);
+        self::assertCount(2, $result->catalogs);
+        self::assertCount(2, $result->flatPlugins());
+        self::assertSame(['https://b.com fetch failed'], $result->errors);
+        self::assertSame('GET', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/plugins/catalog', $transport->requestAt(0)['url']);
+    }
+
+    public function testPluginCatalogIgnoresAnEnvelopeDataWrapper(): void
+    {
+        // Guard against regressing to a `{data:{...}}` read: the controller is
+        // top-level, so a data wrapper must yield the tolerant empty default.
+        $transport = (new FakeTransport())->json(200, ['data' => $this->catalogBody()]);
+
+        $result = $this->await($this->clientWith($transport)->pluginCatalog());
+
+        self::assertInstanceOf(PluginCatalogResult::class, $result);
+        self::assertSame('', $result->defaultSource, 'the body is read top-level, not from data');
+        self::assertSame([], $result->sources);
+        self::assertSame([], $result->catalogs);
+    }
+
+    public function testPluginCatalogToleratesAnEmptyBody(): void
+    {
+        $transport = (new FakeTransport())->json(200, []);
+
+        $result = $this->await($this->clientWith($transport)->pluginCatalog());
+
+        self::assertSame([], $result->catalogs);
+        self::assertSame([], $result->sources);
+    }
+
+    public function testPluginCatalogAttachesTheBearerToken(): void
+    {
+        $transport = (new FakeTransport())->json(200, []);
+
+        $this->await($this->clientWith($transport)->pluginCatalog());
+
+        self::assertSame('Bearer access-1', $transport->requestAt(0)['headers']['Authorization'] ?? null);
+    }
+
+    public function testAddCatalogSourcePostsTheUrlAndReadsSources(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['sources' => ['https://a.com/catalog.json', 'https://new.com/catalog.json']]);
+
+        $sources = $this->await($this->clientWith($transport)->addCatalogSource('https://new.com/catalog.json'));
+
+        self::assertSame(['https://a.com/catalog.json', 'https://new.com/catalog.json'], $sources);
+        self::assertSame('POST', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/plugins/catalog/sources', $transport->requestAt(0)['url']);
+        /** @var array<string,mixed> $body */
+        $body = json_decode($transport->requestAt(0)['body'], true);
+        self::assertSame(['url' => 'https://new.com/catalog.json'], $body);
+    }
+
+    public function testAddCatalogSourceToleratesAMissingSourcesKey(): void
+    {
+        $transport = (new FakeTransport())->json(200, []);
+
+        $sources = $this->await($this->clientWith($transport)->addCatalogSource('https://new.com'));
+
+        self::assertSame([], $sources);
+    }
+
+    public function testAddCatalogSourceRejectsWithTheServerErrorOnA400(): void
+    {
+        $transport = (new FakeTransport())->json(400, ['error' => 'Source URL is unreachable', 'code' => 'catalog.source.invalid']);
+
+        $error = $this->awaitError($this->clientWith($transport)->addCatalogSource('http://nope'));
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('Source URL is unreachable', $error->getMessage());
+    }
+
+    public function testRemoveCatalogSourceSendsADeleteWithTheUrlAndReadsSources(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['sources' => ['https://a.com/catalog.json']]);
+
+        $sources = $this->await($this->clientWith($transport)->removeCatalogSource('https://b.com/catalog.json'));
+
+        self::assertSame(['https://a.com/catalog.json'], $sources);
+        self::assertSame('DELETE', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/admin/plugins/catalog/sources', $transport->requestAt(0)['url']);
+        /** @var array<string,mixed> $body */
+        $body = json_decode($transport->requestAt(0)['body'], true);
+        self::assertSame(['url' => 'https://b.com/catalog.json'], $body);
+    }
+
+    public function testRemoveCatalogSourceRejectsWithTheServerErrorOnA400(): void
+    {
+        $transport = (new FakeTransport())->json(400, ['error' => 'Unknown source']);
+
+        $error = $this->awaitError($this->clientWith($transport)->removeCatalogSource('https://gone'));
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('Unknown source', $error->getMessage());
     }
 
     // ---- backups -------------------------------------------------------

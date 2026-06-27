@@ -13,6 +13,7 @@ use Phlix\Console\Msg\AdminPluginActionFailedMsg;
 use Phlix\Console\Msg\AdminPluginsFailedMsg;
 use Phlix\Console\Msg\AdminPluginsLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
+use Phlix\Console\Msg\OpenAdminPluginCatalogMsg;
 use Phlix\Console\Msg\OpenAdminPluginDetailMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\ShowToastMsg;
@@ -522,6 +523,23 @@ final class AdminPluginsScreenTest extends TestCase
         $screen = $this->loaded((new FakeTransport())->json(200, $this->pluginsPayload()));
 
         self::assertStringContainsString('detail', $screen->view());
+    }
+
+    public function testCKeyEmitsOpenAdminPluginCatalog(): void
+    {
+        $screen = $this->loaded((new FakeTransport())->json(200, $this->pluginsPayload()));
+
+        [$same, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'C'));
+
+        self::assertSame($screen, $same, 'the plugins screen is unchanged — App handles the open');
+        self::assertInstanceOf(OpenAdminPluginCatalogMsg::class, $this->runCmd($cmd));
+    }
+
+    public function testHintMentionsTheCatalogKey(): void
+    {
+        $screen = $this->loaded((new FakeTransport())->json(200, $this->pluginsPayload()));
+
+        self::assertStringContainsString('catalog', $screen->view());
     }
 
     public function testResizeReflowsTheScreen(): void
