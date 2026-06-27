@@ -31,6 +31,7 @@ use Phlix\Console\Msg\NowPlayingTickMsg;
 use Phlix\Console\Msg\OpenAdminMsg;
 use Phlix\Console\Msg\OpenAdminPluginCatalogMsg;
 use Phlix\Console\Msg\OpenAdminPluginDetailMsg;
+use Phlix\Console\Msg\OpenAdminUserProfilesMsg;
 use Phlix\Console\Msg\OpenAdminSectionMsg;
 use Phlix\Console\Msg\OpenAlbumMsg;
 use Phlix\Console\Msg\OpenAudiobookMsg;
@@ -71,6 +72,7 @@ use Phlix\Console\Screen\AdminLogsScreen;
 use Phlix\Console\Screen\AdminMenuScreen;
 use Phlix\Console\Screen\AdminPluginCatalogScreen;
 use Phlix\Console\Screen\AdminPluginDetailScreen;
+use Phlix\Console\Screen\AdminUserProfilesScreen;
 use Phlix\Console\Screen\AdminPluginsScreen;
 use Phlix\Console\Screen\AdminSettingsScreen;
 use Phlix\Console\Screen\AdminUsersScreen;
@@ -1656,6 +1658,20 @@ final class AppTest extends TestCase
         self::assertInstanceOf(AdminPluginDetailScreen::class, $detail->screen());
         self::assertSame(4, $detail->stackDepth(), 'the detail is pushed onto the plugins screen');
         self::assertInstanceOf(\Closure::class, $cmd, 'the detail fetches on push');
+    }
+
+    public function testOpenAdminUserProfilesPushesTheProfilesScreenWithAFetch(): void
+    {
+        [$adminApp] = $this->appWithAdminUser(true);
+        [$admin] = $adminApp->update(new OpenAdminMsg());
+        [$users] = $admin->update(new OpenAdminSectionMsg(Route::AdminUsers));
+
+        [$profiles, $cmd] = $users->update(new OpenAdminUserProfilesMsg('u-1', 'bob'));
+
+        self::assertSame(Route::AdminUserProfiles, $profiles->route());
+        self::assertInstanceOf(AdminUserProfilesScreen::class, $profiles->screen());
+        self::assertSame(4, $profiles->stackDepth(), 'the profiles screen is pushed onto the users screen');
+        self::assertInstanceOf(\Closure::class, $cmd, 'the profiles screen fetches on push');
     }
 
     public function testOpenAdminPluginCatalogPushesTheCatalogScreenWithAFetch(): void
