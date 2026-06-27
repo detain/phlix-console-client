@@ -514,7 +514,346 @@ final class AdminUsersScreenTest extends TestCase
         self::assertNull($cmd);
     }
 
+    // ---- create form ---------------------------------------------------
+
+    public function testCOpensTheCreateForm(): void
+    {
+        $screen = $this->loaded((new FakeTransport())->json(200, $this->usersPayload()));
+
+        [$creating, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'c'));
+        self::assertTrue($creating->isCreating());
+        self::assertFalse($creating->isEditing());
+        self::assertStringContainsString('Create a user', $creating->view());
+    }
+
+    public function testCOpensTheCreateFormEvenOnAnEmptyList(): void
+    {
+        $screen = $this->loaded((new FakeTransport())->json(200, $this->emptyUsers()));
+
+        [$creating] = $screen->update(new KeyMsg(KeyType::Char, 'c'));
+        self::assertTrue($creating->isCreating(), 'create needs no selected user');
+    }
+
+    public function testCreateSubmitValidPostsTheUserToastsAndRefetches(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->usersPayload())  // init
+            ->json(201, ['user_id' => 'u-9', 'message' => 'User created successfully'])  // create
+            ->json(200, $this->usersPayload()); // refetch
+        $screen = $this->loaded($transport);
+
+        $creating = $screen->update(new KeyMsg(KeyType::Char, 'c'))[0];
+        $creating = $this->type($creating, 'alice_99');         // username
+        $creating = $this->tab($creating);
+        $creating = $this->type($creating, 'alice@example.com'); // email
+        $creating = $this->tab($creating);
+        $creating = $this->type($creating, 'sup3rsecret');       // password
+        $creating = $this->tab($creating);                       // onto the is_admin Select (default No)
+
+        [$busy, $cmd] = $creating->update(new KeyMsg(KeyType::Enter));
+        self::assertTrue($busy->isBusy(), 'a valid submit enters the busy state');
+        self::assertFalse($busy->isCreating(), 'a valid submit closes the form');
+
+        $done = $this->runCmd($cmd);
+        self::assertInstanceOf(AdminUserActionDoneMsg::class, $done);
+        self::assertSame('User created successfully', $done->message);
+
+        /** @var array<string,mixed> $body */
+        $body = json_decode($transport->requestAt(1)['body'], true);
+        self::assertSame('alice_99', $body['username']);
+        self::assertSame('alice@example.com', $body['email']);
+        self::assertSame('sup3rsecret', $body['password']);
+        self::assertFalse($body['is_admin'], 'the default is_admin choice is No');
+
+        $msgs = $this->collectCmd($busy->update($done)[1]);
+        $toast = $this->firstToast($msgs);
+        self::assertSame(ToastType::Success, $toast->type);
+        self::assertTrue($this->containsLoaded($msgs), 'the list is refetched after a create');
+    }
+
+    public function testCreateSubmitWithAShortUsernameKeepsTheFormOpenAndSendsNoRequest(): void
+    {
+        $transport = (new FakeTransport())->json(200, $this->usersPayload());
+        $screen = $this->loaded($transport);
+
+        $creating = $screen->update(new KeyMsg(KeyType::Char, 'c'))[0];
+        $creating = $this->type($creating, 'ab');                // too short (< 3)
+        $creating = $this->tab($creating);
+        $creating = $this->type($creating, 'ok@example.com');
+        $creating = $this->tab($creating);
+        $creating = $this->type($creating, 'sup3rsecret');
+        $creating = $this->tab($creating);
+
+        [$still, $cmd] = $creating->update(new KeyMsg(KeyType::Enter));
+        self::assertNull($cmd, 'an invalid submit issues no command');
+        self::assertTrue($still->isCreating(), 'the form stays open');
+        self::assertNotNull($still->formError());
+        self::assertStringContainsString('Username', (string) $still->formError());
+        self::assertSame(1, $transport->requestCount(), 'no request beyond the initial fetch');
+    }
+
+    public function testCreateSubmitWithABadEmailKeepsTheFormOpen(): void
+    {
+        $transport = (new FakeTransport())->json(200, $this->usersPayload());
+        $screen = $this->loaded($transport);
+
+        $creating = $screen->update(new KeyMsg(KeyType::Char, 'c'))[0];
+        $creating = $this->type($creating, 'alice_99');
+        $creating = $this->tab($creating);
+        $creating = $this->type($creating, 'not-an-email');      // invalid
+        $creating = $this->tab($creating);
+        $creating = $this->type($creating, 'sup3rsecret');
+        $creating = $this->tab($creating);
+
+        [$still, $cmd] = $creating->update(new KeyMsg(KeyType::Enter));
+        self::assertNull($cmd);
+        self::assertTrue($still->isCreating());
+        self::assertStringContainsString('email', (string) $still->formError());
+        self::assertSame(1, $transport->requestCount());
+    }
+
+    public function testCreateSubmitWithAShortPasswordKeepsTheFormOpen(): void
+    {
+        $transport = (new FakeTransport())->json(200, $this->usersPayload());
+        $screen = $this->loaded($transport);
+
+        $creating = $screen->update(new KeyMsg(KeyType::Char, 'c'))[0];
+        $creating = $this->type($creating, 'alice_99');
+        $creating = $this->tab($creating);
+        $creating = $this->type($creating, 'alice@example.com');
+        $creating = $this->tab($creating);
+        $creating = $this->type($creating, 'short');             // < 8
+        $creating = $this->tab($creating);
+
+        [$still, $cmd] = $creating->update(new KeyMsg(KeyType::Enter));
+        self::assertNull($cmd);
+        self::assertTrue($still->isCreating());
+        self::assertStringContainsString('Password', (string) $still->formError());
+        self::assertSame(1, $transport->requestCount());
+    }
+
+    public function testCreateFailureToastsTheServerError(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->usersPayload())  // init
+            ->json(400, ['error' => 'Email already in use']); // create
+        $screen = $this->loaded($transport);
+
+        $creating = $screen->update(new KeyMsg(KeyType::Char, 'c'))[0];
+        $creating = $this->type($creating, 'alice_99');
+        $creating = $this->tab($creating);
+        $creating = $this->type($creating, 'taken@example.com');
+        $creating = $this->tab($creating);
+        $creating = $this->type($creating, 'sup3rsecret');
+        $creating = $this->tab($creating);
+
+        [$busy, $cmd] = $creating->update(new KeyMsg(KeyType::Enter));
+        $failed = $this->runCmd($cmd);
+        self::assertInstanceOf(AdminUserActionFailedMsg::class, $failed);
+        self::assertSame('Email already in use', $failed->message);
+
+        $toast = $this->firstToast($this->collectCmd($busy->update($failed)[1]));
+        self::assertSame(ToastType::Error, $toast->type);
+        self::assertStringContainsString('Email already in use', $toast->message);
+    }
+
+    public function testCreateAuthErrorMapsToSessionExpired(): void
+    {
+        $api = new ApiClient('https://srv', (new FakeTransport())
+            ->json(200, $this->usersPayload())
+            ->json(401, ['error' => 'expired']));
+        $api->setToken(new TokenBundle('access-1', '', 'Bearer', time() + 3600));
+        $screen = new AdminUsersScreen(new AdminClient($api), cols: 120, rows: 40);
+        $loaded = $screen->update($this->runCmd($screen->init()) ?? new AdminUsersFailedMsg('x'))[0];
+
+        $creating = $loaded->update(new KeyMsg(KeyType::Char, 'c'))[0];
+        $creating = $this->type($creating, 'alice_99');
+        $creating = $this->tab($creating);
+        $creating = $this->type($creating, 'alice@example.com');
+        $creating = $this->tab($creating);
+        $creating = $this->type($creating, 'sup3rsecret');
+        $creating = $this->tab($creating);
+
+        [, $cmd] = $creating->update(new KeyMsg(KeyType::Enter));
+        $msg = $this->runCmd($cmd);
+        self::assertInstanceOf(SessionExpiredMsg::class, $msg);
+    }
+
+    public function testTheReopenedFormRendersTheValidationError(): void
+    {
+        $transport = (new FakeTransport())->json(200, $this->usersPayload());
+        $screen = $this->loaded($transport);
+
+        $creating = $screen->update(new KeyMsg(KeyType::Char, 'c'))[0];
+        $creating = $this->type($creating, 'ab');   // too short
+        $creating = $this->tab($creating);
+        $creating = $this->type($creating, 'ok@example.com');
+        $creating = $this->tab($creating);
+        $creating = $this->type($creating, 'sup3rsecret');
+        $creating = $this->tab($creating);
+
+        $reopened = $creating->update(new KeyMsg(KeyType::Enter))[0];
+        self::assertNotNull($reopened->formError());
+        // The error is shown in the rendered form body, with the entered values
+        // pre-filled so they're not lost.
+        $view = $reopened->view();
+        self::assertStringContainsString('! ', $view);
+        self::assertStringContainsString((string) $reopened->formError(), $view);
+        self::assertStringContainsString('ok@example.com', $view, 'the entered email survives the reopen');
+    }
+
+    public function testCreateEscAbortsWithoutARequest(): void
+    {
+        $transport = (new FakeTransport())->json(200, $this->usersPayload());
+        $screen = $this->loaded($transport);
+
+        $creating = $screen->update(new KeyMsg(KeyType::Char, 'c'))[0];
+        self::assertTrue($creating->isCreating());
+
+        [$closed, $cmd] = $creating->update(new KeyMsg(KeyType::Escape));
+        self::assertNull($cmd);
+        self::assertFalse($closed->isCreating(), 'Esc aborts the form');
+        self::assertSame(1, $transport->requestCount(), 'aborting issues no request');
+    }
+
+    // ---- edit form -----------------------------------------------------
+
+    public function testEOpensAPreFilledEditForm(): void
+    {
+        $screen = $this->loaded((new FakeTransport())->json(200, $this->usersPayload()));
+
+        [$editing] = $screen->update(new KeyMsg(KeyType::Char, 'E'));
+        self::assertTrue($editing->isEditing());
+        self::assertFalse($editing->isCreating());
+        $view = $editing->view();
+        self::assertStringContainsString("Edit 'bob'", $view);
+        self::assertStringContainsString('bob', $view, 'the username is pre-filled');
+        self::assertStringContainsString('bob@x', $view, 'the email is pre-filled');
+    }
+
+    public function testEWithNoSelectedUserIsANoOp(): void
+    {
+        $screen = $this->loaded((new FakeTransport())->json(200, $this->emptyUsers()));
+
+        [$next, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'E'));
+        self::assertSame($screen, $next, 'no selected user → no edit form');
+        self::assertNull($cmd);
+    }
+
+    public function testEditChangingOnlyTheEmailPutsThatFieldThenToastsAndRefetches(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->usersPayload())  // init
+            ->json(200, ['message' => 'User updated successfully'])  // update
+            ->json(200, $this->usersPayload()); // refetch
+        $screen = $this->loaded($transport);
+
+        $editing = $screen->update(new KeyMsg(KeyType::Char, 'E'))[0];
+        // Leave the username (bob) as-is; change the email. Move to the email field
+        // and clear it, then type the new value.
+        $editing = $this->tab($editing);             // onto email
+        $editing = $this->clear($editing, 'bob@x');  // wipe the pre-filled email
+        $editing = $this->type($editing, 'bob@new.com');
+        $editing = $this->tab($editing);             // onto password (left blank)
+
+        [$busy, $cmd] = $editing->update(new KeyMsg(KeyType::Enter));
+        self::assertTrue($busy->isBusy());
+        self::assertFalse($busy->isEditing());
+
+        $done = $this->runCmd($cmd);
+        self::assertInstanceOf(AdminUserActionDoneMsg::class, $done);
+        self::assertSame('User updated successfully', $done->message);
+
+        self::assertSame('PUT', $transport->requestAt(1)['method']);
+        self::assertStringContainsString('/api/v1/admin/users/u-1', $transport->requestAt(1)['url']);
+        /** @var array<string,mixed> $body */
+        $body = json_decode($transport->requestAt(1)['body'], true);
+        self::assertSame(['email' => 'bob@new.com'], $body, 'only the changed email is sent; a blank password is omitted');
+
+        $msgs = $this->collectCmd($busy->update($done)[1]);
+        self::assertTrue($this->containsLoaded($msgs), 'the list is refetched after an edit');
+    }
+
+    public function testEditWithNoChangesSendsNoFieldsButStillUpdates(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->usersPayload())  // init
+            ->json(200, ['message' => 'User updated successfully'])  // update
+            ->json(200, $this->usersPayload()); // refetch
+        $screen = $this->loaded($transport);
+
+        // Open the edit form and submit without changing anything.
+        $editing = $screen->update(new KeyMsg(KeyType::Char, 'E'))[0];
+        $editing = $this->tab($editing);  // email
+        $editing = $this->tab($editing);  // password (blank)
+
+        [$busy, $cmd] = $editing->update(new KeyMsg(KeyType::Enter));
+        $this->runCmd($cmd);
+
+        self::assertSame('', $transport->requestAt(1)['body'], 'no changed fields → no JSON body');
+    }
+
+    public function testEditInvalidChangedFieldKeepsTheFormOpen(): void
+    {
+        $transport = (new FakeTransport())->json(200, $this->usersPayload());
+        $screen = $this->loaded($transport);
+
+        $editing = $screen->update(new KeyMsg(KeyType::Char, 'E'))[0];
+        // Change the username to something invalid, then advance to the last field
+        // so Enter submits (rather than just advancing focus).
+        $editing = $this->clear($editing, 'bob');
+        $editing = $this->type($editing, '!!');   // invalid + too short
+        $editing = $this->tab($editing);          // email
+        $editing = $this->tab($editing);          // password (last field)
+
+        [$still, $cmd] = $editing->update(new KeyMsg(KeyType::Enter));
+        self::assertNull($cmd, 'an invalid changed field issues no command');
+        self::assertTrue($still->isEditing());
+        self::assertNotNull($still->formError());
+        self::assertSame(1, $transport->requestCount(), 'no request beyond the initial fetch');
+    }
+
+    public function testEditEscAborts(): void
+    {
+        $transport = (new FakeTransport())->json(200, $this->usersPayload());
+        $screen = $this->loaded($transport);
+
+        $editing = $screen->update(new KeyMsg(KeyType::Char, 'E'))[0];
+        self::assertTrue($editing->isEditing());
+
+        [$closed, $cmd] = $editing->update(new KeyMsg(KeyType::Escape));
+        self::assertNull($cmd);
+        self::assertFalse($closed->isEditing());
+        self::assertSame(1, $transport->requestCount());
+    }
+
     // ---- helpers -------------------------------------------------------
+
+    /** Type each character of $text into the form's focused field. */
+    private function type(AdminUsersScreen $screen, string $text): AdminUsersScreen
+    {
+        foreach (str_split($text) as $char) {
+            $screen = $screen->update(new KeyMsg(KeyType::Char, $char))[0];
+        }
+
+        return $screen;
+    }
+
+    /** Backspace away the given pre-filled value from the focused field. */
+    private function clear(AdminUsersScreen $screen, string $current): AdminUsersScreen
+    {
+        for ($i = 0, $n = strlen($current); $i < $n; $i++) {
+            $screen = $screen->update(new KeyMsg(KeyType::Backspace))[0];
+        }
+
+        return $screen;
+    }
+
+    /** Advance the form focus to the next field (Tab). */
+    private function tab(AdminUsersScreen $screen): AdminUsersScreen
+    {
+        return $screen->update(new KeyMsg(KeyType::Tab))[0];
+    }
 
     private function firstToast(array $msgs): ShowToastMsg
     {
