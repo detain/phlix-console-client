@@ -124,6 +124,7 @@ use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\SubscriptionCapable;
 use SugarCraft\Core\Util\Width;
+use SugarCraft\Core\View;
 use SugarCraft\Toast\Position;
 use SugarCraft\Toast\Toast;
 
@@ -440,7 +441,7 @@ final class App implements Model
         return [$this, null];
     }
 
-    public function view(): string
+    public function view(): string|View
     {
         $view = $this->baseView();
         // The diagnostic HUD sits in the top-left UNDER everything else: drawn over
@@ -465,7 +466,14 @@ final class App implements Model
 
         // Toast::View is a no-op (returns the background unchanged) when nothing
         // is queued.
-        return $this->toast->View($view, max(1, $this->cols), max(1, $this->rows));
+        $frame = $this->toast->View($view, max(1, $this->cols), max(1, $this->rows));
+
+        // In a pixel-graphics mode the poster cells carry overlay markers; hand
+        // the loader's image layer to the runtime so it paints the blobs on top
+        // (an empty layer — inline modes — leaves the frame a plain string).
+        $images = $this->posters->imageLayer();
+
+        return $images === [] ? $frame : new View($frame, images: $images);
     }
 
     /**
