@@ -18,6 +18,7 @@ use Phlix\Console\Api\Dto\Admin\LogFile;
 use Phlix\Console\Api\Dto\Admin\LogTail;
 use Phlix\Console\Api\Dto\Admin\HubStatus;
 use Phlix\Console\Api\Dto\Admin\Plugin;
+use Phlix\Console\Api\Dto\Admin\PortForwardCandidate;
 use Phlix\Console\Api\Dto\Admin\PortForwardStatus;
 use Phlix\Console\Api\Dto\Admin\Recording;
 use Phlix\Console\Api\Dto\Admin\RelayStatus;
@@ -689,6 +690,28 @@ final class AdminClient
     public function portForwardDisable(): PromiseInterface
     {
         return $this->remoteAction('/portforward/disable', static fn (array $resp): string => 'Port forwarding disabled');
+    }
+
+    /**
+     * List the discovered port-forward candidates — the reachable hostname URLs
+     * the server probed for itself, each with its detected external IP + port. Like
+     * the remote-access status GETs (and UNLIKE the dashboard), the
+     * {@see \Phlix\Server\Http\Controllers\Admin\AdminHubController} is per-controller
+     * TOP-LEVEL, so the list is read straight from `$body['candidates']` via
+     * {@see mapList}; a `{data:{candidates}}` wrapper therefore yields an empty list.
+     * A rejection re-surfaces the server's friendly `message` — the candidates 500
+     * body uses `message`, NOT `error` (see {@see reThrowFriendly()}).
+     *
+     * @return PromiseInterface<list<PortForwardCandidate>>
+     */
+    public function portForwardCandidates(): PromiseInterface
+    {
+        return $this->api->send('GET', self::REMOTE . '/portforward/candidates')->then(static function (array $body): array {
+            return self::mapList(
+                $body['candidates'] ?? null,
+                static fn (array $row): PortForwardCandidate => PortForwardCandidate::fromArray($row),
+            );
+        })->otherwise(self::reThrowFriendly(...));
     }
 
     /**
