@@ -84,7 +84,7 @@ final class PosterLoaderTest extends \PHPUnit\Framework\TestCase
     public function testInlineModeLeavesTheImageLayerEmpty(): void
     {
         $this->startServer();
-        $loader = new PosterLoader(Mosaic::halfBlock(), null, false);
+        $loader = new PosterLoader(Mosaic::halfBlock(), null);
 
         $this->await($loader->load("http://127.0.0.1:{$this->port}/poster.png", 6, 9));
 
@@ -94,7 +94,7 @@ final class PosterLoaderTest extends \PHPUnit\Framework\TestCase
     public function testOverlayModeReturnsAMarkerBlockAndRegistersTheBlob(): void
     {
         $this->startServer();
-        $loader = new PosterLoader(Mosaic::sixel(), null, true);
+        $loader = new PosterLoader(Mosaic::sixel(), null);
 
         $block = $this->await($loader->load("http://127.0.0.1:{$this->port}/poster.png", 6, 9));
 
@@ -112,7 +112,7 @@ final class PosterLoaderTest extends \PHPUnit\Framework\TestCase
     public function testOverlayModeReusesTheIdForTheSamePosterAndSize(): void
     {
         $this->startServer();
-        $loader = new PosterLoader(Mosaic::sixel(), null, true);
+        $loader = new PosterLoader(Mosaic::sixel(), null);
         $url = "http://127.0.0.1:{$this->port}/poster.png";
 
         $a = $this->await($loader->load($url, 6, 9));

@@ -33,13 +33,6 @@ use SugarCraft\Mosaic\Renderer\KittyRenderer;
 final class MosaicFactory
 {
     /**
-     * Render protocols that compose into the tiled poster grid (one terminal
-     * line per cell row). Anything else is a pixel-graphics protocol that must
-     * be emitted standalone.
-     */
-    private const CELL_PROTOCOLS = ['halfblock', 'quarterblock', 'ascii', 'ansi256', 'truecolor'];
-
-    /**
      * Resolve a mode string to a Mosaic for a single full-cell image. `null` /
      * `auto` auto-detect the terminal; any other value forces that backend
      * (throwing on an unknown name).
@@ -67,27 +60,16 @@ final class MosaicFactory
     }
 
     /**
-     * Resolve a mode to a Mosaic for the poster grid, plus whether its output is
-     * a pixel-graphics blob that must be painted as an overlay rather than placed
-     * inline as cell text.
+     * Resolve a mode to a Mosaic for the poster grid.
      *
-     * Cell modes (half/quarter-block, ascii/ansi256/truecolor) tile as text and
-     * render `[mosaic, false]`. Graphics modes (sixel/kitty/iTerm2) now also tile
-     * — via {@see \SugarCraft\Core\ImageOverlay}, the {@see PosterLoader} returns
-     * a marker block and the runtime paints the blob on top — so they render
-     * `[mosaic, true]`. `null` / `auto` default to half-block (a safe, universal
-     * inline renderer); pass an explicit `--mode=sixel` to opt into graphics.
-     *
-     * @return array{0: Mosaic, 1: bool} the mosaic and whether posters are overlays
+     * Cell modes (half/quarter-block, ascii/ansi256/truecolor) tile as text;
+     * graphics modes (sixel/kitty/iTerm2) tile via candy-core's image overlay
+     * (the {@see PosterLoader} routes them by {@see Mosaic::isInline()}). `null` /
+     * `auto` default to half-block — a safe, universal inline renderer; pass an
+     * explicit `--mode=sixel` to opt into graphics.
      */
-    public static function forPosterGrid(?string $mode): array
+    public static function forPosterGrid(?string $mode): Mosaic
     {
-        if ($mode === null || $mode === 'auto') {
-            return [Mosaic::halfBlock(), false];
-        }
-
-        $mosaic = self::forMode($mode);
-
-        return [$mosaic, !in_array($mosaic->protocol(), self::CELL_PROTOCOLS, true)];
+        return ($mode === null || $mode === 'auto') ? Mosaic::halfBlock() : self::forMode($mode);
     }
 }

@@ -77,13 +77,10 @@ try {
             $auth = new AuthStore($api, TokenStore::default());
             $libraries = new LibrariesStore($api);
             $media = new MediaStore($api);
-            // Cell modes (half/quarter-block, ascii/ansi256/truecolor) tile as text;
-            // graphics modes (sixel/kitty/iterm2) tile as an out-of-band overlay —
-            // PosterLoader returns a marker block and the runtime paints the blob.
-            // PosterLoader keys its cache by the mosaic's protocol(), so each mode
-            // caches separately.
-            [$mosaic, $overlay] = MosaicFactory::forPosterGrid($mode);
-            $posters = new PosterLoader($mosaic, new DiskCache(Config::dir() . '/posters'), $overlay);
+            // Cell modes tile as text; graphics modes (sixel/kitty/iterm2) tile as
+            // an overlay — PosterLoader routes them by Mosaic::isInline() and keys
+            // its cache by protocol(), so each mode caches separately.
+            $posters = new PosterLoader(MosaicFactory::forPosterGrid($mode), new DiskCache(Config::dir() . '/posters'));
             (new Program(App::boot($config, $auth, $api, $libraries, $media, $posters)))->run();
             break;
 
