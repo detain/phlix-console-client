@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Spike;
 
+use Phlix\Console\Media\MosaicFactory;
 use SugarCraft\Mosaic\ImageSource;
-use SugarCraft\Mosaic\Mosaic;
-use SugarCraft\Mosaic\Renderer\KittyRenderer;
 use SugarCraft\Mosaic\Scale;
 
 /**
@@ -23,21 +22,8 @@ final class PosterSpike
             throw new \RuntimeException("Image not found: {$path}");
         }
 
-        return $this->mosaicFor($mode)
+        return MosaicFactory::forMode($mode)
             ->withScale(Scale::Fit)
             ->render(ImageSource::fromFile($path), $width, $height);
-    }
-
-    private function mosaicFor(?string $mode): Mosaic
-    {
-        return match ($mode) {
-            null, 'auto'        => Mosaic::auto(),
-            'sixel'             => Mosaic::sixel(),
-            'iterm2'            => Mosaic::iterm2(),
-            'halfblock', 'half' => Mosaic::halfBlock(),
-            // candy-mosaic has no Mosaic::kitty() factory; build it explicitly.
-            'kitty'             => Mosaic::builder()->withRenderer(new KittyRenderer())->build(),
-            default             => throw new \InvalidArgumentException("Unknown render mode: {$mode}"),
-        };
     }
 }

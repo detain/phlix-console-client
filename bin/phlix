@@ -8,6 +8,7 @@ use Phlix\Console\App;
 use Phlix\Console\Capabilities;
 use Phlix\Console\Config\Config;
 use Phlix\Console\Config\TokenStore;
+use Phlix\Console\Media\MosaicFactory;
 use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Spike\PosterSpike;
 use Phlix\Console\Spike\VideoSpike;
@@ -77,7 +78,11 @@ try {
             $auth = new AuthStore($api, TokenStore::default());
             $libraries = new LibrariesStore($api);
             $media = new MediaStore($api);
-            $posters = new PosterLoader(Mosaic::probe(), new DiskCache(Config::dir() . '/posters'));
+            // Honour an explicit --mode=… (e.g. force sixel); auto-detect otherwise.
+            // PosterLoader keys its cache by the mosaic's protocol(), so a forced
+            // mode never serves an image cached under a different render mode.
+            $mosaic = ($mode !== null && $mode !== 'auto') ? MosaicFactory::forMode($mode) : Mosaic::probe();
+            $posters = new PosterLoader($mosaic, new DiskCache(Config::dir() . '/posters'));
             (new Program(App::boot($config, $auth, $api, $libraries, $media, $posters)))->run();
             break;
 
@@ -90,10 +95,11 @@ usage:
   phlix doctor                              report terminal graphics capabilities
   phlix poster <image> [w] [h]              render an image at a cell size
   phlix frame  <video|gif> [n] [cols] [rows]  decode N frames to ANSI
-  phlix run                                 launch the full-window app (needs a TTY)
+  phlix run [--mode=…]                      launch the full-window app (needs a TTY)
 
 flags:
   --mode=auto|sixel|kitty|iterm2|halfblock|ascii   force a render mode
+                                                   (posters are cached per mode)
 
 TXT);
             break;
