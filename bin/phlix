@@ -17,7 +17,6 @@ use Phlix\Console\Store\LibrariesStore;
 use Phlix\Console\Store\MediaStore;
 use SugarCraft\Core\Program;
 use SugarCraft\Mosaic\DiskCache;
-use SugarCraft\Mosaic\Mosaic;
 
 // Locate the Composer autoloader whether we run from the repo or as an
 // installed dependency in someone else's vendor/.
@@ -53,7 +52,7 @@ try {
         case 'poster':
             $path = $argv[2] ?? null;
             if ($path === null) {
-                fwrite(STDERR, "usage: phlix poster <image> [width] [height] [--mode=auto|sixel|kitty|iterm2|halfblock]\n");
+                fwrite(STDERR, "usage: phlix poster <image> [width] [height] [--mode=auto|halfblock|quarterblock|ascii|ansi256|truecolor|sixel|kitty|iterm2]\n");
                 exit(2);
             }
             echo (new PosterSpike())->render($path, $intArg(3, 40), isset($argv[4]) && ctype_digit((string) $argv[4]) ? (int) $argv[4] : null, $mode), "\n";
@@ -78,10 +77,14 @@ try {
             $auth = new AuthStore($api, TokenStore::default());
             $libraries = new LibrariesStore($api);
             $media = new MediaStore($api);
-            // Honour an explicit --mode=… (e.g. force sixel); auto-detect otherwise.
-            // PosterLoader keys its cache by the mosaic's protocol(), so a forced
-            // mode never serves an image cached under a different render mode.
-            $mosaic = ($mode !== null && $mode !== 'auto') ? MosaicFactory::forMode($mode) : Mosaic::probe();
+            // The poster rails are tiled text cells, so they need a cell-based
+            // renderer (half/quarter-block); a graphics mode like sixel can't tile
+            // and is downgraded with a notice. PosterLoader keys its cache by the
+            // mosaic's protocol(), so each mode caches separately.
+            [$mosaic, $modeNotice] = MosaicFactory::forPosterGrid($mode);
+            if ($modeNotice !== null) {
+                fwrite(STDERR, $modeNotice . "\n");
+            }
             $posters = new PosterLoader($mosaic, new DiskCache(Config::dir() . '/posters'));
             (new Program(App::boot($config, $auth, $api, $libraries, $media, $posters)))->run();
             break;
@@ -98,8 +101,18 @@ usage:
   phlix run [--mode=…]                      launch the full-window app (needs a TTY)
 
 flags:
-  --mode=auto|sixel|kitty|iterm2|halfblock|ascii   force a render mode
-                                                   (posters are cached per mode)
+  --mode=<mode>   force a render mode (posters are cached per mode)
+
+render modes:
+  cell modes (tile in the poster grid):
+    halfblock     24-bit colour half-block (▀) — the default / "ansi" mode
+    quarterblock  denser colour blocks (▘▝▖▗)
+    ascii         monochrome character ramp
+    ansi256       256-colour character ramp
+    truecolor     24-bit-colour character ramp
+  graphics modes (single images only — `phlix poster`; NOT the grid):
+    sixel | kitty | iterm2
+  auto            auto-detect (default)
 
 TXT);
             break;
