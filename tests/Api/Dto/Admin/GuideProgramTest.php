@@ -23,6 +23,7 @@ final class GuideProgramTest extends TestCase
             'season' => 2,
             'episode' => 5,
             'episode_title' => 'Pilot',
+            'series_id' => 'SH00112233',
             'rating' => 'TV-14',
         ]);
 
@@ -36,6 +37,7 @@ final class GuideProgramTest extends TestCase
         self::assertSame('A fine episode.', $p->description);
         self::assertSame(2, $p->season);
         self::assertSame(5, $p->episode);
+        self::assertSame('SH00112233', $p->seriesId);
     }
 
     public function testFromArrayTolerantDefaults(): void
@@ -52,6 +54,13 @@ final class GuideProgramTest extends TestCase
         self::assertNull($p->description);
         self::assertNull($p->season);
         self::assertNull($p->episode);
+        self::assertNull($p->seriesId);
+    }
+
+    public function testFromArrayTreatsABlankSeriesIdAsNull(): void
+    {
+        self::assertNull(GuideProgram::fromArray(['series_id' => ''])->seriesId);
+        self::assertSame('SH9', GuideProgram::fromArray(['series_id' => 'SH9'])->seriesId);
     }
 
     public function testEpisodeLabelWithSeasonAndEpisode(): void
