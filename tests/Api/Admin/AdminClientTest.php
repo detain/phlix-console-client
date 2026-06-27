@@ -1593,6 +1593,60 @@ final class AdminClientTest extends TestCase
         self::assertSame('Library not found', $error->getMessage());
     }
 
+    public function testLibraryScanHistoryReadsTheTopLevelHistoryListAndSendsTheLimit(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['history' => [
+            ['id' => 'job-2', 'library_id' => 'lib-1', 'type' => 'scan', 'status' => 'completed',
+             'items_found' => 5, 'items_added' => 2, 'items_updated' => 0, 'items_removed' => 0,
+             'completed_at' => '2026-06-26 10:00:00'],
+            ['id' => 'job-1', 'library_id' => 'lib-1', 'type' => 'rescan', 'status' => 'failed',
+             'items_found' => 0, 'items_added' => 0, 'items_updated' => 0, 'items_removed' => 0,
+             'error' => 'boom'],
+        ]]);
+
+        $history = $this->await($this->clientWith($transport)->libraryScanHistory('lib-1', 20));
+
+        self::assertCount(2, $history);
+        self::assertContainsOnlyInstancesOf(\Phlix\Console\Api\Dto\Admin\ScanJob::class, $history);
+        self::assertSame('completed', $history[0]->status);
+        self::assertSame('failed', $history[1]->status);
+        self::assertSame('GET', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/libraries/lib-1/scan-history', $transport->requestAt(0)['url']);
+        self::assertStringContainsString('limit=20', $transport->requestAt(0)['url']);
+    }
+
+    public function testLibraryScanHistoryIgnoresAnEnvelopeDataKey(): void
+    {
+        // Regression guard: a `{data:{history}}` wrapper must yield an EMPTY list —
+        // the endpoint is TOP-LEVEL, so a re-introduced `['data']` read would fail.
+        $transport = (new FakeTransport())->json(200, ['data' => ['history' => [
+            ['id' => 'job-1', 'library_id' => 'lib-1', 'type' => 'scan', 'status' => 'completed'],
+        ]]]);
+
+        self::assertSame([], $this->await($this->clientWith($transport)->libraryScanHistory('lib-1')));
+    }
+
+    public function testLibraryScanHistoryToleratesANonListPayloadAndSkipsNonArrayRows(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['history' => 'nope']);
+        self::assertSame([], $this->await($this->clientWith($transport)->libraryScanHistory('lib-1')));
+
+        $transport = (new FakeTransport())->json(200, ['history' => [['id' => 'job-1'], 'junk', 7]]);
+        $history = $this->await($this->clientWith($transport)->libraryScanHistory('lib-1'));
+        self::assertCount(1, $history);
+        self::assertSame('job-1', $history[0]->id);
+    }
+
+    public function testLibraryScanHistoryRejectsWithTheServerErrorOnA404(): void
+    {
+        $transport = (new FakeTransport())->json(404, ['error' => 'Library not found']);
+
+        $error = $this->awaitError($this->clientWith($transport)->libraryScanHistory('nope'));
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('Library not found', $error->getMessage());
+    }
+
     // ---- live tv -------------------------------------------------------
 
     public function testLiveTvTunersReadsTheTopLevelNamedKey(): void

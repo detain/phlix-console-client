@@ -13,6 +13,8 @@ use Phlix\Console\Msg\AdminLibrariesFailedMsg;
 use Phlix\Console\Msg\AdminLibrariesLoadedMsg;
 use Phlix\Console\Msg\AdminLibraryActionDoneMsg;
 use Phlix\Console\Msg\AdminLibraryActionFailedMsg;
+use Phlix\Console\Msg\AdminLibraryScanHistoryFailedMsg;
+use Phlix\Console\Msg\AdminLibraryScanHistoryLoadedMsg;
 use Phlix\Console\Msg\AdminScanStatusLoadedMsg;
 use Phlix\Console\Msg\AdminScanStatusTickMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
@@ -79,6 +81,26 @@ final class AdminLibrariesScreenTest extends TestCase
             'items_found' => 0, 'items_added' => 0, 'items_updated' => 0, 'items_removed' => 0,
             'error' => 'Permission denied on /media',
         ];
+    }
+
+    /** The real top-level `GET /scan-history` shape: two jobs, newest first. */
+    private function historyPayload(): array
+    {
+        return [
+            'history' => [
+                ['id' => 'job-2', 'library_id' => 'lib-1', 'type' => 'scan', 'status' => 'completed',
+                 'items_found' => 5, 'items_added' => 2, 'items_updated' => 0, 'items_removed' => 0,
+                 'completed_at' => '2026-06-26 10:00:00'],
+                ['id' => 'job-1', 'library_id' => 'lib-1', 'type' => 'rescan', 'status' => 'failed',
+                 'items_found' => 0, 'items_added' => 0, 'items_updated' => 0, 'items_removed' => 0,
+                 'error' => 'boom', 'queued_at' => '2026-06-25 09:00:00'],
+            ],
+        ];
+    }
+
+    private function emptyHistory(): array
+    {
+        return ['history' => []];
     }
 
     private function screenWith(FakeTransport $transport): AdminLibrariesScreen
@@ -684,6 +706,252 @@ final class AdminLibrariesScreenTest extends TestCase
         $withCrumbs = $screen->withCrumbs(['Admin', 'Libraries']);
         self::assertNotSame($screen, $withCrumbs);
         self::assertStringContainsString('Movies', $withCrumbs->view());
+    }
+
+    // ---- scan-history sub-view -----------------------------------------
+
+    /**
+     * Open the history sub-view: drive `h` against a loaded screen and resolve the
+     * follow-up history fetch into the loaded sub-view. Returns the post-load screen.
+     */
+    private function historyOpened(FakeTransport $transport): AdminLibrariesScreen
+    {
+        $screen = $this->loaded($transport);
+        [$opening, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'h'));
+        self::assertTrue($opening->isHistoryOpen());
+        $msg = $this->runCmd($cmd);
+        self::assertInstanceOf(AdminLibraryScanHistoryLoadedMsg::class, $msg);
+
+        return $opening->update($msg)[0];
+    }
+
+    public function testHOpensTheHistorySubViewAndFetches(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->librariesPayload())
+            ->json(200, $this->historyPayload());
+        $screen = $this->loaded($transport);
+
+        [$opening, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'h'));
+
+        self::assertTrue($opening->isHistoryOpen());
+        self::assertFalse($opening->isHistoryLoaded(), 'the sub-view starts loading');
+        self::assertStringContainsString('Loading scan history', $opening->view());
+        $msg = $this->runCmd($cmd);
+        self::assertInstanceOf(AdminLibraryScanHistoryLoadedMsg::class, $msg);
+        self::assertSame('lib-1', $msg->libraryId);
+        self::assertStringContainsString('/api/v1/libraries/lib-1/scan-history', $transport->requestAt(1)['url']);
+    }
+
+    public function testHistoryRendersTheJobsTable(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->librariesPayload())
+            ->json(200, $this->historyPayload());
+        $screen = $this->historyOpened($transport);
+
+        self::assertTrue($screen->isHistoryLoaded());
+        self::assertCount(2, $screen->historyList());
+        $view = $screen->view();
+        self::assertStringContainsString('Scan history', $view);
+        self::assertStringContainsString('Movies', $view, 'the selected library name is in the header');
+        self::assertStringContainsString('completed', $view);
+        self::assertStringContainsString('failed', $view);
+        self::assertStringContainsString('2 jobs', $view);
+    }
+
+    public function testHistoryEmptyPlaceholder(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->librariesPayload())
+            ->json(200, $this->emptyHistory());
+        $screen = $this->historyOpened($transport);
+
+        self::assertSame([], $screen->historyList());
+        self::assertStringContainsString('No scan history', $screen->view());
+    }
+
+    public function testHistoryScrollsWithUpDown(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->librariesPayload())
+            ->json(200, $this->historyPayload());
+        $screen = $this->historyOpened($transport);
+
+        [$down, $downCmd] = $screen->update(new KeyMsg(KeyType::Down));
+        self::assertSame(1, $down->historySelectedIndex());
+        self::assertNull($downCmd, 'scrolling the history makes no request');
+        self::assertTrue($down->isHistoryOpen(), 'still in the sub-view');
+
+        [$up] = $down->update(new KeyMsg(KeyType::Up));
+        self::assertSame(0, $up->historySelectedIndex());
+    }
+
+    public function testHistoryRefetchesWithR(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->librariesPayload())
+            ->json(200, $this->historyPayload())
+            ->json(200, $this->historyPayload());
+        $screen = $this->historyOpened($transport);
+
+        [$reloading, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'r'));
+
+        self::assertTrue($reloading->isHistoryOpen());
+        self::assertFalse($reloading->isHistoryLoaded(), 'r resets the sub-view to loading');
+        $msg = $this->runCmd($cmd);
+        self::assertInstanceOf(AdminLibraryScanHistoryLoadedMsg::class, $msg);
+        self::assertStringContainsString('/api/v1/libraries/lib-1/scan-history', $transport->requestAt(2)['url']);
+    }
+
+    public function testHistoryHCloseReturnsToTheListWithoutPoppingTheScreen(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->librariesPayload())
+            ->json(200, $this->historyPayload());
+        $screen = $this->historyOpened($transport);
+
+        [$closed, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'h'));
+
+        self::assertFalse($closed->isHistoryOpen());
+        self::assertNull($cmd, 'closing history does NOT pop the screen (no NavigateBack)');
+        self::assertStringContainsString('Movies', $closed->view(), 'back on the main list');
+    }
+
+    public function testHistoryEscCloseReturnsToTheListWithoutPoppingTheScreen(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->librariesPayload())
+            ->json(200, $this->historyPayload());
+        $screen = $this->historyOpened($transport);
+
+        [$closed, $cmd] = $screen->update(new KeyMsg(KeyType::Escape));
+
+        self::assertFalse($closed->isHistoryOpen());
+        self::assertNull($cmd, 'Esc closes the sub-view, it does NOT NavigateBack while history is open');
+        self::assertStringContainsString('Movies', $closed->view());
+    }
+
+    public function testHistoryForANonCurrentLibraryIsDropped(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->librariesPayload())
+            ->json(200, $this->historyPayload());
+        $screen = $this->historyOpened($transport);
+
+        // A history for lib-2 while lib-1 is the selection is dropped.
+        [$same, $cmd] = $screen->update(new AdminLibraryScanHistoryLoadedMsg('lib-2', []));
+
+        self::assertSame($screen, $same);
+        self::assertNull($cmd);
+        self::assertCount(2, $same->historyList(), 'the current history is untouched');
+    }
+
+    public function testHistoryLoadedWhileClosedIsDropped(): void
+    {
+        // A late history resolving after the sub-view closed is ignored.
+        $screen = $this->loaded((new FakeTransport())->json(200, $this->librariesPayload()));
+
+        [$same, $cmd] = $screen->update(new AdminLibraryScanHistoryLoadedMsg(
+            'lib-1',
+            [ScanJob::fromArray($this->completedJob())],
+        ));
+
+        self::assertSame($screen, $same);
+        self::assertNull($cmd);
+        self::assertFalse($same->isHistoryOpen());
+    }
+
+    public function testHistoryFetchFailureShowsAnError(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->librariesPayload())
+            ->json(500, ['error' => 'boom']);
+        $screen = $this->loaded($transport);
+
+        [$opening, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'h'));
+        $msg = $this->runCmd($cmd);
+        self::assertInstanceOf(AdminLibraryScanHistoryFailedMsg::class, $msg);
+
+        [$failed] = $opening->update($msg);
+        self::assertNotNull($failed->historyError());
+        self::assertTrue($failed->isHistoryOpen());
+        self::assertStringContainsString('Press r to retry', $failed->view());
+    }
+
+    public function testHistoryFetchAuthErrorSurfacesSessionExpiry(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->librariesPayload())
+            ->json(401, ['error' => 'expired'])
+            ->json(401, ['error' => 'expired']);
+        $screen = $this->loaded($transport);
+
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'h'));
+
+        self::assertInstanceOf(SessionExpiredMsg::class, $this->runCmd($cmd));
+    }
+
+    public function testHistoryKeyWithNoSelectionIsANoOp(): void
+    {
+        $screen = $this->loaded((new FakeTransport())->json(200, $this->emptyLibraries()));
+
+        [$same, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'h'));
+
+        self::assertSame($screen, $same);
+        self::assertNull($cmd);
+        self::assertFalse($same->isHistoryOpen());
+    }
+
+    public function testHistoryScrollOnEmptyHistoryIsANoOp(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->librariesPayload())
+            ->json(200, $this->emptyHistory());
+        $screen = $this->historyOpened($transport);
+
+        [$same, $cmd] = $screen->update(new KeyMsg(KeyType::Down));
+
+        self::assertSame($screen, $same);
+        self::assertNull($cmd);
+    }
+
+    public function testHistoryUnrelatedKeyIsANoOp(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->librariesPayload())
+            ->json(200, $this->historyPayload());
+        $screen = $this->historyOpened($transport);
+
+        [$same, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'z'));
+
+        self::assertSame($screen, $same);
+        self::assertNull($cmd);
+
+        [$sameEnter, $enterCmd] = $screen->update(new KeyMsg(KeyType::Enter));
+        self::assertSame($screen, $sameEnter);
+        self::assertNull($enterCmd);
+    }
+
+    public function testClosingHistoryRestoresTheMainListActionsAndPoll(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->librariesPayload())
+            ->json(200, $this->historyPayload())
+            ->json(202, ['message' => 'Library scan queued']);
+        $screen = $this->historyOpened($transport);
+
+        // Close history, then the main-list scan action works again.
+        [$closed] = $screen->update(new KeyMsg(KeyType::Escape));
+        [$busy, $cmd] = $closed->update(new KeyMsg(KeyType::Char, 's'));
+        self::assertTrue($busy->isBusy());
+        $msg = $this->runCmd($cmd);
+        self::assertInstanceOf(AdminLibraryActionDoneMsg::class, $msg);
+
+        // And the scan-status poll still ticks for the current selection.
+        [$same, $tickCmd] = $closed->update(new AdminScanStatusTickMsg($closed->pollEpoch()));
+        self::assertSame($closed, $same);
+        self::assertInstanceOf(\Closure::class, $tickCmd, 'the poll still runs after closing history');
     }
 
     // ---- helpers -------------------------------------------------------
