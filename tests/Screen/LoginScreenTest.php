@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Phlix\Console\Tests\Screen;
 
 use Phlix\Console\Msg\SubmitLoginMsg;
+use Phlix\Console\Screen\CapturesSlash;
 use Phlix\Console\Screen\LoginScreen;
 use PHPUnit\Framework\TestCase;
 use SugarCraft\Core\KeyType;
@@ -31,6 +32,27 @@ final class LoginScreenTest extends TestCase
         $screen = $this->type($screen, 'secret');
 
         return $screen->update(new KeyMsg(KeyType::Enter));      // submit
+    }
+
+    public function testCapturesSlashSoTheAppNeverHijacksColonOrSlash(): void
+    {
+        // Belt-and-suspenders to the auth gate: `:`/`/` are typed into the
+        // credentials, never stolen by the palette / global search.
+        self::assertInstanceOf(CapturesSlash::class, LoginScreen::create());
+    }
+
+    public function testTypingColonAndSlashIntoTheUsernameReachesTheInput(): void
+    {
+        $screen = $this->type(LoginScreen::create(), 'a:b/c');
+        [$screen] = $screen->update(new KeyMsg(KeyType::Tab));   // → password
+        $screen = $this->type($screen, 'secret');
+
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Enter));
+
+        self::assertInstanceOf(\Closure::class, $cmd);
+        $msg = $cmd();
+        self::assertInstanceOf(SubmitLoginMsg::class, $msg);
+        self::assertSame('a:b/c', $msg->username, 'the `:` and `/` typed into the form');
     }
 
     public function testSubmitEmitsLoginMsgAndEntersSubmittingState(): void

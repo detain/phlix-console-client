@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Phlix\Console\Tests\Screen;
 
 use Phlix\Console\Msg\SubmitServerMsg;
+use Phlix\Console\Screen\CapturesSlash;
 use Phlix\Console\Screen\ServerScreen;
 use PHPUnit\Framework\TestCase;
 use SugarCraft\Core\KeyType;
@@ -34,6 +35,25 @@ final class ServerScreenTest extends TestCase
         $msg = $cmd();
         self::assertInstanceOf(SubmitServerMsg::class, $msg);
         self::assertSame('https://host.tld:8096', $msg->url);
+    }
+
+    public function testCapturesSlashSoTheAppNeverHijacksColonOrSlash(): void
+    {
+        // The marker keeps the App from stealing `:`/`/` while the user types a
+        // URL like `http://host:8096` — belt-and-suspenders to the auth gate.
+        self::assertInstanceOf(CapturesSlash::class, ServerScreen::create());
+    }
+
+    public function testTypingAUrlWithColonAndSlashesReachesTheInput(): void
+    {
+        $screen = $this->type(ServerScreen::create(), 'http://host:8096');
+
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Enter));
+
+        self::assertInstanceOf(\Closure::class, $cmd);
+        $msg = $cmd();
+        self::assertInstanceOf(SubmitServerMsg::class, $msg);
+        self::assertSame('http://host:8096', $msg->url, 'every `:` and `/` typed into the form');
     }
 
     public function testEmptySubmitStaysWithAnError(): void
