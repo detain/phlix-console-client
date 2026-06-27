@@ -31,6 +31,8 @@ use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\SubscriptionCapable;
+use SugarCraft\Forms\Field\Input;
+use SugarCraft\Forms\Form;
 
 /**
  * The admin Live-TV surface: a single screen with FIVE tabbed sections — Tuners ·
@@ -45,25 +47,29 @@ use SugarCraft\Core\SubscriptionCapable;
  *
  * Per-section actions act on the active section and a selected row:
  * - Tuners: `s` scan (re-discover → toast "Found N tuners" + refetch), `e` toggle
- *   enabled (PUT + refetch), `x` delete (inline y/n confirm).
- * - Channels: `e` toggle enabled (refetch).
- * - Guide: `g` refresh the EPG (POST → toast "Imported N programs" + refetch).
+ *   enabled (PUT + refetch), `E` rename (name input → PUT), `x` delete (y/n).
+ * - Channels: `e` toggle enabled (refetch), `E` rename (name input → PUT).
+ * - Guide: `g` refresh the EPG (POST → toast "Imported N programs" + refetch), `R`
+ *   record the selected program (y/n confirm → createRecording from the program's
+ *   channel/start/end/title/program_id), `S` record the whole series (y/n confirm →
+ *   createSeriesRule; armed ONLY when the program carries a `series_id`).
  * - Recordings: `x` delete (y/n confirm), `u` toggle an upcoming-only view ↔ all.
- * - Series Rules: `x` delete (y/n confirm).
+ * - Series Rules: `E` edit a rule (a multi-field candy-forms form — title, priority,
+ *   pre/post padding, max-recordings, days-ahead, each numeric field client-validated
+ *   as a non-negative int → PUT only the provided fields), `x` delete (y/n confirm).
  *
- * On success the action toasts and refetches the active section; on failure it
- * toasts the (friendly, per LT1) server message and leaves the list unchanged; an
- * auth failure surfaces a session expiry.
- *
- * CREATE / EDIT forms are DEFERRED (recording-create, series-rule create/update,
- * tuner/channel rename involve complex bodies / program pickers) — do those from
- * the web admin. This screen ships read + the simple actions only.
+ * CREATE-from-guide (R / S) and the EDIT forms (rule-edit, tuner/channel rename) use
+ * the established candy-forms quit-intercept + inline-confirm patterns. On success
+ * the action toasts and refetches the active section; on failure it toasts the
+ * (friendly, per LT1) server message and leaves the list unchanged; an auth failure
+ * surfaces a session expiry.
  *
  * The client is injected (built locally by the App from its shared ApiClient, so
  * the App holds no AdminClient field). Stable collaborators are readonly; the
- * active section, per-section caches, selection, busy flag, the pending delete
- * confirm, and the upcoming-only toggle are private mutable view state set via
- * clone-mutate (the established screen idiom). No live poll.
+ * active section, per-section caches, selection, busy flag, the pending delete /
+ * create confirm, the embedded edit form, and the upcoming-only toggle are private
+ * mutable view state set via clone-mutate (the established screen idiom). No live
+ * poll.
  */
 final class AdminLiveTvScreen implements Breadcrumbed, Themed
 {
@@ -73,15 +79,20 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
     private const LOAD_FAILED = 'Could not load this section.';
     private const HINT = 'Tab/←→ section   ↑↓ select   action keys below   r refresh   Esc back';
-    private const DEFERRED_NOTE = 'Create / edit recordings + rules from the web admin.';
+    private const FORM_HINT = 'Enter  save      Esc  cancel';
+
+    /** The edit-form kinds (which target a form's submit drives). */
+    private const EDIT_TUNER = 'tuner';
+    private const EDIT_CHANNEL = 'channel';
+    private const EDIT_RULE = 'rule';
 
     /** @var array<value-of<LiveTvSection>, string> per-section action hints. */
     private const SECTION_HINTS = [
-        'tuners' => 's scan   e toggle-enabled   x delete',
-        'channels' => 'e toggle-enabled',
-        'guide' => 'g refresh-guide',
+        'tuners' => 's scan   e toggle-enabled   E rename   x delete',
+        'channels' => 'e toggle-enabled   E rename',
+        'guide' => 'g refresh-guide   R record   S record-series',
         'recordings' => 'x delete   u upcoming/all',
-        'rules' => 'x delete',
+        'rules' => 'E edit   x delete',
     ];
 
     private LiveTvSection $section = LiveTvSection::Tuners;
@@ -110,6 +121,12 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
     /** The id armed for a y/n delete confirm in the active section, or null. */
     private ?string $pendingDeleteId = null;
     private ?string $pendingDeleteLabel = null;
+
+    /** An armed create-from-guide (R / S) confirm, or null when none is pending. */
+    private ?LiveTvPendingCreate $pendingCreate = null;
+
+    /** The open edit/rename session (form + its target), else null. */
+    private ?LiveTvEditSession $edit = null;
 
     /** Recordings: show only upcoming when true (the `u` toggle). */
     private bool $upcomingOnly = false;
@@ -197,6 +214,10 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
         if ($msg instanceof WindowSizeMsg) {
             return [$this->resizedTo($msg->cols, $msg->rows), null];
         }
+        // An open embedded form captures all keys.
+        if ($this->edit !== null) {
+            return $this->updateEditForm($msg, $this->edit);
+        }
         if ($msg instanceof KeyMsg) {
             return $this->handleKey($msg);
         }
@@ -245,6 +266,11 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
 
     public function view(): string
     {
+        $edit = $this->edit;
+        if ($edit !== null) {
+            return Chrome::frame('Admin · Live TV · ' . self::editTitle($edit->kind), self::formBody($edit), self::FORM_HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
+        }
+
         return Chrome::frame('Admin · Live TV', $this->body(), self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
     }
 
@@ -256,6 +282,10 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
         // An armed delete confirm captures y/n/Esc before anything else.
         if ($this->pendingDeleteId !== null) {
             return $this->handleConfirmKey($msg, $this->pendingDeleteId);
+        }
+        // An armed create-from-guide (R / S) confirm likewise.
+        if ($this->pendingCreate !== null) {
+            return $this->handleCreateConfirmKey($msg, $this->pendingCreate);
         }
 
         if ($msg->type === KeyType::Escape || ($msg->type === KeyType::Char && $msg->rune === 'q')) {
@@ -315,6 +345,9 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
         if ($rune === 'e') {
             return [$this->working(), $this->actionCmd($this->admin->setTunerEnabled($tuner->id, !$tuner->enabled), $tuner->enabled ? 'Tuner disabled' : 'Tuner enabled')];
         }
+        if ($rune === 'E') {
+            return [$this->openRename(self::EDIT_TUNER, $tuner->id, $tuner->name), null];
+        }
         if ($rune === 'x') {
             return [$this->arm($tuner->id, $tuner->name), null];
         }
@@ -332,6 +365,9 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
         if ($rune === 'e') {
             return [$this->working(), $this->actionCmd($this->admin->setChannelEnabled($channel->id, !$channel->enabled), $channel->enabled ? 'Channel disabled' : 'Channel enabled')];
         }
+        if ($rune === 'E') {
+            return [$this->openRename(self::EDIT_CHANNEL, $channel->id, $channel->name), null];
+        }
 
         return [$this, null];
     }
@@ -346,6 +382,17 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
                     ? new SessionExpiredMsg(self::SESSION_EXPIRED)
                     : new AdminLiveTvActionFailedMsg($e->getMessage()),
             ))];
+        }
+        $program = $this->selectedProgram();
+        if ($program === null) {
+            return [$this, null];
+        }
+        if ($rune === 'R') {
+            return [$this->armCreate(LiveTvPendingCreate::RECORD, $program), null];
+        }
+        // Record-series is GATED on the program carrying a non-empty series id.
+        if ($rune === 'S' && $program->seriesId !== null && $program->seriesId !== '') {
+            return [$this->armCreate(LiveTvPendingCreate::SERIES, $program), null];
         }
 
         return [$this, null];
@@ -375,6 +422,9 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
         if ($rule === null) {
             return [$this, null];
         }
+        if ($rune === 'E') {
+            return [$this->openRuleForm($rule), null];
+        }
         if ($rune === 'x') {
             return [$this->arm($rule->ruleId, $rule->title), null];
         }
@@ -403,6 +453,217 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
             LiveTvSection::Recordings => $this->admin->deleteRecording($id),
             default => $this->admin->deleteSeriesRule($id),
         };
+    }
+
+    /** @return array{self, ?\Closure} */
+    private function handleCreateConfirmKey(KeyMsg $msg, LiveTvPendingCreate $pending): array
+    {
+        if ($msg->type === KeyType::Char && $msg->rune === 'y') {
+            return [$this->working(), $this->actionCmd($this->createPromise($pending), $pending->kind === LiveTvPendingCreate::SERIES ? 'Series rule created' : 'Recording scheduled')];
+        }
+        if ($msg->type === KeyType::Escape || ($msg->type === KeyType::Char && $msg->rune === 'n')) {
+            return [$this->cancelPending(), null];
+        }
+
+        return [$this, null];
+    }
+
+    /**
+     * The create promise for a confirmed R / S action — a one-off recording from
+     * the program's channel/start/end/title/program_id, or a series rule from its
+     * series_id + channel_id (the kind is only ever SERIES when the program carried
+     * a non-empty series id, asserted by {@see guideAction()}).
+     *
+     * @return PromiseInterface<string>
+     */
+    private function createPromise(LiveTvPendingCreate $pending): PromiseInterface
+    {
+        $program = $pending->program;
+        if ($pending->kind === LiveTvPendingCreate::SERIES) {
+            return $this->admin->createSeriesRule($program->seriesId ?? '', $program->channelId, $program->title, null, null, null, null, null);
+        }
+
+        return $this->admin->createRecording($program->channelId, $program->startTime, $program->endTime, $program->title, $program->programId, null);
+    }
+
+    // ---- edit / rename forms (embedded candy-forms) --------------------
+
+    /**
+     * Drive the embedded edit/rename form. candy-forms' Form returns Cmd::quit()
+     * on submit/abort; we intercept that — an abort cancels, a submit pushes only
+     * the provided fields (rename → PUT {name}; rule-edit → PUT the changed fields).
+     * The numeric rule fields are client-validated non-negative ints; a blank field
+     * is treated as "unchanged" (omitted), so an invalid form never round-trips.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function updateEditForm(Msg $msg, LiveTvEditSession $edit): array
+    {
+        /** @var array{0: Form, 1: ?\Closure} $result candy-forms' Form::update returns Model's loose `:array`; narrow it. */
+        $result = $edit->form->update($msg);
+        [$next, $cmd] = $result;
+
+        if ($next->isAborted()) {
+            return [$this->closeForm(), null];
+        }
+        if ($next->isSubmitted()) {
+            return $this->submitEditForm($edit, $next);
+        }
+
+        return [$this->withEditForm($edit->withForm($next)), $cmd];
+    }
+
+    /**
+     * Map a submitted edit form to its PUT command. A rename needs a non-blank
+     * name; a rule edit pushes only the provided fields (each numeric field is
+     * blank → kept, or a non-negative int → sent; a present-but-invalid value keeps
+     * the form open with no request).
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function submitEditForm(LiveTvEditSession $edit, Form $form): array
+    {
+        $id = $edit->targetId;
+
+        if ($edit->kind === self::EDIT_RULE) {
+            // Each numeric field must be blank (keep) OR a non-negative int. A
+            // present-but-invalid value (e.g. "-1") re-opens a FRESH form re-prefilled
+            // with what was entered (the already-submitted Form would be wedged — its
+            // update() short-circuits once submitted), so the user can correct or Esc.
+            foreach (['priority', 'pre_pad', 'post_pad', 'max', 'days'] as $numeric) {
+                $raw = trim($form->getString($numeric));
+                if ($raw !== '' && !ctype_digit($raw)) {
+                    $fresh = $edit->withForm($this->buildRuleFormFrom($form));
+
+                    return [$this->withEditForm($fresh), Cmd::batch(Cmd::send(ShowToastMsg::error('Numeric fields take a whole number ≥ 0.')), $fresh->form->init())];
+                }
+            }
+
+            return [$this->closeForm()->working(), $this->actionCmd($this->admin->updateSeriesRule(
+                $id,
+                self::nonBlank($form->getString('title')),
+                self::optionalInt($form->getString('priority')),
+                self::optionalInt($form->getString('pre_pad')),
+                self::optionalInt($form->getString('post_pad')),
+                self::optionalInt($form->getString('max')),
+                self::optionalInt($form->getString('days')),
+            ), 'Series rule updated')];
+        }
+
+        $name = trim($form->getString('name'));
+        if ($name === '') {
+            // The name field is validation-gated, but guard the boundary anyway so
+            // a blank rename never reaches the server.
+            $fresh = $edit->withForm($this->buildRenameForm($name));
+
+            return [$this->withEditForm($fresh), Cmd::batch(Cmd::send(ShowToastMsg::error('Enter a name.')), $fresh->form->init())];
+        }
+
+        $promise = $edit->kind === self::EDIT_TUNER ? $this->admin->renameTuner($id, $name) : $this->admin->renameChannel($id, $name);
+
+        return [$this->closeForm()->working(), $this->actionCmd($promise, $edit->kind === self::EDIT_TUNER ? 'Tuner renamed' : 'Channel renamed')];
+    }
+
+    private function buildRenameForm(string $name): Form
+    {
+        return Form::new(
+            Input::new('name')
+                ->withTitle('Name')
+                ->withValue($name)
+                ->validation(static fn (string $v): bool => trim($v) !== '', 'Enter a name.'),
+        );
+    }
+
+    private function buildRuleForm(SeriesRule $rule): Form
+    {
+        return self::ruleForm(
+            $rule->title,
+            (string) $rule->priority,
+            '',
+            '',
+            $rule->maxRecordings === null ? '' : (string) $rule->maxRecordings,
+            (string) $rule->daysAhead,
+        );
+    }
+
+    /**
+     * Re-prefill a fresh rule form with what the user entered, so an invalid-submit
+     * re-opens a usable (NOT wedged) form preserving every field's value.
+     */
+    private function buildRuleFormFrom(Form $form): Form
+    {
+        return self::ruleForm(
+            $form->getString('title'),
+            $form->getString('priority'),
+            $form->getString('pre_pad'),
+            $form->getString('post_pad'),
+            $form->getString('max'),
+            $form->getString('days'),
+        );
+    }
+
+    private static function ruleForm(string $title, string $priority, string $prePad, string $postPad, string $max, string $days): Form
+    {
+        return Form::new(
+            Input::new('title')
+                ->withTitle('Title')
+                ->withValue($title),
+            Input::new('priority')
+                ->withTitle('Priority')
+                ->withValue($priority)
+                ->validation(self::isNonNegativeInt(...), 'Enter a whole number ≥ 0.'),
+            Input::new('pre_pad')
+                ->withTitle('Pre-padding (seconds)')
+                ->withValue($prePad)
+                ->withPlaceholder('leave blank to keep')
+                ->validation(self::isNonNegativeIntOrBlank(...), 'Enter a whole number ≥ 0, or leave blank.'),
+            Input::new('post_pad')
+                ->withTitle('Post-padding (seconds)')
+                ->withValue($postPad)
+                ->withPlaceholder('leave blank to keep')
+                ->validation(self::isNonNegativeIntOrBlank(...), 'Enter a whole number ≥ 0, or leave blank.'),
+            Input::new('max')
+                ->withTitle('Max recordings')
+                ->withValue($max)
+                ->withPlaceholder('leave blank to keep')
+                ->validation(self::isNonNegativeIntOrBlank(...), 'Enter a whole number ≥ 0, or leave blank.'),
+            Input::new('days')
+                ->withTitle('Days ahead')
+                ->withValue($days)
+                ->validation(self::isNonNegativeInt(...), 'Enter a whole number ≥ 0.'),
+        );
+    }
+
+    /** A value (trimmed) is a non-negative whole number. */
+    private static function isNonNegativeInt(string $value): bool
+    {
+        return ctype_digit(trim($value));
+    }
+
+    /** A value is blank OR (trimmed) a non-negative whole number. */
+    private static function isNonNegativeIntOrBlank(string $value): bool
+    {
+        return trim($value) === '' || ctype_digit(trim($value));
+    }
+
+    /** A trimmed string, or null when blank (an unchanged title is omitted). */
+    private static function nonBlank(string $value): ?string
+    {
+        $trimmed = trim($value);
+
+        return $trimmed === '' ? null : $trimmed;
+    }
+
+    /**
+     * A form field as a non-negative int, or null when blank/non-digit (omitted).
+     * Trims first so a stray-space number (" 5 ") — which passes the trim-based
+     * submit guard — is accepted and sent rather than silently dropped.
+     */
+    private static function optionalInt(string $value): ?int
+    {
+        $trimmed = trim($value);
+
+        return ctype_digit($trimmed) ? (int) $trimmed : null;
     }
 
     // ---- action results ------------------------------------------------
@@ -441,6 +702,7 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
         $next->section = $target;
         $next->pendingDeleteId = null;
         $next->pendingDeleteLabel = null;
+        $next->pendingCreate = null;
 
         // Lazy-fetch the section the first time it is shown.
         if (!$next->isLoaded($target) && !($next->loading[$target->value] ?? false)) {
@@ -466,6 +728,8 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
         $next->busy = false;
         $next->pendingDeleteId = null;
         $next->pendingDeleteLabel = null;
+        $next->pendingCreate = null;
+        $next->edit = null;
         $next->selected[$section->value] = $count === 0 ? 0 : min($next->selected[$section->value] ?? 0, $count - 1);
 
         return $next;
@@ -479,17 +743,21 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
         $next->busy = false;
         $next->pendingDeleteId = null;
         $next->pendingDeleteLabel = null;
+        $next->pendingCreate = null;
+        $next->edit = null;
 
         return $next;
     }
 
-    /** Enter the busy (in-flight) state, clearing any armed confirm. */
+    /** Enter the busy (in-flight) state, clearing any armed confirm / open form. */
     private function working(): self
     {
         $next = clone $this;
         $next->busy = true;
         $next->pendingDeleteId = null;
         $next->pendingDeleteLabel = null;
+        $next->pendingCreate = null;
+        $next->edit = null;
 
         return $next;
     }
@@ -501,6 +769,8 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
         $next->busy = false;
         $next->pendingDeleteId = null;
         $next->pendingDeleteLabel = null;
+        $next->pendingCreate = null;
+        $next->edit = null;
 
         return $next;
     }
@@ -510,6 +780,17 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
         $next = clone $this;
         $next->pendingDeleteId = $id;
         $next->pendingDeleteLabel = $label;
+        $next->pendingCreate = null;
+
+        return $next;
+    }
+
+    private function armCreate(string $kind, GuideProgram $program): self
+    {
+        $next = clone $this;
+        $next->pendingCreate = new LiveTvPendingCreate($kind, $program);
+        $next->pendingDeleteId = null;
+        $next->pendingDeleteLabel = null;
 
         return $next;
     }
@@ -519,6 +800,36 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
         $next = clone $this;
         $next->pendingDeleteId = null;
         $next->pendingDeleteLabel = null;
+        $next->pendingCreate = null;
+
+        return $next;
+    }
+
+    private function openRename(string $kind, string $id, string $name): self
+    {
+        return $this->withEditForm(new LiveTvEditSession($kind, $id, $this->buildRenameForm($name)));
+    }
+
+    private function openRuleForm(SeriesRule $rule): self
+    {
+        return $this->withEditForm(new LiveTvEditSession(self::EDIT_RULE, $rule->ruleId, $this->buildRuleForm($rule)));
+    }
+
+    private function withEditForm(LiveTvEditSession $edit): self
+    {
+        $next = clone $this;
+        $next->edit = $edit;
+        $next->pendingDeleteId = null;
+        $next->pendingDeleteLabel = null;
+        $next->pendingCreate = null;
+
+        return $next;
+    }
+
+    private function closeForm(): self
+    {
+        $next = clone $this;
+        $next->edit = null;
 
         return $next;
     }
@@ -606,6 +917,11 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
     private function selectedChannel(): ?Channel
     {
         return ($this->channels ?? [])[$this->selected[LiveTvSection::Channels->value] ?? 0] ?? null;
+    }
+
+    private function selectedProgram(): ?GuideProgram
+    {
+        return ($this->programs ?? [])[$this->selected[LiveTvSection::Guide->value] ?? 0] ?? null;
     }
 
     private function selectedRecording(): ?Recording
@@ -763,13 +1079,42 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
         if ($this->pendingDeleteLabel !== null) {
             return "  Delete '{$this->pendingDeleteLabel}'? (y/n)";
         }
+        if ($this->pendingCreate !== null) {
+            return '  ' . $this->pendingCreate->prompt();
+        }
         if ($this->busy) {
             return '  Working…';
         }
 
         $hint = self::SECTION_HINTS[$this->section->value];
+        // In the Guide, note when the selected program is not a series (S disabled).
+        if ($this->section === LiveTvSection::Guide) {
+            $program = $this->selectedProgram();
+            if ($program !== null && ($program->seriesId === null || $program->seriesId === '')) {
+                return "  {$hint}\n  (this program is not a series — S unavailable)";
+            }
+        }
 
-        return "  {$hint}\n  " . self::DEFERRED_NOTE;
+        return "  {$hint}";
+    }
+
+    /** The form-screen title suffix for the open edit/rename form. */
+    private static function editTitle(string $kind): string
+    {
+        return match ($kind) {
+            self::EDIT_TUNER => 'Rename Tuner',
+            self::EDIT_CHANNEL => 'Rename Channel',
+            default => 'Edit Series Rule',
+        };
+    }
+
+    private static function formBody(LiveTvEditSession $edit): string
+    {
+        $intro = $edit->kind === self::EDIT_RULE
+            ? 'Edit the series rule. Numeric fields take a whole number ≥ 0; leave a field blank to keep it.'
+            : 'Enter a new name.';
+
+        return $intro . "\n" . $edit->form->view();
     }
 
     private function shortId(string $id): string
@@ -883,6 +1228,21 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
     public function pendingDeleteId(): ?string
     {
         return $this->pendingDeleteId;
+    }
+
+    public function pendingCreate(): ?LiveTvPendingCreate
+    {
+        return $this->pendingCreate;
+    }
+
+    public function isEditing(): bool
+    {
+        return $this->edit !== null;
+    }
+
+    public function editKind(): ?string
+    {
+        return $this->edit?->kind;
     }
 
     public function isUpcomingOnly(): bool

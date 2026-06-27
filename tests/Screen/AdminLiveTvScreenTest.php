@@ -165,7 +165,7 @@ final class AdminLiveTvScreenTest extends TestCase
         self::assertStringContainsString('[ Tuners ]', $view, 'the active tab is accented');
         self::assertStringContainsString('Channels', $view, 'the other tabs render');
         self::assertStringContainsString('s scan', $view);
-        self::assertStringContainsString('web admin', $view, 'the deferred-create note shows');
+        self::assertStringContainsString('E rename', $view, 'the rename action hint shows');
     }
 
     public function testEmptyTunersPlaceholder(): void
@@ -803,6 +803,392 @@ final class AdminLiveTvScreenTest extends TestCase
         self::assertSame($populated, $z);
     }
 
+    // ---- Guide: record / record-series (P8C.7) -------------------------
+
+    /** @return array<string, mixed> */
+    private function guideSeriesBody(): array
+    {
+        return ['success' => true, 'programs' => [
+            ['id' => 'p-1', 'program_id' => 'PR1', 'channel_id' => 'CH1', 'title' => 'Doctor Who', 'start_time' => 1_700_000_000, 'end_time' => 1_700_003_600, 'series_id' => 'SH1'],
+        ]];
+    }
+
+    public function testGuideRecordArmsThenYCreatesAndRefetches(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->tunersBody())
+            ->json(200, $this->channelsBody())
+            ->json(200, $this->guideSeriesBody())
+            ->json(200, ['success' => true, 'recording' => ['recording_id' => 'rec-9']]) // create
+            ->json(200, $this->guideSeriesBody());                                         // refetch
+        $screen = $this->onGuide($transport);
+
+        $view = $screen->view();
+        self::assertStringContainsString('R record', $view);
+        self::assertStringContainsString('S record-series', $view);
+
+        // R arms — NO request fired yet.
+        [$armed, $armCmd] = $screen->update(new KeyMsg(KeyType::Char, 'R'));
+        self::assertNull($armCmd);
+        self::assertNotNull($armed->pendingCreate());
+        self::assertStringContainsString("Record 'Doctor Who'? (y/n)", $armed->view());
+        self::assertSame(3, $transport->requestCount(), 'arming fires no request');
+
+        // y performs the create.
+        [$busy, $cmd] = $armed->update(new KeyMsg(KeyType::Char, 'y'));
+        self::assertTrue($busy->isBusy());
+        $done = $this->runCmd($cmd);
+        self::assertInstanceOf(AdminLiveTvActionDoneMsg::class, $done);
+        self::assertSame('Recording scheduled', $done->message);
+        $req = $transport->requestAt(3);
+        self::assertSame('POST', $req['method']);
+        self::assertStringContainsString('/recordings', $req['url']);
+        $body = json_decode($req['body'], true);
+        self::assertSame('CH1', $body['channel_id']);
+        self::assertSame(1_700_000_000, $body['start_time']);
+        self::assertSame('Doctor Who', $body['title']);
+        self::assertSame('PR1', $body['program_id']);
+        self::assertTrue($this->hasLoaded($this->collectCmd($busy->update($done)[1]), AdminLiveTvGuideLoadedMsg::class));
+    }
+
+    public function testGuideRecordNCancels(): void
+    {
+        $screen = $this->onGuide((new FakeTransport())
+            ->json(200, $this->tunersBody())
+            ->json(200, $this->channelsBody())
+            ->json(200, $this->guideSeriesBody()));
+
+        [$armed] = $screen->update(new KeyMsg(KeyType::Char, 'R'));
+        self::assertNotNull($armed->pendingCreate());
+        [$cancelled, $cmd] = $armed->update(new KeyMsg(KeyType::Char, 'n'));
+        self::assertNull($cmd);
+        self::assertNull($cancelled->pendingCreate());
+    }
+
+    public function testGuideRecordEscCancelsAndUnrelatedKeyKeepsArmed(): void
+    {
+        $screen = $this->onGuide((new FakeTransport())
+            ->json(200, $this->tunersBody())
+            ->json(200, $this->channelsBody())
+            ->json(200, $this->guideSeriesBody()));
+
+        [$armed] = $screen->update(new KeyMsg(KeyType::Char, 'R'));
+        [$still, $cmd] = $armed->update(new KeyMsg(KeyType::Char, 'z'));
+        self::assertNull($cmd);
+        self::assertNotNull($still->pendingCreate(), 'an unrelated key keeps the confirm armed');
+
+        [$cancelled, $escCmd] = $armed->update(new KeyMsg(KeyType::Escape));
+        self::assertNull($escCmd);
+        self::assertNull($cancelled->pendingCreate());
+    }
+
+    public function testGuideRecordSeriesCreatesARule(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->tunersBody())
+            ->json(200, $this->channelsBody())
+            ->json(200, $this->guideSeriesBody())
+            ->json(200, ['success' => true, 'rule' => ['rule_id' => 'sr-9']]) // create series
+            ->json(200, $this->guideSeriesBody());
+        $screen = $this->onGuide($transport);
+
+        [$armed] = $screen->update(new KeyMsg(KeyType::Char, 'S'));
+        self::assertNotNull($armed->pendingCreate());
+        self::assertStringContainsString('whole series', $armed->view());
+
+        [$busy, $cmd] = $armed->update(new KeyMsg(KeyType::Char, 'y'));
+        $done = $this->runCmd($cmd);
+        self::assertInstanceOf(AdminLiveTvActionDoneMsg::class, $done);
+        self::assertSame('Series rule created', $done->message);
+        $req = $transport->requestAt(3);
+        self::assertSame('POST', $req['method']);
+        self::assertStringContainsString('/series-rules', $req['url']);
+        $body = json_decode($req['body'], true);
+        self::assertSame('SH1', $body['series_id']);
+        self::assertSame('CH1', $body['channel_id']);
+    }
+
+    public function testGuideRecordSeriesIsDisabledWhenTheProgramHasNoSeriesId(): void
+    {
+        // The default guideBody() program carries NO series_id.
+        $screen = $this->onGuide((new FakeTransport())
+            ->json(200, $this->tunersBody())
+            ->json(200, $this->channelsBody())
+            ->json(200, $this->guideBody()));
+
+        self::assertStringContainsString('not a series', $screen->view(), 'the S-unavailable note shows');
+
+        [$next, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'S'));
+        self::assertNull($cmd, 'S fires nothing without a series id');
+        self::assertNull($next->pendingCreate());
+    }
+
+    public function testGuideRecordOnEmptyListIsANoOp(): void
+    {
+        $screen = $this->onGuide((new FakeTransport())
+            ->json(200, $this->tunersBody())
+            ->json(200, $this->channelsBody())
+            ->json(200, ['success' => true, 'programs' => []]));
+
+        [$r, $rc] = $screen->update(new KeyMsg(KeyType::Char, 'R'));
+        self::assertNull($rc);
+        self::assertNull($r->pendingCreate());
+        [$s, $sc] = $screen->update(new KeyMsg(KeyType::Char, 'S'));
+        self::assertNull($sc);
+        self::assertNull($s->pendingCreate());
+    }
+
+    public function testGuideRecordCreateFailureToasts(): void
+    {
+        $screen = $this->onGuide((new FakeTransport())
+            ->json(200, $this->tunersBody())
+            ->json(200, $this->channelsBody())
+            ->json(200, $this->guideSeriesBody())
+            ->json(500, ['success' => false, 'message' => 'tuner busy']));
+
+        [$armed] = $screen->update(new KeyMsg(KeyType::Char, 'R'));
+        [$busy, $cmd] = $armed->update(new KeyMsg(KeyType::Char, 'y'));
+        $failed = $this->runCmd($cmd);
+        self::assertInstanceOf(AdminLiveTvActionFailedMsg::class, $failed);
+        self::assertSame('tuner busy', $failed->message);
+
+        [$idle, $toastCmd] = $busy->update($failed);
+        self::assertFalse($idle->isBusy());
+        $toast = $this->runCmd($toastCmd);
+        self::assertInstanceOf(ShowToastMsg::class, $toast);
+        self::assertSame(ToastType::Error, $toast->type);
+    }
+
+    public function testGuideRecordCreateAuthErrorExpiresSession(): void
+    {
+        $screen = $this->onGuideNoRefresh((new FakeTransport())
+            ->json(200, $this->tunersBody())
+            ->json(200, $this->channelsBody())
+            ->json(200, $this->guideSeriesBody())
+            ->json(401, ['error' => 'expired']));
+
+        [$armed] = $screen->update(new KeyMsg(KeyType::Char, 'R'));
+        [, $cmd] = $armed->update(new KeyMsg(KeyType::Char, 'y'));
+        self::assertInstanceOf(SessionExpiredMsg::class, $this->runCmd($cmd));
+    }
+
+    // ---- Tuner / Channel rename (P8C.7) --------------------------------
+
+    public function testTunerRenameOpensFormThenSubmitsPut(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->tunersBody())
+            ->json(200, ['success' => true, 'tuner' => ['id' => 't-1', 'name' => 'Den']]) // rename PUT
+            ->json(200, $this->tunersBody());                                              // refetch
+        $screen = $this->loaded($transport);
+
+        [$editing, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'E'));
+        self::assertNull($cmd);
+        self::assertTrue($editing->isEditing());
+        self::assertSame('tuner', $editing->editKind());
+        self::assertStringContainsString('Rename Tuner', $editing->view());
+
+        // Replace the pre-filled name and submit.
+        $typed = $this->typeInto($this->clearInput($editing), 'Den');
+        [$busy, $submitCmd] = $this->submit($typed);
+        self::assertTrue($busy->isBusy());
+        $done = $this->runCmd($submitCmd);
+        self::assertInstanceOf(AdminLiveTvActionDoneMsg::class, $done);
+        self::assertSame('Tuner renamed', $done->message);
+
+        $req = $transport->requestAt(1);
+        self::assertSame('PUT', $req['method']);
+        self::assertStringContainsString('/tuners/t-1', $req['url']);
+        self::assertStringContainsString('"name":"Den"', $req['body']);
+        self::assertTrue($this->hasLoaded($this->collectCmd($busy->update($done)[1]), AdminLiveTvTunersLoadedMsg::class));
+    }
+
+    public function testTunerRenameEscCancelsTheForm(): void
+    {
+        $screen = $this->loaded((new FakeTransport())->json(200, $this->tunersBody()));
+
+        [$editing] = $screen->update(new KeyMsg(KeyType::Char, 'E'));
+        self::assertTrue($editing->isEditing());
+
+        [$cancelled, $cmd] = $editing->update(new KeyMsg(KeyType::Escape));
+        self::assertNull($cmd);
+        self::assertFalse($cancelled->isEditing());
+    }
+
+    public function testTunerRenameRejectsABlankName(): void
+    {
+        $transport = (new FakeTransport())->json(200, $this->tunersBody());
+        $screen = $this->loaded($transport);
+
+        [$editing] = $screen->update(new KeyMsg(KeyType::Char, 'E'));
+        // Clear the pre-filled name, then submit — the blank is rejected with no PUT.
+        $cleared = $this->clearInput($editing);
+        [$still, $cmd] = $this->submit($cleared);
+        self::assertTrue($still->isEditing(), 'a blank name keeps the form open');
+        self::assertSame(1, $transport->requestCount(), 'no rename request is fired');
+        $toast = $this->runCmd($cmd);
+        self::assertInstanceOf(ShowToastMsg::class, $toast);
+        self::assertSame(ToastType::Error, $toast->type);
+    }
+
+    public function testChannelRenameSubmitsPut(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->tunersBody())
+            ->json(200, $this->channelsBody())
+            ->json(200, ['success' => true, 'channel' => ['id' => 'c-1', 'name' => 'BBC Two']])
+            ->json(200, $this->channelsBody());
+        $screen = $this->onChannels($transport);
+
+        [$editing] = $screen->update(new KeyMsg(KeyType::Char, 'E'));
+        self::assertSame('channel', $editing->editKind());
+        self::assertStringContainsString('Rename Channel', $editing->view());
+
+        $typed = $this->typeInto($this->clearInput($editing), 'BBC Two');
+        [$busy, $cmd] = $this->submit($typed);
+        $done = $this->runCmd($cmd);
+        self::assertInstanceOf(AdminLiveTvActionDoneMsg::class, $done);
+        self::assertSame('Channel renamed', $done->message);
+        $req = $transport->requestAt(2);
+        self::assertSame('PUT', $req['method']);
+        self::assertStringContainsString('/channels/c-1', $req['url']);
+        self::assertStringContainsString('"name":"BBC Two"', $req['body']);
+    }
+
+    public function testRenameOnEmptyListIsANoOp(): void
+    {
+        $screen = $this->loaded((new FakeTransport())->json(200, ['success' => true, 'tuners' => []]));
+
+        [$next, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'E'));
+        self::assertNull($cmd);
+        self::assertFalse($next->isEditing());
+    }
+
+    // ---- Series-rule edit (P8C.7) --------------------------------------
+
+    public function testRuleEditOpensPrefilledFormAndPutsChangedFields(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->tunersBody())
+            ->json(200, $this->channelsBody())
+            ->json(200, $this->guideBody())
+            ->json(200, $this->recordingsBody())
+            ->json(200, $this->rulesBody())
+            ->json(200, ['success' => true, 'rule' => ['rule_id' => 'sr-1']]) // PUT
+            ->json(200, $this->rulesBody());                                  // refetch
+        $screen = $this->onRules($transport);
+
+        [$editing, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'E'));
+        self::assertNull($cmd);
+        self::assertTrue($editing->isEditing());
+        self::assertSame('rule', $editing->editKind());
+        $view = $editing->view();
+        self::assertStringContainsString('Edit Series Rule', $view);
+        self::assertStringContainsString('Doctor Who', $view, 'the title is pre-filled');
+
+        // Set a blank-by-default optional (pre-padding) to a valid digit value — this
+        // exercises the on-keystroke field validator — then submit.
+        $edited = $this->setField($editing, 'pre_pad', '30');
+        [$busy, $submitCmd] = $this->submit($edited);
+        $done = $this->runCmd($submitCmd);
+        self::assertInstanceOf(AdminLiveTvActionDoneMsg::class, $done);
+        self::assertSame('Series rule updated', $done->message);
+        $req = $transport->requestAt(5);
+        self::assertSame('PUT', $req['method']);
+        self::assertStringContainsString('/series-rules/sr-1', $req['url']);
+        $body = json_decode($req['body'], true);
+        self::assertSame('Doctor Who', $body['title']);
+        self::assertSame(5, $body['priority']);
+        self::assertSame(30, $body['pre_padding_seconds']);
+        self::assertSame(14, $body['days_ahead']);
+        self::assertTrue($this->hasLoaded($this->collectCmd($busy->update($done)[1]), AdminLiveTvSeriesRulesLoadedMsg::class));
+    }
+
+    public function testRuleEditRejectsANegativeOrNonIntPriorityWithNoRequest(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->tunersBody())
+            ->json(200, $this->channelsBody())
+            ->json(200, $this->guideBody())
+            ->json(200, $this->recordingsBody())
+            ->json(200, $this->rulesBody());
+        $screen = $this->onRules($transport);
+
+        [$editing] = $screen->update(new KeyMsg(KeyType::Char, 'E'));
+        // Set priority to a non-digit value (-1 has a '-' → not ctype_digit), then run
+        // ONE form-level submit (Enter through to the last field). candy-forms submits
+        // without enforcing the per-field predicates, so the screen's guard fires.
+        $bad = $this->setField($editing, 'priority', '-1');
+        [$still, $cmd] = $this->submitOnce($bad);
+        self::assertTrue($still->isEditing(), 'an invalid numeric keeps the form open');
+        self::assertSame(5, $transport->requestCount(), 'no PUT is fired');
+        // The rejected submit emits an error toast, not a PUT.
+        $toast = $this->runCmd($cmd);
+        self::assertInstanceOf(ShowToastMsg::class, $toast);
+        self::assertSame(ToastType::Error, $toast->type);
+
+        // REGRESSION: the re-opened form must NOT be wedged — a follow-up keystroke
+        // is still handled (the submitted-form short-circuit would swallow it).
+        [$typed, $typeCmd] = $still->update(new KeyMsg(KeyType::Char, 'X'));
+        self::assertNull($typeCmd);
+        self::assertTrue($typed->isEditing());
+        self::assertNotSame($still, $typed, 'the keystroke mutates the form (not wedged)');
+
+        // And Esc still cancels the re-opened form.
+        [$cancelled, $escCmd] = $still->update(new KeyMsg(KeyType::Escape));
+        self::assertNull($escCmd);
+        self::assertFalse($cancelled->isEditing(), 'Esc cancels the re-opened form');
+
+        // Correcting the value and submitting once now PUTs (the form is usable).
+        $fixed = $this->setField($still, 'priority', '8');
+        [$busy, $okCmd] = $this->submitOnce($fixed);
+        self::assertTrue($busy->isBusy());
+        $done = $this->runCmd($okCmd);
+        self::assertInstanceOf(AdminLiveTvActionDoneMsg::class, $done);
+        $req = $transport->requestAt(5);
+        self::assertSame('PUT', $req['method']);
+        $body = json_decode($req['body'], true);
+        self::assertSame(8, $body['priority'], 'the corrected value is sent');
+    }
+
+    public function testRuleEditAcceptsAStraySpaceNumber(): void
+    {
+        // A " 5 " priority passes the trim-based submit guard AND is sent (not
+        // silently dropped) because optionalInt() trims too.
+        $transport = (new FakeTransport())
+            ->json(200, $this->tunersBody())
+            ->json(200, $this->channelsBody())
+            ->json(200, $this->guideBody())
+            ->json(200, $this->recordingsBody())
+            ->json(200, $this->rulesBody())
+            ->json(200, ['success' => true, 'rule' => ['rule_id' => 'sr-1']])
+            ->json(200, $this->rulesBody());
+        $screen = $this->onRules($transport);
+
+        [$editing] = $screen->update(new KeyMsg(KeyType::Char, 'E'));
+        $spaced = $this->setField($editing, 'priority', ' 5 ');
+        [$busy, $cmd] = $this->submitOnce($spaced);
+        $done = $this->runCmd($cmd);
+        self::assertInstanceOf(AdminLiveTvActionDoneMsg::class, $done);
+        $body = json_decode($transport->requestAt(5)['body'], true);
+        self::assertSame(5, $body['priority'], 'a stray-space number is accepted and sent');
+    }
+
+    public function testRuleEditOnEmptyListIsANoOp(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->tunersBody())
+            ->json(200, $this->channelsBody())
+            ->json(200, $this->guideBody())
+            ->json(200, $this->recordingsBody())
+            ->json(200, ['success' => true, 'rules' => []]);
+        $screen = $this->onRules($transport);
+
+        [$next, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'E'));
+        self::assertNull($cmd);
+        self::assertFalse($next->isEditing());
+    }
+
     // ---- action failure + busy + section error -------------------------
 
     public function testActionFailureToastsAndLeavesListUnchanged(): void
@@ -927,6 +1313,84 @@ final class AdminLiveTvScreenTest extends TestCase
     private function urlOf(FakeTransport $transport, int $index): string
     {
         return (string) ($transport->requestAt($index)['url'] ?? '');
+    }
+
+    /** Type each char of $text into the screen's open form. */
+    private function typeInto(AdminLiveTvScreen $screen, string $text): AdminLiveTvScreen
+    {
+        foreach (mb_str_split($text) as $ch) {
+            [$screen] = $screen->update(new KeyMsg(KeyType::Char, $ch));
+        }
+
+        return $screen;
+    }
+
+    /** Backspace-clear the current field of the screen's open form. */
+    private function clearInput(AdminLiveTvScreen $screen): AdminLiveTvScreen
+    {
+        for ($i = 0; $i < 24; ++$i) {
+            [$screen] = $screen->update(new KeyMsg(KeyType::Backspace));
+        }
+
+        return $screen;
+    }
+
+    /**
+     * Navigate to the named rule-form field (advancing with Enter), clear it, and
+     * type $value. The rule form's field order is title, priority, pre_pad,
+     * post_pad, max, days.
+     */
+    private function setField(AdminLiveTvScreen $screen, string $field, string $value): AdminLiveTvScreen
+    {
+        $order = ['title', 'priority', 'pre_pad', 'post_pad', 'max', 'days'];
+        $steps = (int) array_search($field, $order, true);
+        for ($i = 0; $i < $steps; ++$i) {
+            [$screen] = $screen->update(new KeyMsg(KeyType::Enter));
+        }
+
+        return $this->typeInto($this->clearInput($screen), $value);
+    }
+
+    /**
+     * Submit the screen's open form by pressing Enter through every remaining
+     * field (Enter on the last field submits). Returns the resulting state + cmd.
+     *
+     * @return array{AdminLiveTvScreen, ?\Closure}
+     */
+    private function submit(AdminLiveTvScreen $screen): array
+    {
+        $result = [$screen, null];
+        for ($i = 0; $i < 8; ++$i) {
+            $result = $screen->update(new KeyMsg(KeyType::Enter));
+            $screen = $result[0];
+            if (!$screen->isEditing()) {
+                break;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Run EXACTLY one form-level submit from a known current rule-field: press Enter
+     * once per remaining field (the last Enter, on the `days` field, submits).
+     * Unlike {@see submit()} this fires a SINGLE submit, so a re-opened (invalid)
+     * form is NOT auto-resubmitted — exposing any wedge. candy-forms returns a
+     * cursor-blink tick on each advance; the submit result is the LAST press.
+     *
+     * @return array{AdminLiveTvScreen, ?\Closure}
+     */
+    private function submitOnce(AdminLiveTvScreen $screen, string $fromField = 'priority'): array
+    {
+        $order = ['title', 'priority', 'pre_pad', 'post_pad', 'max', 'days'];
+        $steps = count($order) - (int) array_search($fromField, $order, true); // advances to reach + submit on days
+        $result = [$screen, null];
+        for ($i = 0; $i < $steps; ++$i) {
+            $result = $screen->update(new KeyMsg(KeyType::Enter));
+            $screen = $result[0];
+        }
+
+        return $result;
     }
 
     /** @param list<Msg> $msgs */

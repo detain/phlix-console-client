@@ -2417,6 +2417,188 @@ final class AdminClientTest extends TestCase
         self::assertStringNotContainsString('Request failed', $error->getMessage());
     }
 
+    // ---- live tv: create / edit (P8C.7) --------------------------------
+
+    public function testCreateRecordingPostsTheProgramFields(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true, 'recording' => ['recording_id' => 'rec-9']]);
+
+        $result = $this->await($this->clientWith($transport)->createRecording('wxyz.1', 1_700_000_000, 1_700_003_600, 'The News', 'PR1', 3));
+
+        self::assertSame('Recording scheduled', $result);
+        $req = $transport->requestAt(0);
+        self::assertSame('POST', $req['method']);
+        self::assertStringContainsString('/api/v1/admin/livetv/recordings', $req['url']);
+        $body = json_decode($req['body'], true);
+        self::assertSame('wxyz.1', $body['channel_id']);
+        self::assertSame(1_700_000_000, $body['start_time']);
+        self::assertSame(1_700_003_600, $body['end_time']);
+        self::assertSame('The News', $body['title']);
+        self::assertSame('PR1', $body['program_id']);
+        self::assertSame(3, $body['priority']);
+    }
+
+    public function testCreateRecordingOmitsBlankTitleAndNullOptionals(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true]);
+
+        $this->await($this->clientWith($transport)->createRecording('wxyz.1', 100, 200, '', null, null));
+
+        $body = json_decode($transport->requestAt(0)['body'], true);
+        self::assertSame(['channel_id' => 'wxyz.1', 'start_time' => 100, 'end_time' => 200], $body);
+        self::assertArrayNotHasKey('title', $body);
+        self::assertArrayNotHasKey('program_id', $body);
+        self::assertArrayNotHasKey('priority', $body);
+    }
+
+    public function testCreateRecordingSurfacesTheFriendlyMessageOnA400(): void
+    {
+        $transport = (new FakeTransport())->json(400, ['success' => false, 'message' => 'channel_id is required']);
+
+        $error = $this->awaitError($this->clientWith($transport)->createRecording('', 1, 2, 'X', null, null));
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('channel_id is required', $error->getMessage());
+        self::assertStringNotContainsString('Request failed', $error->getMessage());
+    }
+
+    public function testCreateSeriesRulePostsSeriesAndChannelOmittingNullOptionals(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true, 'rule' => ['rule_id' => 'sr-9']]);
+
+        $result = $this->await($this->clientWith($transport)->createSeriesRule('SH1', 'wxyz.1', '', null, null, null, null, null));
+
+        self::assertSame('Series rule created', $result);
+        $req = $transport->requestAt(0);
+        self::assertSame('POST', $req['method']);
+        self::assertStringContainsString('/api/v1/admin/livetv/series-rules', $req['url']);
+        $body = json_decode($req['body'], true);
+        self::assertSame(['series_id' => 'SH1', 'channel_id' => 'wxyz.1'], $body);
+    }
+
+    public function testCreateSeriesRuleIncludesEveryProvidedOptional(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true]);
+
+        $this->await($this->clientWith($transport)->createSeriesRule('SH1', 'wxyz.1', 'Doctor Who', 5, 30, 60, 4, 14));
+
+        $body = json_decode($transport->requestAt(0)['body'], true);
+        self::assertSame('Doctor Who', $body['title']);
+        self::assertSame(5, $body['priority']);
+        self::assertSame(30, $body['pre_padding_seconds']);
+        self::assertSame(60, $body['post_padding_seconds']);
+        self::assertSame(4, $body['max_recordings']);
+        self::assertSame(14, $body['days_ahead']);
+    }
+
+    public function testCreateSeriesRuleSurfacesTheFriendlyMessageOnA400(): void
+    {
+        $transport = (new FakeTransport())->json(400, ['success' => false, 'message' => 'series_id is required']);
+
+        $error = $this->awaitError($this->clientWith($transport)->createSeriesRule('', 'c', '', null, null, null, null, null));
+
+        self::assertSame('series_id is required', $error->getMessage());
+    }
+
+    public function testUpdateSeriesRulePutsOnlyTheProvidedFields(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true, 'rule' => ['rule_id' => 'sr-1']]);
+
+        $result = $this->await($this->clientWith($transport)->updateSeriesRule('sr-1', 'New Title', 7, null, null, null, 21));
+
+        self::assertSame('Series rule updated', $result);
+        $req = $transport->requestAt(0);
+        self::assertSame('PUT', $req['method']);
+        self::assertStringContainsString('/api/v1/admin/livetv/series-rules/sr-1', $req['url']);
+        $body = json_decode($req['body'], true);
+        self::assertSame(['title' => 'New Title', 'priority' => 7, 'days_ahead' => 21], $body);
+        self::assertArrayNotHasKey('pre_padding_seconds', $body);
+        self::assertArrayNotHasKey('max_recordings', $body);
+    }
+
+    public function testUpdateSeriesRuleWithNoFieldsSendsAnEmptyBody(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true]);
+
+        $this->await($this->clientWith($transport)->updateSeriesRule('sr-1', null, null, null, null, null, null));
+
+        $req = $transport->requestAt(0);
+        self::assertSame('PUT', $req['method']);
+        // No fields → the empty-body path (null), so no field keys are serialised.
+        self::assertStringNotContainsString('title', $req['body']);
+        self::assertStringNotContainsString('priority', $req['body']);
+        self::assertStringNotContainsString('days_ahead', $req['body']);
+    }
+
+    public function testUpdateSeriesRuleSurfacesTheFriendlyMessageOnA404(): void
+    {
+        $transport = (new FakeTransport())->json(404, ['success' => false, 'message' => 'Rule not found']);
+
+        $error = $this->awaitError($this->clientWith($transport)->updateSeriesRule('missing', 'X', null, null, null, null, null));
+
+        self::assertSame('Rule not found', $error->getMessage());
+    }
+
+    public function testRenameTunerPutsTheNameAndResolvesTheTuner(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true, 'tuner' => ['id' => 't-1', 'name' => 'Den', 'enabled' => 1]]);
+
+        $tuner = $this->await($this->clientWith($transport)->renameTuner('t-1', 'Den'));
+
+        self::assertInstanceOf(Tuner::class, $tuner);
+        self::assertSame('Den', $tuner->name);
+        $req = $transport->requestAt(0);
+        self::assertSame('PUT', $req['method']);
+        self::assertStringContainsString('/api/v1/admin/livetv/tuners/t-1', $req['url']);
+        self::assertStringContainsString('"name":"Den"', $req['body']);
+    }
+
+    public function testRenameTunerToleratesAMissingTunerKey(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true]);
+
+        self::assertInstanceOf(Tuner::class, $this->await($this->clientWith($transport)->renameTuner('t-1', 'Den')));
+    }
+
+    public function testRenameTunerSurfacesTheFriendlyMessageOnA404(): void
+    {
+        $transport = (new FakeTransport())->json(404, ['success' => false, 'message' => 'Tuner not found']);
+
+        $error = $this->awaitError($this->clientWith($transport)->renameTuner('missing', 'Den'));
+
+        self::assertSame('Tuner not found', $error->getMessage());
+    }
+
+    public function testRenameChannelPutsTheNameAndResolvesTheChannel(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true, 'channel' => ['id' => 'c-1', 'name' => 'BBC Two']]);
+
+        $channel = $this->await($this->clientWith($transport)->renameChannel('c-1', 'BBC Two'));
+
+        self::assertInstanceOf(Channel::class, $channel);
+        self::assertSame('BBC Two', $channel->name);
+        $req = $transport->requestAt(0);
+        self::assertSame('PUT', $req['method']);
+        self::assertStringContainsString('/api/v1/admin/livetv/channels/c-1', $req['url']);
+        self::assertStringContainsString('"name":"BBC Two"', $req['body']);
+    }
+
+    public function testRenameChannelToleratesAMissingChannelKey(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['success' => true]);
+
+        self::assertInstanceOf(Channel::class, $this->await($this->clientWith($transport)->renameChannel('c-1', 'BBC Two')));
+    }
+
+    public function testRenameChannelSurfacesTheFriendlyMessageOnA404(): void
+    {
+        $transport = (new FakeTransport())->json(404, ['success' => false, 'message' => 'Channel not found']);
+
+        $error = $this->awaitError($this->clientWith($transport)->renameChannel('missing', 'X'));
+
+        self::assertSame('Channel not found', $error->getMessage());
+    }
+
     // ---- user profiles -------------------------------------------------
 
     private function profilesPayload(): array
