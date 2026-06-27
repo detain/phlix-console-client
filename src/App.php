@@ -274,16 +274,23 @@ final class App implements Model
         if ($this->palette !== null && $msg instanceof KeyMsg) {
             return $this->handlePaletteKey($this->palette, $msg);
         }
-        // Ctrl-K opens the palette from any screen; `:` also opens it, unless the
-        // top screen captures text (where `:` should type).
-        if ($msg instanceof KeyMsg && ($this->isPaletteToggle($msg) || $this->isColonPaletteOpen($msg))) {
-            return $this->openPalette();
-        }
-        // `/` opens global search, unless the top screen captures it (a screen
-        // with its own filter, or the player where a search overlay would orphan
-        // playback).
-        if ($msg instanceof KeyMsg && $this->isSearchKey($msg)) {
-            return $this->openSearch();
+        // The palette + global search are meaningless before login (every action
+        // needs a session), and on the pre-login auth forms `:`/`/` are literal
+        // characters of a server URL / credentials. So all three triggers are
+        // GATED on an authenticated session: while logged out the keys fall
+        // through to the top screen (the form) and type normally.
+        if ($this->paletteAndSearchAvailable()) {
+            // Ctrl-K opens the palette from any screen; `:` also opens it, unless
+            // the top screen captures text (where `:` should type).
+            if ($msg instanceof KeyMsg && ($this->isPaletteToggle($msg) || $this->isColonPaletteOpen($msg))) {
+                return $this->openPalette();
+            }
+            // `/` opens global search, unless the top screen captures it (a screen
+            // with its own filter, or the player where a search overlay would
+            // orphan playback).
+            if ($msg instanceof KeyMsg && $this->isSearchKey($msg)) {
+                return $this->openSearch();
+            }
         }
 
         if ($msg instanceof BootResolvedMsg) {
@@ -700,6 +707,20 @@ final class App implements Model
     }
 
     // ---- command palette -----------------------------------------------
+
+    /**
+     * Whether the command palette and global search are available — i.e. an
+     * authenticated session exists. They are gated on this because every palette
+     * action needs a session, and on the pre-login auth screens (server URL /
+     * login) the `:`/`/` keys are literal characters the user must be able to
+     * type. The {@see AuthStore} user is null on the ServerSetup + Login screens
+     * and set after login/restore (cleared on logout) — exactly the "logged in"
+     * signal, the same one the Admin palette gate already reads.
+     */
+    private function paletteAndSearchAvailable(): bool
+    {
+        return $this->auth->currentUser() !== null;
+    }
 
     private function isPaletteToggle(KeyMsg $msg): bool
     {

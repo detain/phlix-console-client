@@ -22,7 +22,7 @@ use SugarCraft\Forms\Form;
  * As with {@see ServerScreen}, the embedded Form's submit/abort Cmd::quit() is
  * intercepted and replaced with a navigation intent.
  */
-final class LoginScreen implements Model, Themed
+final class LoginScreen implements Model, Themed, CapturesSlash
 {
     use SubscriptionCapable;
     use ThemedScreen;
