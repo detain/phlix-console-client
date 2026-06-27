@@ -245,6 +245,51 @@ final class AdminClient
     }
 
     /**
+     * Create a new user. The body is `{username, email, password, is_admin}`; on
+     * 201 the server returns `{user_id, message}` and this resolves the `message`.
+     * Rejects with the server `error` on a 400 (validation / duplicate email) —
+     * the {@see \Phlix\Console\Api\ApiError} carries it as the exception message.
+     * (A `field_errors` map also rides the 400 body but only `error` is surfaced.)
+     *
+     * @return PromiseInterface<string>
+     */
+    public function createUser(string $username, string $email, string $password, bool $isAdmin): PromiseInterface
+    {
+        return $this->api->send('POST', self::USERS, [], [
+            'username' => $username,
+            'email' => $email,
+            'password' => $password,
+            'is_admin' => $isAdmin,
+        ])->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
+    }
+
+    /**
+     * Update a user. Every field is optional: the PUT body carries ONLY the
+     * non-null fields (a blank/unchanged field is passed as null and omitted), so
+     * an unchanged value is left as-is server-side. On 200 the server returns
+     * `{message}` and this resolves it. Rejects with the server `error` on a 400
+     * (per-field validation) or 404 (unknown user).
+     *
+     * @return PromiseInterface<string>
+     */
+    public function updateUser(string $id, ?string $username, ?string $email, ?string $password): PromiseInterface
+    {
+        $body = [];
+        if ($username !== null) {
+            $body['username'] = $username;
+        }
+        if ($email !== null) {
+            $body['email'] = $email;
+        }
+        if ($password !== null) {
+            $body['password'] = $password;
+        }
+
+        return $this->api->send('PUT', self::USERS . '/' . rawurlencode($id), [], $body === [] ? null : $body)
+            ->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
+    }
+
+    /**
      * Fire one mutating user action and resolve the server `message`. The shared
      * {@see ApiClient::send()} rejects non-2xx with the server `error` carried on
      * the {@see \Phlix\Console\Api\ApiError}, so this never has to inspect status.
