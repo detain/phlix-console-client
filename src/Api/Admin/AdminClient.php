@@ -1303,6 +1303,156 @@ final class AdminClient
     }
 
     /**
+     * Schedule a one-off recording FROM a selected guide program — the caller
+     * passes the program's `channel_id`, `start_time`/`end_time` (epoch ints),
+     * `title`, and `program_id` directly, so no manual time entry is ever needed.
+     * The POST body is `{channel_id, start_time, end_time, title?, program_id?,
+     * priority?}` (a blank title / null program_id / null priority is omitted).
+     * Resolves a confirmation string; rejects with the server's friendly `message`
+     * on a 400 (missing channel/start/end) or 500 (see {@see reThrowFriendly()}).
+     *
+     * @return PromiseInterface<string>
+     */
+    public function createRecording(string $channelId, int $startTime, int $endTime, string $title, ?string $programId, ?int $priority): PromiseInterface
+    {
+        $body = [
+            'channel_id' => $channelId,
+            'start_time' => $startTime,
+            'end_time' => $endTime,
+        ];
+        if ($title !== '') {
+            $body['title'] = $title;
+        }
+        if ($programId !== null && $programId !== '') {
+            $body['program_id'] = $programId;
+        }
+        if ($priority !== null) {
+            $body['priority'] = $priority;
+        }
+
+        return $this->api->send('POST', self::LIVETV . '/recordings', [], $body)->then(
+            static fn (array $resp): string => 'Recording scheduled',
+            self::reThrowFriendly(...),
+        );
+    }
+
+    /**
+     * Create a series-recording rule FROM a selected guide program — the caller
+     * passes the program's `series_id` and `channel_id`. The POST body is
+     * `{series_id, channel_id, title?, priority?, pre_padding_seconds?,
+     * post_padding_seconds?, max_recordings?, days_ahead?}`; every null optional is
+     * OMITTED so the server applies its defaults. Resolves a confirmation string;
+     * rejects with the server's friendly `message` on a 400 (missing
+     * series/channel) or 500 (see {@see reThrowFriendly()}).
+     *
+     * @return PromiseInterface<string>
+     */
+    public function createSeriesRule(string $seriesId, string $channelId, string $title, ?int $priority, ?int $prePad, ?int $postPad, ?int $maxRecordings, ?int $daysAhead): PromiseInterface
+    {
+        $body = [
+            'series_id' => $seriesId,
+            'channel_id' => $channelId,
+        ];
+        if ($title !== '') {
+            $body['title'] = $title;
+        }
+        $body += self::ruleOptionals($priority, $prePad, $postPad, $maxRecordings, $daysAhead);
+
+        return $this->api->send('POST', self::LIVETV . '/series-rules', [], $body)->then(
+            static fn (array $resp): string => 'Series rule created',
+            self::reThrowFriendly(...),
+        );
+    }
+
+    /**
+     * Update a series-recording rule (PUT `/series-rules/{id}`). Every field is
+     * optional: the body carries ONLY the provided (non-null, and for the title
+     * non-blank) fields, so an unchanged value is left as-is server-side. Resolves a
+     * confirmation string; rejects with the server's friendly `message` on a 400 /
+     * 404 (see {@see reThrowFriendly()}).
+     *
+     * @return PromiseInterface<string>
+     */
+    public function updateSeriesRule(string $id, ?string $title, ?int $priority, ?int $prePad, ?int $postPad, ?int $maxRecordings, ?int $daysAhead): PromiseInterface
+    {
+        $body = [];
+        if ($title !== null && $title !== '') {
+            $body['title'] = $title;
+        }
+        $body += self::ruleOptionals($priority, $prePad, $postPad, $maxRecordings, $daysAhead);
+
+        return $this->api->send('PUT', self::LIVETV . '/series-rules/' . rawurlencode($id), [], $body === [] ? null : $body)->then(
+            static fn (array $resp): string => 'Series rule updated',
+            self::reThrowFriendly(...),
+        );
+    }
+
+    /**
+     * Build the optional numeric fields shared by the series-rule create/update
+     * bodies, omitting every null so the server keeps its default / current value.
+     *
+     * @return array<string, int>
+     */
+    private static function ruleOptionals(?int $priority, ?int $prePad, ?int $postPad, ?int $maxRecordings, ?int $daysAhead): array
+    {
+        $body = [];
+        if ($priority !== null) {
+            $body['priority'] = $priority;
+        }
+        if ($prePad !== null) {
+            $body['pre_padding_seconds'] = $prePad;
+        }
+        if ($postPad !== null) {
+            $body['post_padding_seconds'] = $postPad;
+        }
+        if ($maxRecordings !== null) {
+            $body['max_recordings'] = $maxRecordings;
+        }
+        if ($daysAhead !== null) {
+            $body['days_ahead'] = $daysAhead;
+        }
+
+        return $body;
+    }
+
+    /**
+     * Rename a tuner (PUT `/tuners/{id}` `{name}`). Reuses the existing
+     * enabled-toggle endpoint with a `name` field. Resolves the single updated
+     * {@see Tuner} from the top-level `tuner` named key; a missing/non-array `tuner`
+     * yields the tolerant empty default. Rejects with the server's friendly
+     * `message` on non-2xx (see {@see reThrowFriendly()}).
+     *
+     * @return PromiseInterface<Tuner>
+     */
+    public function renameTuner(string $id, string $name): PromiseInterface
+    {
+        return $this->api->send('PUT', self::LIVETV . '/tuners/' . rawurlencode($id), [], ['name' => $name])
+            ->then(static function (array $body): Tuner {
+                $tuner = $body['tuner'] ?? null;
+
+                return Tuner::fromArray(is_array($tuner) ? $tuner : []);
+            })->otherwise(self::reThrowFriendly(...));
+    }
+
+    /**
+     * Rename a channel (PUT `/channels/{id}` `{name}`). Reuses the existing
+     * enabled-toggle endpoint with a `name` field. Resolves the single updated
+     * {@see Channel} from the top-level `channel` named key. Rejects with the
+     * server's friendly `message` on non-2xx (see {@see reThrowFriendly()}).
+     *
+     * @return PromiseInterface<Channel>
+     */
+    public function renameChannel(string $id, string $name): PromiseInterface
+    {
+        return $this->api->send('PUT', self::LIVETV . '/channels/' . rawurlencode($id), [], ['name' => $name])
+            ->then(static function (array $body): Channel {
+                $channel = $body['channel'] ?? null;
+
+                return Channel::fromArray(is_array($channel) ? $channel : []);
+            })->otherwise(self::reThrowFriendly(...));
+    }
+
+    /**
      * Re-throw a rejected {@see ApiError} carrying the server's FRIENDLY text. The
      * admin controllers that wrap failures in an `error()` helper emit
      * `{success:false, message:…}` with NO `error` key (DLNA, Remote Access,

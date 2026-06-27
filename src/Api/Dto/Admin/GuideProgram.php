@@ -11,10 +11,12 @@ use Phlix\Console\Api\Dto\Coerce;
  * `GET /api/v1/admin/livetv/guide` → `{success, programs: [...]}` (top-level
  * named key). The server returns the raw `livetv_programs` row: `id, program_id,
  * channel_id, title, description, start_time (epoch int), end_time (epoch int),
- * category, season, episode, episode_title, series_episode, rating`.
+ * category, season, episode, episode_title, series_episode, series_id, rating`.
  *
- * Surfaces a short S/E label derived from `season`/`episode`. Tolerant +
- * immutable.
+ * Surfaces a short S/E label derived from `season`/`episode`, and carries the
+ * optional `series_id` so a series-recording rule can be created straight from a
+ * selected program (a blank/absent value means "not a series" — gate the action).
+ * Tolerant + immutable.
  */
 final readonly class GuideProgram
 {
@@ -29,6 +31,7 @@ final readonly class GuideProgram
         public ?string $description,
         public ?int $season,
         public ?int $episode,
+        public ?string $seriesId,
     ) {
     }
 
@@ -48,6 +51,7 @@ final readonly class GuideProgram
             description: Coerce::nstr($data['description'] ?? null),
             season: Coerce::nint($data['season'] ?? null),
             episode: Coerce::nint($data['episode'] ?? null),
+            seriesId: Coerce::nstr($data['series_id'] ?? null),
         );
     }
 
