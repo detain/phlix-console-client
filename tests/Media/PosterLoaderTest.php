@@ -81,6 +81,47 @@ final class PosterLoaderTest extends \PHPUnit\Framework\TestCase
         self::assertNotSame('', $ansi);
     }
 
+    public function testInlineModeLeavesTheImageLayerEmpty(): void
+    {
+        $this->startServer();
+        $loader = new PosterLoader(Mosaic::halfBlock(), null, false);
+
+        $this->await($loader->load("http://127.0.0.1:{$this->port}/poster.png", 6, 9));
+
+        self::assertSame([], $loader->imageLayer(), 'cell renderers stay inline');
+    }
+
+    public function testOverlayModeReturnsAMarkerBlockAndRegistersTheBlob(): void
+    {
+        $this->startServer();
+        $loader = new PosterLoader(Mosaic::sixel(), null, true);
+
+        $block = $this->await($loader->load("http://127.0.0.1:{$this->port}/poster.png", 6, 9));
+
+        self::assertIsString($block);
+        // A 9-row marker block, top-left = marker(0), and NO raw sixel in the text.
+        self::assertCount(9, explode("\n", $block));
+        self::assertStringContainsString(\SugarCraft\Core\ImageOverlay::marker(0), $block);
+        self::assertStringNotContainsString("\x1bP", $block, 'the sixel blob never enters the text frame');
+        // The blob lives in the image layer instead.
+        $layer = $loader->imageLayer();
+        self::assertArrayHasKey(0, $layer);
+        self::assertStringContainsString("\x1bP", $layer[0], 'registered bytes are the sixel blob');
+    }
+
+    public function testOverlayModeReusesTheIdForTheSamePosterAndSize(): void
+    {
+        $this->startServer();
+        $loader = new PosterLoader(Mosaic::sixel(), null, true);
+        $url = "http://127.0.0.1:{$this->port}/poster.png";
+
+        $a = $this->await($loader->load($url, 6, 9));
+        $b = $this->await($loader->load($url, 6, 9));
+
+        self::assertSame($a, $b, 'same poster → same marker id → same block');
+        self::assertCount(1, $loader->imageLayer(), 'one registered image, not two');
+    }
+
     private function startServer(): void
     {
         $png = $this->pngBytes();

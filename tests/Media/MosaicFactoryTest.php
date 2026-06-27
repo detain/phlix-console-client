@@ -58,33 +58,31 @@ final class MosaicFactoryTest extends TestCase
         MosaicFactory::forMode('bogus');
     }
 
-    public function testPosterGridHonoursCellModes(): void
+    public function testPosterGridHonoursCellModesAsInline(): void
     {
-        // Cell-based modes tile, so they pass through unchanged with no notice.
+        // Cell-based modes tile as text → overlay flag is false.
         foreach (['ascii', 'ansi256', 'truecolor', 'quarterblock', 'halfblock'] as $mode) {
-            [$mosaic, $notice] = MosaicFactory::forPosterGrid($mode);
-            self::assertSame($mode === 'halfblock' ? 'halfblock' : $mosaic->protocol(), $mosaic->protocol());
-            self::assertNull($notice, "{$mode} tiles, so no downgrade notice");
+            [$mosaic, $overlay] = MosaicFactory::forPosterGrid($mode);
+            self::assertSame($mode, $mosaic->protocol());
+            self::assertFalse($overlay, "{$mode} is a cell renderer (inline)");
         }
     }
 
-    public function testPosterGridDowngradesGraphicsModesWithNotice(): void
+    public function testPosterGridKeepsGraphicsModesAsOverlay(): void
     {
-        // Sixel can't tile the grid → fall back to half-block and explain why.
-        [$mosaic, $notice] = MosaicFactory::forPosterGrid('sixel');
+        // Graphics modes now tile via the image overlay → kept, flagged overlay.
+        [$mosaic, $overlay] = MosaicFactory::forPosterGrid('sixel');
 
-        self::assertSame('halfblock', $mosaic->protocol());
-        self::assertNotNull($notice);
-        self::assertStringContainsString('sixel', $notice);
-        self::assertStringContainsString('half-block', $notice);
+        self::assertSame('sixel', $mosaic->protocol());
+        self::assertTrue($overlay, 'sixel posters are painted as an overlay');
     }
 
-    public function testPosterGridDefaultsToHalfBlockWithoutProbing(): void
+    public function testPosterGridDefaultsToInlineHalfBlock(): void
     {
         foreach ([null, 'auto'] as $mode) {
-            [$mosaic, $notice] = MosaicFactory::forPosterGrid($mode);
+            [$mosaic, $overlay] = MosaicFactory::forPosterGrid($mode);
             self::assertSame('halfblock', $mosaic->protocol());
-            self::assertNull($notice);
+            self::assertFalse($overlay);
         }
     }
 }

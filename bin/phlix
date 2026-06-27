@@ -77,15 +77,13 @@ try {
             $auth = new AuthStore($api, TokenStore::default());
             $libraries = new LibrariesStore($api);
             $media = new MediaStore($api);
-            // The poster rails are tiled text cells, so they need a cell-based
-            // renderer (half/quarter-block); a graphics mode like sixel can't tile
-            // and is downgraded with a notice. PosterLoader keys its cache by the
-            // mosaic's protocol(), so each mode caches separately.
-            [$mosaic, $modeNotice] = MosaicFactory::forPosterGrid($mode);
-            if ($modeNotice !== null) {
-                fwrite(STDERR, $modeNotice . "\n");
-            }
-            $posters = new PosterLoader($mosaic, new DiskCache(Config::dir() . '/posters'));
+            // Cell modes (half/quarter-block, ascii/ansi256/truecolor) tile as text;
+            // graphics modes (sixel/kitty/iterm2) tile as an out-of-band overlay —
+            // PosterLoader returns a marker block and the runtime paints the blob.
+            // PosterLoader keys its cache by the mosaic's protocol(), so each mode
+            // caches separately.
+            [$mosaic, $overlay] = MosaicFactory::forPosterGrid($mode);
+            $posters = new PosterLoader($mosaic, new DiskCache(Config::dir() . '/posters'), $overlay);
             (new Program(App::boot($config, $auth, $api, $libraries, $media, $posters)))->run();
             break;
 
@@ -110,9 +108,9 @@ render modes:
     ascii         monochrome character ramp
     ansi256       256-colour character ramp
     truecolor     24-bit-colour character ramp
-  graphics modes (single images only — `phlix poster`; NOT the grid):
+  graphics modes (real images; tiled in the grid as an overlay):
     sixel | kitty | iterm2
-  auto            auto-detect (default)
+  auto            inline half-block (default; pass --mode=sixel for graphics)
 
 TXT);
             break;
