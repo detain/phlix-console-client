@@ -247,6 +247,24 @@ final class AppTest extends TestCase
         self::assertInstanceOf(BrowseScreen::class, $next->screen());
     }
 
+    public function testBootCmdSurvivesTheStartupResizeAndStillRestores(): void
+    {
+        // Regression: candy-core dispatches the startup WindowSizeMsg BEFORE it
+        // calls init(). resized() used to drop the one-shot boot Cmd, so init()
+        // returned null, the token-restore never ran, and the app hung forever
+        // on "Connecting to your Phlix server…". The resize must preserve it.
+        TokenStore::default()->save(new TokenBundle('stored', 'refresh', 'Bearer', null));
+        [$app] = $this->makeApp('https://srv', (new FakeTransport())->json(200, ['user' => ['id' => 'u1', 'username' => 'joe']]));
+
+        // The Program dispatches WindowSizeMsg first, THEN calls init().
+        [$resized] = $app->update(new WindowSizeMsg(120, 40));
+        self::assertInstanceOf(\Closure::class, $resized->init(), 'boot Cmd must survive the startup resize');
+
+        $resolved = $this->runCmd($resized->init());
+        self::assertInstanceOf(BootResolvedMsg::class, $resolved);
+        self::assertSame('joe', $resolved->user?->username);
+    }
+
     public function testServerSubmittedPersistsConfigAndPointsClient(): void
     {
         [$app, , $api] = $this->makeApp(null, new FakeTransport());

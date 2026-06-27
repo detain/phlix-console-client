@@ -1841,9 +1841,13 @@ final class App implements Model
             }
         }
 
+        // Preserve $this->bootCmd: candy-core dispatches the startup WindowSizeMsg
+        // BEFORE calling init(), so a resize that lands first must NOT drop the
+        // one-shot boot Cmd (token-restore) — else init() returns null, the
+        // restore never runs, and the app hangs forever on "Connecting…".
         $app = new self(
             $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
-            $stack, null, $cols, $rows, $this->toast, $this->toastTicking, $this->palette?->resizedTo($cols, $rows), $this->theme,
+            $stack, $this->bootCmd, $cols, $rows, $this->toast, $this->toastTicking, $this->palette?->resizedTo($cols, $rows), $this->theme,
             $this->nowPlaying, $this->audioFactory, $this->metricsVisible, $this->shimmerPhase, $this->shimmerTicking,
         );
 
