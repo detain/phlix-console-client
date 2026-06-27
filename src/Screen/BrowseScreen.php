@@ -266,11 +266,23 @@ final class BrowseScreen implements Breadcrumbed, Themed
             return [$this, null];
         }
 
+        // Dedupe by media item: a title watched across several sessions/devices
+        // can arrive more than once. Duplicate cards would share an id, and a
+        // rail only updates the FIRST card with a given id when its poster loads
+        // (the rest keep the placeholder), so collapse to one card per item —
+        // keeping the first (most-recent) occurrence the server returned.
         $cards = [];
+        $seen = [];
         foreach ($items as $entry) {
-            if ($entry instanceof ContinueWatchingItem) {
-                $cards[] = PosterCardFactory::fromMediaItem($entry->item, $entry->progress());
+            if (!$entry instanceof ContinueWatchingItem) {
+                continue;
             }
+            $id = $entry->item->id;
+            if ($id !== '' && isset($seen[$id])) {
+                continue;
+            }
+            $seen[$id] = true;
+            $cards[] = PosterCardFactory::fromMediaItem($entry->item, $entry->progress());
         }
         if ($cards === []) {
             return [$this, null];
