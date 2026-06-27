@@ -26,6 +26,7 @@ use Phlix\Console\Msg\BootResolvedMsg;
 use Phlix\Console\Msg\GoHomeMsg;
 use Phlix\Console\Msg\LoginFailedMsg;
 use Phlix\Console\Msg\OpenAdminMsg;
+use Phlix\Console\Msg\OpenAdminPluginCatalogMsg;
 use Phlix\Console\Msg\OpenAdminPluginDetailMsg;
 use Phlix\Console\Msg\OpenAdminSectionMsg;
 use Phlix\Console\Msg\LoginSucceededMsg;
@@ -68,6 +69,7 @@ use Phlix\Console\Screen\AdminLibrariesScreen;
 use Phlix\Console\Screen\AdminLiveTvScreen;
 use Phlix\Console\Screen\AdminLogsScreen;
 use Phlix\Console\Screen\AdminMenuScreen;
+use Phlix\Console\Screen\AdminPluginCatalogScreen;
 use Phlix\Console\Screen\AdminPluginDetailScreen;
 use Phlix\Console\Screen\AdminPluginsScreen;
 use Phlix\Console\Screen\AdminRemoteAccessScreen;
@@ -351,6 +353,9 @@ final class App implements Model
         }
         if ($msg instanceof OpenAdminPluginDetailMsg) {
             return $this->openPluginDetail($msg->name);
+        }
+        if ($msg instanceof OpenAdminPluginCatalogMsg) {
+            return $this->openPluginCatalog();
         }
         if ($msg instanceof SettingsSavedMsg) {
             return $this->saveSettings($msg->themeName, $msg->slideshowInterval);
@@ -1278,6 +1283,21 @@ final class App implements Model
         $screen = new AdminPluginDetailScreen(new AdminClient($this->api), $name, $this->cols, $this->rows);
 
         return [$this->push(Route::AdminPluginDetail, $screen), $screen->init()];
+    }
+
+    /**
+     * Open the plugin catalog browser (emitted by the AdminPluginsScreen `C` key).
+     * The AdminClient is built locally from the shared ApiClient (the App holds no
+     * AdminClient field — the BooksStore-built-locally pattern), so no constructor
+     * wiring is needed.
+     *
+     * @return array{App, ?\Closure}
+     */
+    private function openPluginCatalog(): array
+    {
+        $screen = new AdminPluginCatalogScreen(new AdminClient($this->api), $this->cols, $this->rows);
+
+        return [$this->push(Route::AdminPluginCatalog, $screen), $screen->init()];
     }
 
     /**
