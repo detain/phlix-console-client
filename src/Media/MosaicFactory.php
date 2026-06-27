@@ -67,32 +67,27 @@ final class MosaicFactory
     }
 
     /**
-     * Resolve a mode to a *tiling-safe* Mosaic for the poster grid, plus an
-     * optional human-readable notice when the request had to be downgraded.
+     * Resolve a mode to a Mosaic for the poster grid, plus whether its output is
+     * a pixel-graphics blob that must be painted as an overlay rather than placed
+     * inline as cell text.
      *
-     * `null` / `auto` default to half-block (the universal cell renderer) rather
-     * than probing — probing would pick sixel/kitty on a capable terminal and
-     * those cannot tile. An explicit cell mode is honoured; an explicit graphics
-     * mode falls back to half-block and returns a notice explaining why.
+     * Cell modes (half/quarter-block, ascii/ansi256/truecolor) tile as text and
+     * render `[mosaic, false]`. Graphics modes (sixel/kitty/iTerm2) now also tile
+     * — via {@see \SugarCraft\Core\ImageOverlay}, the {@see PosterLoader} returns
+     * a marker block and the runtime paints the blob on top — so they render
+     * `[mosaic, true]`. `null` / `auto` default to half-block (a safe, universal
+     * inline renderer); pass an explicit `--mode=sixel` to opt into graphics.
      *
-     * @return array{0: Mosaic, 1: ?string} the mosaic and an optional notice
+     * @return array{0: Mosaic, 1: bool} the mosaic and whether posters are overlays
      */
     public static function forPosterGrid(?string $mode): array
     {
         if ($mode === null || $mode === 'auto') {
-            return [Mosaic::halfBlock(), null];
+            return [Mosaic::halfBlock(), false];
         }
 
         $mosaic = self::forMode($mode);
-        if (in_array($mosaic->protocol(), self::CELL_PROTOCOLS, true)) {
-            return [$mosaic, null];
-        }
 
-        return [
-            Mosaic::halfBlock(),
-            "Render mode '{$mode}' is a pixel-graphics protocol and can't tile the "
-            . 'poster grid — using half-block. (Single images via `phlix poster '
-            . "<img> --mode={$mode}` still use {$mode}.)",
-        ];
+        return [$mosaic, !in_array($mosaic->protocol(), self::CELL_PROTOCOLS, true)];
     }
 }
