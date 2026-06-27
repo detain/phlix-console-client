@@ -825,6 +825,28 @@ final class AdminClient
     }
 
     /**
+     * Fetch a library's recent scan-job history (newest first; the server clamps
+     * `limit` to `[1,100]`, default 20). Read TOP-LEVEL from `$body['history']` via
+     * {@see mapList} — like the other LibraryController endpoints there is NO
+     * `{success, data}` envelope, so a `{data:{history}}` wrapper yields an empty
+     * list. The rows are the SAME shape as scan-status, so each is mapped to a
+     * {@see ScanJob}. Rejects (via {@see ApiClient::send()}) with the server `error`
+     * on a 404.
+     *
+     * @return PromiseInterface<list<ScanJob>>
+     */
+    public function libraryScanHistory(string $id, int $limit = 20): PromiseInterface
+    {
+        return $this->api->send('GET', self::LIBRARIES . '/' . rawurlencode($id) . '/scan-history', ['limit' => $limit])
+            ->then(static function (array $body): array {
+                return self::mapList(
+                    $body['history'] ?? null,
+                    static fn (array $row): ScanJob => ScanJob::fromArray($row),
+                );
+            });
+    }
+
+    /**
      * Fire one scan-enqueue POST (scan / rescan / match-metadata) and resolve the
      * server `message`. The server returns 202 (a success in the 2xx range that
      * {@see ApiClient::send()} accepts); a non-2xx rejects with the server `error`.

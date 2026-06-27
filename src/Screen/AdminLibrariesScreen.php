@@ -12,6 +12,8 @@ use Phlix\Console\Msg\AdminLibrariesFailedMsg;
 use Phlix\Console\Msg\AdminLibrariesLoadedMsg;
 use Phlix\Console\Msg\AdminLibraryActionDoneMsg;
 use Phlix\Console\Msg\AdminLibraryActionFailedMsg;
+use Phlix\Console\Msg\AdminLibraryScanHistoryFailedMsg;
+use Phlix\Console\Msg\AdminLibraryScanHistoryLoadedMsg;
 use Phlix\Console\Msg\AdminScanStatusLoadedMsg;
 use Phlix\Console\Msg\AdminScanStatusTickMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
@@ -57,8 +59,14 @@ use SugarCraft\Core\Util\Width;
  * flag, and the armed rescan confirm are private mutable view state set via
  * clone-mutate (the established screen idiom).
  *
- * SCOPE: list + scan/rescan/match + live status only. Scan-history is deferred to
- * a follow-up.
+ * SCOPE: list + scan/rescan/match + live status + a read-only scan-history
+ * sub-view. Pressing `h` overlays a windowed {@see Table} of the selected
+ * library's recent {@see ScanJob}s (newest first); while it is open ↑/↓ scroll
+ * the history, `r` refetches it, and `h`/Esc closes the sub-view (Esc does NOT
+ * pop the whole screen). The history is its own loading/empty/error state and is
+ * owner-tagged with the libraryId (a history resolving after the selection moved
+ * is dropped). The history is READ-ONLY: opening it does not disturb the live
+ * scan-status poll, which keeps running for the selected library underneath.
  */
 final class AdminLibrariesScreen implements Breadcrumbed, Themed
 {
@@ -68,9 +76,14 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
     /** Seconds between scan-status polls while the selected job is active. */
     private const STATUS_INTERVAL = 2.0;
 
+    /** How many recent scan jobs to request for the history sub-view. */
+    private const HISTORY_LIMIT = 20;
+
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
     private const LOAD_FAILED = 'Could not load the libraries.';
-    private const HINT = 's scan   R rescan   m match   r refresh   Esc back';
+    private const HISTORY_FAILED = 'Could not load the scan history.';
+    private const HINT = 's scan   R rescan   m match   h history   r refresh   Esc back';
+    private const HISTORY_HINT = '↑/↓ scroll   r refresh   h/Esc close';
 
     /** @var list<Library> */
     private array $libraries = [];
@@ -90,6 +103,21 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
 
     /** An armed rescan awaiting a y/n confirm, or null when none is pending. */
     private ?Library $pendingRescan = null;
+
+    /** Whether the read-only scan-history sub-view is overlaid. */
+    private bool $historyOpen = false;
+
+    /** Whether a history fetch has resolved (false = still loading). */
+    private bool $historyLoaded = false;
+
+    /** A history fetch error, or null. */
+    private ?string $historyError = null;
+
+    /** @var list<ScanJob> The selected library's recent scan jobs (newest first). */
+    private array $history = [];
+
+    /** The cursor row within the history list. */
+    private int $historySelected = 0;
 
     /** @var list<string> */
     private array $crumbs = [];
@@ -142,6 +170,24 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
     }
 
     /**
+     * Fetch the given library's scan-history, tagging the resolved Msg with the
+     * library id so a history for a since-changed selection is dropped (the
+     * owner-tagged-async pattern). This is read-only and does NOT touch the
+     * scan-status poll. A failure surfaces an in-history error (auth → session
+     * expiry).
+     */
+    private function historyFetchCmd(string $libraryId): \Closure
+    {
+        return Cmd::promise(fn (): PromiseInterface => $this->admin->libraryScanHistory($libraryId, self::HISTORY_LIMIT)->then(
+            /** @param list<ScanJob> $history */
+            static fn (array $history): Msg => new AdminLibraryScanHistoryLoadedMsg($libraryId, $history),
+            static fn (\Throwable $e): Msg => $e instanceof AuthError
+                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                : new AdminLibraryScanHistoryFailedMsg(self::HISTORY_FAILED),
+        ));
+    }
+
+    /**
      * Build the command for a fired action: the action's promise mapped to a
      * done/failed Msg with the given success message.
      *
@@ -186,12 +232,22 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
         if ($msg instanceof AdminLibraryActionFailedMsg) {
             return [$this->idle(), Cmd::send(ShowToastMsg::error($msg->message))];
         }
+        if ($msg instanceof AdminLibraryScanHistoryLoadedMsg) {
+            return $this->onHistoryLoaded($msg->libraryId, $msg->history);
+        }
+        if ($msg instanceof AdminLibraryScanHistoryFailedMsg) {
+            return [$this->withHistoryError($msg->message), null];
+        }
 
         return [$this, null];
     }
 
     public function view(): string
     {
+        if ($this->historyOpen) {
+            return Chrome::frame('Admin · Scan history', $this->historyBody(), self::HISTORY_HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
+        }
+
         return Chrome::frame('Admin · Libraries', $this->body(), self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
     }
 
@@ -200,6 +256,11 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
     /** @return array{self, ?\Closure} */
     private function handleKey(KeyMsg $msg): array
     {
+        // The history sub-view owns ALL input while open (it never coexists with an
+        // armed rescan), so it is checked before anything else.
+        if ($this->historyOpen) {
+            return $this->handleHistoryKey($msg);
+        }
         // An armed rescan captures y/n/Esc before anything else.
         if ($this->pendingRescan !== null) {
             return $this->handleConfirmKey($msg, $this->pendingRescan);
@@ -227,6 +288,13 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
     {
         if ($rune === 'r') {
             return $this->refresh();
+        }
+
+        // `h` overlays the read-only scan-history sub-view for the selected library.
+        // It is read-only (it does not touch the live status poll) but still needs a
+        // selected library to fetch for.
+        if ($rune === 'h') {
+            return $this->openHistory();
         }
 
         // The remaining keys are per-row actions; they need a selected library and
@@ -258,6 +326,50 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
         }
 
         return [$this, null];
+    }
+
+    /**
+     * Handle a key while the read-only history sub-view is open: ↑/↓ scroll the
+     * history, `r` refetches it (for the still-selected library), `h`/Esc close the
+     * sub-view back to the main list (NEVER popping the whole screen). All other keys
+     * are no-ops — the underlying list / poll is untouched.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function handleHistoryKey(KeyMsg $msg): array
+    {
+        if ($msg->type === KeyType::Escape || ($msg->type === KeyType::Char && $msg->rune === 'h')) {
+            return [$this->closingHistory(), null];
+        }
+        if ($msg->type === KeyType::Up) {
+            return [$this->scrollHistory(-1), null];
+        }
+        if ($msg->type === KeyType::Down) {
+            return [$this->scrollHistory(1), null];
+        }
+        if ($msg->type === KeyType::Char && $msg->rune === 'r') {
+            return $this->openHistory();
+        }
+
+        return [$this, null];
+    }
+
+    /**
+     * Open (or refetch, on an in-history `r`) the read-only scan-history sub-view for
+     * the selected library. A no-op when nothing is selected (the empty list). The
+     * fetch is owner-tagged with the library id and does NOT disturb the live status
+     * poll.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function openHistory(): array
+    {
+        $library = $this->selectedLibrary();
+        if ($library === null) {
+            return [$this, null];
+        }
+
+        return [$this->openingHistory(), $this->historyFetchCmd($library->id)];
     }
 
     // ---- async handlers ------------------------------------------------
@@ -341,6 +453,25 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
         }
 
         return [$next, Cmd::batch($toast, $next->statusFetchCmd($library->id))];
+    }
+
+    /**
+     * A scan-history resolved. Drop it unless the history sub-view is still open AND
+     * it belongs to the CURRENTLY-selected library (the owner tag) — a history that
+     * resolves after the selection moved or after the sub-view closed is ignored.
+     * Otherwise store it, clamp the cursor, and mark the sub-view loaded.
+     *
+     * @param list<ScanJob> $history
+     * @return array{self, ?\Closure}
+     */
+    private function onHistoryLoaded(string $libraryId, array $history): array
+    {
+        $library = $this->selectedLibrary();
+        if (!$this->historyOpen || $library === null || $library->id !== $libraryId) {
+            return [$this, null];
+        }
+
+        return [$this->withHistory($history), null];
     }
 
     // ---- selection / refresh -------------------------------------------
@@ -435,6 +566,66 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
         $next = clone $this;
         $next->busy = false;
         $next->pendingRescan = null;
+
+        return $next;
+    }
+
+    /** Open (or re-open for a refresh) the history sub-view in its loading state. */
+    private function openingHistory(): self
+    {
+        $next = clone $this;
+        $next->historyOpen = true;
+        $next->historyLoaded = false;
+        $next->historyError = null;
+        $next->history = [];
+        $next->historySelected = 0;
+
+        return $next;
+    }
+
+    /** Close the history sub-view back to the main list, discarding its view state. */
+    private function closingHistory(): self
+    {
+        $next = clone $this;
+        $next->historyOpen = false;
+        $next->historyLoaded = false;
+        $next->historyError = null;
+        $next->history = [];
+        $next->historySelected = 0;
+
+        return $next;
+    }
+
+    /** @param list<ScanJob> $history */
+    private function withHistory(array $history): self
+    {
+        $next = clone $this;
+        $next->history = $history;
+        $next->historyLoaded = true;
+        $next->historyError = null;
+        $next->historySelected = $history === [] ? 0 : min($this->historySelected, count($history) - 1);
+
+        return $next;
+    }
+
+    private function withHistoryError(string $error): self
+    {
+        $next = clone $this;
+        $next->historyError = $error;
+        $next->historyLoaded = false;
+
+        return $next;
+    }
+
+    /** Move the history cursor by $delta, clamped into range (a no-op copy if empty). */
+    private function scrollHistory(int $delta): self
+    {
+        $count = count($this->history);
+        if ($count === 0) {
+            return $this;
+        }
+        $next = clone $this;
+        $next->historySelected = max(0, min($count - 1, $this->historySelected + $delta));
 
         return $next;
     }
@@ -558,6 +749,68 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
         return implode("\n", $lines);
     }
 
+    /**
+     * The read-only scan-history sub-view body: a loading / error / empty state, or
+     * a windowed table of the recent jobs (Type · Status · Found/+Added/~Updated/
+     * -Removed · When) with the selected library's name in the header.
+     */
+    private function historyBody(): string
+    {
+        if (!$this->historyLoaded && $this->historyError === null) {
+            return "\n  Loading scan history…";
+        }
+        if ($this->historyError !== null) {
+            return "\n  {$this->historyError}\n\n  Press r to retry, h to close.";
+        }
+        if ($this->history === []) {
+            return "\n  No scan history.\n\n  Press h to close.";
+        }
+
+        $rows = [];
+        foreach ($this->history as $job) {
+            $rows[] = [
+                $job->type === '' ? '—' : $job->type,
+                $job->status === '' ? 'unknown' : $job->status,
+                sprintf('%d / +%d ~%d -%d', $job->itemsFound, $job->itemsAdded, $job->itemsUpdated, $job->itemsRemoved),
+                $this->historyWhen($job),
+            ];
+        }
+
+        $table = Table::render([
+            ['title' => 'Type', 'width' => 14],
+            ['title' => 'Status', 'width' => 12],
+            ['title' => 'Found/+Added/~Updated/-Removed', 'width' => 0],
+            ['title' => 'When', 'width' => 22],
+        ], $rows, $this->historySelected, $this->cols - 4, $this->historyViewportRows());
+
+        return "\n" . $this->historyHeaderLine() . "\n" . $table;
+    }
+
+    private function historyHeaderLine(): string
+    {
+        $library = $this->selectedLibrary();
+        $name = $library === null || $library->name === '' ? '(library)' : $library->name;
+        $count = count($this->history);
+        $label = $count === 1 ? '1 job' : "{$count} jobs";
+
+        return "  Scan history · {$name}: {$label}";
+    }
+
+    /** The job's when-column: its completed time, else queued, else an em dash, truncated. */
+    private function historyWhen(ScanJob $job): string
+    {
+        $when = $job->completedAt ?? $job->queuedAt;
+
+        return $when === null ? '—' : Width::truncate($when, 22);
+    }
+
+    private function historyViewportRows(): int
+    {
+        // The history body holds the header line, then the table (header + rule = 2
+        // extra rows). Window the data rows to the body height less that chrome.
+        return max(1, Chrome::bodyHeight($this->rows) - 4);
+    }
+
     private function viewportRows(): int
     {
         // The frame body holds the header line, then the table (header + rule = 2
@@ -629,5 +882,31 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
     public function pendingRescan(): ?Library
     {
         return $this->pendingRescan;
+    }
+
+    public function isHistoryOpen(): bool
+    {
+        return $this->historyOpen;
+    }
+
+    public function isHistoryLoaded(): bool
+    {
+        return $this->historyLoaded;
+    }
+
+    public function historyError(): ?string
+    {
+        return $this->historyError;
+    }
+
+    /** @return list<ScanJob> */
+    public function historyList(): array
+    {
+        return $this->history;
+    }
+
+    public function historySelectedIndex(): int
+    {
+        return $this->historySelected;
     }
 }
