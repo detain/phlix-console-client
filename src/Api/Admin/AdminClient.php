@@ -18,6 +18,7 @@ use Phlix\Console\Api\Dto\Admin\LogFile;
 use Phlix\Console\Api\Dto\Admin\LogTail;
 use Phlix\Console\Api\Dto\Admin\HubStatus;
 use Phlix\Console\Api\Dto\Admin\Plugin;
+use Phlix\Console\Api\Dto\Admin\PluginCatalogResult;
 use Phlix\Console\Api\Dto\Admin\PluginDetail;
 use Phlix\Console\Api\Dto\Admin\PortForwardCandidate;
 use Phlix\Console\Api\Dto\Admin\PortForwardStatus;
@@ -441,6 +442,52 @@ final class AdminClient
         $plugin = $body['plugin'] ?? null;
 
         return Plugin::fromArray(is_array($plugin) ? $plugin : []);
+    }
+
+    // ---- plugin catalog ------------------------------------------------
+
+    /**
+     * Fetch the plugin catalog (browse + install-from-catalog + manage sources).
+     * Like the plugin LIST (and UNLIKE the dashboard), the
+     * {@see \Phlix\Server\Http\Controllers\PluginCatalogController} is unenveloped
+     * (admin envelopes are per-controller), so the WHOLE body is read TOP-LEVEL into
+     * {@see PluginCatalogResult::fromArray} — NOT `$body['data']`. A `{data:{...}}`
+     * wrapper therefore yields the tolerant empty/default result. Rejects with the
+     * server `error` on a non-2xx.
+     *
+     * @return PromiseInterface<PluginCatalogResult>
+     */
+    public function pluginCatalog(): PromiseInterface
+    {
+        return $this->api->send('GET', self::PLUGINS . '/catalog')
+            ->then(static fn (array $body): PluginCatalogResult => PluginCatalogResult::fromArray($body));
+    }
+
+    /**
+     * Add a catalog source URL. The body is `{url}`; on success the server returns
+     * the updated `{sources}` list, read TOP-LEVEL from `$body['sources']`. Rejects
+     * with the server `error` on a 400 (invalid / unreachable URL) — the
+     * {@see \Phlix\Console\Api\ApiError} carries it as the exception message.
+     *
+     * @return PromiseInterface<list<string>>
+     */
+    public function addCatalogSource(string $url): PromiseInterface
+    {
+        return $this->api->send('POST', self::PLUGINS . '/catalog/sources', [], ['url' => $url])
+            ->then(static fn (array $body): array => Coerce::stringList($body['sources'] ?? null));
+    }
+
+    /**
+     * Remove a catalog source URL. The body is `{url}`; on success the server
+     * returns the updated `{sources}` list, read TOP-LEVEL from `$body['sources']`.
+     * Rejects with the server `error` on a 400.
+     *
+     * @return PromiseInterface<list<string>>
+     */
+    public function removeCatalogSource(string $url): PromiseInterface
+    {
+        return $this->api->send('DELETE', self::PLUGINS . '/catalog/sources', [], ['url' => $url])
+            ->then(static fn (array $body): array => Coerce::stringList($body['sources'] ?? null));
     }
 
     // ---- backups -------------------------------------------------------

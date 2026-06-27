@@ -29,6 +29,7 @@ use Phlix\Console\Msg\MediaRangeLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\NowPlayingTickMsg;
 use Phlix\Console\Msg\OpenAdminMsg;
+use Phlix\Console\Msg\OpenAdminPluginCatalogMsg;
 use Phlix\Console\Msg\OpenAdminPluginDetailMsg;
 use Phlix\Console\Msg\OpenAdminSectionMsg;
 use Phlix\Console\Msg\OpenAlbumMsg;
@@ -68,6 +69,7 @@ use Phlix\Console\Screen\AdminDlnaScreen;
 use Phlix\Console\Screen\AdminRemoteAccessScreen;
 use Phlix\Console\Screen\AdminLogsScreen;
 use Phlix\Console\Screen\AdminMenuScreen;
+use Phlix\Console\Screen\AdminPluginCatalogScreen;
 use Phlix\Console\Screen\AdminPluginDetailScreen;
 use Phlix\Console\Screen\AdminPluginsScreen;
 use Phlix\Console\Screen\AdminSettingsScreen;
@@ -1654,6 +1656,20 @@ final class AppTest extends TestCase
         self::assertInstanceOf(AdminPluginDetailScreen::class, $detail->screen());
         self::assertSame(4, $detail->stackDepth(), 'the detail is pushed onto the plugins screen');
         self::assertInstanceOf(\Closure::class, $cmd, 'the detail fetches on push');
+    }
+
+    public function testOpenAdminPluginCatalogPushesTheCatalogScreenWithAFetch(): void
+    {
+        [$adminApp] = $this->appWithAdminUser(true);
+        [$admin] = $adminApp->update(new OpenAdminMsg());
+        [$plugins] = $admin->update(new OpenAdminSectionMsg(Route::AdminPlugins));
+
+        [$catalog, $cmd] = $plugins->update(new OpenAdminPluginCatalogMsg());
+
+        self::assertSame(Route::AdminPluginCatalog, $catalog->route());
+        self::assertInstanceOf(AdminPluginCatalogScreen::class, $catalog->screen());
+        self::assertSame(4, $catalog->stackDepth(), 'the catalog is pushed onto the plugins screen');
+        self::assertInstanceOf(\Closure::class, $cmd, 'the catalog fetches on push');
     }
 
     public function testOpenAdminSectionBackupPushesTheBackupScreenWithAFetch(): void
