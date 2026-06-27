@@ -13,6 +13,7 @@ use Phlix\Console\Msg\AdminPluginActionFailedMsg;
 use Phlix\Console\Msg\AdminPluginsFailedMsg;
 use Phlix\Console\Msg\AdminPluginsLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
+use Phlix\Console\Msg\OpenAdminPluginDetailMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Screen\AdminPluginsScreen;
@@ -490,6 +491,37 @@ final class AdminPluginsScreenTest extends TestCase
 
         [, $qCmd] = $screen->update(new KeyMsg(KeyType::Char, 'q'));
         self::assertInstanceOf(NavigateBackMsg::class, $this->runCmd($qCmd));
+    }
+
+    public function testDKeyEmitsOpenAdminPluginDetailForTheSelectedPlugin(): void
+    {
+        // The second plugin (lastfm) is selected, then D opens its detail.
+        $screen = $this->loaded((new FakeTransport())->json(200, $this->pluginsPayload()));
+        [$moved] = $screen->update(new KeyMsg(KeyType::Down));
+
+        [$same, $cmd] = $moved->update(new KeyMsg(KeyType::Char, 'D'));
+
+        self::assertSame($moved, $same, 'the plugins screen is unchanged — App handles the open');
+        $msg = $this->runCmd($cmd);
+        self::assertInstanceOf(OpenAdminPluginDetailMsg::class, $msg);
+        self::assertSame('lastfm', $msg->name);
+    }
+
+    public function testDKeyIsANoOpWhenNoPluginIsSelected(): void
+    {
+        $screen = $this->loaded((new FakeTransport())->json(200, $this->emptyPlugins()));
+
+        [$next, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'D'));
+
+        self::assertSame($screen, $next);
+        self::assertNull($cmd);
+    }
+
+    public function testHintMentionsTheDetailKey(): void
+    {
+        $screen = $this->loaded((new FakeTransport())->json(200, $this->pluginsPayload()));
+
+        self::assertStringContainsString('detail', $screen->view());
     }
 
     public function testResizeReflowsTheScreen(): void
