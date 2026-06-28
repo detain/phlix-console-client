@@ -168,6 +168,33 @@ bin/phlix frame /path/to/movie.mkv 3 60 20
 `doctor`, `poster`, and `frame` are non-interactive and work over a pipe;
 `run` needs an interactive terminal.
 
+### Render modes
+
+The same screen rendered with each `--mode`, cycling every few seconds.
+**Graphics** protocols emit a real image (highest fidelity, terminal-dependent);
+**cell** modes tile coloured text and work in any terminal, trading detail for
+compatibility.
+
+![render modes](docs/images/modes.gif)
+
+<details>
+<summary>Side-by-side stills</summary>
+
+| Mode | Type | Preview |
+| --- | --- | --- |
+| `sixel` | graphics — sixel protocol | ![sixel](docs/images/sixel.png) |
+| `iterm2` | graphics — iTerm2 inline images | ![iterm2](docs/images/iterm2.png) |
+| `truecolor` | cell — 24-bit colour character ramp | ![truecolor](docs/images/truecolor.png) |
+| `ansi256` | cell — 256-colour character ramp | ![ansi256](docs/images/ansi256.png) |
+| `quarterblock` | cell — dense 24-bit colour blocks | ![quarterblock](docs/images/quarterblock.png) |
+| `halfblock` (≡ `ansi`) | cell — 24-bit colour half-blocks (universal fallback) | ![halfblock](docs/images/halfblock.png) |
+| `ascii` | cell — monochrome character ramp | ![ascii](docs/images/ascii.png) |
+
+</details>
+
+> `kitty` is also supported (graphics, kitty protocol) but renders identically to
+> the other graphics modes in a capable terminal.
+
 ## Test
 
 ```sh
