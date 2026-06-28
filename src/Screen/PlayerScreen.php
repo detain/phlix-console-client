@@ -40,6 +40,7 @@ use SugarCraft\Core\SubscriptionCapable;
 use SugarCraft\Core\Util\Width;
 use SugarCraft\Reel\Msg\TickMsg as ReelTickMsg;
 use SugarCraft\Reel\Player;
+use SugarCraft\Reel\Render\Mode;
 use SugarCraft\Reel\Render\RendererFactory;
 use SugarCraft\Sprinkles\Style;
 use React\Promise\PromiseInterface;
@@ -132,15 +133,22 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     }
 
     /**
-     * The real factory: probe the stream and open an ffmpeg-backed player at the
-     * best render mode the terminal supports.
+     * The real factory: probe the stream and open an ffmpeg-backed player.
      *
+     * @param string|null $mode candy-mosaic protocol the app is rendering with
+     *                          ('sixel'/'halfblock'/'quarterblock'/…). The player
+     *                          opens in the matching {@see Mode} so video plays in
+     *                          the same mode as the posters; an unknown/`null`
+     *                          mode (e.g. 'auto' → 'chafa') falls back to the
+     *                          terminal's best auto-detected mode.
      * @return \Closure(string $url, int $cols, int $rows): Player
      */
-    public static function productionFactory(): \Closure
+    public static function productionFactory(?string $mode = null): \Closure
     {
+        $reelMode = ($mode !== null ? Mode::tryFrom($mode) : null) ?? RendererFactory::autoMode();
+
         return static fn (string $url, int $cols, int $rows): Player
-            => Player::open($url, $cols, $rows, null, RendererFactory::autoMode(), false, 'standard');
+            => Player::open($url, $cols, $rows, null, $reelMode, false, 'standard');
     }
 
     public function init(): \Closure
