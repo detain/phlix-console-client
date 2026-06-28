@@ -66,15 +66,16 @@ final class PosterLoader
     }
 
     /**
-     * The overlay image layer (id → raw protocol bytes) accumulated so far,
-     * empty in inline mode. Hand this to the {@see \SugarCraft\Core\View} so the
-     * runtime paints each marker the frame contains.
+     * The overlay image layer (id → {@see \SugarCraft\Core\ImagePlacement})
+     * accumulated so far, empty in inline mode. Hand this to the
+     * {@see \SugarCraft\Core\View} so the runtime paints each marker the frame
+     * contains — and clears it precisely when it scrolls away.
      *
-     * @return array<int, string>
+     * @return array<int, \SugarCraft\Core\ImagePlacement>
      */
     public function imageLayer(): array
     {
-        return $this->images->blobs();
+        return $this->images->placements();
     }
 
     /**

@@ -103,10 +103,13 @@ final class PosterLoaderTest extends \PHPUnit\Framework\TestCase
         self::assertCount(9, explode("\n", $block));
         self::assertStringContainsString(\SugarCraft\Core\ImageOverlay::marker(0), $block);
         self::assertStringNotContainsString("\x1bP", $block, 'the sixel blob never enters the text frame');
-        // The blob lives in the image layer instead.
+        // The blob lives in the image layer instead (as an ImagePlacement).
         $layer = $loader->imageLayer();
         self::assertArrayHasKey(0, $layer);
-        self::assertStringContainsString("\x1bP", $layer[0], 'registered bytes are the sixel blob');
+        self::assertInstanceOf(\SugarCraft\Core\ImagePlacement::class, $layer[0]);
+        self::assertStringContainsString("\x1bP", $layer[0]->bytes, 'registered bytes are the sixel blob');
+        self::assertSame(6, $layer[0]->widthCells);
+        self::assertSame(9, $layer[0]->heightCells);
     }
 
     public function testOverlayModeReusesTheIdForTheSamePosterAndSize(): void
