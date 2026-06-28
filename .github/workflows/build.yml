@@ -1,0 +1,93 @@
+name: Build
+
+on:
+  push:
+    branches: [master]
+    tags:
+      - 'v*.*.*'
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  phar:
+    name: Build phlix.phar
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: gd, pcntl, posix
+          # box writes the phar, so phar.readonly must be off.
+          ini-values: phar.readonly=0
+          tools: box
+          coverage: none
+
+      - name: Install dependencies (no dev)
+        run: composer install --no-dev --no-interaction --prefer-dist
+
+      - name: Build phlix.phar
+        run: box compile
+
+      - name: Smoke-test the phar
+        run: php phlix.phar help
+
+      - name: Upload phar artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: phlix-phar
+          path: phlix.phar
+          if-no-files-found: error
+
+  release-latest:
+    name: Update "latest" prerelease
+    needs: phar
+    # On every master push, overwrite a rolling "latest" GitHub Release carrying
+    # the RAW phlix.phar as a directly-downloadable asset (GitHub Actions
+    # artifacts are always served zipped — a Release is the only way to offer a
+    # bare, runnable phar). Skipped on PRs and tag pushes.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download phar artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: phlix-phar
+          path: artifacts
+
+      - name: Reset "latest" release + tag
+        # Delete any existing rolling release + tag so the recreated one points at
+        # this commit and carries only the freshly-built phar.
+        run: gh release delete latest --yes --cleanup-tag || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish "latest" prerelease
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: latest
+          name: Latest (master)
+          body: |
+            Rolling build of the latest `master` commit (${{ github.sha }}).
+            Download the runnable phar directly — no zip:
+            - **`phlix.phar`** — run with `php phlix.phar` (needs PHP 8.3+ with the
+              `gd` extension; `ffmpeg` on PATH for video frames).
+          prerelease: true
+          make_latest: false
+          target_commitish: ${{ github.sha }}
+          files: artifacts/phlix.phar
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

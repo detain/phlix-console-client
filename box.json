@@ -1,0 +1,16 @@
+{
+    "$schema": "https://raw.githubusercontent.com/box-project/box/main/res/schema.json",
+    "main": "bin/phlix",
+    "output": "phlix.phar",
+    "compression": "GZ",
+    "banner": "Phlix Console Client — terminal media client for Phlix.",
+    "directories": ["src"],
+    "finder": [
+        {
+            "notName": ["*.md", "*.dist", "phpunit.xml*", "*.neon"],
+            "exclude": ["test", "tests", "Tests", "docs", "doc", "examples"],
+            "in": "vendor"
+        }
+    ],
+    "files": ["composer.json"]
+}
