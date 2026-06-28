@@ -1676,8 +1676,10 @@ final class App implements Model
             $item,
             $this->api->baseUrl(),
             $this->api,
-            // Open the player in the same render mode the poster grid is using.
-            PlayerScreen::productionFactory($this->posters->protocol()),
+            // Open the player in the same render mode the poster grid is using, at
+            // the terminal's detected cell pixel size so graphics modes decode at
+            // full resolution.
+            PlayerScreen::productionFactory($this->posters->protocol(), $this->posters->cellSize()),
             cols: $this->cols,
             rows: $this->rows,
         );
