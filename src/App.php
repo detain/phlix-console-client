@@ -1676,7 +1676,8 @@ final class App implements Model
             $item,
             $this->api->baseUrl(),
             $this->api,
-            PlayerScreen::productionFactory(),
+            // Open the player in the same render mode the poster grid is using.
+            PlayerScreen::productionFactory($this->posters->protocol()),
             cols: $this->cols,
             rows: $this->rows,
         );
