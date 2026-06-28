@@ -33,11 +33,20 @@ if (!class_exists(Program::class)) {
 
 $cmd = $argv[1] ?? 'help';
 
-/** Pull a --mode=… flag out of argv, if present. */
+/** Pull a render mode out of argv: --mode=sixel, --mode sixel, or a bare `sixel`. */
+$KNOWN_MODES = ['auto', 'halfblock', 'half', 'ansi', 'quarterblock', 'quarter',
+    'ascii', 'ansi256', 'truecolor', 'sixel', 'kitty', 'iterm2'];
 $mode = null;
-foreach ($argv as $arg) {
-    if (is_string($arg) && str_starts_with($arg, '--mode=')) {
-        $mode = substr($arg, 7);
+foreach ($argv as $i => $arg) {
+    if (!is_string($arg)) {
+        continue;
+    }
+    if (str_starts_with($arg, '--mode=')) {
+        $mode = substr($arg, 7);              // --mode=sixel
+    } elseif ($arg === '--mode' && isset($argv[$i + 1]) && is_string($argv[$i + 1])) {
+        $mode = $argv[$i + 1];                // --mode sixel
+    } elseif ($i >= 2 && in_array($arg, $KNOWN_MODES, true)) {
+        $mode = $arg;                         // a bare mode name, e.g. `phlix run sixel`
     }
 }
 $intArg = static fn(int $i, int $default): int =>
