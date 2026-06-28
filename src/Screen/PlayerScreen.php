@@ -37,6 +37,7 @@ use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\SubscriptionCapable;
+use SugarCraft\Core\Util\Ansi;
 use SugarCraft\Core\Util\Width;
 use SugarCraft\Reel\Msg\TickMsg as ReelTickMsg;
 use SugarCraft\Reel\Player;
@@ -141,14 +142,20 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
      *                          the same mode as the posters; an unknown/`null`
      *                          mode (e.g. 'auto' → 'chafa') falls back to the
      *                          terminal's best auto-detected mode.
+     * @param array{cellWidth:int,cellHeight:int}|null $cellSize The terminal's detected
+     *                          cell pixel size. Graphics modes decode video at the full
+     *                          pixel resolution (cells × cell-pixel-size); null falls back
+     *                          to a 10×20 assumed cell box.
      * @return \Closure(string $url, int $cols, int $rows): Player
      */
-    public static function productionFactory(?string $mode = null): \Closure
+    public static function productionFactory(?string $mode = null, ?array $cellSize = null): \Closure
     {
         $reelMode = ($mode !== null ? Mode::tryFrom($mode) : null) ?? RendererFactory::autoMode();
+        $cellPxW = $cellSize['cellWidth'] ?? 10;
+        $cellPxH = $cellSize['cellHeight'] ?? 20;
 
         return static fn (string $url, int $cols, int $rows): Player
-            => Player::open($url, $cols, $rows, null, $reelMode, false, 'standard');
+            => Player::open($url, $cols, $rows, null, $reelMode, false, 'standard', $cellPxW, $cellPxH);
     }
 
     public function init(): \Closure
@@ -251,10 +258,35 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
             return $frame;
         }
 
+        // Pixel-graphics modes (sixel/kitty/iTerm2) emit the whole image as one
+        // multi-row escape blob. candy-core's renderer diffs line-by-line — one
+        // logical line per "\n" — so appending the chrome with newlines drops it a
+        // few rows below the top, right on top of the image (the "progress bar on
+        // row 3" bug). Keep the view on a SINGLE logical line and pin the transport
+        // chrome to the bottom rows with absolute cursor moves, so it always sits
+        // below the image regardless of where the image left the cursor.
+        if ($this->inner->mode->isGraphics()) {
+            return $frame . $this->graphicsChrome($this->inner);
+        }
+
         return $frame
             . "\n" . $this->captionLine($this->inner)
             . "\n" . $this->scrubberLine($this->inner)
             . "\n" . $this->statusLine($this->inner);
+    }
+
+    /**
+     * Caption + scrubber + status pinned to the bottom three terminal rows with
+     * absolute cursor positioning, each row cleared first. Used for pixel-graphics
+     * modes whose image blob is a single (multi-row) logical line — see {@see view()}.
+     */
+    private function graphicsChrome(Player $inner): string
+    {
+        $bottom = max(3, $this->rows);
+
+        return Ansi::cursorTo($bottom - 2, 1) . Ansi::eraseLine() . $this->captionLine($inner)
+            . Ansi::cursorTo($bottom - 1, 1) . Ansi::eraseLine() . $this->scrubberLine($inner)
+            . Ansi::cursorTo($bottom, 1) . Ansi::eraseLine() . $this->statusLine($inner);
     }
 
     // ---- lifecycle -----------------------------------------------------

@@ -89,6 +89,18 @@ final class PosterLoader
     }
 
     /**
+     * The terminal's detected cell pixel size, or null when the terminal did not
+     * report one. Lets the video player decode graphics-mode frames at the real
+     * full pixel resolution (cells × cell-pixel-size) instead of an assumed box.
+     *
+     * @return array{cellWidth:int,cellHeight:int}|null
+     */
+    public function cellSize(): ?array
+    {
+        return $this->mosaic->fontSize();
+    }
+
+    /**
      * Inline mode → the bytes are the poster. Overlay mode → register the bytes
      * with the {@see ImageLayer} and return a marker block for the text frame.
      */
