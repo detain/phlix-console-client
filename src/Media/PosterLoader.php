@@ -78,6 +78,16 @@ final class PosterLoader
     }
 
     /**
+     * The render protocol in use ('halfblock' | 'quarterblock' | 'ascii' |
+     * 'ansi256' | 'truecolor' | 'sixel' | 'kitty' | 'iterm2'). Lets the app open
+     * the video player in the same mode the poster grid is using.
+     */
+    public function protocol(): string
+    {
+        return $this->mosaic->protocol();
+    }
+
+    /**
      * Inline mode → the bytes are the poster. Overlay mode → register the bytes
      * with the {@see ImageLayer} and return a marker block for the text frame.
      */
