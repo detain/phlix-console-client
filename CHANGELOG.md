@@ -5,6 +5,17 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Removed the dead `PlaybackInfo::$qualityLadder` field.** It was populated
+  from `GET /api/v1/media/{id}/playback`, which never sends `quality_ladder`
+  (that lives on the distinct `/playback-info` route), and was read nowhere —
+  the quality picker is driven entirely by a real transcode job's `variants[]`.
+  Corrected the `Rendition`/`PlaybackInfo`/`PlayerScreen` docblocks' endpoint
+  attribution accordingly, and noted that a sub-240p source yields a `{height}p`
+  fallback rung id. (phlix quality-program I1 cross-repo review finding.)
+
+
 ### Added — in-player quality selection
 
 - **Quality picker overlay** in the player — press `v` to open a small menu of
