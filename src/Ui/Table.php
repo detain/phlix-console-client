@@ -47,7 +47,7 @@ final class Table
         $count = count($rows);
         $viewport = max(1, $viewportRows);
 
-        return SugarTable::withColumns(self::columns($columns))
+        return SugarTable::fromColumns(self::columns($columns))
             ->withRows(self::rows($columns, $rows))
             ->withBorderless()
             ->withWidth(max(1, $totalWidth))
