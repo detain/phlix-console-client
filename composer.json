@@ -36,7 +36,10 @@
         "phpunit/phpunit": "^11.0"
     },
     "autoload": {
-        "psr-4": { "Phlix\\Console\\": "src/" }
+        "psr-4": {
+            "Phlix\\Console\\": "src/",
+            "SugarCraft\\Reel\\Tests\\": "vendor/sugarcraft/sugar-reel/tests/"
+        }
     },
     "autoload-dev": {
         "psr-4": { "Phlix\\Console\\Tests\\": "tests/" }
