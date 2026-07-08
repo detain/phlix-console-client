@@ -137,15 +137,14 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
      * for a direct-played / legacy item with no per-rung choice.
      *
      * Populated ONLY from a {@see TranscodeJob}'s `variants` (see
-     * {@see rememberLadder}) — deliberately NOT from
-     * {@see \Phlix\Console\Api\Dto\PlaybackInfo::$qualityLadder}, even though
-     * that pre-flight preview is fetched earlier and already decoded. Every rung
-     * in the `PlaybackInfo` preview has a `null` `url` (the server hasn't created
-     * a job yet, so there's nothing to pin to), so it cannot drive an actual
-     * quality switch; wiring it in would only add unusable placeholder rows
-     * before direct-play has even been attempted. The picker only becomes
-     * meaningful once a real transcode job exists and hands back signed
-     * per-variant playlist URLs — a deliberate scope decision, not an oversight.
+     * {@see rememberLadder}). The server also exposes a pre-flight ladder
+     * preview on `GET /api/v1/media/{id}/playback-info`, but the console does
+     * NOT fetch or wire it in: every rung in that preview has a `null` `url`
+     * (no job exists yet, so there's nothing to pin to), so it cannot drive an
+     * actual quality switch and would only add unusable placeholder rows before
+     * direct-play has even been attempted. The picker only becomes meaningful
+     * once a real transcode job exists and hands back signed per-variant
+     * playlist URLs — a deliberate scope decision, not an oversight.
      *
      * @var list<Rendition>
      */
@@ -769,7 +768,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
      * only ever called on a freshly cloned screen.
      *
      * The ONLY source `$this->variants` is ever populated from — see that
-     * field's docblock for why `PlaybackInfo::$qualityLadder`'s pre-flight
+     * field's docblock for why the server's pre-flight `/playback-info` ladder
      * preview is deliberately not wired in here too.
      */
     private function rememberLadder(TranscodeJob $job): void
