@@ -752,6 +752,37 @@ final class ApiClientTest extends TestCase
         self::assertStringContainsString('profile=web', $req['url']);
     }
 
+    public function testStartTranscodePassesTheChosenProfile(): void
+    {
+        $t = (new FakeTransport())->json(200, ['job_id' => 'j1', 'master_url' => '/hls/j1/master.m3u8', 'status' => 'running']);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $this->await($client->startTranscode('m1', '720p'));
+
+        self::assertStringContainsString('profile=720p', $t->requestAt(0)['url'], 'the caller-supplied profile is sent, not the hardcoded web');
+    }
+
+    public function testStartTranscodeDecodesTheVariantLadder(): void
+    {
+        $t = (new FakeTransport())->json(200, [
+            'job_id' => 'j1',
+            'master_url' => '/hls/j1/master.m3u8',
+            'status' => 'running',
+            'variants' => [
+                ['id' => '1080p', 'label' => '1080p', 'url' => '/hls/j1/media_v1080p.m3u8'],
+                ['id' => '720p', 'label' => '720p', 'url' => '/hls/j1/media_v720p.m3u8'],
+            ],
+        ]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $job = $this->await($client->startTranscode('m1'));
+
+        self::assertCount(2, $job->variants);
+        self::assertSame('1080p', $job->variants[0]->id);
+    }
+
     public function testTranscodeStatusMaps(): void
     {
         $t = (new FakeTransport())->json(200, [

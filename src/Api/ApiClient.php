@@ -446,13 +446,19 @@ final class ApiClient
 
     /**
      * Start (or reuse) a server HLS transcode for an item that can't be
-     * direct-played, returning the job (incl. the signed master playlist URL).
+     * direct-played, returning the job (incl. the signed master playlist URL and
+     * the ABR ladder's `variants`).
+     *
+     * `$profile` selects the server-side encode profile / target quality; it
+     * defaults to `web` (the master multi-variant ladder — server-driven ABR).
+     * A caller that has let the viewer pin a rung passes that rendition id
+     * instead (the server clamps unknown/too-high rungs to what it can produce).
      *
      * @return PromiseInterface<TranscodeJob>
      */
-    public function startTranscode(string $id): PromiseInterface
+    public function startTranscode(string $id, string $profile = 'web'): PromiseInterface
     {
-        return $this->authed('POST', '/api/v1/media/' . rawurlencode($id) . '/transcode', ['profile' => 'web'])
+        return $this->authed('POST', '/api/v1/media/' . rawurlencode($id) . '/transcode', ['profile' => $profile])
             ->then(static fn (array $data): TranscodeJob => TranscodeJob::fromArray($data));
     }
 

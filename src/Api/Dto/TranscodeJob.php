@@ -13,12 +13,18 @@ namespace Phlix\Console\Api\Dto;
  */
 final readonly class TranscodeJob
 {
+    /**
+     * @param list<Rendition> $variants the ABR ladder rungs this job exposes
+     *        (highest-first), each with a signed per-variant playlist `url`;
+     *        empty for a legacy job (`variants` null on the wire).
+     */
     public function __construct(
         public string $jobId,
         public string $status,
         public string $masterUrl,
         public float $progress,
         public bool $playlistReady,
+        public array $variants = [],
     ) {
     }
 
@@ -33,6 +39,7 @@ final readonly class TranscodeJob
             masterUrl: Coerce::str($data['master_url'] ?? ''),
             progress: Coerce::float($data['progress'] ?? 0),
             playlistReady: Coerce::bool($data['playlist_ready'] ?? false),
+            variants: Rendition::listFromArray($data['variants'] ?? null),
         );
     }
 
