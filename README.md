@@ -163,8 +163,9 @@ in as an admin — exposes the **Admin** menu (see *Status* above).
 
 **In the player:** `Space` play/pause · `←`/`→` seek ±10s · `0`–`9` seek to % ·
 `[` / `]` speed · `m` cycle render mode · `s` skip intro/outro · `o` start over ·
-`c` captions · `n` / `p` next / previous episode · `f` toggle chrome · `q`/`Esc`
-back.
+`c` captions · `v` quality (only shown when the active transcode advertises an
+ABR ladder — direct-play and legacy items skip it) · `n` / `p` next / previous
+episode · `f` toggle chrome · `q`/`Esc` back.
 
 **Cast** — on a media **detail** screen, `C` opens a device picker (Chromecast /
 Roku / AirPlay / DLNA discovered on the network); pick one to send the item, then

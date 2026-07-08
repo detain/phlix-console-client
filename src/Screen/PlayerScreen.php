@@ -9,6 +9,7 @@ use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\Dto\MediaPage;
 use Phlix\Console\Api\Dto\PlaybackMarkers;
+use Phlix\Console\Api\Dto\Rendition;
 use Phlix\Console\Api\Dto\SubtitleTrack;
 use Phlix\Console\Api\Dto\TranscodeJob;
 use Phlix\Console\Api\MediaQuery;
@@ -29,6 +30,7 @@ use Phlix\Console\Msg\TranscodeStartedMsg;
 use Phlix\Console\Msg\TranscodeStatusMsg;
 use Phlix\Console\Msg\UpNextTickMsg;
 use Phlix\Console\Ui\Chrome;
+use Phlix\Console\Ui\QualityMenu;
 use Phlix\Console\Ui\Scrubber;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
@@ -96,6 +98,19 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     private bool $tornDown = false;
     private ?PlaybackMarkers $markers = null;
     private ?string $sessionId = null;
+    /**
+     * Set the moment {@see createSessionCmd} is FIRST issued (synchronously, in
+     * the same `onReady` that returns the Cmd) — NOT once `sessionId` itself
+     * arrives. `sessionId` only lands asynchronously once the `createSession`
+     * HTTP round-trip completes (via {@see onSessionStarted}); guarding the
+     * "only one session" check on `sessionId` would race a quality switch that
+     * lands (a second `onReady`) before that round-trip finishes — `sessionId`
+     * would still be null, so a second `createSessionCmd` would fire, the first
+     * session id would be overwritten, and the original session would never be
+     * `endSession`'d (orphaned server-side). Guarding on this synchronous flag
+     * instead makes the "request the session at most once" decision race-free.
+     */
+    private bool $sessionRequested = false;
     private ?float $resumeSeconds = null;
     private bool $resumeApplied = false;
     /**
@@ -117,6 +132,32 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     private bool $transcoding = false;
     private ?string $transcodeJob = null;
     private ?float $transcodeProgress = null;
+    /**
+     * The ABR ladder rungs the active transcode exposes (highest-first), or []
+     * for a direct-played / legacy item with no per-rung choice.
+     *
+     * Populated ONLY from a {@see TranscodeJob}'s `variants` (see
+     * {@see rememberLadder}) — deliberately NOT from
+     * {@see \Phlix\Console\Api\Dto\PlaybackInfo::$qualityLadder}, even though
+     * that pre-flight preview is fetched earlier and already decoded. Every rung
+     * in the `PlaybackInfo` preview has a `null` `url` (the server hasn't created
+     * a job yet, so there's nothing to pin to), so it cannot drive an actual
+     * quality switch; wiring it in would only add unusable placeholder rows
+     * before direct-play has even been attempted. The picker only becomes
+     * meaningful once a real transcode job exists and hands back signed
+     * per-variant playlist URLs — a deliberate scope decision, not an oversight.
+     *
+     * @var list<Rendition>
+     */
+    private array $variants = [];
+    /** The signed master (multi-variant) playlist URL — the target for the "Auto" pin. */
+    private ?string $transcodeMasterUrl = null;
+    /** The pinned rendition id, or null for "Auto" (server-driven ABR / the master). */
+    private ?string $selectedQuality = null;
+    /** The open quality picker overlay, or null when closed. */
+    private ?QualityMenu $qualityMenu = null;
+    /** A one-shot seek (seconds) to re-apply once a quality-switch rebuild becomes ready. */
+    private ?float $pendingSeek = null;
 
     /**
      * @param \Closure(string $url, int $cols, int $rows): Player $playerFactory
@@ -241,6 +282,17 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     }
 
     public function view(): string
+    {
+        $base = $this->renderBase();
+        // The quality picker dims + centres its box over the current frame.
+        if ($this->qualityMenu !== null) {
+            return $this->qualityMenu->render($base);
+        }
+
+        return $base;
+    }
+
+    private function renderBase(): string
     {
         if ($this->error !== null) {
             return Chrome::frame($this->item->name, "\n  {$this->error}", 'Esc  back', $this->cols, $this->rows, theme: $this->theme());
@@ -700,6 +752,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         $next = clone $this;
         $next->transcodeJob = $job->jobId;
         $next->transcodeProgress = $job->progress;
+        $next->rememberLadder($job);
 
         // Already playable (a reused/complete job) → build now; else start polling.
         if ($job->isPlayable()) {
@@ -707,6 +760,26 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         }
 
         return [$next, $this->transcodePollCmd()];
+    }
+
+    /**
+     * Record the ABR ladder + master URL a transcode response advertised, so the
+     * quality picker has real rungs to offer and an "Auto" (master) target. Only
+     * overwrites the master when the job actually carried one. Mutates in place —
+     * only ever called on a freshly cloned screen.
+     *
+     * The ONLY source `$this->variants` is ever populated from — see that
+     * field's docblock for why `PlaybackInfo::$qualityLadder`'s pre-flight
+     * preview is deliberately not wired in here too.
+     */
+    private function rememberLadder(TranscodeJob $job): void
+    {
+        if ($job->variants !== []) {
+            $this->variants = $job->variants;
+        }
+        if ($job->masterUrl !== '') {
+            $this->transcodeMasterUrl = $this->resolveUrl($job->masterUrl);
+        }
     }
 
     /** @return array{self, ?\Closure} */
@@ -732,6 +805,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
 
         $next = clone $this;
         $next->transcodeProgress = $job->progress;
+        $next->rememberLadder($job);
 
         if ($job->isPlayable()) {
             return [$next, $this->buildPlayerCmd($this->resolveUrl($job->masterUrl))];
@@ -756,8 +830,24 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
 
         $next = clone $this;
         $next->inner = $started instanceof Player ? $started : $player;
+        // A mid-playback quality switch rebuilt the player — re-seek to where the
+        // viewer was (applied before resume, which is a no-op once resumed).
+        if ($next->pendingSeek !== null) {
+            $next->inner = $next->inner->seekToSeconds($next->pendingSeek);
+            $next->pendingSeek = null;
+        }
         // If the resume position resolved before the player was ready, apply it now.
         $next->applyResumeInPlace();
+
+        // Open a playback session only the first time a player becomes ready; a
+        // quality switch reuses the live session rather than spawning a duplicate.
+        // Guarded on the SYNCHRONOUS $sessionRequested flag, not the async
+        // $sessionId (see its docblock) — a quality-switch rebuild can become
+        // ready again before the first createSession round-trip has resolved.
+        if ($this->sessionRequested) {
+            return [$next, $tick];
+        }
+        $next->sessionRequested = true;
 
         return [$next, Cmd::batch($tick, $this->createSessionCmd())];
     }
@@ -806,6 +896,12 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     /** @return array{self, ?\Closure} */
     private function handleKey(KeyMsg $msg): array
     {
+        // While the quality picker is open it captures every keystroke (like the
+        // command palette) — navigate / pick / dismiss it before anything else.
+        if ($this->qualityMenu !== null) {
+            return $this->handleQualityKey($this->qualityMenu, $msg);
+        }
+
         // Esc / q → report a final position, end the session, tear down the
         // subprocesses, and pop back to the detail screen. (Intercepted BEFORE
         // forwarding so the inner player's own quit — which would Cmd::quit the
@@ -833,6 +929,11 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
             $next->chromeHidden = !$this->chromeHidden;
 
             return [$next, null];
+        }
+
+        // v → open the quality picker (only when the active transcode exposed rungs).
+        if ($msg->type === KeyType::Char && ($msg->rune === 'v' || $msg->rune === 'V')) {
+            return $this->openQualityMenu();
         }
 
         // ← / → → time-based ±10s seek (overrides the inner player's frame seek).
@@ -922,12 +1023,104 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         return [$next, $cmd];
     }
 
+    // ---- quality picker ------------------------------------------------
+
+    /**
+     * Open the quality overlay over the live player. A no-op for a direct-played
+     * / legacy item (no ladder to choose from) so the key is harmless there.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function openQualityMenu(): array
+    {
+        if ($this->variants === []) {
+            return [$this, null];
+        }
+
+        $next = clone $this;
+        $next->qualityMenu = QualityMenu::open($this->variants, $this->selectedQuality, $this->cols, $this->rows);
+
+        return [$next, null];
+    }
+
+    /**
+     * Drive the open quality overlay: ↑/↓ move, Enter picks, Esc / q dismisses.
+     * Any other key is swallowed so it doesn't leak to the player behind it.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function handleQualityKey(QualityMenu $menu, KeyMsg $msg): array
+    {
+        if ($msg->type === KeyType::Escape
+            || ($msg->type === KeyType::Char && ($msg->rune === 'q' || $msg->rune === 'Q'))) {
+            $next = clone $this;
+            $next->qualityMenu = null;
+
+            return [$next, null];
+        }
+        if ($msg->type === KeyType::Up) {
+            $next = clone $this;
+            $next->qualityMenu = $menu->up();
+
+            return [$next, null];
+        }
+        if ($msg->type === KeyType::Down) {
+            $next = clone $this;
+            $next->qualityMenu = $menu->down();
+
+            return [$next, null];
+        }
+        if ($msg->type === KeyType::Enter) {
+            return $this->applyQualitySelection($menu);
+        }
+
+        return [$this, null];
+    }
+
+    /**
+     * Apply the highlighted quality: rebuild the player from the pinned rung's
+     * signed playlist (or, for "Auto", the master multi-variant stream), stopping
+     * the old ffmpeg first (no leak) and re-seeking to the current position. When
+     * no target URL is known the menu just closes.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function applyQualitySelection(QualityMenu $menu): array
+    {
+        $rendition = $menu->selectedRendition();
+        $url = $rendition?->url;
+        $target = ($menu->isAuto() || $url === null || $url === '')
+            ? $this->transcodeMasterUrl
+            : $this->resolveUrl($url);
+
+        if ($target === null || $target === '') {
+            $next = clone $this;
+            $next->qualityMenu = null;
+
+            return [$next, null];
+        }
+
+        $position = $this->inner?->position();
+        $this->inner?->stop(); // stop the old subprocess before spawning the replacement
+
+        $next = clone $this;
+        $next->qualityMenu = null;
+        $next->selectedQuality = $menu->isAuto() ? null : $rendition?->id;
+        $next->inner = null; // show "Preparing…" while the new quality spins up
+        $next->pendingSeek = ($position !== null && $position > self::RESUME_FLOOR) ? $position : null;
+
+        return [$next, $this->buildPlayerCmd($target)];
+    }
+
     /** @return array{self, ?\Closure} */
     private function onResize(int $cols, int $rows): array
     {
         $next = clone $this;
         $next->cols = $cols;
         $next->rows = $rows;
+        if ($this->qualityMenu !== null) {
+            $next->qualityMenu = $this->qualityMenu->resizedTo($cols, $rows);
+        }
 
         if ($this->inner !== null) {
             [$nextInner, $cmd] = $this->inner->update(new WindowSizeMsg($cols, $next->innerRows()));
@@ -978,7 +1171,8 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         $prompt = $this->resumeHint($inner) ?? $this->skipPrompt($inner);
         $nav = $this->nextItem() !== null ? '  n next' : '';
         $cc = $this->captionsOn ? '  c cc✓' : '  c cc';
-        $hint = 'Space ⏯  ←→ ±10s  [ ] speed  m mode' . $cc . $nav . '  q back';
+        $quality = $this->variants !== [] ? '  v quality' : '';
+        $hint = 'Space ⏯  ←→ ±10s  [ ] speed  m mode' . $cc . $quality . $nav . '  q back';
 
         $title = Width::truncate($this->item->name, max(8, $this->cols - 60));
         $line = sprintf('%s %s%s   ·   %s', $glyph, $title, $prompt, $hint);
@@ -1169,5 +1363,27 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     public function transcodeJob(): ?string
     {
         return $this->transcodeJob;
+    }
+
+    /** @return list<Rendition> the ABR ladder rungs offered for this item (empty = none). */
+    public function variants(): array
+    {
+        return $this->variants;
+    }
+
+    /** The pinned rendition id, or null for "Auto" (server ABR). */
+    public function selectedQuality(): ?string
+    {
+        return $this->selectedQuality;
+    }
+
+    public function qualityMenu(): ?QualityMenu
+    {
+        return $this->qualityMenu;
+    }
+
+    public function isQualityMenuOpen(): bool
+    {
+        return $this->qualityMenu !== null;
     }
 }

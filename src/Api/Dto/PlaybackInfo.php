@@ -16,6 +16,10 @@ final readonly class PlaybackInfo
     /**
      * @param list<array<string,mixed>> $mediaSources
      * @param array<string,mixed>       $markers
+     * @param list<Rendition>           $qualityLadder pre-flight ABR-ladder preview
+     *        (highest-first); every rung's `url` is `null` here (no job created),
+     *        so it drives the picker's labels but not playback. Empty when the
+     *        item hasn't been scanned with source metadata yet.
      */
     public function __construct(
         public string $id,
@@ -23,6 +27,7 @@ final readonly class PlaybackInfo
         public string $type,
         public array $mediaSources,
         public array $markers,
+        public array $qualityLadder = [],
     ) {
     }
 
@@ -44,6 +49,7 @@ final readonly class PlaybackInfo
             type: Coerce::str($data['type'] ?? ''),
             mediaSources: $sources,
             markers: Coerce::map($data['markers'] ?? null),
+            qualityLadder: Rendition::listFromArray($data['quality_ladder'] ?? null),
         );
     }
 }

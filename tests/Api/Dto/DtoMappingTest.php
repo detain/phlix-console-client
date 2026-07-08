@@ -204,5 +204,29 @@ final class DtoMappingTest extends TestCase
         self::assertSame('', $info->type);
         self::assertSame([], $info->mediaSources);
         self::assertSame([], $info->markers);
+        self::assertSame([], $info->qualityLadder, 'absent quality_ladder → empty list');
+    }
+
+    public function testPlaybackInfoDecodesTheQualityLadderPreview(): void
+    {
+        $info = PlaybackInfo::fromArray([
+            'id' => 'm1',
+            'quality_ladder' => [
+                ['id' => '1080p', 'label' => '1080p', 'width' => 1920, 'height' => 1080, 'url' => null],
+                ['id' => '720p', 'label' => '720p', 'width' => 1280, 'height' => 720, 'url' => null],
+                'bogus',
+            ],
+        ]);
+
+        self::assertCount(2, $info->qualityLadder, 'non-array rungs are dropped');
+        self::assertSame('1080p', $info->qualityLadder[0]->id);
+        self::assertNull($info->qualityLadder[0]->url, 'the pre-flight preview carries no signed urls');
+    }
+
+    public function testPlaybackInfoNullLadderIsEmpty(): void
+    {
+        $info = PlaybackInfo::fromArray(['id' => 'm1', 'quality_ladder' => null]);
+
+        self::assertSame([], $info->qualityLadder, 'a null (unscanned) ladder → empty list');
     }
 }
