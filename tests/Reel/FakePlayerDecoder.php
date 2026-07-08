@@ -27,7 +27,6 @@ final class FakePlayerDecoder implements Decoder
 
     public function open(string $source, int $cellsW, int $cellsH, float $fps, ?Mode $mode = null, float $startSec = 0.0): void
     {
-        // Re-open (used by the player's '/fake' seek rebuild) rewinds + reactivates.
         $this->index = 0;
         $this->closed = false;
     }
@@ -44,6 +43,12 @@ final class FakePlayerDecoder implements Decoder
     public function close(): void
     {
         $this->closed = true;
+    }
+
+    public function reopen(string $source, int $cellsW, int $cellsH, float $fps, ?Mode $mode = null, float $startSec = 0.0): void
+    {
+        $this->index = 0;
+        $this->closed = false;
     }
 
     public function getIterator(): \Generator
