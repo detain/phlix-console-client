@@ -5,6 +5,19 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — in-player quality selection
+
+- **Quality picker overlay** in the player — press `v` to open a small menu of
+  **Auto** (server-driven ABR, the master multi-variant stream) plus each ABR
+  rung the active transcode advertises (e.g. 1080p, 720p, 480p…), highest first.
+  ↑/↓ navigate, Enter pins the highlighted rung, Esc/`q` dismisses. Picking a
+  rung stops the current decoder, rebuilds playback from that rung's own signed
+  playlist URL, and re-seeks to where you were; picking Auto returns playback to
+  the server-driven master stream. The `v` key — and its hint in the player's
+  bottom bar — only appears when the item is actually being transcoded with a
+  real ABR ladder; direct-played and legacy/unscanned items have nothing to
+  switch between, so the picker is silently unavailable there.
+
 ### Added — Phase 8 (admin parity + Cast)
 
 - **Admin menu**, exposed via the command-palette **Admin** action only when signed

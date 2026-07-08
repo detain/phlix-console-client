@@ -6,6 +6,7 @@ namespace Phlix\Console\Tests\Screen;
 
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\Dto\MediaItem;
+use Phlix\Console\Api\Transport;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\PlaybackMarkersLoadedMsg;
 use Phlix\Console\Msg\PlayerPrepareFailedMsg;
@@ -14,6 +15,7 @@ use Phlix\Console\Msg\PlayNextMsg;
 use Phlix\Console\Msg\ProgressTickMsg;
 use Phlix\Console\Msg\ResumeInfoMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
+use Phlix\Console\Msg\SessionStartedMsg;
 use Phlix\Console\Msg\TranscodePollMsg;
 use Phlix\Console\Msg\TranscodeStartedMsg;
 use Phlix\Console\Msg\TranscodeStatusMsg;
@@ -23,6 +25,8 @@ use Phlix\Console\Tests\Api\FakeTransport;
 use Phlix\Console\Tests\Reel\FakePlayerDecoder;
 use PHPUnit\Framework\TestCase;
 use React\EventLoop\Loop;
+use React\Http\Message\Response;
+use React\Promise\Deferred;
 use React\Promise\PromiseInterface;
 use SugarCraft\Core\AsyncCmd;
 use SugarCraft\Core\BatchMsg;
@@ -33,6 +37,8 @@ use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Reel\Decode\RgbFrame;
 use SugarCraft\Reel\Msg\TickMsg as ReelTickMsg;
 use SugarCraft\Reel\Player;
+
+use function React\Promise\resolve;
 
 final class PlayerScreenTest extends TestCase
 {
@@ -578,6 +584,312 @@ final class PlayerScreenTest extends TestCase
         [$failed] = $s->update($secondFail);
         self::assertFalse($failed->isReady());
         self::assertNotNull($failed->error());
+    }
+
+    // ---- quality picker ------------------------------------------------
+
+    /** A playable transcode job carrying a 1080p/720p ABR ladder. */
+    private function ladderJob(): TranscodeStartedMsg
+    {
+        return new TranscodeStartedMsg(\Phlix\Console\Api\Dto\TranscodeJob::fromArray([
+            'job_id' => 'j1',
+            'status' => 'completed',
+            'master_url' => '/hls/j1/master.m3u8',
+            'variants' => [
+                ['id' => '1080p', 'label' => '1080p', 'url' => '/hls/j1/media_v1080p.m3u8'],
+                ['id' => '720p', 'label' => '720p', 'url' => '/hls/j1/media_v720p.m3u8'],
+            ],
+        ]));
+    }
+
+    /** A ready (direct-playing) screen that has since learned an ABR ladder. */
+    private function readyWithLadder(): PlayerScreen
+    {
+        $ready = $this->ready($this->screen()[0]);
+        [$withLadder] = $ready->update($this->ladderJob());
+
+        return $withLadder;
+    }
+
+    public function testTranscodeResponseExposesTheVariantLadder(): void
+    {
+        $screen = $this->readyWithLadder();
+
+        self::assertCount(2, $screen->variants(), 'the job\'s variants become pickable rungs');
+        self::assertNull($screen->selectedQuality(), 'nothing pinned yet → Auto');
+        self::assertStringContainsString('v quality', $screen->view(), 'the hint advertises the picker');
+    }
+
+    public function testQualityKeyIsANoOpWithoutAVariantLadder(): void
+    {
+        $ready = $this->ready($this->screen()[0]); // direct-play, no transcode ladder
+
+        [$after] = $ready->update(new KeyMsg(KeyType::Char, 'v'));
+
+        self::assertFalse($after->isQualityMenuOpen(), 'no rungs → the key does nothing');
+        self::assertStringNotContainsString('v quality', $ready->view(), 'and the hint is not shown');
+    }
+
+    public function testOpeningTheQualityMenuOverlaysTheRungs(): void
+    {
+        $screen = $this->readyWithLadder();
+
+        [$open] = $screen->update(new KeyMsg(KeyType::Char, 'v'));
+
+        self::assertTrue($open->isQualityMenuOpen());
+        $view = $open->view();
+        self::assertStringContainsString('Auto', $view);
+        self::assertStringContainsString('1080p', $view);
+        self::assertStringContainsString('720p', $view);
+    }
+
+    public function testPickingARungRebuildsPlaybackFromThatVariantUrl(): void
+    {
+        $captured = [];
+        [$screen0] = $this->screen(captured: $captured);
+        $ready = $this->ready($screen0);
+        [$screen] = $ready->update($this->ladderJob());
+        $captured = []; // ignore the direct-play URL captured during ready()
+
+        // Open → Down (Auto → 1080p) → Enter.
+        [$open] = $screen->update(new KeyMsg(KeyType::Char, 'v'));
+        [$moved] = $open->update(new KeyMsg(KeyType::Down));
+        [$picked, $buildCmd] = $moved->update(new KeyMsg(KeyType::Enter));
+
+        self::assertFalse($picked->isQualityMenuOpen(), 'the menu closes on pick');
+        self::assertSame('1080p', $picked->selectedQuality(), 'the chosen rung is pinned');
+
+        // The rebuild feeds the variant\'s resolved playlist URL to ffmpeg.
+        $this->runCmd($buildCmd);
+        self::assertSame(['https://srv/hls/j1/media_v1080p.m3u8'], $captured);
+    }
+
+    public function testAutoPicksTheMasterMultiVariantStream(): void
+    {
+        $captured = [];
+        [$screen0] = $this->screen(captured: $captured);
+        $ready = $this->ready($screen0);
+        [$screen] = $ready->update($this->ladderJob());
+        $captured = [];
+
+        // First pin 1080p, then complete the rebuild so the player is live again.
+        [$open] = $screen->update(new KeyMsg(KeyType::Char, 'v'));
+        [$moved] = $open->update(new KeyMsg(KeyType::Down));
+        [$pinned, $buildCmd] = $moved->update(new KeyMsg(KeyType::Enter));
+        self::assertSame('1080p', $pinned->selectedQuality());
+        [$pinnedReady] = $pinned->update($this->runCmd($buildCmd)); // PlayerReady → inner restored
+        $captured = []; // ignore the 1080p rebuild URL
+
+        // Reopen (pre-highlighting 1080p) → Up back to Auto → Enter.
+        [$reopened] = $pinnedReady->update(new KeyMsg(KeyType::Char, 'v'));
+        [$onAuto] = $reopened->update(new KeyMsg(KeyType::Up));
+        [$autoPicked, $autoBuild] = $onAuto->update(new KeyMsg(KeyType::Enter));
+
+        self::assertNull($autoPicked->selectedQuality(), 'Auto clears the pin');
+        $this->runCmd($autoBuild);
+        self::assertSame(['https://srv/hls/j1/master.m3u8'], $captured);
+    }
+
+    public function testEscapeClosesTheMenuWithoutChangingQuality(): void
+    {
+        $screen = $this->readyWithLadder();
+
+        [$open] = $screen->update(new KeyMsg(KeyType::Char, 'v'));
+        [$moved] = $open->update(new KeyMsg(KeyType::Down));
+        [$closed, $cmd] = $moved->update(new KeyMsg(KeyType::Escape));
+
+        self::assertFalse($closed->isQualityMenuOpen());
+        self::assertNull($closed->selectedQuality(), 'dismissing never pins a rung');
+        self::assertNull($cmd, 'and never rebuilds the player');
+    }
+
+    public function testResizingWhileTheQualityMenuIsOpenRefitsItAndKeepsItOpen(): void
+    {
+        $screen = $this->readyWithLadder();
+
+        [$open] = $screen->update(new KeyMsg(KeyType::Char, 'v'));
+        [$moved] = $open->update(new KeyMsg(KeyType::Down)); // highlight 1080p
+        self::assertTrue($moved->isQualityMenuOpen());
+
+        // A terminal resize while the overlay is up must re-fit the box (not
+        // crash / drop it) and preserve the highlighted rung.
+        [$resized] = $moved->update(new WindowSizeMsg(40, 12));
+
+        self::assertTrue($resized->isQualityMenuOpen(), 'the overlay survives the resize');
+        self::assertSame(1, $resized->qualityMenu()?->cursor(), 'the highlight is preserved across the resize');
+        self::assertStringContainsString('1080p', $resized->view());
+    }
+
+    public function testMenuKeysDoNotLeakToThePlayer(): void
+    {
+        $screen = $this->readyWithLadder();
+        self::assertTrue($screen->isPlaying());
+
+        [$open] = $screen->update(new KeyMsg(KeyType::Char, 'v'));
+        // Space would normally pause the inner player — it must be swallowed here.
+        [$afterSpace] = $open->update(new KeyMsg(KeyType::Space));
+
+        self::assertTrue($afterSpace->isQualityMenuOpen());
+        self::assertTrue($afterSpace->isPlaying(), 'the player behind the menu keeps playing');
+    }
+
+    public function testQualitySwitchClosesThePreviousDecoderBeforeTheRebuildCompletes(): void
+    {
+        // A fresh FakePlayerDecoder per build (unlike the shared-decoder default
+        // `screen()` factory) so the pre- and post-switch players are backed by
+        // DISTINCT decoder instances — otherwise "is it closed?" can't tell them apart.
+        $decoders = [];
+        $factory = function (string $url, int $c, int $r) use (&$decoders): Player {
+            $decoder = new FakePlayerDecoder($this->frames());
+            $decoders[] = $decoder;
+
+            return Player::openForTest($decoder, fps: 24.0, totalFrames: 2400, cellsW: $c, cellsH: $r, videoPath: '/fake', paused: true);
+        };
+        $transport = (new FakeTransport())->json(200, $this->markersResponse());
+        $api = new ApiClient('https://srv', $transport);
+        $screen = new PlayerScreen($this->item(), 'https://srv', $api, $factory, cols: 80, rows: 24);
+
+        $ready = $this->ready($screen);
+        [$withLadder] = $ready->update($this->ladderJob());
+        self::assertCount(1, $decoders, 'one decoder so far — the direct-play build');
+        $preSwitchDecoder = $decoders[0];
+        self::assertFalse($preSwitchDecoder->isClosed());
+
+        [$open] = $withLadder->update(new KeyMsg(KeyType::Char, 'v'));
+        [$moved] = $open->update(new KeyMsg(KeyType::Down));
+        [$picked, $buildCmd] = $moved->update(new KeyMsg(KeyType::Enter));
+
+        // The OLD decoder must already be stopped the instant the switch is
+        // applied — BEFORE the new build's Cmd has even run — or the old
+        // ffmpeg/decoder process leaks for the duration of the rebuild.
+        self::assertTrue($preSwitchDecoder->isClosed(), 'the pre-switch decoder is closed synchronously on switch — no leaked process');
+        self::assertCount(1, $decoders, 'the new decoder is not built until the rebuild Cmd actually runs');
+
+        $this->runCmd($buildCmd);
+
+        self::assertCount(2, $decoders, 'the rebuild opened a distinct new decoder');
+        self::assertFalse($decoders[1]->isClosed(), 'the newly built (post-switch) decoder is live');
+        self::assertTrue($preSwitchDecoder->isClosed(), 'and the old one stays closed');
+    }
+
+    public function testQualitySwitchWhileTheInitialSessionCreateIsStillInFlightDoesNotOpenASecondSession(): void
+    {
+        // A Transport double that answers everything immediately EXCEPT the
+        // create-session POST, which stays pending until resolveSession() is
+        // called — reproducing the exact race Finding 1 describes: a quality
+        // switch's second onReady landing before the first createSession's HTTP
+        // round-trip has resolved (so $sessionId is still null at that point).
+        $sessionDeferred = new Deferred();
+        $markersResponse = $this->markersResponse();
+        $transport = new class($markersResponse, $sessionDeferred) implements Transport {
+            /** @var list<array{method:string,url:string,headers:array<string,string>,body:string}> */
+            public array $requests = [];
+
+            /** @param array<string,mixed> $markersResponse */
+            public function __construct(
+                private readonly array $markersResponse,
+                private readonly Deferred $sessionDeferred,
+            ) {
+            }
+
+            public function send(string $method, string $url, array $headers, string $body): PromiseInterface
+            {
+                $this->requests[] = ['method' => $method, 'url' => $url, 'headers' => $headers, 'body' => $body];
+
+                if ($method === 'POST' && str_contains($url, '/api/v1/sessions') && !str_contains($url, '/progress')) {
+                    return $this->sessionDeferred->promise();
+                }
+                if (str_contains($url, '/playback-info')) {
+                    return resolve(new Response(200, ['Content-Type' => 'application/json'], (string) json_encode($this->markersResponse)));
+                }
+
+                return resolve(new Response(200, [], '{}'));
+            }
+
+            /** @return list<array{method:string,url:string,headers:array<string,string>,body:string}> */
+            public function sessionCreateRequests(): array
+            {
+                return array_filter(
+                    $this->requests,
+                    static fn (array $r): bool => $r['method'] === 'POST' && str_contains($r['url'], '/api/v1/sessions') && !str_contains($r['url'], '/progress'),
+                );
+            }
+        };
+
+        $decoder = new FakePlayerDecoder($this->frames());
+        $factory = fn (string $url, int $c, int $r): Player
+            => Player::openForTest($decoder, fps: 24.0, totalFrames: 2400, cellsW: $c, cellsH: $r, videoPath: '/fake', paused: true);
+        $api = new ApiClient('https://srv', $transport);
+        $screen = new PlayerScreen($this->item(), 'https://srv', $api, $factory, cols: 80, rows: 24);
+
+        // Drive init → ready. Markers/resume resolve immediately; capture the
+        // PlayerReadyMsg's onReady Cmd (tick + createSessionCmd) WITHOUT running
+        // it through runBatch()/await() (which would block on the still-pending
+        // session promise).
+        $cur = $screen;
+        $readyCmd = null;
+        foreach ($this->runBatch($screen->init()) as $msg) {
+            [$cur, $cmd] = $cur->update($msg);
+            if ($msg instanceof PlayerReadyMsg) {
+                $readyCmd = $cmd;
+            }
+        }
+        self::assertTrue($cur->isReady());
+        self::assertNull($cur->sessionId(), 'nothing has resolved yet');
+
+        // Fire the batched Cmd's children directly (not via runBatch/await) so
+        // the create-session HTTP call is SENT — flipping the synchronous
+        // $sessionRequested guard true — while its promise stays unresolved.
+        self::assertInstanceOf(\Closure::class, $readyCmd);
+        $batch = $readyCmd();
+        self::assertInstanceOf(BatchMsg::class, $batch);
+        $sessionAsync = null;
+        foreach ($batch->cmds as $child) {
+            $result = $child();
+            if ($result instanceof AsyncCmd) {
+                $sessionAsync = $result;
+            }
+        }
+        self::assertInstanceOf(AsyncCmd::class, $sessionAsync, 'createSessionCmd produced the pending session promise');
+        self::assertCount(1, $transport->sessionCreateRequests(), 'exactly one create-session request sent so far');
+
+        // Switch quality WHILE that first session request is still in flight.
+        [$withLadder] = $cur->update($this->ladderJob());
+        [$open] = $withLadder->update(new KeyMsg(KeyType::Char, 'v'));
+        [$moved] = $open->update(new KeyMsg(KeyType::Down));
+        [$picked, $buildCmd] = $moved->update(new KeyMsg(KeyType::Enter));
+        $readyMsg2 = $this->runCmd($buildCmd); // the rebuild has no HTTP of its own — resolves synchronously
+        self::assertInstanceOf(PlayerReadyMsg::class, $readyMsg2);
+        [$afterSwitch, $secondCmd] = $picked->update($readyMsg2); // this is the SECOND onReady — the race window
+
+        self::assertNull($afterSwitch->sessionId(), 'still unresolved — the original request has not landed');
+
+        // Actually RUN the second onReady's Cmd, the same way the first one was
+        // driven above. Under a buggy $sessionId-keyed guard this Cmd would be
+        // Cmd::batch($tick, $this->createSessionCmd()) and executing it fires a
+        // SECOND create-session POST right here — asserting on the request count
+        // without running this Cmd would never observe that bug (it would sit
+        // undispatched). Under the correct $sessionRequested-keyed guard this Cmd
+        // is just the bare tick, so running it sends no HTTP at all.
+        if ($secondCmd !== null) {
+            $secondResult = $secondCmd();
+            if ($secondResult instanceof BatchMsg) {
+                foreach ($secondResult->cmds as $child) {
+                    $child();
+                }
+            }
+        }
+
+        self::assertCount(1, $transport->sessionCreateRequests(), 'the race-free guard must NOT fire a second createSession while the first is still in flight');
+
+        // Resolve the (only) session request; its id lands on the switched screen.
+        $sessionDeferred->resolve(new Response(201, ['Content-Type' => 'application/json'], (string) json_encode(['session_id' => 'sess-1'])));
+        $started = $this->await($sessionAsync->promise);
+        self::assertInstanceOf(SessionStartedMsg::class, $started);
+        [$final] = $afterSwitch->update($started);
+
+        self::assertSame('sess-1', $final->sessionId(), 'the one true session eventually lands on the post-switch screen');
+        self::assertCount(1, $transport->sessionCreateRequests(), 'still only ever one session — no orphan was created');
     }
 
     // ---- captions ------------------------------------------------------

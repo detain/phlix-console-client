@@ -24,6 +24,31 @@ final class TranscodeJobTest extends TestCase
         self::assertSame('/hls/j1/master.m3u8', $job->masterUrl);
         self::assertSame(37.0, $job->progress);
         self::assertTrue($job->playlistReady);
+        self::assertSame([], $job->variants, 'no variants field → empty ladder');
+    }
+
+    public function testFromArrayDecodesTheVariantLadder(): void
+    {
+        $job = TranscodeJob::fromArray([
+            'job_id' => 'j1',
+            'status' => 'running',
+            'master_url' => '/hls/j1/master.m3u8',
+            'variants' => [
+                ['id' => '1080p', 'label' => '1080p', 'url' => '/hls/j1/media_v1080p.m3u8'],
+                ['id' => '720p', 'label' => '720p', 'url' => '/hls/j1/media_v720p.m3u8'],
+            ],
+        ]);
+
+        self::assertCount(2, $job->variants);
+        self::assertSame('1080p', $job->variants[0]->id, 'highest-first order is preserved');
+        self::assertSame('/hls/j1/media_v720p.m3u8', $job->variants[1]->url);
+    }
+
+    public function testLegacyNullVariantsDecodeToEmpty(): void
+    {
+        $job = TranscodeJob::fromArray(['job_id' => 'j1', 'status' => 'running', 'variants' => null]);
+
+        self::assertSame([], $job->variants);
     }
 
     public function testIsPlayableWhenPlaylistReadyWithAMaster(): void
