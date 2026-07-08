@@ -204,29 +204,24 @@ final class DtoMappingTest extends TestCase
         self::assertSame('', $info->type);
         self::assertSame([], $info->mediaSources);
         self::assertSame([], $info->markers);
-        self::assertSame([], $info->qualityLadder, 'absent quality_ladder → empty list');
     }
 
-    public function testPlaybackInfoDecodesTheQualityLadderPreview(): void
+    public function testPlaybackInfoIgnoresQualityLadderKey(): void
     {
+        // `/playback` (this DTO's source) never sends `quality_ladder`; the
+        // pre-flight ladder lives on the distinct `/playback-info` route and is
+        // deliberately not modeled here. A stray key must simply be ignored.
         $info = PlaybackInfo::fromArray([
             'id' => 'm1',
             'quality_ladder' => [
                 ['id' => '1080p', 'label' => '1080p', 'width' => 1920, 'height' => 1080, 'url' => null],
-                ['id' => '720p', 'label' => '720p', 'width' => 1280, 'height' => 720, 'url' => null],
-                'bogus',
             ],
         ]);
 
-        self::assertCount(2, $info->qualityLadder, 'non-array rungs are dropped');
-        self::assertSame('1080p', $info->qualityLadder[0]->id);
-        self::assertNull($info->qualityLadder[0]->url, 'the pre-flight preview carries no signed urls');
-    }
-
-    public function testPlaybackInfoNullLadderIsEmpty(): void
-    {
-        $info = PlaybackInfo::fromArray(['id' => 'm1', 'quality_ladder' => null]);
-
-        self::assertSame([], $info->qualityLadder, 'a null (unscanned) ladder → empty list');
+        self::assertSame('m1', $info->id);
+        self::assertFalse(
+            property_exists($info, 'qualityLadder'),
+            'PlaybackInfo carries no quality-ladder field (see /playback-info)',
+        );
     }
 }

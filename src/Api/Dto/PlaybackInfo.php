@@ -10,16 +10,19 @@ namespace Phlix\Console\Api\Dto;
  *
  * Sources and markers are kept as raw maps for now; the player (Phase 4) will
  * give them dedicated value types once their use is concrete.
+ *
+ * NOTE: the pre-flight ABR ladder preview (`quality_ladder`) is NOT part of
+ * this shape — it is served by the DISTINCT `GET /api/v1/media/{id}/playback-info`
+ * route (see {@see \Phlix\Console\Api\Dto\Rendition}), which this DTO does not
+ * model. The console's quality picker is driven entirely by a real transcode
+ * job's `variants[]` (see {@see \Phlix\Console\Screen\PlayerScreen}), so no
+ * pre-flight-ladder field is carried here.
  */
 final readonly class PlaybackInfo
 {
     /**
      * @param list<array<string,mixed>> $mediaSources
      * @param array<string,mixed>       $markers
-     * @param list<Rendition>           $qualityLadder pre-flight ABR-ladder preview
-     *        (highest-first); every rung's `url` is `null` here (no job created),
-     *        so it drives the picker's labels but not playback. Empty when the
-     *        item hasn't been scanned with source metadata yet.
      */
     public function __construct(
         public string $id,
@@ -27,7 +30,6 @@ final readonly class PlaybackInfo
         public string $type,
         public array $mediaSources,
         public array $markers,
-        public array $qualityLadder = [],
     ) {
     }
 
@@ -49,7 +51,6 @@ final readonly class PlaybackInfo
             type: Coerce::str($data['type'] ?? ''),
             mediaSources: $sources,
             markers: Coerce::map($data['markers'] ?? null),
-            qualityLadder: Rendition::listFromArray($data['quality_ladder'] ?? null),
         );
     }
 }
