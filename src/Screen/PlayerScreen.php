@@ -17,6 +17,7 @@ use Phlix\Console\Api\Dto\TranscodeJob;
 use Phlix\Console\Api\MediaQuery;
 use Phlix\Console\Config\Config;
 use Phlix\Console\Msg\NavigateBackMsg;
+use Phlix\Console\Msg\OpenRecommendationsMsg;
 use Phlix\Console\Msg\PlaybackMarkersLoadedMsg;
 use Phlix\Console\Msg\PlayerPrepareFailedMsg;
 use Phlix\Console\Msg\PlayerReadyMsg;
@@ -1014,6 +1015,11 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
             $prev = $this->prevItem();
 
             return $prev !== null ? $this->advanceTo($prev) : [$this, null];
+        }
+
+        // W → open the "For You" recommendations screen.
+        if ($msg->type === KeyType::Char && ($msg->rune === 'w' || $msg->rune === 'W')) {
+            return [$this, Cmd::send(new OpenRecommendationsMsg())];
         }
 
         // Everything else the inner player handles (Space, [ , ] , m, 0–9) → forward.
