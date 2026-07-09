@@ -8,8 +8,6 @@ use Phlix\Console\Api\Dto\Coerce;
 
 /**
  * Days of the week used in access schedules.
- *
- * @var list<string>
  */
 final readonly class AccessSchedule
 {

@@ -232,6 +232,9 @@ final class RecommendationsScreen implements Model, Teardownable, CapturesSlash,
         return $next;
     }
 
+    /**
+     * @param list<string> $trail
+     */
     public function withCrumbs(array $trail): static
     {
         $next = clone $this;
