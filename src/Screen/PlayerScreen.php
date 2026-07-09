@@ -17,21 +17,20 @@ use Phlix\Console\Api\Dto\PlaybackMarkers;
 use Phlix\Console\Api\Dto\Rendition;
 use Phlix\Console\Api\Dto\StreamAudioTrack;
 use Phlix\Console\Api\Dto\StreamSubtitleTrack;
-use Phlix\Console\Api\Dto\SubtitleTrack;
-use Phlix\Console\Api\Dto\SyncPlayPlaybackCommand;
 use Phlix\Console\Api\Dto\SyncPlayRoom;
+use Phlix\Console\Api\Dto\SubtitleTrack;
 use Phlix\Console\Api\Dto\SyncPlayUser;
+use Phlix\Console\Api\Dto\SyncPlayPlaybackCommand;
 use Phlix\Console\Api\Dto\TranscodeJob;
 use Phlix\Console\Api\MediaQuery;
 use Phlix\Console\Api\SyncPlay\SyncPlayService;
-use Phlix\Console\App;
 use Phlix\Console\Config\Config;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenRecommendationsMsg;
+use Phlix\Console\Msg\PlayNextMsg;
 use Phlix\Console\Msg\PlaybackMarkersLoadedMsg;
 use Phlix\Console\Msg\PlayerPrepareFailedMsg;
 use Phlix\Console\Msg\PlayerReadyMsg;
-use Phlix\Console\Msg\PlayNextMsg;
 use Phlix\Console\Msg\ProgressTickMsg;
 use Phlix\Console\Msg\ResumeInfoMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
@@ -50,6 +49,7 @@ use Phlix\Console\Msg\TranscodeStartedMsg;
 use Phlix\Console\Msg\TranscodeStatusMsg;
 use Phlix\Console\Msg\UpNextTickMsg;
 use Phlix\Console\Ui\AudioTrackList;
+use Phlix\Console\Ui\ChapterList;
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\QualityMenu;
 use Phlix\Console\Ui\SubtitleTrackList;
@@ -193,6 +193,8 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     private ?AudioTrackList $audioTrackMenu = null;
     /** The open subtitle track picker overlay, or null when closed. */
     private ?SubtitleTrackList $subtitleTrackMenu = null;
+    /** The open chapter picker overlay, or null when closed. */
+    private ?ChapterList $chapterMenu = null;
     /** A one-shot seek (seconds) to re-apply once a quality-switch rebuild becomes ready. */
     private ?float $pendingSeek = null;
     /** The SyncPlay service for group playback sync, or null when not available. */
@@ -354,6 +356,10 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     public function view(): string
     {
         $base = $this->renderBase();
+        // The chapter picker dims + centres its box over the current frame.
+        if ($this->chapterMenu !== null) {
+            return $this->chapterMenu->render($base);
+        }
         // The audio track picker dims + centres its box over the current frame.
         if ($this->audioTrackMenu !== null) {
             return $this->audioTrackMenu->render($base);
@@ -1006,6 +1012,11 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
             return $this->handleSyncPlayKey($this->syncPlayModal, $msg);
         }
 
+        // While the chapter picker is open it captures every keystroke.
+        if ($this->chapterMenu !== null) {
+            return $this->handleChapterMenuKey($this->chapterMenu, $msg);
+        }
+
         // While the audio track picker is open it captures every keystroke.
         if ($this->audioTrackMenu !== null) {
             return $this->handleAudioTrackKey($this->audioTrackMenu, $msg);
@@ -1072,6 +1083,11 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         // S → open the subtitle track picker (when subtitle tracks are available).
         if ($msg->type === KeyType::Char && ($msg->rune === 'S')) {
             return $this->openSubtitleTrackMenu();
+        }
+
+        // C → open the chapter picker (when chapters are available).
+        if ($msg->type === KeyType::Char && ($msg->rune === 'C')) {
+            return $this->openChapterMenu();
         }
 
         // s → skip the intro/outro segment under the playhead (if any).
@@ -1388,6 +1404,82 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         return [$next, null];
     }
 
+    // ---- chapter picker -------------------------------------------------
+
+    /**
+     * Open the chapter picker overlay. A no-op when no chapters are available.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function openChapterMenu(): array
+    {
+        if ($this->markers === null || $this->markers->chapters === []) {
+            return [$this, null];
+        }
+
+        $position = $this->inner?->position() ?? 0.0;
+        $next = clone $this;
+        $next->chapterMenu = ChapterList::open($this->markers->chapters, $position, $this->cols, $this->rows);
+
+        return [$next, null];
+    }
+
+    /**
+     * Drive the open chapter overlay: ↑/↓ move, Enter picks, Esc / q dismisses.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function handleChapterMenuKey(ChapterList $menu, KeyMsg $msg): array
+    {
+        if ($msg->type === KeyType::Escape
+            || ($msg->type === KeyType::Char && ($msg->rune === 'q' || $msg->rune === 'Q'))) {
+            $next = clone $this;
+            $next->chapterMenu = null;
+
+            return [$next, null];
+        }
+        if ($msg->type === KeyType::Up) {
+            $next = clone $this;
+            $next->chapterMenu = $menu->up();
+
+            return [$next, null];
+        }
+        if ($msg->type === KeyType::Down) {
+            $next = clone $this;
+            $next->chapterMenu = $menu->down();
+
+            return [$next, null];
+        }
+        if ($msg->type === KeyType::Enter) {
+            return $this->applyChapterSelection($menu);
+        }
+
+        return [$this, null];
+    }
+
+    /**
+     * Apply the highlighted chapter selection — seek to the chapter's start.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function applyChapterSelection(ChapterList $menu): array
+    {
+        $chapter = $menu->selectedChapter();
+        if ($chapter === null || $this->inner === null) {
+            $next = clone $this;
+            $next->chapterMenu = null;
+
+            return [$next, null];
+        }
+
+        $next = clone $this;
+        $next->chapterMenu = null;
+        $seeked = $this->inner->seekToSeconds($chapter->start);
+        $next->inner = $seeked;
+
+        return [$next, $this->tickCmd($seeked)];
+    }
+
     // ---- SyncPlay modal -------------------------------------------------
 
     /**
@@ -1688,6 +1780,9 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         }
         if ($this->subtitleTrackMenu !== null) {
             $next->subtitleTrackMenu = $this->subtitleTrackMenu->resizedTo($cols, $rows);
+        }
+        if ($this->chapterMenu !== null) {
+            $next->chapterMenu = $this->chapterMenu->resizedTo($cols, $rows);
         }
         if ($this->qualityMenu !== null) {
             $next->qualityMenu = $this->qualityMenu->resizedTo($cols, $rows);
@@ -2003,6 +2098,16 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     public function isSubtitleTrackMenuOpen(): bool
     {
         return $this->subtitleTrackMenu !== null;
+    }
+
+    public function chapterMenu(): ?ChapterList
+    {
+        return $this->chapterMenu;
+    }
+
+    public function isChapterMenuOpen(): bool
+    {
+        return $this->chapterMenu !== null;
     }
 
     public function syncPlayModal(): ?SyncPlayModal
