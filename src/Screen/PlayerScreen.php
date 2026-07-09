@@ -10,6 +10,8 @@ use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\Dto\MediaPage;
 use Phlix\Console\Api\Dto\PlaybackMarkers;
 use Phlix\Console\Api\Dto\Rendition;
+use Phlix\Console\Api\Dto\StreamAudioTrack;
+use Phlix\Console\Api\Dto\StreamSubtitleTrack;
 use Phlix\Console\Api\Dto\SubtitleTrack;
 use Phlix\Console\Api\Dto\TranscodeJob;
 use Phlix\Console\Api\MediaQuery;
@@ -29,8 +31,10 @@ use Phlix\Console\Msg\TranscodePollMsg;
 use Phlix\Console\Msg\TranscodeStartedMsg;
 use Phlix\Console\Msg\TranscodeStatusMsg;
 use Phlix\Console\Msg\UpNextTickMsg;
+use Phlix\Console\Ui\AudioTrackList;
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\QualityMenu;
+use Phlix\Console\Ui\SubtitleTrackList;
 use Phlix\Console\Ui\Scrubber;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
@@ -155,6 +159,20 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     private ?string $selectedQuality = null;
     /** The open quality picker overlay, or null when closed. */
     private ?QualityMenu $qualityMenu = null;
+    /** The available audio tracks from playback-info. */
+    /** @var list<StreamAudioTrack> */
+    private array $audioTracks = [];
+    /** The available subtitle tracks from playback-info. */
+    /** @var list<StreamSubtitleTrack> */
+    private array $subtitleTracks = [];
+    /** The selected audio track id, or null for the first track. */
+    private ?string $selectedAudioTrack = null;
+    /** The selected subtitle track id, or null for "off". */
+    private ?string $selectedSubtitleTrack = null;
+    /** The open audio track picker overlay, or null when closed. */
+    private ?AudioTrackList $audioTrackMenu = null;
+    /** The open subtitle track picker overlay, or null when closed. */
+    private ?SubtitleTrackList $subtitleTrackMenu = null;
     /** A one-shot seek (seconds) to re-apply once a quality-switch rebuild becomes ready. */
     private ?float $pendingSeek = null;
 
@@ -283,6 +301,14 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     public function view(): string
     {
         $base = $this->renderBase();
+        // The audio track picker dims + centres its box over the current frame.
+        if ($this->audioTrackMenu !== null) {
+            return $this->audioTrackMenu->render($base);
+        }
+        // The subtitle track picker dims + centres its box over the current frame.
+        if ($this->subtitleTrackMenu !== null) {
+            return $this->subtitleTrackMenu->render($base);
+        }
         // The quality picker dims + centres its box over the current frame.
         if ($this->qualityMenu !== null) {
             return $this->qualityMenu->render($base);
@@ -895,6 +921,16 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     /** @return array{self, ?\Closure} */
     private function handleKey(KeyMsg $msg): array
     {
+        // While the audio track picker is open it captures every keystroke.
+        if ($this->audioTrackMenu !== null) {
+            return $this->handleAudioTrackKey($this->audioTrackMenu, $msg);
+        }
+
+        // While the subtitle track picker is open it captures every keystroke.
+        if ($this->subtitleTrackMenu !== null) {
+            return $this->handleSubtitleTrackKey($this->subtitleTrackMenu, $msg);
+        }
+
         // While the quality picker is open it captures every keystroke (like the
         // command palette) — navigate / pick / dismiss it before anything else.
         if ($this->qualityMenu !== null) {
@@ -941,6 +977,16 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         }
         if ($msg->type === KeyType::Right) {
             return $this->seekBy(10.0);
+        }
+
+        // A → open the audio track picker (when audio tracks are available).
+        if ($msg->type === KeyType::Char && ($msg->rune === 'A' || $msg->rune === 'a')) {
+            return $this->openAudioTrackMenu();
+        }
+
+        // S → open the subtitle track picker (when subtitle tracks are available).
+        if ($msg->type === KeyType::Char && ($msg->rune === 'S')) {
+            return $this->openSubtitleTrackMenu();
         }
 
         // s → skip the intro/outro segment under the playhead (if any).
@@ -1111,12 +1157,154 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         return [$next, $this->buildPlayerCmd($target)];
     }
 
+    // ---- audio track picker --------------------------------------------
+
+    /**
+     * Open the audio track overlay. A no-op when no audio tracks are available.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function openAudioTrackMenu(): array
+    {
+        if ($this->audioTracks === []) {
+            return [$this, null];
+        }
+
+        $next = clone $this;
+        $next->audioTrackMenu = AudioTrackList::open($this->audioTracks, $this->selectedAudioTrack, $this->cols, $this->rows);
+
+        return [$next, null];
+    }
+
+    /**
+     * Drive the open audio track overlay: ↑/↓ move, Enter picks, Esc / q dismisses.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function handleAudioTrackKey(AudioTrackList $menu, KeyMsg $msg): array
+    {
+        if ($msg->type === KeyType::Escape
+            || ($msg->type === KeyType::Char && ($msg->rune === 'q' || $msg->rune === 'Q'))) {
+            $next = clone $this;
+            $next->audioTrackMenu = null;
+
+            return [$next, null];
+        }
+        if ($msg->type === KeyType::Up) {
+            $next = clone $this;
+            $next->audioTrackMenu = $menu->up();
+
+            return [$next, null];
+        }
+        if ($msg->type === KeyType::Down) {
+            $next = clone $this;
+            $next->audioTrackMenu = $menu->down();
+
+            return [$next, null];
+        }
+        if ($msg->type === KeyType::Enter) {
+            return $this->applyAudioTrackSelection($menu);
+        }
+
+        return [$this, null];
+    }
+
+    /**
+     * Apply the highlighted audio track selection.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function applyAudioTrackSelection(AudioTrackList $menu): array
+    {
+        $next = clone $this;
+        $next->audioTrackMenu = null;
+        $next->selectedAudioTrack = $menu->selectedId();
+
+        return [$next, null];
+    }
+
+    // ---- subtitle track picker -----------------------------------------
+
+    /**
+     * Open the subtitle track overlay. A no-op when no subtitle tracks are available.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function openSubtitleTrackMenu(): array
+    {
+        if ($this->subtitleTracks === []) {
+            return [$this, null];
+        }
+
+        $next = clone $this;
+        $next->subtitleTrackMenu = SubtitleTrackList::open($this->subtitleTracks, $this->selectedSubtitleTrack, $this->cols, $this->rows);
+
+        return [$next, null];
+    }
+
+    /**
+     * Drive the open subtitle track overlay: ↑/↓ move, Enter picks, Esc / q dismisses.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function handleSubtitleTrackKey(SubtitleTrackList $menu, KeyMsg $msg): array
+    {
+        if ($msg->type === KeyType::Escape
+            || ($msg->type === KeyType::Char && ($msg->rune === 'q' || $msg->rune === 'Q'))) {
+            $next = clone $this;
+            $next->subtitleTrackMenu = null;
+
+            return [$next, null];
+        }
+        if ($msg->type === KeyType::Up) {
+            $next = clone $this;
+            $next->subtitleTrackMenu = $menu->up();
+
+            return [$next, null];
+        }
+        if ($msg->type === KeyType::Down) {
+            $next = clone $this;
+            $next->subtitleTrackMenu = $menu->down();
+
+            return [$next, null];
+        }
+        if ($msg->type === KeyType::Enter) {
+            return $this->applySubtitleTrackSelection($menu);
+        }
+
+        return [$this, null];
+    }
+
+    /**
+     * Apply the highlighted subtitle track selection (or "Off").
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function applySubtitleTrackSelection(SubtitleTrackList $menu): array
+    {
+        $next = clone $this;
+        $next->subtitleTrackMenu = null;
+        $next->selectedSubtitleTrack = $menu->selectedId();
+        // When subtitles are turned on (non-null selection), enable captions.
+        if (!$menu->isOff()) {
+            $next->captionsOn = true;
+        }
+
+        return [$next, null];
+    }
+
     /** @return array{self, ?\Closure} */
     private function onResize(int $cols, int $rows): array
     {
         $next = clone $this;
         $next->cols = $cols;
         $next->rows = $rows;
+        if ($this->audioTrackMenu !== null) {
+            $next->audioTrackMenu = $this->audioTrackMenu->resizedTo($cols, $rows);
+        }
+        if ($this->subtitleTrackMenu !== null) {
+            $next->subtitleTrackMenu = $this->subtitleTrackMenu->resizedTo($cols, $rows);
+        }
         if ($this->qualityMenu !== null) {
             $next->qualityMenu = $this->qualityMenu->resizedTo($cols, $rows);
         }
@@ -1384,5 +1572,49 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     public function isQualityMenuOpen(): bool
     {
         return $this->qualityMenu !== null;
+    }
+
+    /** @return list<StreamAudioTrack> the available audio tracks. */
+    public function audioTracks(): array
+    {
+        return $this->audioTracks;
+    }
+
+    /** @return list<StreamSubtitleTrack> the available subtitle tracks. */
+    public function subtitleTracks(): array
+    {
+        return $this->subtitleTracks;
+    }
+
+    /** The selected audio track id, or null for the first track. */
+    public function selectedAudioTrack(): ?string
+    {
+        return $this->selectedAudioTrack;
+    }
+
+    /** The selected subtitle track id, or null for "off". */
+    public function selectedSubtitleTrack(): ?string
+    {
+        return $this->selectedSubtitleTrack;
+    }
+
+    public function audioTrackMenu(): ?AudioTrackList
+    {
+        return $this->audioTrackMenu;
+    }
+
+    public function isAudioTrackMenuOpen(): bool
+    {
+        return $this->audioTrackMenu !== null;
+    }
+
+    public function subtitleTrackMenu(): ?SubtitleTrackList
+    {
+        return $this->subtitleTrackMenu;
+    }
+
+    public function isSubtitleTrackMenuOpen(): bool
+    {
+        return $this->subtitleTrackMenu !== null;
     }
 }
