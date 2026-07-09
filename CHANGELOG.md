@@ -7,6 +7,17 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **Admin forms keep an invalid submit open with an inline error instead of a
+  toast.** candy-forms now gates submit on each field's validator (upstream
+  `candy-forms: gate Form submit on validation`), so the Backup *Schedule* and
+  Live TV *rename* / *series-rule* forms no longer push an invalid value through
+  to a screen-level boundary guard — a blank name, a `0` interval, a negative
+  priority, etc. keeps the form open showing the field's `! …` error and fires
+  no request. Removed the now-dead guard-plus-toast workarounds (and the unused
+  `buildRuleFormFrom` re-prefill helper that only existed to escape candy-forms'
+  old post-submit wedge). Also fixed upstream in candy-forms: a blocked submit
+  on a multi-field form now blurs the old field and focuses the erroring one
+  (cursor no longer strands on the last field).
 - **Removed the dead `PlaybackInfo::$qualityLadder` field.** It was populated
   from `GET /api/v1/media/{id}/playback`, which never sends `quality_ladder`
   (that lives on the distinct `/playback-info` route), and was read nowhere —
