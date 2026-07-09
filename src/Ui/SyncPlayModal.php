@@ -2,6 +2,11 @@
 
 declare(strict_types=1);
 
+/**
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ * @license   MIT
+ */
+
 namespace Phlix\Console\Ui;
 
 use Phlix\Console\Api\Dto\SyncPlayRoom;
@@ -133,7 +138,8 @@ final class SyncPlayModal
 
         // A room was selected
         $index = $this->cursor - 1;
-        if ($index < $roomCount) {
+        if ($index >= 0 && $index < $roomCount) {
+            /** @var SyncPlayRoom */
             $room = $this->rooms[$index];
 
             return [$this, $room->id];
@@ -242,7 +248,7 @@ final class SyncPlayModal
     /** @return array{width:int, height:int} */
     public function dims(): array
     {
-        return [$this->winWidth, $this->winHeight];
+        return ['width' => $this->winWidth, 'height' => $this->winHeight];
     }
 
     /**
