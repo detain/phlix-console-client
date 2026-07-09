@@ -10,7 +10,9 @@ use Phlix\Console\Ui\Chrome;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\Model;
 use SugarCraft\Core\Msg;
+use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
+use SugarCraft\Core\KeyType;
 use SugarCraft\Core\SubscriptionCapable;
 use SugarCraft\Forms\Field\Input;
 use SugarCraft\Forms\Form;
@@ -79,6 +81,14 @@ final class ServerScreen implements Model, Themed, CapturesSlash
             }
 
             return [new self($form, null, $this->cols, $this->rows), Cmd::send(new SubmitServerMsg($url))];
+        }
+
+        // When Enter is pressed on an empty required field, isSubmitted() is false
+        // because the form hasn't received any input yet. Catch this case to show
+        // the validation error rather than silently ignoring the submit attempt.
+        if ($msg instanceof KeyMsg && $msg->type === KeyType::Enter && trim($form->getString('server')) === '') {
+            $fresh = self::buildForm();
+            return [new self($fresh, 'Please enter a server URL.', $this->cols, $this->rows), $fresh->init()];
         }
 
         return [new self($form, $this->error, $this->cols, $this->rows), $cmd];
