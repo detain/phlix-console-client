@@ -20,6 +20,9 @@ use Phlix\Console\Api\Dto\Admin\HubStatus;
 use Phlix\Console\Api\Dto\Admin\Plugin;
 use Phlix\Console\Api\Dto\Admin\PluginCatalogResult;
 use Phlix\Console\Api\Dto\Admin\PluginDetail;
+use Phlix\Console\Api\Dto\Admin\Parental\AccessSchedule;
+use Phlix\Console\Api\Dto\Admin\Parental\ProfileStreamLimit;
+use Phlix\Console\Api\Dto\Admin\Parental\ProfileTag;
 use Phlix\Console\Api\Dto\Admin\PortForwardCandidate;
 use Phlix\Console\Api\Dto\Admin\Profile;
 use Phlix\Console\Api\Dto\Admin\PortForwardStatus;
@@ -412,6 +415,144 @@ final class AdminClient
     public function clearProfilePin(string $profileId): PromiseInterface
     {
         return $this->api->send('DELETE', self::PROFILES . '/' . rawurlencode($profileId) . '/pin')
+            ->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
+    }
+
+    // ---- parental controls (schedules) ---------------------------------
+
+    /**
+     * List a profile's access schedules. UNLIKE the user/plugins endpoints (and
+     * LIKE the dashboard / backup), the access-schedule controller returns data
+     * at the TOP LEVEL with NO `{success, data}` envelope, so the list is read
+     * straight from `$body['schedules']`. A non-list payload yields an empty list.
+     *
+     * @return PromiseInterface<list<AccessSchedule>>
+     */
+    public function profileSchedules(int $profileId): PromiseInterface
+    {
+        return $this->api->send('GET', '/api/v1/profiles/' . $profileId . '/schedules')
+            ->then(static function (array $body): array {
+                return self::mapList(
+                    $body['schedules'] ?? null,
+                    static fn (array $row): AccessSchedule => AccessSchedule::fromArray($row),
+                );
+            });
+    }
+
+    /**
+     * Create an access schedule for a profile. The body is `{name, start_time,
+     * end_time, days_of_week, is_active?}`; on 201 the server returns
+     * `{schedule_id, message}` and this resolves the `message`. Rejects with the
+     * server `error` on a 400 (validation) — the {@see \Phlix\Console\Api\ApiError}
+     * carries it as the exception message.
+     *
+     * @param list<string> $daysOfWeek
+     * @return PromiseInterface<string>
+     */
+    public function createProfileSchedule(int $profileId, string $name, string $startTime, string $endTime, array $daysOfWeek, bool $isActive = true): PromiseInterface
+    {
+        return $this->api->send('POST', '/api/v1/profiles/' . $profileId . '/schedules', [], [
+            'name' => $name,
+            'start_time' => $startTime,
+            'end_time' => $endTime,
+            'days_of_week' => $daysOfWeek,
+            'is_active' => $isActive,
+        ])->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
+    }
+
+    /**
+     * Delete a profile's access schedule. Resolves the server `message`; rejects
+     * with the server `error` on a 404.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function deleteProfileSchedule(int $profileId, int $scheduleId): PromiseInterface
+    {
+        return $this->api->send('DELETE', '/api/v1/profiles/' . $profileId . '/schedules/' . $scheduleId)
+            ->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
+    }
+
+    // ---- parental controls (tags) ---------------------------------------
+
+    /**
+     * List a profile's tags. Like the schedules endpoint, the tag controller
+     * returns data at the TOP LEVEL with NO envelope, so the list is read straight
+     * from `$body['tags']`. A non-list payload yields an empty list.
+     *
+     * @return PromiseInterface<list<ProfileTag>>
+     */
+    public function profileTags(int $profileId): PromiseInterface
+    {
+        return $this->api->send('GET', '/api/v1/profiles/' . $profileId . '/tags')
+            ->then(static function (array $body): array {
+                return self::mapList(
+                    $body['tags'] ?? null,
+                    static fn (array $row): ProfileTag => ProfileTag::fromArray($row),
+                );
+            });
+    }
+
+    /**
+     * Add a tag to a profile. The body is `{tag, type}` (`type` is `blocked` or
+     * `allowed`); on 201 the server returns `{tag_id, message}` and this resolves
+     * the `message`. Rejects with the server `error` on a 400 (validation) —
+     * the {@see \Phlix\Console\Api\ApiError} carries it as the exception message.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function addProfileTag(int $profileId, string $tag, string $tagType): PromiseInterface
+    {
+        return $this->api->send('POST', '/api/v1/profiles/' . $profileId . '/tags', [], [
+            'tag' => $tag,
+            'type' => $tagType,
+        ])->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
+    }
+
+    /**
+     * Remove a tag from a profile. Resolves the server `message`; rejects with
+     * the server `error` on a 404.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function deleteProfileTag(int $profileId, int $tagId): PromiseInterface
+    {
+        return $this->api->send('DELETE', '/api/v1/profiles/' . $profileId . '/tags/' . $tagId)
+            ->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
+    }
+
+    // ---- parental controls (stream limits) ------------------------------
+
+    /**
+     * Get a profile's stream limits. The response shape is
+     * `{stream_limits: {max_concurrent_streams, max_total_bandwidth_kbps}}`.
+     *
+     * @return PromiseInterface<ProfileStreamLimit>
+     */
+    public function profileStreamLimits(int $profileId): PromiseInterface
+    {
+        return $this->api->send('GET', '/api/v1/profiles/' . $profileId . '/stream-limits')
+            ->then(static fn (array $body): ProfileStreamLimit => ProfileStreamLimit::fromArray(
+                Coerce::map($body['stream_limits'] ?? null),
+            ));
+    }
+
+    /**
+     * Update a profile's stream limits. The body is `{max_concurrent_streams}` and
+     * optionally `{max_total_bandwidth_kbps}`; on 200 the server returns
+     * `{stream_limits, message}` and this resolves the `message`. Rejects with the
+     * server `error` on a 400 (validation) — the {@see \Phlix\Console\Api\ApiError}
+     * carries it as the exception message.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function updateProfileStreamLimits(int $profileId, int $maxConcurrentStreams, ?int $maxTotalBandwidthKbps = null): PromiseInterface
+    {
+        $body = ['max_concurrent_streams' => $maxConcurrentStreams];
+        if ($maxTotalBandwidthKbps !== null) {
+            $body['max_total_bandwidth_kbps'] = $maxTotalBandwidthKbps;
+        }
+
+        return $this->api->send('PUT', '/api/v1/profiles/' . $profileId . '/stream-limits', [], $body)
             ->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
     }
 
