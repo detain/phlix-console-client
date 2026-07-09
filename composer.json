@@ -29,7 +29,8 @@
         "sugarcraft/sugar-reel": "dev-master",
         "sugarcraft/sugar-table": "dev-master",
         "sugarcraft/sugar-toast": "dev-master",
-        "sugarcraft/sugar-veil": "dev-master"
+        "sugarcraft/sugar-veil": "dev-master",
+        "workerman/workerman": "^5.0"
     },
     "require-dev": {
         "phpstan/phpstan": "^2.0",

@@ -13,8 +13,13 @@ use Phlix\Console\Api\Dto\Rendition;
 use Phlix\Console\Api\Dto\StreamAudioTrack;
 use Phlix\Console\Api\Dto\StreamSubtitleTrack;
 use Phlix\Console\Api\Dto\SubtitleTrack;
+use Phlix\Console\Api\Dto\SyncPlayPlaybackCommand;
+use Phlix\Console\Api\Dto\SyncPlayRoom;
+use Phlix\Console\Api\Dto\SyncPlayUser;
 use Phlix\Console\Api\Dto\TranscodeJob;
 use Phlix\Console\Api\MediaQuery;
+use Phlix\Console\Api\SyncPlay\SyncPlayService;
+use Phlix\Console\App;
 use Phlix\Console\Config\Config;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenRecommendationsMsg;
@@ -28,6 +33,13 @@ use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\SessionStartedMsg;
 use Phlix\Console\Msg\SiblingsLoadedMsg;
 use Phlix\Console\Msg\SubtitleVttLoadedMsg;
+use Phlix\Console\Msg\SyncPlayFailedMsg;
+use Phlix\Console\Msg\SyncPlayJoinedMsg;
+use Phlix\Console\Msg\SyncPlayLeftMsg;
+use Phlix\Console\Msg\SyncPlayMemberJoinedMsg;
+use Phlix\Console\Msg\SyncPlayMemberLeftMsg;
+use Phlix\Console\Msg\SyncPlayPlaybackCommandMsg;
+use Phlix\Console\Msg\SyncPlayRoomsLoadedMsg;
 use Phlix\Console\Msg\TranscodePollMsg;
 use Phlix\Console\Msg\TranscodeStartedMsg;
 use Phlix\Console\Msg\TranscodeStatusMsg;
@@ -37,6 +49,8 @@ use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\QualityMenu;
 use Phlix\Console\Ui\SubtitleTrackList;
 use Phlix\Console\Ui\Scrubber;
+use Phlix\Console\Ui\SyncPlayModal;
+use Phlix\Console\Ui\SyncPlayOverlay;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Model;
@@ -176,6 +190,16 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     private ?SubtitleTrackList $subtitleTrackMenu = null;
     /** A one-shot seek (seconds) to re-apply once a quality-switch rebuild becomes ready. */
     private ?float $pendingSeek = null;
+    /** The SyncPlay service for group playback sync, or null when not available. */
+    private ?SyncPlayService $syncPlayService = null;
+    /** The open SyncPlay modal, or null when closed. */
+    private ?SyncPlayModal $syncPlayModal = null;
+    /** The current SyncPlay room name for overlay display, or null when not in a room. */
+    private ?string $syncPlayRoomName = null;
+    /** The current SyncPlay member count for overlay display. */
+    private int $syncPlayMemberCount = 0;
+    /** The current SyncPlay sync status for overlay display. */
+    private string $syncPlayStatus = 'Not in room';
 
     /**
      * @param \Closure(string $url, int $cols, int $rows): Player $playerFactory
@@ -189,7 +213,9 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         private readonly \Closure $playerFactory,
         private int $cols = 80,
         private int $rows = 24,
+        ?SyncPlayService $syncPlayService = null,
     ) {
+        $this->syncPlayService = $syncPlayService;
     }
 
     /**
@@ -285,6 +311,27 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         if ($msg instanceof SessionStartedMsg) {
             return $this->onSessionStarted($msg->sessionId);
         }
+        if ($msg instanceof SyncPlayRoomsLoadedMsg) {
+            return $this->onSyncPlayRoomsLoaded($msg->rooms);
+        }
+        if ($msg instanceof SyncPlayJoinedMsg) {
+            return $this->onSyncPlayJoined($msg->room);
+        }
+        if ($msg instanceof SyncPlayLeftMsg) {
+            return $this->onSyncPlayLeft();
+        }
+        if ($msg instanceof SyncPlayFailedMsg) {
+            return $this->onSyncPlayFailed($msg->reason);
+        }
+        if ($msg instanceof SyncPlayMemberJoinedMsg) {
+            return $this->onSyncPlayMemberJoined($msg->member);
+        }
+        if ($msg instanceof SyncPlayMemberLeftMsg) {
+            return $this->onSyncPlayMemberLeft($msg->memberId);
+        }
+        if ($msg instanceof SyncPlayPlaybackCommandMsg) {
+            return $this->onSyncPlayPlaybackCommand($msg->command);
+        }
         if ($msg instanceof ProgressTickMsg) {
             return $this->onProgressTick();
         }
@@ -313,6 +360,33 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         // The quality picker dims + centres its box over the current frame.
         if ($this->qualityMenu !== null) {
             return $this->qualityMenu->render($base);
+        }
+        // The SyncPlay modal (create/join room).
+        if ($this->syncPlayModal !== null) {
+            $withOverlay = SyncPlayOverlay::render(
+                $base,
+                $this->syncPlayRoomName,
+                $this->syncPlayMemberCount,
+                $this->syncPlayStatus,
+                $this->cols,
+                $this->rows,
+                $this->theme(),
+            );
+
+            return $this->syncPlayModal->render($withOverlay);
+        }
+
+        // SyncPlay overlay when in a room (but modal not open).
+        if ($this->syncPlayService?->isInRoom() === true) {
+            return SyncPlayOverlay::render(
+                $base,
+                $this->syncPlayRoomName,
+                $this->syncPlayMemberCount,
+                $this->syncPlayStatus,
+                $this->cols,
+                $this->rows,
+                $this->theme(),
+            );
         }
 
         return $base;
@@ -922,6 +996,11 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     /** @return array{self, ?\Closure} */
     private function handleKey(KeyMsg $msg): array
     {
+        // While the SyncPlay modal is open it captures every keystroke.
+        if ($this->syncPlayModal !== null) {
+            return $this->handleSyncPlayKey($this->syncPlayModal, $msg);
+        }
+
         // While the audio track picker is open it captures every keystroke.
         if ($this->audioTrackMenu !== null) {
             return $this->handleAudioTrackKey($this->audioTrackMenu, $msg);
@@ -1020,6 +1099,11 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         // W → open the "For You" recommendations screen.
         if ($msg->type === KeyType::Char && ($msg->rune === 'w' || $msg->rune === 'W')) {
             return [$this, Cmd::send(new OpenRecommendationsMsg())];
+        }
+
+        // Y → open the SyncPlay modal (create/join room).
+        if ($msg->type === KeyType::Char && ($msg->rune === 'y' || $msg->rune === 'Y')) {
+            return $this->openSyncPlayModal();
         }
 
         // Everything else the inner player handles (Space, [ , ] , m, 0–9) → forward.
@@ -1299,6 +1383,295 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         return [$next, null];
     }
 
+    // ---- SyncPlay modal -------------------------------------------------
+
+    /**
+     * Open the SyncPlay modal, loading public rooms first.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function openSyncPlayModal(): array
+    {
+        $next = clone $this;
+        $next->syncPlayModal = SyncPlayModal::open([], $this->cols, $this->rows);
+
+        // Load public rooms asynchronously - returns a Cmd that resolves to a Msg
+        $loadRooms = Cmd::promise(
+            fn (): PromiseInterface => $this->api->listSyncPlayRooms()->then(
+                static fn (array $rooms): Msg => new SyncPlayRoomsLoadedMsg($rooms),
+                static fn (\Throwable $e): Msg => new SyncPlayFailedMsg('Failed to load rooms: ' . $e->getMessage()),
+            ),
+        );
+
+        return [$next, $loadRooms];
+    }
+
+    /**
+     * Drive the open SyncPlay modal: ↑/↓ move, Enter picks, Esc / q dismisses.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function handleSyncPlayKey(SyncPlayModal $menu, KeyMsg $msg): array
+    {
+        // Escape or q → close the modal
+        if ($msg->type === KeyType::Escape
+            || ($msg->type === KeyType::Char && ($msg->rune === 'q' || $msg->rune === 'Q'))) {
+            // If in creation state (state=1), go back to list; otherwise close
+            if ($menu->state() === 1) {
+                $next = clone $this;
+                $next->syncPlayModal = $menu->cancel();
+
+                return [$next, null];
+            }
+            $next = clone $this;
+            $next->syncPlayModal = null;
+
+            return [$next, null];
+        }
+
+        // ← → in creation state: toggle public/private
+        if (($msg->type === KeyType::Char && ($msg->rune === 'p' || $msg->rune === 'P'))
+            && $menu->state() === 1) {
+            $next = clone $this;
+            $next->syncPlayModal = $menu->togglePublic();
+
+            return [$next, null];
+        }
+
+        // Up/Down navigation in list state
+        if ($menu->state() === 0) {
+            if ($msg->type === KeyType::Up) {
+                $next = clone $this;
+                $next->syncPlayModal = $menu->up();
+
+                return [$next, null];
+            }
+            if ($msg->type === KeyType::Down) {
+                $next = clone $this;
+                $next->syncPlayModal = $menu->down();
+
+                return [$next, null];
+            }
+        }
+
+        // Enter: select current item
+        if ($msg->type === KeyType::Enter) {
+            [$modalAfterSelect, $action] = $menu->select();
+
+            $next = clone $this;
+            $next->syncPlayModal = $modalAfterSelect;
+
+            if ($action === null) {
+                return [$next, null];
+            }
+
+            if ($action === 'create') {
+                // Create a new room
+                $roomName = $modalAfterSelect->roomName() ?? '';
+                $isPublic = $modalAfterSelect->isPublic();
+                $next->syncPlayModal = $modalAfterSelect->joining();
+
+                // Return a Cmd::promise that resolves to SyncPlayJoinedMsg or SyncPlayFailedMsg
+                $createCmd = Cmd::promise(
+                    fn (): PromiseInterface => $this->api->createSyncPlayRoom($roomName, $isPublic)->then(
+                        static function ($session) use ($roomName, $isPublic): Msg {
+                            return new SyncPlayJoinedMsg(new SyncPlayRoom(
+                                $session->roomId,
+                                $roomName,
+                                $isPublic,
+                                1,
+                            ));
+                        },
+                        static fn (\Throwable $e): Msg => new SyncPlayFailedMsg('Failed to create room: ' . $e->getMessage()),
+                    ),
+                );
+
+                return [$next, $createCmd];
+            }
+
+            // Joining a room
+            $joinCmd = Cmd::promise(
+                fn (): PromiseInterface => $this->api->joinSyncPlayRoom($action)->then(
+                    static function ($session): Msg {
+                        return new SyncPlayJoinedMsg(new SyncPlayRoom(
+                            $session->roomId,
+                            'Room',
+                            true,
+                            1,
+                        ));
+                    },
+                    static fn (\Throwable $e): Msg => new SyncPlayFailedMsg('Failed to join room: ' . $e->getMessage()),
+                ),
+            );
+
+            return [$next, $joinCmd];
+        }
+
+        // Backspace in creation state
+        if ($msg->type === KeyType::Backspace && $menu->state() === 1) {
+            $next = clone $this;
+            $next->syncPlayModal = $menu->backspace();
+
+            return [$next, null];
+        }
+
+        // Regular characters in creation state: append to room name
+        if ($msg->type === KeyType::Char && $menu->state() === 1) {
+            $next = clone $this;
+            $next->syncPlayModal = $menu->appendChar($msg->rune);
+
+            return [$next, null];
+        }
+
+        // Any other key in error state: dismiss
+        if ($menu->state() === 3) {
+            $next = clone $this;
+            $next->syncPlayModal = null;
+
+            return [$next, null];
+        }
+
+        return [$this, null];
+    }
+
+    // ---- SyncPlay message handlers --------------------------------------
+
+    /**
+     * Handle rooms list loaded - update the modal with rooms.
+     *
+     * @param list<SyncPlayRoom> $rooms
+     * @return array{self, ?\Closure}
+     */
+    private function onSyncPlayRoomsLoaded(array $rooms): array
+    {
+        if ($this->syncPlayModal === null) {
+            return [$this, null];
+        }
+
+        $next = clone $this;
+        $next->syncPlayModal = SyncPlayModal::open($rooms, $this->cols, $this->rows);
+
+        return [$next, null];
+    }
+
+    /**
+     * Handle successful room join - close modal and show overlay.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function onSyncPlayJoined(SyncPlayRoom $room): array
+    {
+        $next = clone $this;
+        $next->syncPlayModal = null;
+        $next->syncPlayRoomName = $room->name;
+        $next->syncPlayMemberCount = $room->memberCount;
+        $next->syncPlayStatus = 'Connecting...';
+
+        // Start SyncPlay service if available
+        if ($this->syncPlayService !== null) {
+            $this->syncPlayService->joinRoom($room->id);
+        }
+
+        return [$next, null];
+    }
+
+    /** @return array{self, ?\Closure} */
+    private function onSyncPlayLeft(): array
+    {
+        $next = clone $this;
+        $next->syncPlayModal = null;
+        $next->syncPlayRoomName = null;
+        $next->syncPlayMemberCount = 0;
+        $next->syncPlayStatus = 'Not in room';
+
+        // Stop SyncPlay service if available
+        if ($this->syncPlayService !== null) {
+            $this->syncPlayService->leaveRoom();
+        }
+
+        return [$next, null];
+    }
+
+    /**
+     * Handle SyncPlay failure - show error in modal or close and toast.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function onSyncPlayFailed(string $reason): array
+    {
+        if ($this->syncPlayModal !== null) {
+            $next = clone $this;
+            $next->syncPlayModal = $this->syncPlayModal->withError($reason);
+
+            return [$next, null];
+        }
+
+        // If modal not open, just log - could show a toast here
+        return [$this, null];
+    }
+
+    /**
+     * Handle member joined - update member count.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function onSyncPlayMemberJoined(SyncPlayUser $member): array
+    {
+        $next = clone $this;
+        $next->syncPlayMemberCount = $this->syncPlayService?->getMemberCount() ?? ($this->syncPlayMemberCount + 1);
+        $next->syncPlayStatus = $this->syncPlayService?->getSyncStatus() ?? 'Synced';
+
+        return [$next, null];
+    }
+
+    /**
+     * Handle member left - update member count.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function onSyncPlayMemberLeft(string $memberId): array
+    {
+        $next = clone $this;
+        $next->syncPlayMemberCount = max(1, ($this->syncPlayService?->getMemberCount() ?? $this->syncPlayMemberCount) - 1);
+        $next->syncPlayStatus = $this->syncPlayService?->getSyncStatus() ?? 'Synced';
+
+        return [$next, null];
+    }
+
+    /**
+     * Handle playback command from SyncPlay host - pause/play/seek the player.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function onSyncPlayPlaybackCommand(SyncPlayPlaybackCommand $command): array
+    {
+        if ($this->inner === null) {
+            return [$this, null];
+        }
+
+        $next = clone $this;
+        $positionSeconds = $command->position / 1000.0;
+
+        switch ($command->type) {
+            case 'pause':
+                $next->inner = $this->inner->pause();
+                $next->syncPlayStatus = 'Paused';
+                break;
+
+            case 'play':
+                $next->inner = $this->inner->play();
+                $next->syncPlayStatus = 'Synced';
+                break;
+
+            case 'seek':
+                $next->inner = $this->inner->seekToSeconds($positionSeconds);
+                $next->syncPlayStatus = 'Synced';
+                break;
+        }
+
+        return [$next, null];
+    }
+
     /** @return array{self, ?\Closure} */
     private function onResize(int $cols, int $rows): array
     {
@@ -1313,6 +1686,9 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         }
         if ($this->qualityMenu !== null) {
             $next->qualityMenu = $this->qualityMenu->resizedTo($cols, $rows);
+        }
+        if ($this->syncPlayModal !== null) {
+            $next->syncPlayModal = $this->syncPlayModal->resizedTo($cols, $rows);
         }
 
         if ($this->inner !== null) {
@@ -1622,5 +1998,30 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     public function isSubtitleTrackMenuOpen(): bool
     {
         return $this->subtitleTrackMenu !== null;
+    }
+
+    public function syncPlayModal(): ?SyncPlayModal
+    {
+        return $this->syncPlayModal;
+    }
+
+    public function isSyncPlayModalOpen(): bool
+    {
+        return $this->syncPlayModal !== null;
+    }
+
+    public function syncPlayRoomName(): ?string
+    {
+        return $this->syncPlayRoomName;
+    }
+
+    public function syncPlayMemberCount(): int
+    {
+        return $this->syncPlayMemberCount;
+    }
+
+    public function syncPlayStatus(): string
+    {
+        return $this->syncPlayStatus;
     }
 }
