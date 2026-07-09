@@ -43,6 +43,7 @@ use Phlix\Console\Msg\OpenPhotoMsg;
 use Phlix\Console\Msg\OpenSearchMsg;
 use Phlix\Console\Msg\OpenSettingsMsg;
 use Phlix\Console\Msg\OpenStatsMsg;
+use Phlix\Console\Msg\OpenRecommendationsMsg;
 use Phlix\Console\Msg\PaletteLibrariesLoadedMsg;
 use Phlix\Console\Msg\PlayAudiobookMsg;
 use Phlix\Console\Msg\PlayNextMsg;
@@ -100,6 +101,7 @@ use Phlix\Console\Screen\ServerScreen;
 use Phlix\Console\Screen\SettingsScreen;
 use Phlix\Console\Screen\Shimmering;
 use Phlix\Console\Screen\StatsScreen;
+use Phlix\Console\Screen\RecommendationsScreen;
 use Phlix\Console\Screen\Teardownable;
 use Phlix\Console\Screen\Themed;
 use Phlix\Console\Store\AudiobooksStore;
@@ -347,6 +349,9 @@ final class App implements Model
         }
         if ($msg instanceof OpenStatsMsg) {
             return $this->openStats();
+        }
+        if ($msg instanceof OpenRecommendationsMsg) {
+            return $this->openRecommendations();
         }
         if ($msg instanceof OpenAdminMsg) {
             return $this->openAdmin();
@@ -1202,6 +1207,14 @@ final class App implements Model
         $screen = new StatsScreen($this->libraries, $this->cols, $this->rows);
 
         return [$this->push(Route::Stats, $screen), $screen->init()];
+    }
+
+    /** @return array{App, ?\Closure} */
+    private function openRecommendations(): array
+    {
+        $screen = new RecommendationsScreen($this->api, $this->cols, $this->rows);
+
+        return [$this->push(Route::Recommendations, $screen), $screen->init()];
     }
 
     /**
