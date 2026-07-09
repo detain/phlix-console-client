@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Phlix\Console\Store;
 
 use Phlix\Console\Api\ApiClient;
+use Phlix\Console\Api\Dto\Chapter;
 use Phlix\Console\Api\Dto\ContinueWatchingItem;
 use Phlix\Console\Api\Dto\LetterIndex;
 use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\Dto\MediaPage;
+use Phlix\Console\Api\Dto\MediaRatings;
 use Phlix\Console\Api\MediaQuery;
 use React\Promise\Deferred;
 use React\Promise\PromiseInterface;
@@ -37,6 +39,18 @@ final class MediaStore
 
     /** @var array<string, PromiseInterface<MediaItem>>  item id → in-flight detail fetch */
     private array $itemsInFlight = [];
+
+    /** @var array<string, array{ratings: MediaRatings, at: float}>  item id → cached ratings */
+    private array $ratings = [];
+
+    /** @var array<string, PromiseInterface<MediaRatings>>  item id → in-flight ratings fetch */
+    private array $ratingsInFlight = [];
+
+    /** @var array<string, array{chapters: list<Chapter>, at: float}>  item id → cached chapters */
+    private array $chapters = [];
+
+    /** @var array<string, PromiseInterface<list<Chapter>>>  item id → in-flight chapters fetch */
+    private array $chaptersInFlight = [];
 
     /** @var array{items: list<ContinueWatchingItem>, at: float}|null */
     private ?array $continue = null;
@@ -133,6 +147,80 @@ final class MediaStore
     }
 
     /**
+     * Fetch all ratings for a media item (TMDB, IMDb, user, aggregated).
+     * TTL-cached and de-duplicated like {@see item()}.
+     *
+     * @return PromiseInterface<MediaRatings>
+     */
+    public function ratings(string $id, bool $force = false): PromiseInterface
+    {
+        $now = ($this->clock)();
+
+        if (!$force && isset($this->ratings[$id]) && ($now - $this->ratings[$id]['at']) < $this->ttl) {
+            return resolve($this->ratings[$id]['ratings']);
+        }
+
+        if (isset($this->ratingsInFlight[$id])) {
+            return $this->ratingsInFlight[$id];
+        }
+
+        /** @var Deferred<MediaRatings> $deferred */
+        $deferred = new Deferred();
+        $this->ratingsInFlight[$id] = $deferred->promise();
+
+        $this->api->mediaRatings($id)->then(
+            function (MediaRatings $mediaRatings) use ($id, $now, $deferred): void {
+                $this->ratings[$id] = ['ratings' => $mediaRatings, 'at' => $now];
+                unset($this->ratingsInFlight[$id]);
+                $deferred->resolve($mediaRatings);
+            },
+            function (\Throwable $error) use ($id, $deferred): void {
+                unset($this->ratingsInFlight[$id]);
+                $deferred->reject($error);
+            },
+        );
+
+        return $deferred->promise();
+    }
+
+    /**
+     * Fetch the chapter list for a media item (movie/episode).
+     * TTL-cached and de-duplicated like {@see item()}.
+     *
+     * @return PromiseInterface<list<Chapter>>
+     */
+    public function chapters(string $id, bool $force = false): PromiseInterface
+    {
+        $now = ($this->clock)();
+
+        if (!$force && isset($this->chapters[$id]) && ($now - $this->chapters[$id]['at']) < $this->ttl) {
+            return resolve($this->chapters[$id]['chapters']);
+        }
+
+        if (isset($this->chaptersInFlight[$id])) {
+            return $this->chaptersInFlight[$id];
+        }
+
+        /** @var Deferred<list<Chapter>> $deferred */
+        $deferred = new Deferred();
+        $this->chaptersInFlight[$id] = $deferred->promise();
+
+        $this->api->mediaChapters($id)->then(
+            function (array $chapters) use ($id, $now, $deferred): void {
+                $this->chapters[$id] = ['chapters' => $chapters, 'at' => $now];
+                unset($this->chaptersInFlight[$id]);
+                $deferred->resolve($chapters);
+            },
+            function (\Throwable $error) use ($id, $deferred): void {
+                unset($this->chaptersInFlight[$id]);
+                $deferred->reject($error);
+            },
+        );
+
+        return $deferred->promise();
+    }
+
+    /**
      * Fetch the page(s) covering the absolute-index window [$start, $end] and
      * resolve the items keyed by their ABSOLUTE index, plus the total. Pages are
      * TTL-cached and de-duplicated, so the grid can call this freely on scroll.
@@ -220,6 +308,10 @@ final class MediaStore
         $this->letterIndexes = [];
         $this->items = [];
         $this->itemsInFlight = [];
+        $this->ratings = [];
+        $this->ratingsInFlight = [];
+        $this->chapters = [];
+        $this->chaptersInFlight = [];
         $this->continue = null;
     }
 
