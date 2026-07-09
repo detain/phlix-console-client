@@ -178,12 +178,13 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
     /**
      * Map an action promise to the shared done/failed flow.
      *
+     * @param PromiseInterface<mixed> $promise
      * @return array{self, ?\Closure}
      */
     private function actionCmd(PromiseInterface $promise, string $fallback): array
     {
         return [$this, Cmd::promise(static fn (): PromiseInterface => $promise->then(
-            static fn (string $message): Msg => new ParentalActionDoneMsg($message === '' ? $fallback : $message),
+            static fn (mixed $message): Msg => new ParentalActionDoneMsg(is_string($message) ? ($message === '' ? $fallback : $message) : $fallback),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(self::SESSION_EXPIRED)
                 : ShowToastMsg::error(($e instanceof \Phlix\Console\Api\ApiError) ? $e->getMessage() : 'Action failed.'),
@@ -259,10 +260,10 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
         if ($msg->type === KeyType::Escape || ($msg->type === KeyType::Char && $msg->rune === 'q')) {
             return [$this, Cmd::send(new NavigateBackMsg())];
         }
-        if ($msg->type === KeyType::Left || ($msg->type === KeyType::Char && $msg->rune === "\t" && !$msg->shiftKey && $this->form === null)) {
+        if ($msg->type === KeyType::Left || ($msg->type === KeyType::Char && $msg->rune === "\t" && !$msg->shift && $this->form === null)) {
             return [$this->moveSection(-1), null];
         }
-        if ($msg->type === KeyType::Right || ($msg->type === KeyType::Char && $msg->rune === "\t" && $msg->shiftKey && $this->form === null)) {
+        if ($msg->type === KeyType::Right || ($msg->type === KeyType::Char && $msg->rune === "\t" && $msg->shift && $this->form === null)) {
             return [$this->moveSection(1), null];
         }
         if ($msg->type === KeyType::Up) {
@@ -332,11 +333,11 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
                 self::ACTION_DELETE_SCHEDULE => [$this->working(), $this->actionCmd(
                     $this->admin->deleteProfileSchedule((int) $this->profileId, $this->pendingId ?? 0),
                     'Schedule deleted',
-                )],
+                )[1]],
                 self::ACTION_DELETE_TAG => [$this->working(), $this->actionCmd(
                     $this->admin->deleteProfileTag((int) $this->profileId, $this->pendingId ?? 0),
                     'Tag removed',
-                )],
+                )[1]],
                 default => [$this, null],
             };
         }
@@ -365,7 +366,7 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
         }
         if ($next->isSubmitted()) {
             return match ($this->section) {
-                'schedules' => $this->editing !== null
+                'schedules' => $this->editing instanceof AccessSchedule
                     ? $this->submitScheduleEdit($next, $this->editing)
                     : $this->submitScheduleCreate($next),
                 'tags' => $this->submitTagCreate($next),
@@ -394,7 +395,7 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
         return [$this->closeForm()->working(), $this->actionCmd(
             $this->admin->createProfileSchedule((int) $this->profileId, $name, $startTime, $endTime, $days, $isActive),
             'Schedule created',
-        )];
+        )[1]];
     }
 
     /** @return array{self, ?\Closure} */
@@ -422,7 +423,7 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
                 static fn (): PromiseInterface => $admin->createProfileSchedule((int) $profileId, $name, $startTime, $endTime, $days, $isActive),
             ),
             'Schedule updated',
-        )];
+        )[1]];
     }
 
     /** @return array{self, ?\Closure} */
@@ -441,7 +442,7 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
         return [$this->closeForm()->working(), $this->actionCmd(
             $this->admin->addProfileTag((int) $this->profileId, $tag, $tagType),
             'Tag added',
-        )];
+        )[1]];
     }
 
     /** @return array{self, ?\Closure} */
@@ -470,21 +471,21 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
         return [$this->closeForm()->working(), $this->actionCmd(
             $this->admin->updateProfileStreamLimits((int) $this->profileId, $maxStreams, $maxBandwidth),
             'Stream limits updated',
-        )];
+        )[1]];
     }
 
     // ---- form builders -------------------------------------------------
 
     private static function buildScheduleForm(?AccessSchedule $schedule = null): Form
     {
-        $startTime = $schedule?->startTime ?? '08:00:00';
-        $endTime = $schedule?->endTime ?? '22:00:00';
-        $daysOfWeek = $schedule?->daysOfWeek ?? ['mon', 'tue', 'wed', 'thu', 'fri'];
+        $startTime = $schedule->startTime ?? '08:00:00';
+        $endTime = $schedule->endTime ?? '22:00:00';
+        $daysOfWeek = $schedule->daysOfWeek ?? ['mon', 'tue', 'wed', 'thu', 'fri'];
 
         return Form::new(
             Input::new('name')
                 ->withTitle('Name')
-                ->withValue($schedule?->name ?? '')
+                ->withValue($schedule->name ?? '')
                 ->withPlaceholder('e.g. Weekday Evenings'),
             Input::new('startTime')
                 ->withTitle('Start time (HH:MM:SS)')
@@ -498,7 +499,7 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
             Select::new('isActive')
                 ->withTitle('Active')
                 ->withOptions('Yes', 'No')
-                ->withSelectedIndex(($schedule?->isActive ?? true) ? 0 : 1),
+                ->withSelectedIndex(($schedule->isActive ?? true) ? 0 : 1),
         );
     }
 
@@ -520,7 +521,7 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
         return Form::new(
             Input::new('maxConcurrentStreams')
                 ->withTitle('Max concurrent streams')
-                ->withValue((string) ($limit?->maxConcurrentStreams ?? 1)),
+                ->withValue((string) ($limit->maxConcurrentStreams ?? 1)),
             Input::new('maxTotalBandwidthKbps')
                 ->withTitle('Max total bandwidth (Kbps, optional)')
                 ->withValue($limit?->maxTotalBandwidthKbps !== null ? (string) $limit->maxTotalBandwidthKbps : ''),
@@ -537,6 +538,9 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
         return array_values(array_filter($parts, static fn (string $d): bool => in_array(strtolower($d), $validDays, true)));
     }
 
+    /**
+     * @param list<string> $days
+     */
     private static function validateSchedule(string $name, string $startTime, string $endTime, array $days): ?string
     {
         if ($name === '') {
@@ -581,7 +585,9 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
 
     // ---- clone-mutate copies -------------------------------------------
 
-    /** @param list<AccessSchedule> $schedules */
+    /**
+     * @param list<AccessSchedule> $schedules
+     */
     private function withSchedules(array $schedules): self
     {
         $next = clone $this;
@@ -596,7 +602,9 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
         return $next;
     }
 
-    /** @param list<ProfileTag> $tags */
+    /**
+     * @param list<ProfileTag> $tags
+     */
     private function withTags(array $tags): self
     {
         $next = clone $this;
@@ -711,6 +719,9 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
         return $next;
     }
 
+    /**
+     * @param list<string> $days
+     */
     private function reopenEdit(AccessSchedule $schedule, string $name, string $startTime, string $endTime, array $days, bool $isActive, string $error): self
     {
         $form = Form::new(
@@ -774,7 +785,7 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
     private function moveSelection(int $delta): self
     {
         $items = $this->currentItems();
-        $count = count($items);
+        $count = is_array($items) ? count($items) : 0;
         if ($count === 0) {
             return $this;
         }
@@ -785,7 +796,7 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
             return $this;
         }
         $next = clone $this;
-        $next->selected[$currentKey] = $selected;
+        $next->selected[$currentKey] = (int) $selected;
 
         return $next;
     }
@@ -828,7 +839,7 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
         $tabs = [];
         foreach (self::SECTIONS as $section) {
             $label = self::SECTION_LABELS[$section];
-            $hint = self::SECTION_HINTS[$section] ?? '';
+            $hint = self::SECTION_HINTS[$section];
             $prefix = $section === $this->section ? '▶ ' : '  ';
 
             $tabs[] = $prefix . $label . '   [' . $hint . ']';
@@ -907,7 +918,7 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
         }
 
         $limit = $this->streamLimits;
-        $maxStreams = $limit?->maxConcurrentStreams ?? 'Not set';
+        $maxStreams = $limit->maxConcurrentStreams ?? 'Not set';
         $maxBandwidth = $limit?->maxTotalBandwidthKbps;
 
         $lines = [
@@ -1017,15 +1028,15 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
 
 // ---- message classes -------------------------------------------------
 
-/** @param list<AccessSchedule> $schedules */
 final readonly class ParentalSchedulesLoadedMsg implements Msg
 {
+    /** @param list<AccessSchedule> $schedules */
     public function __construct(public array $schedules) {}
 }
 
-/** @param list<ProfileTag> $tags */
 final readonly class ParentalTagsLoadedMsg implements Msg
 {
+    /** @param list<ProfileTag> $tags */
     public function __construct(public array $tags) {}
 }
 
