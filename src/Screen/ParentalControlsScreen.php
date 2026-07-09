@@ -932,8 +932,7 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
             $item = $this->selectedItem();
             $label = $item !== null ? match (true) {
                 $item instanceof AccessSchedule => "'{$item->name}'",
-                $item instanceof ProfileTag => "'{$item->tag}'",
-                default => 'this item',
+                default => "'{$item->tag}'",
             } : 'this item';
 
             return $this->pendingAction === self::ACTION_DELETE_SCHEDULE
@@ -949,19 +948,18 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
 
     private function formBody(Form $form): string
     {
-        $intro = $this->section === 'streamLimits'
-            ? 'Update stream limits for this profile.'
-            : ($this->editing !== null
-                ? match (true) {
-                    $this->editing instanceof AccessSchedule => "Edit schedule '{$this->editing->name}'.",
-                    $this->editing instanceof ProfileTag => "Edit tag '{$this->editing->tag}'.",
-                    default => 'Edit item.',
-                }
-                : 'Create a new ' . match ($this->section) {
-                    'schedules' => 'access schedule',
-                    'tags' => 'tag',
-                    default => 'item',
-                } . ' for this profile.');
+            $intro = $this->section === 'streamLimits'
+                ? 'Update stream limits for this profile.'
+                : ($this->editing !== null
+                    ? match (true) {
+                        $this->editing instanceof AccessSchedule => "Edit schedule '{$this->editing->name}'.",
+                        default => "Edit tag '{$this->editing->tag}'.",
+                    }
+                    : 'Create a new ' . match ($this->section) {
+                        'schedules' => 'access schedule',
+                        'tags' => 'tag',
+                        default => 'item',
+                    } . ' for this profile.');
 
         $lines = [$intro];
         if ($this->formError !== null) {
