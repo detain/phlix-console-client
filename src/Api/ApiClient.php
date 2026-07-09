@@ -26,6 +26,8 @@ use Phlix\Console\Api\Dto\PlaybackInfo;
 use Phlix\Console\Api\Dto\PlaybackMarkers;
 use Phlix\Console\Api\Dto\Rating;
 use Phlix\Console\Api\Dto\SubtitleTrack;
+use Phlix\Console\Api\Dto\SyncPlayRoom;
+use Phlix\Console\Api\Dto\SyncPlaySession;
 use Phlix\Console\Api\Dto\TranscodeJob;
 use Phlix\Console\Config\TokenBundle;
 use Psr\Http\Message\ResponseInterface;
@@ -607,6 +609,62 @@ final class ApiClient
         return $this->authed('POST', '/api/v1/media/' . rawurlencode($id) . '/ratings', [], [
             'score' => $score,
         ])->then(static fn (array $data): bool => true);
+    }
+
+    // ---- SyncPlay ------------------------------------------------------
+
+    /**
+     * Create a new SyncPlay room.
+     *
+     * @return PromiseInterface<SyncPlaySession>
+     */
+    public function createSyncPlayRoom(string $name, bool $isPublic = true): PromiseInterface
+    {
+        return $this->authed('POST', '/api/v1/syncplay/rooms', [], [
+            'name' => $name,
+            'is_public' => $isPublic,
+        ])->then(static fn (array $data): SyncPlaySession => SyncPlaySession::fromArray($data));
+    }
+
+    /**
+     * List all public SyncPlay rooms.
+     *
+     * @return PromiseInterface<list<SyncPlayRoom>>
+     */
+    public function listSyncPlayRooms(): PromiseInterface
+    {
+        return $this->authed('GET', '/api/v1/syncplay/rooms')->then(static function (array $data): array {
+            $rooms = [];
+            foreach (Coerce::map($data['rooms'] ?? null) as $row) {
+                if (is_array($row)) {
+                    $rooms[] = SyncPlayRoom::fromArray($row);
+                }
+            }
+
+            return $rooms;
+        });
+    }
+
+    /**
+     * Join an existing SyncPlay room.
+     *
+     * @return PromiseInterface<SyncPlaySession>
+     */
+    public function joinSyncPlayRoom(string $roomId): PromiseInterface
+    {
+        return $this->authed('POST', '/api/v1/syncplay/rooms/' . rawurlencode($roomId) . '/join')
+            ->then(static fn (array $data): SyncPlaySession => SyncPlaySession::fromArray($data));
+    }
+
+    /**
+     * Leave the current SyncPlay room.
+     *
+     * @return PromiseInterface<bool>
+     */
+    public function leaveSyncPlayRoom(string $roomId): PromiseInterface
+    {
+        return $this->authed('DELETE', '/api/v1/syncplay/rooms/' . rawurlencode($roomId) . '/leave')
+            ->then(static fn (array $data): bool => true);
     }
 
     // ---- admin seam ----------------------------------------------------
