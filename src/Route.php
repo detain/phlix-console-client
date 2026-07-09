@@ -45,4 +45,5 @@ enum Route
     case AdminDlna;
     case AdminRemote;
     case AdminLiveTv;
+    case Recommendations;
 }
