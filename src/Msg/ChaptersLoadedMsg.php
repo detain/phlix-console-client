@@ -10,7 +10,7 @@ use SugarCraft\Core\Msg;
 /**
  * Carries the loaded chapter list for a media item (movie/episode).
  */
-final readonly class ChaptersLoadedMsg extends Msg
+final readonly class ChaptersLoadedMsg implements Msg
 {
     /**
      * @param list<Chapter> $chapters

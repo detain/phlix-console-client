@@ -7,6 +7,7 @@ namespace Phlix\Console\Api;
 use Phlix\Console\Api\Dto\Album;
 use Phlix\Console\Api\Dto\Audiobook;
 use Phlix\Console\Api\Dto\AudiobookChapter;
+use Phlix\Console\Api\Dto\AudiobookPage;
 use Phlix\Console\Api\Dto\AudiobookProgress;
 use Phlix\Console\Api\Dto\AuthUser;
 use Phlix\Console\Api\Dto\Book;
