@@ -163,7 +163,8 @@ final class CommandPalette
             ->setItemFormatter(static fn (string $value, bool $selected): string => ($selected ? '▶ ' : '  ') . $value)
             ->setWindowWidth($winWidth)
             ->setWindowHeight($winHeight)
-            ->setOffset(0, 0); // marks the hermit shown; sugar-veil re-centers it
+            ->setOffset(0, 0)
+            ->show();
     }
 
     /**
