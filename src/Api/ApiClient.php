@@ -7,21 +7,23 @@ namespace Phlix\Console\Api;
 use Phlix\Console\Api\Dto\Album;
 use Phlix\Console\Api\Dto\Audiobook;
 use Phlix\Console\Api\Dto\AudiobookChapter;
-use Phlix\Console\Api\Dto\AudiobookPage;
 use Phlix\Console\Api\Dto\AudiobookProgress;
 use Phlix\Console\Api\Dto\AuthUser;
 use Phlix\Console\Api\Dto\Book;
 use Phlix\Console\Api\Dto\BookPage;
+use Phlix\Console\Api\Dto\Chapter;
 use Phlix\Console\Api\Dto\Coerce;
 use Phlix\Console\Api\Dto\ContinueWatchingItem;
 use Phlix\Console\Api\Dto\LetterIndex;
 use Phlix\Console\Api\Dto\Library;
 use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\Dto\MediaPage;
+use Phlix\Console\Api\Dto\MediaRatings;
 use Phlix\Console\Api\Dto\Photo;
 use Phlix\Console\Api\Dto\PhotoAlbum;
 use Phlix\Console\Api\Dto\PlaybackInfo;
 use Phlix\Console\Api\Dto\PlaybackMarkers;
+use Phlix\Console\Api\Dto\Rating;
 use Phlix\Console\Api\Dto\SubtitleTrack;
 use Phlix\Console\Api\Dto\TranscodeJob;
 use Phlix\Console\Config\TokenBundle;
@@ -205,6 +207,26 @@ final class ApiClient
     {
         return $this->authed('GET', '/api/v1/media/' . rawurlencode($id))
             ->then(static fn (array $data): MediaItem => MediaItem::fromArray(Coerce::map($data['item'] ?? null)));
+    }
+
+    /**
+     * The chapter list for a media item (movie/episode).
+     *
+     * @return PromiseInterface<list<Chapter>>
+     */
+    public function mediaChapters(string $id): PromiseInterface
+    {
+        return $this->authed('GET', '/api/v1/media/' . rawurlencode($id) . '/chapters')
+            ->then(static function (array $data): array {
+                $chapters = [];
+                foreach (Coerce::map($data['chapters'] ?? null) as $row) {
+                    if (is_array($row)) {
+                        $chapters[] = Chapter::fromArray($row);
+                    }
+                }
+
+                return $chapters;
+            });
     }
 
     // ---- music ---------------------------------------------------------
@@ -558,6 +580,32 @@ final class ApiClient
     {
         return $this->authed('GET', '/api/v1/media/' . rawurlencode($id) . '/playback-info')
             ->then(static fn (array $data): PlaybackMarkers => PlaybackMarkers::fromArray($data));
+    }
+
+    // ---- ratings -------------------------------------------------------
+
+    /**
+     * All ratings for a media item (TMDB, IMDb, user, aggregated).
+     *
+     * @return PromiseInterface<MediaRatings>
+     */
+    public function mediaRatings(string $id): PromiseInterface
+    {
+        return $this->authed('GET', '/api/v1/media/' . rawurlencode($id) . '/ratings')
+            ->then(static fn (array $data): MediaRatings => MediaRatings::fromArray($data));
+    }
+
+    /**
+     * Submit or update the authenticated user's personal rating for a media item.
+     * Score is a float from 0.0 to 10.0.
+     *
+     * @return PromiseInterface<bool>
+     */
+    public function setMediaRating(string $id, float $score): PromiseInterface
+    {
+        return $this->authed('POST', '/api/v1/media/' . rawurlencode($id) . '/ratings', [], [
+            'score' => $score,
+        ])->then(static fn (array $data): bool => true);
     }
 
     // ---- admin seam ----------------------------------------------------
