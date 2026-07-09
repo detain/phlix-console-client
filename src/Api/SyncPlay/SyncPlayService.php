@@ -38,8 +38,12 @@ final class SyncPlayService
     private array $members = [];
 
     private string $playbackState = 'stopped';
-    private int $playbackPosition = 0;
-    private string $currentMediaId = '';
+    /** @internal */
+    /** @phpstan-ignore-next-line property.onlyWritten */
+    private int $_playbackPosition = 0;
+    /** @internal */
+    /** @phpstan-ignore-next-line property.onlyWritten */
+    private string $_currentMediaId = '';
 
     private bool $connected = false;
     private bool $reconnecting = false;
@@ -54,7 +58,9 @@ final class SyncPlayService
     private \Closure $onMemberJoined;
 
     /** @var \Closure(string): void */
-    private \Closure $onMemberLeft;
+    /** @internal */
+    /** @phpstan-ignore-next-line property.onlyWritten */
+    private \Closure $_onMemberLeft;
 
     /** @var \Closure(string): void */
     private \Closure $onHostChanged;
@@ -206,7 +212,7 @@ final class SyncPlayService
      */
     public function onMemberLeft(\Closure $callback): void
     {
-        $this->onMemberLeft = $callback;
+        $this->_onMemberLeft = $callback;
     }
 
     /**
@@ -296,8 +302,8 @@ final class SyncPlayService
         $this->members = [];
         $this->isHost = false;
         $this->playbackState = 'stopped';
-        $this->playbackPosition = 0;
-        $this->currentMediaId = '';
+        $this->_playbackPosition = 0;
+        $this->_currentMediaId = '';
     }
 
     /**
@@ -326,7 +332,7 @@ final class SyncPlayService
         $serverTime = $this->timeSync->getSynchronizedTime();
 
         $message = Framing::frame(Messages::TYPE_PLAYBACK_PLAY, [
-            'group_id' => $this->session?->roomId ?? '',
+            'group_id' => $this->session->roomId ?? '',
             'member_id' => $this->memberId ?? '',
             'position' => $position,
             'server_time' => $serverTime,
@@ -349,7 +355,7 @@ final class SyncPlayService
         $serverTime = $this->timeSync->getSynchronizedTime();
 
         $message = Framing::frame(Messages::TYPE_PLAYBACK_PAUSE, [
-            'group_id' => $this->session?->roomId ?? '',
+            'group_id' => $this->session->roomId ?? '',
             'member_id' => $this->memberId ?? '',
             'position' => $position,
             'server_time' => $serverTime,
@@ -373,7 +379,7 @@ final class SyncPlayService
         $serverTime = $this->timeSync->getSynchronizedTime();
 
         $message = Framing::frame(Messages::TYPE_PLAYBACK_SEEK, [
-            'group_id' => $this->session?->roomId ?? '',
+            'group_id' => $this->session->roomId ?? '',
             'member_id' => $this->memberId ?? '',
             'from_position' => $fromPosition,
             'to_position' => $toPosition,
@@ -427,8 +433,10 @@ final class SyncPlayService
             $this->connected = false;
             ($this->onError ?? fn () => null)('websocket_error', $e->getMessage());
 
-            if (!$deferred->isResolved()) {
+            try {
                 $deferred->reject(new \RuntimeException('WebSocket connection failed: ' . $e->getMessage()));
+            } catch (\Throwable) {
+                // Already resolved, ignore
             }
 
             $this->attemptReconnect();
@@ -446,6 +454,7 @@ final class SyncPlayService
         // Connect asynchronously
         $this->wsConnection->connect();
 
+        /** @var PromiseInterface<SyncPlaySession> */
         return $deferred->promise();
     }
 
@@ -503,8 +512,8 @@ final class SyncPlayService
     {
         // Replace http(s) with ws(s) and append the path
         $url = $session->serverUrl;
-        $url = preg_replace('/^https:/', 'wss:', $url);
-        $url = preg_replace('/^http:/', 'ws:', $url);
+        $url = preg_replace('/^https:/', 'wss:', $url) ?: $url;
+        $url = preg_replace('/^http:/', 'ws:', $url) ?: $url;
         $url = rtrim($url, '/');
 
         return $url . '/api/v1/syncplay/' . rawurlencode($session->roomId) . '?token=' . urlencode($this->getAuthToken());
@@ -574,21 +583,30 @@ final class SyncPlayService
 
     /**
      * Handle GROUP_STATE message - full group sync.
+     * @param array<string, mixed> $message
      */
     private function handleGroupState(array $message): void
     {
         $group = $message['group'] ?? [];
+        if (!is_array($group)) {
+            return;
+        }
 
         // Update room info
-        $this->currentMediaId = $group['current_media_id'] ?? '';
-        $this->playbackPosition = $group['playback_position'] ?? 0;
-        $this->playbackState = $group['playback_state'] ?? 'stopped';
+        $currentMediaId = $group['current_media_id'] ?? '';
+        $this->_currentMediaId = is_string($currentMediaId) ? $currentMediaId : '';
+        $playbackPosition = $group['playback_position'] ?? 0;
+        $this->_playbackPosition = is_int($playbackPosition) ? $playbackPosition : 0;
+        $playbackState = $group['playback_state'] ?? 'stopped';
+        $this->playbackState = is_string($playbackState) ? $playbackState : 'stopped';
 
         // Update members
         $membersData = $group['members'] ?? [];
-        $this->members = [];
-        foreach ($membersData as $m) {
-            $this->members[] = SyncPlayUser::fromArray($m);
+        if (is_array($membersData)) {
+            $this->members = [];
+            foreach ($membersData as $m) {
+                $this->members[] = SyncPlayUser::fromArray(is_array($m) ? $m : []);
+            }
         }
 
         // Update host status
@@ -597,7 +615,7 @@ final class SyncPlayService
 
         // Update member count
         if ($this->currentRoom !== null) {
-            $memberCount = $group['member_count'] ?? count($this->members);
+            $memberCount = is_int($group['member_count'] ?? null) ? $group['member_count'] : count($this->members);
             $this->currentRoom = new SyncPlayRoom(
                 $this->currentRoom->id,
                 $this->currentRoom->name,
@@ -609,28 +627,41 @@ final class SyncPlayService
 
     /**
      * Handle TIME_PONG message - update time sync.
+     * @param array<string, mixed> $message
      */
     private function handleTimePong(array $message): void
     {
-        $clientTime = $message['client_time'] ?? 0;
-        $serverTime = $message['server_time'] ?? 0;
+        $clientTime = is_int($message['client_time']) ? $message['client_time'] : 0;
+        $serverTime = is_int($message['server_time']) ? $message['server_time'] : 0;
 
-        $this->timeSync->processPong($clientTime, $serverTime);
+        /** @var int */
+        $clientTimeInt = $clientTime;
+        /** @var int */
+        $serverTimeInt = $serverTime;
+
+        $this->timeSync->processPong($clientTimeInt, $serverTimeInt);
     }
 
     /**
      * Handle TIME_SYNC message - server-initiated drift correction.
+     * @param array<string, mixed> $message
      */
     private function handleTimeSync(array $message): void
     {
-        $serverTime = $message['server_time'] ?? 0;
-        $clientTime = $message['client_time'] ?? 0;
+        $serverTime = is_int($message['server_time']) ? $message['server_time'] : 0;
+        $clientTime = is_int($message['client_time']) ? $message['client_time'] : 0;
 
-        $this->timeSync->applyDriftCorrection($serverTime, $clientTime);
+        /** @var int */
+        $serverTimeInt = $serverTime;
+        /** @var int */
+        $clientTimeInt = $clientTime;
+
+        $this->timeSync->applyDriftCorrection($serverTimeInt, $clientTimeInt);
     }
 
     /**
      * Handle a playback command from the host.
+     * @param array<string, mixed> $message
      */
     private function handlePlaybackCommand(array $message): void
     {
@@ -646,17 +677,21 @@ final class SyncPlayService
 
     /**
      * Handle ERROR message.
+     * @param array<string, mixed> $message
      */
     private function handleError(array $message): void
     {
         $code = $message['code'] ?? $message['error_code'] ?? 'unknown';
         $errorMsg = $message['message'] ?? 'Unknown error';
 
-        ($this->onError ?? fn () => null)((string) $code, (string) $errorMsg);
+        $codeStr = is_string($code) ? $code : (is_int($code) ? (string) $code : 'unknown');
+        $errorStr = is_string($errorMsg) ? $errorMsg : 'Unknown error';
+        ($this->onError ?? fn () => null)($codeStr, $errorStr);
     }
 
     /**
      * Handle INFO message - member join notifications.
+     * @param array<string, mixed> $message
      */
     private function handleInfo(array $message): void
     {
@@ -665,7 +700,9 @@ final class SyncPlayService
         $memberName = $message['member_name'] ?? null;
 
         if ($memberId !== null && $memberName !== null) {
-            $user = new SyncPlayUser((string) $memberId, (string) $memberName);
+            $memberIdStr = is_string($memberId) ? $memberId : (is_int($memberId) ? (string) $memberId : '');
+            $memberNameStr = is_string($memberName) ? $memberName : '';
+            $user = new SyncPlayUser($memberIdStr, $memberNameStr);
             $this->members[] = $user;
             ($this->onMemberJoined ?? fn () => null)($user);
         }
@@ -673,13 +710,15 @@ final class SyncPlayService
 
     /**
      * Handle HOST_ELECT message - host transfer.
+     * @param array<string, mixed> $message
      */
     private function handleHostElect(array $message): void
     {
         $newHostId = $message['elected_id'] ?? null;
         if ($newHostId !== null) {
             $this->isHost = ($newHostId === $this->memberId);
-            ($this->onHostChanged ?? fn () => null)((string) $newHostId);
+            $newHostIdStr = is_string($newHostId) ? $newHostId : (is_int($newHostId) ? (string) $newHostId : '');
+            ($this->onHostChanged ?? fn () => null)($newHostIdStr);
         }
     }
 

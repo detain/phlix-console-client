@@ -47,8 +47,12 @@ final class SyncPlayModal
         /** @var list<SyncPlayRoom> */
         private array $rooms,
         private ?string $error,
-        private int $cols,
-        private int $rows,
+        /** @internal */
+        /** @phpstan-ignore-next-line property.onlyWritten */
+        private int $_cols,
+        /** @internal */
+        /** @phpstan-ignore-next-line property.onlyWritten */
+        private int $_rows,
     ) {
     }
 
@@ -62,16 +66,16 @@ final class SyncPlayModal
         [$w, $h] = self::calculateDims($cols, $rows, count($rooms) + 2);
 
         return new self(
-            state: 0,
-            cursor: 0,
-            winWidth: $w,
-            winHeight: $h,
-            roomName: null,
-            isPublic: true,
-            rooms: $rooms,
-            error: null,
-            cols: $cols,
-            rows: $rows,
+            0,
+            0,
+            $w,
+            $h,
+            null,
+            true,
+            $rooms,
+            null,
+            $cols,
+            $rows,
         );
     }
 
@@ -261,8 +265,8 @@ final class SyncPlayModal
         $next = clone $this;
         $next->winWidth = $w;
         $next->winHeight = $h;
-        $next->cols = $cols;
-        $next->rows = $rows;
+        $next->_cols = $cols;
+        $next->_rows = $rows;
 
         return $next;
     }
