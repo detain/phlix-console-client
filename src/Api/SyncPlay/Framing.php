@@ -37,6 +37,7 @@ final class Framing
             throw new \JsonException('Message must be a JSON object');
         }
 
+        /** @var array<string, mixed> $message */
         return $message;
     }
 

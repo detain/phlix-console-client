@@ -634,9 +634,11 @@ final class ApiClient
     public function listSyncPlayRooms(): PromiseInterface
     {
         return $this->authed('GET', '/api/v1/syncplay/rooms')->then(static function (array $data): array {
+            /** @var list<SyncPlayRoom> */
             $rooms = [];
             foreach (Coerce::map($data['rooms'] ?? null) as $row) {
                 if (is_array($row)) {
+                    /** @var array<string, mixed> $row */
                     $rooms[] = SyncPlayRoom::fromArray($row);
                 }
             }

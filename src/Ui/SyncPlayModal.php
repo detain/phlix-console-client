@@ -2,6 +2,11 @@
 
 declare(strict_types=1);
 
+/**
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ * @license   MIT
+ */
+
 namespace Phlix\Console\Ui;
 
 use Phlix\Console\Api\Dto\SyncPlayRoom;
@@ -42,8 +47,12 @@ final class SyncPlayModal
         /** @var list<SyncPlayRoom> */
         private array $rooms,
         private ?string $error,
-        private int $cols,
-        private int $rows,
+        /** @internal */
+        /** @phpstan-ignore-next-line property.onlyWritten */
+        private int $_cols,
+        /** @internal */
+        /** @phpstan-ignore-next-line property.onlyWritten */
+        private int $_rows,
     ) {
     }
 
@@ -57,16 +66,16 @@ final class SyncPlayModal
         [$w, $h] = self::calculateDims($cols, $rows, count($rooms) + 2);
 
         return new self(
-            state: 0,
-            cursor: 0,
-            winWidth: $w,
-            winHeight: $h,
-            roomName: null,
-            isPublic: true,
-            rooms: $rooms,
-            error: null,
-            cols: $cols,
-            rows: $rows,
+            0,
+            0,
+            $w,
+            $h,
+            null,
+            true,
+            $rooms,
+            null,
+            $cols,
+            $rows,
         );
     }
 
@@ -133,7 +142,8 @@ final class SyncPlayModal
 
         // A room was selected
         $index = $this->cursor - 1;
-        if ($index < $roomCount) {
+        if ($index >= 0 && $index < $roomCount) {
+            /** @var SyncPlayRoom */
             $room = $this->rooms[$index];
 
             return [$this, $room->id];
@@ -242,7 +252,7 @@ final class SyncPlayModal
     /** @return array{width:int, height:int} */
     public function dims(): array
     {
-        return [$this->winWidth, $this->winHeight];
+        return ['width' => $this->winWidth, 'height' => $this->winHeight];
     }
 
     /**
@@ -255,8 +265,8 @@ final class SyncPlayModal
         $next = clone $this;
         $next->winWidth = $w;
         $next->winHeight = $h;
-        $next->cols = $cols;
-        $next->rows = $rows;
+        $next->_cols = $cols;
+        $next->_rows = $rows;
 
         return $next;
     }
