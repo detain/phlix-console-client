@@ -492,8 +492,9 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
      * Drive the embedded edit/rename form. candy-forms' Form returns Cmd::quit()
      * on submit/abort; we intercept that — an abort cancels, a submit pushes only
      * the provided fields (rename → PUT {name}; rule-edit → PUT the changed fields).
-     * The numeric rule fields are client-validated non-negative ints; a blank field
-     * is treated as "unchanged" (omitted), so an invalid form never round-trips.
+     * candy-forms gates submit on each field's validator, so a submitted form is
+     * always valid: an invalid value keeps the form open with an inline error and
+     * `isSubmitted()` stays false, so an invalid form never round-trips.
      *
      * @return array{self, ?\Closure}
      */
@@ -514,10 +515,11 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
     }
 
     /**
-     * Map a submitted edit form to its PUT command. A rename needs a non-blank
-     * name; a rule edit pushes only the provided fields (each numeric field is
-     * blank → kept, or a non-negative int → sent; a present-but-invalid value keeps
-     * the form open with no request).
+     * Map a submitted edit form to its PUT command. candy-forms gates submit on
+     * each field's validator, so by the time we get here every field is valid: a
+     * rename's name is non-blank, and each rule numeric is blank (→ kept) or a
+     * non-negative int (→ sent). An invalid value never reaches this method — the
+     * form stays open with an inline error instead.
      *
      * @return array{self, ?\Closure}
      */
@@ -526,19 +528,6 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
         $id = $edit->targetId;
 
         if ($edit->kind === self::EDIT_RULE) {
-            // Each numeric field must be blank (keep) OR a non-negative int. A
-            // present-but-invalid value (e.g. "-1") re-opens a FRESH form re-prefilled
-            // with what was entered (the already-submitted Form would be wedged — its
-            // update() short-circuits once submitted), so the user can correct or Esc.
-            foreach (['priority', 'pre_pad', 'post_pad', 'max', 'days'] as $numeric) {
-                $raw = trim($form->getString($numeric));
-                if ($raw !== '' && !ctype_digit($raw)) {
-                    $fresh = $edit->withForm($this->buildRuleFormFrom($form));
-
-                    return [$this->withEditForm($fresh), Cmd::batch(Cmd::send(ShowToastMsg::error('Numeric fields take a whole number ≥ 0.')), $fresh->form->init())];
-                }
-            }
-
             return [$this->closeForm()->working(), $this->actionCmd($this->admin->updateSeriesRule(
                 $id,
                 self::nonBlank($form->getString('title')),
@@ -551,14 +540,6 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
         }
 
         $name = trim($form->getString('name'));
-        if ($name === '') {
-            // The name field is validation-gated, but guard the boundary anyway so
-            // a blank rename never reaches the server.
-            $fresh = $edit->withForm($this->buildRenameForm($name));
-
-            return [$this->withEditForm($fresh), Cmd::batch(Cmd::send(ShowToastMsg::error('Enter a name.')), $fresh->form->init())];
-        }
-
         $promise = $edit->kind === self::EDIT_TUNER ? $this->admin->renameTuner($id, $name) : $this->admin->renameChannel($id, $name);
 
         return [$this->closeForm()->working(), $this->actionCmd($promise, $edit->kind === self::EDIT_TUNER ? 'Tuner renamed' : 'Channel renamed')];
@@ -583,22 +564,6 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
             '',
             $rule->maxRecordings === null ? '' : (string) $rule->maxRecordings,
             (string) $rule->daysAhead,
-        );
-    }
-
-    /**
-     * Re-prefill a fresh rule form with what the user entered, so an invalid-submit
-     * re-opens a usable (NOT wedged) form preserving every field's value.
-     */
-    private function buildRuleFormFrom(Form $form): Form
-    {
-        return self::ruleForm(
-            $form->getString('title'),
-            $form->getString('priority'),
-            $form->getString('pre_pad'),
-            $form->getString('post_pad'),
-            $form->getString('max'),
-            $form->getString('days'),
         );
     }
 

@@ -320,15 +320,12 @@ final class AdminBackupScreen implements Breadcrumbed, Themed
         }
 
         if ($next->isSubmitted()) {
+            // candy-forms gates submit on field validation, so both fields are
+            // guaranteed whole numbers > 0 here (see their isPositiveInt
+            // validators): an invalid value keeps the form open with an inline
+            // error and never reaches this branch.
             $interval = $next->getInt('interval');
             $retention = $next->getInt('retention');
-            // Both fields are validated > 0; guard the boundary anyway so a
-            // non-positive value never reaches the server.
-            if ($interval < 1 || $retention < 1) {
-                $fresh = $this->buildScheduleForm();
-
-                return [$this->withScheduleForm($fresh), Cmd::batch(Cmd::send(ShowToastMsg::error('Both values must be greater than 0.')), $fresh->init())];
-            }
 
             return [$this->closeSchedule()->working(), Cmd::promise(fn () => $this->admin->updateBackupSchedule($interval, $retention)->then(
                 static fn (BackupSchedule $schedule): Msg => new AdminBackupScheduleUpdatedMsg($schedule),
