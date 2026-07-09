@@ -73,7 +73,7 @@ final class DetailScreen implements Breadcrumbed, Themed
     private const OVERSCAN = 1;
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
     private const PLAY_NOTICE = '▶  This title has no playable source.';
-    private const HINT = '↑↓  scroll synopsis      p  play      C  cast      Esc  back';
+    private const HINT = '↑↓  scroll synopsis      p  play      C  cast      R  rate      Esc  back';
     private const CONTAINER_HINT = '↑↓←→  move      ⏎  open      Esc  back';
     private const LOADING_HINT = 'Esc  back';
 
