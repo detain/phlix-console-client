@@ -1021,14 +1021,16 @@ final class AdminLiveTvScreenTest extends TestCase
         $screen = $this->loaded($transport);
 
         [$editing] = $screen->update(new KeyMsg(KeyType::Char, 'E'));
-        // Clear the pre-filled name, then submit — the blank is rejected with no PUT.
+        // Clear the pre-filled name, then submit — candy-forms' non-blank validator
+        // gates the submit, so the form stays open with an inline error and no PUT.
         $cleared = $this->clearInput($editing);
         [$still, $cmd] = $this->submit($cleared);
         self::assertTrue($still->isEditing(), 'a blank name keeps the form open');
         self::assertSame(1, $transport->requestCount(), 'no rename request is fired');
-        $toast = $this->runCmd($cmd);
-        self::assertInstanceOf(ShowToastMsg::class, $toast);
-        self::assertSame(ToastType::Error, $toast->type);
+        self::assertStringContainsString('! Enter a name.', $still->view(), 'the name field surfaces its inline validation error');
+        foreach ($this->collectCmd($cmd) as $msg) {
+            self::assertNotInstanceOf(ShowToastMsg::class, $msg, 'a blocked submit shows an inline error, not a toast');
+        }
     }
 
     public function testChannelRenameSubmitsPut(): void
@@ -1116,31 +1118,28 @@ final class AdminLiveTvScreenTest extends TestCase
 
         [$editing] = $screen->update(new KeyMsg(KeyType::Char, 'E'));
         // Set priority to a non-digit value (-1 has a '-' → not ctype_digit), then run
-        // ONE form-level submit (Enter through to the last field). candy-forms submits
-        // without enforcing the per-field predicates, so the screen's guard fires.
+        // ONE form-level submit (Enter through to the last field). candy-forms gates
+        // submit on each field's validator, so the form stays open with the priority
+        // field's inline error and fires no PUT.
         $bad = $this->setField($editing, 'priority', '-1');
         [$still, $cmd] = $this->submitOnce($bad);
         self::assertTrue($still->isEditing(), 'an invalid numeric keeps the form open');
         self::assertSame(5, $transport->requestCount(), 'no PUT is fired');
-        // The rejected submit emits an error toast, not a PUT.
-        $toast = $this->runCmd($cmd);
-        self::assertInstanceOf(ShowToastMsg::class, $toast);
-        self::assertSame(ToastType::Error, $toast->type);
+        self::assertStringContainsString('! Enter a whole number ≥ 0', $still->view(), 'the priority field surfaces its inline validation error');
+        // A blocked submit shows an inline error, not a toast.
+        foreach ($this->collectCmd($cmd) as $msg) {
+            self::assertNotInstanceOf(ShowToastMsg::class, $msg, 'a blocked submit shows an inline error, not a toast');
+        }
 
-        // REGRESSION: the re-opened form must NOT be wedged — a follow-up keystroke
-        // is still handled (the submitted-form short-circuit would swallow it).
-        [$typed, $typeCmd] = $still->update(new KeyMsg(KeyType::Char, 'X'));
-        self::assertNull($typeCmd);
-        self::assertTrue($typed->isEditing());
-        self::assertNotSame($still, $typed, 'the keystroke mutates the form (not wedged)');
-
-        // And Esc still cancels the re-opened form.
+        // The form is live (not wedged): Esc still cancels it.
         [$cancelled, $escCmd] = $still->update(new KeyMsg(KeyType::Escape));
         self::assertNull($escCmd);
-        self::assertFalse($cancelled->isEditing(), 'Esc cancels the re-opened form');
+        self::assertFalse($cancelled->isEditing(), 'Esc cancels the form after a blocked submit');
 
-        // Correcting the value and submitting once now PUTs (the form is usable).
-        $fixed = $this->setField($still, 'priority', '8');
+        // Re-opening and correcting the value submits normally — proving the blocked
+        // submit left the rule usable (the selected rule is still sr-1).
+        [$reopened] = $cancelled->update(new KeyMsg(KeyType::Char, 'E'));
+        $fixed = $this->setField($reopened, 'priority', '8');
         [$busy, $okCmd] = $this->submitOnce($fixed);
         self::assertTrue($busy->isBusy());
         $done = $this->runCmd($okCmd);
