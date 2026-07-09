@@ -142,16 +142,18 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
         $apiErrorClass = \Phlix\Console\Api\ApiError::class;
         $loadFailed = self::LOAD_FAILED;
         $sessionExpired = self::SESSION_EXPIRED;
+        $admin = $this->admin;
+        $profileId = $this->profileId;
 
-        $doFetch = static function () use ($section, $apiErrorClass, $loadFailed, $sessionExpired): PromiseInterface {
+        $doFetch = static function () use ($section, $apiErrorClass, $loadFailed, $sessionExpired, $admin, $profileId): PromiseInterface {
             $promise = match ($section) {
-                'schedules' => $this->admin->profileSchedules((int) $this->profileId)->then(
+                'schedules' => $admin->profileSchedules((int) $profileId)->then(
                     static fn (array $rows): Msg => new ParentalSchedulesLoadedMsg($rows),
                 ),
-                'tags' => $this->admin->profileTags((int) $this->profileId)->then(
+                'tags' => $admin->profileTags((int) $profileId)->then(
                     static fn (array $rows): Msg => new ParentalTagsLoadedMsg($rows),
                 ),
-                'streamLimits' => $this->admin->profileStreamLimits((int) $this->profileId)->then(
+                'streamLimits' => $admin->profileStreamLimits((int) $profileId)->then(
                     static fn (ProfileStreamLimit $limit): Msg => new ParentalStreamLimitsLoadedMsg($limit),
                 ),
                 default => throw new \InvalidArgumentException("Unknown section: {$section}"),
@@ -413,9 +415,11 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
         // so we use the create to update (or we'd need to add a new endpoint)
         // For now, this will delete and recreate - in a real implementation
         // you'd add an updateSchedule endpoint to the server
+        $admin = $this->admin;
+        $profileId = $this->profileId;
         return [$this->closeForm()->working(), $this->actionCmd(
-            $this->admin->deleteProfileSchedule((int) $this->profileId, $original->id)->then(
-                static fn (): PromiseInterface => $this->admin->createProfileSchedule((int) $this->profileId, $name, $startTime, $endTime, $days, $isActive),
+            $admin->deleteProfileSchedule((int) $profileId, $original->id)->then(
+                static fn (): PromiseInterface => $admin->createProfileSchedule((int) $profileId, $name, $startTime, $endTime, $days, $isActive),
             ),
             'Schedule updated',
         )];

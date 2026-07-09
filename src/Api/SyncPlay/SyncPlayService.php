@@ -2,6 +2,11 @@
 
 declare(strict_types=1);
 
+/**
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ * @license   MIT
+ */
+
 namespace Phlix\Console\Api\SyncPlay;
 
 use Phlix\Console\Api\ApiClient;
@@ -233,7 +238,7 @@ final class SyncPlayService
      */
     public function createRoom(string $name, bool $isPublic = true): PromiseInterface
     {
-        return $this->api->createSyncPlayRoom($name, $isPublic)->then(function (SyncPlaySession $session) use ($name) {
+        return $this->api->createSyncPlayRoom($name, $isPublic)->then(function (SyncPlaySession $session) use ($name, $isPublic) {
             $this->session = $session;
             $this->currentRoom = new SyncPlayRoom($session->roomId, $name, $isPublic, 1);
             $this->isHost = true;
@@ -479,7 +484,7 @@ final class SyncPlayService
         // Schedule reconnect after delay
         if ($this->loop !== null) {
             $loop = $this->loop;
-            $loop->addTimer(3.0, function () use ($loop): void {
+            $loop->addTimer(3.0, function (): void {
                 if ($this->session === null || $this->reconnecting === false) {
                     return;
                 }
@@ -518,7 +523,7 @@ final class SyncPlayService
         }
 
         // Return the access token
-        return $token->accessToken ?? '';
+        return $token->accessToken;
     }
 
     /**
@@ -688,7 +693,7 @@ final class SyncPlayService
         }
 
         $loop = $this->loop;
-        $loop->addPeriodicTimer(30.0, function () use ($loop): void {
+        $loop->addPeriodicTimer(30.0, function (): void {
             if (!$this->connected || $this->session === null) {
                 return;
             }
