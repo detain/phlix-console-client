@@ -530,9 +530,9 @@ final class AdminBackupScreenTest extends TestCase
 
     public function testScheduleEditRejectsAnInvalidZeroValueAtTheBoundary(): void
     {
-        // candy-forms shows the field validation error but still submits on Enter at
-        // the last field; the screen's boundary guard catches the non-positive value,
-        // re-opens the form with an error toast, and makes no request.
+        // candy-forms gates submit on each field's validator: interval = 0 fails
+        // isPositiveInt, so Enter on the last field does NOT submit — the form
+        // stays open showing the field's inline error, and no request is made.
         $transport = $this->loadTransport();
         $screen = $this->loaded($transport);
 
@@ -543,11 +543,16 @@ final class AdminBackupScreenTest extends TestCase
         $onRetention = $this->retypeField($onRetention, '5');
         [$next, $cmd] = $onRetention->update(new KeyMsg(KeyType::Enter));
 
-        self::assertTrue($next->isEditingSchedule(), 'an invalid value re-opens the form');
+        self::assertTrue($next->isEditingSchedule(), 'an invalid value keeps the form open');
         self::assertSame(2, $transport->requestCount(), 'no update request was made');
-        $toast = $this->firstToast($this->collectCmd($cmd));
-        self::assertSame(ToastType::Error, $toast->type);
-        self::assertStringContainsString('greater than 0', $toast->message);
+        self::assertStringContainsString(
+            '! Enter a whole number greater than 0',
+            $next->view(),
+            'the interval field surfaces its inline validation error',
+        );
+        foreach ($this->collectCmd($cmd) as $msg) {
+            self::assertNotInstanceOf(ShowToastMsg::class, $msg, 'a blocked submit shows an inline error, not a toast');
+        }
     }
 
     public function testScheduleEditServerRejectionTostsTheError(): void
