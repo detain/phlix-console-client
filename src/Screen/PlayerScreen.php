@@ -27,6 +27,7 @@ use Phlix\Console\Api\MediaQuery;
 use Phlix\Console\Api\SyncPlay\SyncPlayService;
 use Phlix\Console\Config\Config;
 use Phlix\Console\Msg\AccessScheduleDeniedMsg;
+use Phlix\Console\Msg\AudioTracksLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenRecommendationsMsg;
 use Phlix\Console\Msg\PlayNextMsg;
@@ -269,6 +270,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
             $this->buildPlayerCmd($this->streamUrl()),
             $this->fetchMarkers(),
             $this->fetchResume(),
+            $this->fetchAudioTracks(),
         ];
         $siblings = $this->fetchSiblings();
         if ($siblings !== null) {
@@ -302,6 +304,12 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         if ($msg instanceof PlaybackMarkersLoadedMsg) {
             $next = clone $this;
             $next->markers = $msg->markers;
+
+            return [$next, null];
+        }
+        if ($msg instanceof AudioTracksLoadedMsg) {
+            $next = clone $this;
+            $next->audioTracks = $msg->audioTracks;
 
             return [$next, null];
         }
@@ -522,6 +530,21 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
 
         return Cmd::promise(fn (): PromiseInterface => $this->api->playbackMarkers($id)->then(
             static fn (PlaybackMarkers $markers): Msg => new PlaybackMarkersLoadedMsg($markers),
+            static fn (\Throwable $e): ?Msg => $e instanceof AuthError
+                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                : null,
+        ));
+    }
+
+    /**
+     * Fetch the available audio tracks from playback-info (P3B).
+     */
+    private function fetchAudioTracks(): \Closure
+    {
+        $id = $this->item->id;
+
+        return Cmd::promise(fn (): PromiseInterface => $this->api->playbackInfo($id)->then(
+            static fn ($info): Msg => new AudioTracksLoadedMsg($info->audioTracks),
             static fn (\Throwable $e): ?Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(self::SESSION_EXPIRED)
                 : null,
