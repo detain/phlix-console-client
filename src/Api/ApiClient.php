@@ -20,6 +20,7 @@ use Phlix\Console\Api\Dto\BookPage;
 use Phlix\Console\Api\Dto\Chapter;
 use Phlix\Console\Api\Dto\Coerce;
 use Phlix\Console\Api\Dto\ContinueWatchingItem;
+use Phlix\Console\Api\Dto\RecentlyWatchedItem;
 use Phlix\Console\Api\Dto\LetterIndex;
 use Phlix\Console\Api\Dto\Library;
 use Phlix\Console\Api\Dto\MediaItem;
@@ -561,6 +562,21 @@ final class ApiClient
             foreach (Coerce::map($data['items'] ?? null) as $row) {
                 if (is_array($row)) {
                     $items[] = ContinueWatchingItem::fromArray($row);
+                }
+            }
+
+            return $items;
+        });
+    }
+
+    /** @return PromiseInterface<list<RecentlyWatchedItem>> */
+    public function recentlyWatched(): PromiseInterface
+    {
+        return $this->authed('GET', '/api/v1/users/me/recently-watched')->then(static function (array $data): array {
+            $items = [];
+            foreach (Coerce::map($data['items'] ?? null) as $row) {
+                if (is_array($row)) {
+                    $items[] = RecentlyWatchedItem::fromArray($row);
                 }
             }
 
