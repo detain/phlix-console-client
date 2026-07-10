@@ -1422,14 +1422,14 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         $next->sleepTimerMenu = null;
 
         if ($menu->isCancel()) {
-            [$canceledTimer, $cmd] = $this->sleepTimer->cancel();
+            ['timer' => $canceledTimer, 'cmd' => $cmd] = $this->sleepTimer->cancel();
             $next->sleepTimer = $canceledTimer;
 
             return [$next, $cmd];
         }
 
         $presetIndex = $menu->selectedPresetIndex();
-        [$startedTimer, $cmd] = $this->sleepTimer->startFromPreset($presetIndex);
+        ['timer' => $startedTimer, 'cmd' => $cmd] = $this->sleepTimer->startFromPreset($presetIndex);
         $next->sleepTimer = $startedTimer;
 
         return [$next, $cmd];
@@ -1442,7 +1442,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
      */
     private function onSleepTimerTick(SleepTimerTickMsg $msg): array
     {
-        [$tickedTimer, $cmd] = $this->sleepTimer->tick();
+        ['timer' => $tickedTimer, 'cmd' => $cmd] = $this->sleepTimer->tick();
         $next = clone $this;
         $next->sleepTimer = $tickedTimer;
 

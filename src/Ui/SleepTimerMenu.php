@@ -149,11 +149,6 @@ final class SleepTimerMenu
         return implode("\n", $lines);
     }
 
-    private function rowCount(): int
-    {
-        return count(self::PRESET_LABELS) + 1; // presets + cancel
-    }
-
     /**
      * @return array{int, int} [winWidth, winHeight]
      */

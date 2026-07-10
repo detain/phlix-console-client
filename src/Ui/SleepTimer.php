@@ -39,12 +39,12 @@ final class SleepTimer
     /**
      * Start the timer from a preset index (0-based into PRESETS).
      *
-     * @return array{timer: self, cmd: \Closure}
+     * @return array{timer: self, cmd: \Closure|null}
      */
     public function startFromPreset(int $presetIndex): array
     {
         if ($presetIndex < 0 || $presetIndex >= count(self::PRESETS)) {
-            return [$this, null];
+            return ['timer' => $this, 'cmd' => null];
         }
 
         $minutes = self::PRESETS[$presetIndex];
@@ -52,7 +52,7 @@ final class SleepTimer
         $this->active = true;
         $this->selectedPresetIndex = $presetIndex;
 
-        return [$this, $this->tickCmd()];
+        return ['timer' => $this, 'cmd' => $this->tickCmd()];
     }
 
     /**
@@ -66,7 +66,7 @@ final class SleepTimer
         $this->active = false;
         $this->selectedPresetIndex = -1;
 
-        return [$this, null];
+        return ['timer' => $this, 'cmd' => null];
     }
 
     /**
@@ -79,7 +79,7 @@ final class SleepTimer
     public function tick(): array
     {
         if (!$this->active || $this->remainingSeconds === null) {
-            return [$this, null];
+            return ['timer' => $this, 'cmd' => null];
         }
 
         $this->remainingSeconds--;
@@ -88,10 +88,10 @@ final class SleepTimer
             $this->remainingSeconds = null;
             $this->active = false;
 
-            return [$this, fn (): Msg => new SleepTimerFireMsg()];
+            return ['timer' => $this, 'cmd' => fn (): Msg => new SleepTimerFireMsg()];
         }
 
-        return [$this, $this->tickCmd()];
+        return ['timer' => $this, 'cmd' => $this->tickCmd()];
     }
 
     /**
