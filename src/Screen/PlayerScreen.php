@@ -33,6 +33,8 @@ use Phlix\Console\Msg\PlayerPrepareFailedMsg;
 use Phlix\Console\Msg\PlayerReadyMsg;
 use Phlix\Console\Msg\ProgressTickMsg;
 use Phlix\Console\Msg\ResumeInfoMsg;
+use Phlix\Console\Msg\SleepTimerFireMsg;
+use Phlix\Console\Msg\SleepTimerTickMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\SessionStartedMsg;
 use Phlix\Console\Msg\SiblingsLoadedMsg;
@@ -52,6 +54,8 @@ use Phlix\Console\Ui\AudioTrackList;
 use Phlix\Console\Ui\ChapterList;
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\QualityMenu;
+use Phlix\Console\Ui\SleepTimer;
+use Phlix\Console\Ui\SleepTimerMenu;
 use Phlix\Console\Ui\SubtitleTrackList;
 use Phlix\Console\Ui\Scrubber;
 use Phlix\Console\Ui\SyncPlayModal;
@@ -207,6 +211,10 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     private int $syncPlayMemberCount = 0;
     /** The current SyncPlay sync status for overlay display. */
     private string $syncPlayStatus = 'Not in room';
+    /** The sleep timer (countdown to pause). */
+    private SleepTimer $sleepTimer;
+    /** The open sleep timer picker overlay, or null when closed. */
+    private ?SleepTimerMenu $sleepTimerMenu = null;
 
     /**
      * @param \Closure(string $url, int $cols, int $rows): Player $playerFactory
@@ -223,6 +231,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         ?SyncPlayService $syncPlayService = null,
     ) {
         $this->syncPlayService = $syncPlayService;
+        $this->sleepTimer = new SleepTimer();
     }
 
     /**
@@ -342,6 +351,12 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         if ($msg instanceof ProgressTickMsg) {
             return $this->onProgressTick();
         }
+        if ($msg instanceof SleepTimerTickMsg) {
+            return $this->onSleepTimerTick($msg);
+        }
+        if ($msg instanceof SleepTimerFireMsg) {
+            return $this->onSleepTimerFire();
+        }
         if ($msg instanceof KeyMsg) {
             return $this->handleKey($msg);
         }
@@ -371,6 +386,10 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         // The quality picker dims + centres its box over the current frame.
         if ($this->qualityMenu !== null) {
             return $this->qualityMenu->render($base);
+        }
+        // The sleep timer picker dims + centres its box over the current frame.
+        if ($this->sleepTimerMenu !== null) {
+            return $this->sleepTimerMenu->render($base);
         }
         // The SyncPlay modal (create/join room).
         if ($this->syncPlayModal !== null) {
@@ -1033,6 +1052,11 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
             return $this->handleQualityKey($this->qualityMenu, $msg);
         }
 
+        // While the sleep timer picker is open it captures every keystroke.
+        if ($this->sleepTimerMenu !== null) {
+            return $this->handleSleepTimerKey($this->sleepTimerMenu, $msg);
+        }
+
         // Esc / q → report a final position, end the session, tear down the
         // subprocesses, and pop back to the detail screen. (Intercepted BEFORE
         // forwarding so the inner player's own quit — which would Cmd::quit the
@@ -1125,6 +1149,11 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         // Y → open the SyncPlay modal (create/join room).
         if ($msg->type === KeyType::Char && ($msg->rune === 'y' || $msg->rune === 'Y')) {
             return $this->openSyncPlayModal();
+        }
+
+        // Z → open the sleep timer picker.
+        if ($msg->type === KeyType::Char && ($msg->rune === 'z' || $msg->rune === 'Z')) {
+            return $this->openSleepTimerMenu();
         }
 
         // Everything else the inner player handles (Space, [ , ] , m, 0–9) → forward.
@@ -1330,6 +1359,110 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         $next = clone $this;
         $next->audioTrackMenu = null;
         $next->selectedAudioTrack = $menu->selectedId();
+
+        return [$next, null];
+    }
+
+    // ---- sleep timer ---------------------------------------------------
+
+    /**
+     * Open the sleep timer picker overlay.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function openSleepTimerMenu(): array
+    {
+        $next = clone $this;
+        $next->sleepTimerMenu = SleepTimerMenu::open($this->sleepTimer->selectedPresetIndex(), $this->cols, $this->rows);
+
+        return [$next, null];
+    }
+
+    /**
+     * Drive the open sleep timer overlay: ↑/↓ move, Enter picks, Esc / q dismisses.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function handleSleepTimerKey(SleepTimerMenu $menu, KeyMsg $msg): array
+    {
+        if ($msg->type === KeyType::Escape
+            || ($msg->type === KeyType::Char && ($msg->rune === 'q' || $msg->rune === 'Q'))) {
+            $next = clone $this;
+            $next->sleepTimerMenu = null;
+
+            return [$next, null];
+        }
+        if ($msg->type === KeyType::Up) {
+            $next = clone $this;
+            $next->sleepTimerMenu = $menu->up();
+
+            return [$next, null];
+        }
+        if ($msg->type === KeyType::Down) {
+            $next = clone $this;
+            $next->sleepTimerMenu = $menu->down();
+
+            return [$next, null];
+        }
+        if ($msg->type === KeyType::Enter) {
+            return $this->applySleepTimerSelection($menu);
+        }
+
+        return [$this, null];
+    }
+
+    /**
+     * Apply the highlighted sleep timer selection: start the timer or cancel.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function applySleepTimerSelection(SleepTimerMenu $menu): array
+    {
+        $next = clone $this;
+        $next->sleepTimerMenu = null;
+
+        if ($menu->isCancel()) {
+            [$canceledTimer, $cmd] = $this->sleepTimer->cancel();
+            $next->sleepTimer = $canceledTimer;
+
+            return [$next, $cmd];
+        }
+
+        $presetIndex = $menu->selectedPresetIndex();
+        [$startedTimer, $cmd] = $this->sleepTimer->startFromPreset($presetIndex);
+        $next->sleepTimer = $startedTimer;
+
+        return [$next, $cmd];
+    }
+
+    /**
+     * Handle sleep timer tick — dispatch the next tick and update the display.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function onSleepTimerTick(SleepTimerTickMsg $msg): array
+    {
+        [$tickedTimer, $cmd] = $this->sleepTimer->tick();
+        $next = clone $this;
+        $next->sleepTimer = $tickedTimer;
+
+        return [$next, $cmd];
+    }
+
+    /**
+     * Handle sleep timer fire — pause playback.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function onSleepTimerFire(): array
+    {
+        $inner = $this->inner;
+        if ($inner === null) {
+            return [$this, null];
+        }
+
+        $next = clone $this;
+        $next->inner = $inner->pause();
 
         return [$next, null];
     }
@@ -1790,6 +1923,9 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         if ($this->syncPlayModal !== null) {
             $next->syncPlayModal = $this->syncPlayModal->resizedTo($cols, $rows);
         }
+        if ($this->sleepTimerMenu !== null) {
+            $next->sleepTimerMenu = $this->sleepTimerMenu->resizedTo($cols, $rows);
+        }
 
         if ($this->inner !== null) {
             [$nextInner, $cmd] = $this->inner->update(new WindowSizeMsg($cols, $next->innerRows()));
@@ -1841,7 +1977,10 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         $nav = $this->nextItem() !== null ? '  n next' : '';
         $cc = $this->captionsOn ? '  c cc✓' : '  c cc';
         $quality = $this->variants !== [] ? '  v quality' : '';
-        $hint = 'Space ⏯  ←→ ±10s  [ ] speed  m mode' . $cc . $quality . $nav . '  q back';
+        $sleepTimerDisplay = $this->sleepTimer->isActive()
+            ? '  z ⏰ ' . $this->sleepTimer->formatRemaining()
+            : '';
+        $hint = 'Space ⏯  ←→ ±10s  [ ] speed  m mode' . $cc . $quality . $nav . $sleepTimerDisplay . '  q back';
 
         $title = Width::truncate($this->item->name, max(8, $this->cols - 60));
         $line = sprintf('%s %s%s   ·   %s', $glyph, $title, $prompt, $hint);
@@ -2133,5 +2272,20 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     public function syncPlayStatus(): string
     {
         return $this->syncPlayStatus;
+    }
+
+    public function sleepTimer(): SleepTimer
+    {
+        return $this->sleepTimer;
+    }
+
+    public function isSleepTimerMenuOpen(): bool
+    {
+        return $this->sleepTimerMenu !== null;
+    }
+
+    public function sleepTimerMenu(): ?SleepTimerMenu
+    {
+        return $this->sleepTimerMenu;
     }
 }

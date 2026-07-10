@@ -23,6 +23,7 @@ use Phlix\Console\Msg\LibrariesLoadedMsg;
 use Phlix\Console\Msg\LibraryMediaLoadedMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\OpenLibraryMsg;
+use Phlix\Console\Msg\OpenWatchHistoryMsg;
 use Phlix\Console\Msg\PosterLoadedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Store\LibrariesStore;
@@ -71,7 +72,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
     private const PER_LIBRARY_LIMIT = 18;
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
     private const RAILS_HINT = '↑↓  rails      ←→  items      ⏎  open      Tab  menu      q  quit';
-    private const SIDEBAR_HINT = '↑↓  library      ⏎  open      Tab  rails      q  quit';
+    private const SIDEBAR_HINT = '↑↓  library      ⏎  open      H  history      Tab  rails      q  quit';
 
     private ?Rail $continueRail = null;
     /** @var array<string, Rail> keyed by library id, in display order */
@@ -371,6 +372,10 @@ final class BrowseScreen implements Breadcrumbed, Themed
         }
         if ($msg->type === KeyType::Enter) {
             return $this->openLibrary($this->sidebar->selectedId());
+        }
+        // H → open watch history
+        if ($msg->type === KeyType::Char && ($msg->rune === 'h' || $msg->rune === 'H')) {
+            return [$this, Cmd::send(new OpenWatchHistoryMsg())];
         }
 
         return [$this, null];

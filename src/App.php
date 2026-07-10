@@ -49,6 +49,7 @@ use Phlix\Console\Msg\OpenSearchMsg;
 use Phlix\Console\Msg\OpenSettingsMsg;
 use Phlix\Console\Msg\OpenStatsMsg;
 use Phlix\Console\Msg\OpenRecommendationsMsg;
+use Phlix\Console\Msg\OpenWatchHistoryMsg;
 use Phlix\Console\Msg\PaletteLibrariesLoadedMsg;
 use Phlix\Console\Msg\PlayAudiobookMsg;
 use Phlix\Console\Msg\PlayNextMsg;
@@ -107,6 +108,7 @@ use Phlix\Console\Screen\SettingsScreen;
 use Phlix\Console\Screen\Shimmering;
 use Phlix\Console\Screen\StatsScreen;
 use Phlix\Console\Screen\RecommendationsScreen;
+use Phlix\Console\Screen\WatchHistoryScreen;
 use Phlix\Console\Screen\Teardownable;
 use Phlix\Console\Screen\Themed;
 use Phlix\Console\Store\AudiobooksStore;
@@ -357,6 +359,9 @@ final class App implements Model
         }
         if ($msg instanceof OpenRecommendationsMsg) {
             return $this->openRecommendations();
+        }
+        if ($msg instanceof OpenWatchHistoryMsg) {
+            return $this->openWatchHistory();
         }
         if ($msg instanceof OpenAdminMsg) {
             return $this->openAdmin();
@@ -1220,6 +1225,14 @@ final class App implements Model
         $screen = new RecommendationsScreen($this->api, $this->cols, $this->rows);
 
         return [$this->push(Route::Recommendations, $screen), $screen->init()];
+    }
+
+    /** @return array{App, ?\Closure} */
+    private function openWatchHistory(): array
+    {
+        $screen = new WatchHistoryScreen($this->api, $this->cols, $this->rows);
+
+        return [$this->push(Route::WatchHistory, $screen), $screen->init()];
     }
 
     /**
