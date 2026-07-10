@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace Phlix\Console\Screen;
 
 use Phlix\Console\Api\ApiClient;
+use Phlix\Console\Api\ApiError;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\Dto\MediaPage;
@@ -25,6 +26,7 @@ use Phlix\Console\Api\Dto\TranscodeJob;
 use Phlix\Console\Api\MediaQuery;
 use Phlix\Console\Api\SyncPlay\SyncPlayService;
 use Phlix\Console\Config\Config;
+use Phlix\Console\Msg\AccessScheduleDeniedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenRecommendationsMsg;
 use Phlix\Console\Msg\PlayNextMsg;
@@ -37,6 +39,7 @@ use Phlix\Console\Msg\SleepTimerFireMsg;
 use Phlix\Console\Msg\SleepTimerTickMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\SessionStartedMsg;
+use Phlix\Console\Msg\StreamLimitExceededMsg;
 use Phlix\Console\Msg\SiblingsLoadedMsg;
 use Phlix\Console\Msg\SubtitleVttLoadedMsg;
 use Phlix\Console\Msg\SyncPlayFailedMsg;
@@ -326,6 +329,12 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         }
         if ($msg instanceof SessionStartedMsg) {
             return $this->onSessionStarted($msg->sessionId);
+        }
+        if ($msg instanceof AccessScheduleDeniedMsg) {
+            return $this->onAccessScheduleDenied($msg->reason);
+        }
+        if ($msg instanceof StreamLimitExceededMsg) {
+            return $this->onStreamLimitExceeded($msg->reason);
         }
         if ($msg instanceof SyncPlayRoomsLoadedMsg) {
             return $this->onSyncPlayRoomsLoaded($msg->rooms);
@@ -760,13 +769,24 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
 
     // ---- progress reporting --------------------------------------------
 
-    /** Open a playback session; on success → SessionStartedMsg. Failure is swallowed. */
+    /** Open a playback session; on success → SessionStartedMsg. */
     private function createSessionCmd(): \Closure
     {
         return Cmd::promise(fn (): PromiseInterface => $this->api->createSession(Config::deviceId())->then(
             static fn (string $sessionId): ?Msg => $sessionId !== '' ? new SessionStartedMsg($sessionId) : null,
-            // Progress reporting is best-effort — a failed session never interrupts playback.
-            static fn (\Throwable $e): ?Msg => null,
+            static function (\Throwable $e): ?Msg {
+                // P5-S5: Surface access-schedule and stream-limit errors to the viewer.
+                if ($e instanceof ApiError) {
+                    if ($e->statusCode === 403 && str_contains($e->getMessage(), 'AccessSchedule')) {
+                        return new AccessScheduleDeniedMsg('Playback blocked by access schedule. Try again during allowed hours.');
+                    }
+                    if ($e->statusCode === 429 && str_contains($e->getMessage(), 'StreamLimit')) {
+                        return new StreamLimitExceededMsg('Stream limit reached. Stop another stream to continue watching.');
+                    }
+                }
+
+                return null; // session failures do not interrupt playback
+            },
         ));
     }
 
@@ -778,6 +798,26 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
 
         // Begin the throttled progress heartbeat.
         return [$next, $this->progressTickCmd()];
+    }
+
+    /**
+     * P5-S5: Access schedule blocked playback — show error and allow the user to go back.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function onAccessScheduleDenied(string $reason): array
+    {
+        return [$this->withError($reason), null];
+    }
+
+    /**
+     * P5-S5: Stream limit reached — show error and allow the user to go back.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function onStreamLimitExceeded(string $reason): array
+    {
+        return [$this->withError($reason), null];
     }
 
     /** @return array{self, ?\Closure} */
