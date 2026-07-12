@@ -10,8 +10,8 @@ declare(strict_types=1);
 namespace Phlix\Console\Media;
 
 use React\Promise\PromiseInterface;
-use SugarCraft\Core\ImageLayer;
 use SugarCraft\Mosaic\DiskCache;
+use SugarCraft\Mosaic\ImageLayer;
 use SugarCraft\Mosaic\ImageSource;
 use SugarCraft\Mosaic\Mosaic;
 use SugarCraft\Mosaic\Scale;
@@ -26,7 +26,7 @@ use function React\Promise\resolve;
  * Inline renderers (half/quarter-block, ASCII) produce cell text that resolves
  * straight into the poster. Pixel-graphics renderers (sixel/kitty/iTerm2) — for
  * which {@see Mosaic::isInline()} is false — produce an opaque blob that can't be
- * stitched into a text rail, so the blob is handed to candy-core's
+ * stitched into a text rail, so the blob is handed to candy-mosaic's
  * {@see ImageLayer}: {@see load()} resolves with a marker block and the runtime
  * paints the real bytes on top. The owning model exposes {@see imageLayer()} on
  * its {@see \SugarCraft\Core\View} so the runtime can resolve the markers.
@@ -62,7 +62,15 @@ final class PosterLoader
             return resolve($this->present($hit, $width, $height));
         }
 
-        return ImageSource::fromUrlAsync($url)->then(function (ImageSource $image) use ($key, $width, $height): string {
+        // Phlix only ever loads image URLs handed back by its own configured
+        // server, which for a self-hosted deployment is routinely on localhost
+        // or a LAN address. candy-mosaic's fromUrlAsync() SSRF guard rejects
+        // private/reserved hosts by default, so allow-list the URL's own host —
+        // any cross-host redirect stays guarded.
+        $host = parse_url($url, PHP_URL_HOST);
+        $allowedHosts = is_string($host) && $host !== '' ? [$host] : null;
+
+        return ImageSource::fromUrlAsync($url, allowedHosts: $allowedHosts)->then(function (ImageSource $image) use ($key, $width, $height): string {
             $bytes = $this->mosaic->withScale(Scale::Fill)->render($image, $width, $height);
             $this->cache?->put($key, $bytes);
 
