@@ -302,8 +302,16 @@ final class DetailScreen implements Breadcrumbed, Themed
         return [$next, $cmd];
     }
 
-    private function fetchHero(string $url): \Closure
+    private function fetchHero(string $url): ?\Closure
     {
+        // Defensive: validate URL has a valid http/https scheme before attempting load.
+        // parse_url returns false for malformed URLs and null for URLs with no scheme.
+        $scheme = parse_url($url, PHP_URL_SCHEME);
+        if ($scheme === null || $scheme === false || !in_array($scheme, ['http', 'https'], true)) {
+            // Skip relative URLs (no scheme), malformed URLs, or non-http(s) schemes silently.
+            return null;
+        }
+
         return Cmd::promise(fn () => $this->posters->load($url, self::HERO_WIDTH, self::HERO_HEIGHT)->then(
             static fn (string $ansi): Msg => new DetailPosterLoadedMsg($ansi),
             static fn (\Throwable $e): ?Msg => null, // a broken poster keeps the placeholder
