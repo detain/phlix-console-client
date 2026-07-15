@@ -63,6 +63,7 @@ final class BrowseScreenTest extends TestCase
             new LibrariesStore($api),
             new MediaStore($api),
             $posters ?? new PosterLoader(Mosaic::halfBlock()),
+            'https://srv',
             cols: 120,
             rows: 40,
         );

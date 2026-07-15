@@ -94,6 +94,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
         private readonly LibrariesStore $libraries,
         private readonly MediaStore $media,
         private readonly PosterLoader $posters,
+        private readonly string $baseUrl,
         private int $cols = 80,
         private int $rows = 24,
     ) {
@@ -127,7 +128,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
             return $this->onLibraryMedia($msg->libraryId, $msg->page);
         }
         if ($msg instanceof PosterLoadedMsg) {
-            return [$this->onPoster($msg->railId, $msg->cardId, $msg->ansi), null];
+            return [$this->onPoster($msg->railId, $msg->cardId, $msg->ansi, $msg->imageId), null];
         }
         if ($msg instanceof LibrariesFailedMsg) {
             return [$this->withError($msg->reason), null];
@@ -211,23 +212,36 @@ final class BrowseScreen implements Breadcrumbed, Themed
             if ($card->posterUrl === null || $card->posterUrl === '' || $card->hasPoster()) {
                 continue;
             }
-            // Defensive: validate URL has a valid http/https scheme before attempting load.
-            // parse_url returns false for malformed URLs and null for URLs with no scheme.
-            $scheme = parse_url($card->posterUrl, PHP_URL_SCHEME);
-            if ($scheme === null || $scheme === false || !in_array($scheme, ['http', 'https'], true)) {
-                // Skip relative URLs (no scheme), malformed URLs, or non-http(s) schemes
-                // silently - treat them the same as a missing poster.
+            // Resolve relative URLs against the server base URL; absolute/empty pass through.
+            $url = $this->resolveUrl($card->posterUrl);
+            if ($url === '') {
                 continue;
             }
-            $url = $card->posterUrl;
+            // Defensive: validate URL has a valid http/https scheme before attempting load.
+            // parse_url returns false for malformed URLs and null for URLs with no scheme.
+            $scheme = parse_url($url, PHP_URL_SCHEME);
+            if ($scheme === null || $scheme === false || !in_array($scheme, ['http', 'https'], true)) {
+                // Skip malformed URLs or non-http(s) schemes silently - treat them the same as a missing poster.
+                continue;
+            }
             $cardId = $card->id;
             $cmds[] = Cmd::promise(fn () => $this->posters->load($url, self::POSTER_WIDTH, self::POSTER_HEIGHT)->then(
-                static fn (string $ansi): Msg => new PosterLoadedMsg($railId, $cardId, $ansi),
+                static fn (\Phlix\Console\Media\PosterLoadResult $result): Msg => new PosterLoadedMsg($railId, $cardId, $result->marker, $result->imageId),
                 static fn (\Throwable $e): ?Msg => null, // a broken poster keeps its placeholder
             ));
         }
 
         return $cmds === [] ? null : Cmd::batch(...$cmds);
+    }
+
+    /** Resolve a (possibly relative) URL against the server base; absolute/empty pass through. */
+    private function resolveUrl(string $url): string
+    {
+        if ($url === '' || preg_match('#^https?://#i', $url) === 1) {
+            return $url; // empty, or already absolute (signed URLs are absolute)
+        }
+
+        return rtrim($this->baseUrl, '/') . '/' . ltrim($url, '/');
     }
 
     // ---- message handlers ----------------------------------------------
@@ -333,7 +347,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
         return [$next, $next->loadPostersFor($libraryId, $rail)];
     }
 
-    private function onPoster(string $railId, string $cardId, string $ansi): self
+    private function onPoster(string $railId, string $cardId, string $marker, ?int $imageId): self
     {
         $rail = $this->railById($railId);
         if ($rail === null) {
@@ -342,7 +356,11 @@ final class BrowseScreen implements Breadcrumbed, Themed
 
         foreach ($rail->cards as $card) {
             if ($card->id === $cardId) {
-                return $this->replaceRail($railId, $rail->withCard($card->withPoster($ansi)));
+                // Use withImage() for overlay modes (sixel/kitty/iterm2), withPoster() for inline modes
+                $newCard = ($imageId !== null && !$this->posters->isInline())
+                    ? $card->withImage($marker, $imageId)
+                    : $card->withPoster($marker);
+                return $this->replaceRail($railId, $rail->withCard($newCard));
             }
         }
 

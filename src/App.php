@@ -959,6 +959,7 @@ final class App implements Model
             $this->libraries,
             $this->media,
             $this->posters,
+            $this->api->baseUrl(),
             cols: $this->cols,
             rows: $this->rows,
         );

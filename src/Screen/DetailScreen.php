@@ -128,7 +128,7 @@ final class DetailScreen implements Breadcrumbed, Themed
             return $this->onLoaded($msg->item);
         }
         if ($msg instanceof DetailPosterLoadedMsg) {
-            return [$this->withHero($msg->ansi), null];
+            return [$this->withHero($msg->marker), null];
         }
         if ($msg instanceof DetailFailedMsg) {
             return [$this->withError($msg->reason), null];
@@ -137,7 +137,7 @@ final class DetailScreen implements Breadcrumbed, Themed
             return $this->onChildren($msg->parentId, $msg->range);
         }
         if ($msg instanceof ChildPosterLoadedMsg) {
-            return [$this->onChildPoster($msg->parentId, $msg->index, $msg->ansi), null];
+            return [$this->onChildPoster($msg->parentId, $msg->index, $msg->marker, $msg->imageId), null];
         }
         if ($msg instanceof ChildrenFailedMsg) {
             // Only a failure that blocked the first child load is surfaced.
@@ -313,7 +313,9 @@ final class DetailScreen implements Breadcrumbed, Themed
         }
 
         return Cmd::promise(fn () => $this->posters->load($url, self::HERO_WIDTH, self::HERO_HEIGHT)->then(
-            static fn (string $ansi): Msg => new DetailPosterLoadedMsg($ansi),
+            function (\Phlix\Console\Media\PosterLoadResult $result): Msg {
+                return new DetailPosterLoadedMsg($result->marker, $result->imageId);
+            },
             static fn (\Throwable $e): ?Msg => null, // a broken poster keeps the placeholder
         ));
     }
@@ -352,7 +354,7 @@ final class DetailScreen implements Breadcrumbed, Themed
         return [$next, $next->loadChildPostersIn($grid, $start, $end)];
     }
 
-    private function onChildPoster(string $parentId, int $index, string $ansi): self
+    private function onChildPoster(string $parentId, int $index, string $marker, ?int $imageId): self
     {
         if ($parentId !== $this->id || $this->childGrid === null) {
             return $this;
@@ -362,8 +364,13 @@ final class DetailScreen implements Breadcrumbed, Themed
             return $this;
         }
 
+        // Use withImage() for overlay modes (sixel/kitty/iterm2), withPoster() for inline modes
+        $newCard = ($imageId !== null && !$this->posters->isInline())
+            ? $card->withImage($marker, $imageId)
+            : $card->withPoster($marker);
+
         $next = clone $this;
-        $next->childGrid = $this->childGrid->withItem($index, $card->withPoster($ansi));
+        $next->childGrid = $this->childGrid->withItem($index, $newCard);
 
         return $next;
     }
@@ -417,7 +424,9 @@ final class DetailScreen implements Breadcrumbed, Themed
             $url = $card->posterUrl;
             $index = $i;
             $cmds[] = Cmd::promise(fn () => $this->posters->load($url, self::CARD_WIDTH, self::POSTER_HEIGHT)->then(
-                static fn (string $ansi): Msg => new ChildPosterLoadedMsg($parentId, $index, $ansi),
+                function (\Phlix\Console\Media\PosterLoadResult $result) use ($parentId, $index): Msg {
+                    return new ChildPosterLoadedMsg($parentId, $index, $result->marker, $result->imageId);
+                },
                 static fn (\Throwable $e): ?Msg => null, // a broken poster keeps its skeleton
             ));
         }

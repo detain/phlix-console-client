@@ -2755,6 +2755,7 @@ final class AppTest extends TestCase
             new LibrariesStore($api),
             new MediaStore($api),
             new PosterLoader(Mosaic::halfBlock()),
+            'https://srv',
             cols: 80,
             rows: 24,
         );

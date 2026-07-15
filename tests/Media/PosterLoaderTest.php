@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Phlix\Console\Tests\Media;
 
 use Phlix\Console\Media\PosterLoader;
+use Phlix\Console\Media\PosterLoadResult;
 use Psr\Http\Message\ServerRequestInterface;
 use React\EventLoop\Loop;
 use React\Http\HttpServer;
@@ -49,10 +50,12 @@ final class PosterLoaderTest extends \PHPUnit\Framework\TestCase
         $loader = new PosterLoader(Mosaic::halfBlock(), $cache);
         $url = "http://127.0.0.1:{$this->port}/poster.png";
 
-        $ansi = $this->await($loader->load($url, 8, 12));
+        $result = $this->await($loader->load($url, 8, 12));
 
-        self::assertIsString($ansi);
-        self::assertNotSame('', $ansi);
+        self::assertInstanceOf(PosterLoadResult::class, $result);
+        self::assertIsString($result->marker);
+        self::assertNotSame('', $result->marker);
+        self::assertNull($result->imageId);
         self::assertSame(1, $this->served);
         self::assertSame(1, $cache->count(), 'rendered ANSI was cached to disk');
     }
@@ -67,7 +70,7 @@ final class PosterLoaderTest extends \PHPUnit\Framework\TestCase
         $first = $this->await($loader->load($url, 8, 12));
         $second = $this->await($loader->load($url, 8, 12));
 
-        self::assertSame($first, $second);
+        self::assertSame($first->marker, $second->marker);
         self::assertSame(1, $this->served, 'cache hit avoided a second HTTP fetch');
     }
 
@@ -96,13 +99,14 @@ final class PosterLoaderTest extends \PHPUnit\Framework\TestCase
         $this->startServer();
         $loader = new PosterLoader(Mosaic::sixel(), null);
 
-        $block = $this->await($loader->load("http://127.0.0.1:{$this->port}/poster.png", 6, 9));
+        $result = $this->await($loader->load("http://127.0.0.1:{$this->port}/poster.png", 6, 9));
 
-        self::assertIsString($block);
+        self::assertInstanceOf(PosterLoadResult::class, $result);
+        self::assertIsString($result->marker);
         // A 9-row marker block, top-left = marker(0), and NO raw sixel in the text.
-        self::assertCount(9, explode("\n", $block));
-        self::assertStringContainsString(\SugarCraft\Core\ImageOverlay::marker(0), $block);
-        self::assertStringNotContainsString("\x1bP", $block, 'the sixel blob never enters the text frame');
+        self::assertCount(9, explode("\n", $result->marker));
+        self::assertStringContainsString(\SugarCraft\Core\ImageOverlay::marker(0), $result->marker);
+        self::assertStringNotContainsString("\x1bP", $result->marker, 'the sixel blob never enters the text frame');
         // The blob lives in the image layer instead (as an ImagePlacement).
         $layer = $loader->imageLayer();
         self::assertArrayHasKey(0, $layer);
@@ -121,7 +125,7 @@ final class PosterLoaderTest extends \PHPUnit\Framework\TestCase
         $a = $this->await($loader->load($url, 6, 9));
         $b = $this->await($loader->load($url, 6, 9));
 
-        self::assertSame($a, $b, 'same poster → same marker id → same block');
+        self::assertSame($a->imageId, $b->imageId, 'same poster → same marker id → same block');
         self::assertCount(1, $loader->imageLayer(), 'one registered image, not two');
     }
 

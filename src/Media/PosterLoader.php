@@ -19,6 +19,20 @@ use SugarCraft\Mosaic\Scale;
 use function React\Promise\resolve;
 
 /**
+ * The result of {@see PosterLoader::load()}: in inline mode the marker is the
+ * rendered poster bytes and imageId is null; in overlay mode the marker is the
+ * placeholder cell block and imageId is the assigned overlay image ID.
+ */
+final readonly class PosterLoadResult
+{
+    public function __construct(
+        public string $marker,
+        public ?int $imageId,
+    ) {
+    }
+}
+
+/**
  * Fetches a poster URL and renders it to ANSI at a target cell size, using a
  * persistent {@see DiskCache} so a redraw (or a later session) is an instant
  * file read. The async fetch keeps the render loop responsive.
@@ -51,7 +65,7 @@ final class PosterLoader
      * immediately). Overlay mode resolves with a marker block of the same size
      * and stashes the rendered bytes in {@see imageLayer()} for the runtime.
      *
-     * @return PromiseInterface<string>
+     * @return PromiseInterface<PosterLoadResult>
      */
     public function load(string $url, int $width, int $height): PromiseInterface
     {
@@ -74,7 +88,7 @@ final class PosterLoader
         $host = parse_url($url, PHP_URL_HOST);
         $allowedHosts = is_string($host) && $host !== '' ? [$host] : null;
 
-        return ImageSource::fromUrlAsync($url, allowedHosts: $allowedHosts)->then(function (ImageSource $image) use ($key, $width, $height): string {
+        return ImageSource::fromUrlAsync($url, allowedHosts: $allowedHosts)->then(function (ImageSource $image) use ($key, $width, $height): PosterLoadResult {
             $bytes = $this->mosaic->withScale(Scale::Fill)->render($image, $width, $height);
             $this->cache?->put($key, $bytes);
 
@@ -121,9 +135,25 @@ final class PosterLoader
      * Inline mode → the bytes are the poster. Overlay mode → register the bytes
      * with the {@see ImageLayer} and return a marker block for the text frame.
      */
-    private function present(string $bytes, int $width, int $height): string
+    private function present(string $bytes, int $width, int $height): PosterLoadResult
     {
-        return $this->inline ? $bytes : $this->images->place($bytes, $width, $height);
+        if ($this->inline) {
+            return new PosterLoadResult($bytes, null);
+        }
+
+        $result = $this->images->place($bytes, $width, $height);
+
+        return new PosterLoadResult($result['marker'], $result['imageId']);
+    }
+
+    /**
+     * True when the renderer produces inline cell text (halfblock / quarterblock /
+     * ascii / ansi256 / truecolor). False when it produces pixel-graphics blobs
+     * that must be painted as overlays (sixel / kitty / iterm2).
+     */
+    public function isInline(): bool
+    {
+        return $this->inline;
     }
 
     /**

@@ -21,7 +21,8 @@ final readonly class ChildPosterLoadedMsg implements Msg
     public function __construct(
         public string $parentId,
         public int $index,
-        public string $ansi,
+        public string $marker,
+        public ?int $imageId = null,
     ) {
     }
 }
