@@ -310,6 +310,23 @@ final class DetailScreenTest extends TestCase
         self::assertTrue($withHero->hasHero());
     }
 
+    /**
+     * Empty string posterUrl must not produce a hero fetch command — it must
+     * be skipped silently just like a null URL, to avoid "URL scheme unknown"
+     * errors from the poster loader when an empty string is passed.
+     */
+    public function testEmptyStringPosterUrlForHeroIsSkippedAndDoesNotCrash(): void
+    {
+        $transport = (new FakeTransport())->json(200, $this->detailResponse(['poster_url' => '']));
+        $screen = $this->screenWith($transport);
+
+        $loadMsg = $this->runBatch($screen->init())[0];
+        [$loaded, $heroCmd] = $screen->update($loadMsg);
+
+        // An empty-string poster URL must produce no hero fetch command.
+        self::assertNull($heroCmd, 'empty string posterUrl for hero is skipped');
+    }
+
     public function testResizeStillRenders(): void
     {
         [$next] = $this->loaded()->update(new WindowSizeMsg(60, 20));
@@ -486,6 +503,90 @@ final class DetailScreenTest extends TestCase
         [$withPoster] = $screen->update(new ChildPosterLoadedMsg('m1', 0, 'POSTER-ANSI'));
 
         self::assertTrue($withPoster->childGrid()?->item(0)?->hasPoster() ?? false);
+    }
+
+    /**
+     * Empty string posterUrl on a child item must not produce a child poster
+     * load command — it must be skipped silently just like a null URL, to avoid
+     * "URL scheme unknown" errors from the poster loader when an empty string
+     * is passed.
+     *
+     * NEW behavior: poster loader throws \InvalidArgumentException for empty/invalid URLs,
+     * error handler catches it and returns null. The result is no poster load command
+     * for the empty string item (and no crash).
+     */
+    public function testEmptyStringPosterUrlForChildIsSkippedAndDoesNotCrash(): void
+    {
+        $screen = $this->loadedContainer('series', [
+            ['id' => 's1', 'name' => 'Season 1', 'type' => 'season', 'poster_url' => ''],
+            ['id' => 's2', 'name' => 'Season 2', 'type' => 'season', 'poster_url' => 'https://p/s2.jpg'],
+        ]);
+
+        // The child with empty string posterUrl should not produce a poster load.
+        // We can verify this by scrolling to ensure the child grid is accessed
+        // and checking that only valid poster URLs are processed.
+        [$moved, $scrollCmd] = $screen->update(new KeyMsg(KeyType::Down));
+
+        // The scroll should not produce a poster load command for the empty string item.
+        // NEW behavior: exception is thrown and caught, returning null (no crash).
+        // Only s2's poster would be loaded, but since s2 already has a poster loaded
+        // in loadedContainer, there's no additional work to do.
+        self::assertNull($scrollCmd, 'empty string posterUrl produces no poster load command');
+    }
+
+    /**
+     * A relative URL (no scheme, e.g. /poster.jpg) on a child item must not
+     * produce a child poster load command — it is skipped silently, treated
+     * the same as a missing poster.
+     */
+    public function testRelativeUrlPosterForChildIsSkippedSilently(): void
+    {
+        $screen = $this->loadedContainer('series', [
+            ['id' => 's1', 'name' => 'Season 1', 'type' => 'season', 'poster_url' => '/poster.jpg'],
+            ['id' => 's2', 'name' => 'Season 2', 'type' => 'season', 'poster_url' => 'https://p/s2.jpg'],
+        ]);
+
+        // Scroll to trigger loading of child posters for the newly visible window.
+        [$moved, $scrollCmd] = $screen->update(new KeyMsg(KeyType::Down));
+
+        // The child with a relative URL posterUrl should not produce a poster load.
+        self::assertNull($scrollCmd, 'relative URL posterUrl produces no poster load command');
+    }
+
+    /**
+     * A malformed URL (e.g. not-a-valid-url) on a child item must not produce
+     * a child poster load command — it is skipped silently, treated the same
+     * as a missing poster.
+     */
+    public function testMalformedUrlPosterForChildIsSkippedSilently(): void
+    {
+        $screen = $this->loadedContainer('series', [
+            ['id' => 's1', 'name' => 'Season 1', 'type' => 'season', 'poster_url' => 'not-a-valid-url'],
+            ['id' => 's2', 'name' => 'Season 2', 'type' => 'season', 'poster_url' => 'https://p/s2.jpg'],
+        ]);
+
+        [$moved, $scrollCmd] = $screen->update(new KeyMsg(KeyType::Down));
+
+        // The child with a malformed URL posterUrl should not produce a poster load.
+        self::assertNull($scrollCmd, 'malformed URL posterUrl produces no poster load command');
+    }
+
+    /**
+     * A URL with a non-http(s) scheme (e.g. ftp:// or javascript:) on a child
+     * item must not produce a child poster load command — it is skipped silently,
+     * treated the same as a missing poster.
+     */
+    public function testNonHttpSchemePosterForChildIsSkippedSilently(): void
+    {
+        $screen = $this->loadedContainer('series', [
+            ['id' => 's1', 'name' => 'Season 1', 'type' => 'season', 'poster_url' => 'ftp://cdn.example.com/file.jpg'],
+            ['id' => 's2', 'name' => 'Season 2', 'type' => 'season', 'poster_url' => 'https://p/s2.jpg'],
+        ]);
+
+        [$moved, $scrollCmd] = $screen->update(new KeyMsg(KeyType::Down));
+
+        // The child with a non-http scheme posterUrl should not produce a poster load.
+        self::assertNull($scrollCmd, 'non-http scheme posterUrl produces no poster load command');
     }
 
     public function testContainerChildrenFailureShowsError(): void

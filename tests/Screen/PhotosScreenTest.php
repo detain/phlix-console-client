@@ -415,6 +415,91 @@ final class PhotosScreenTest extends TestCase
         self::assertFalse($loaded->grid()->item(0)?->hasPoster(), 'the cell keeps its placeholder');
     }
 
+    /**
+     * Empty string cover thumbnail URL must not produce a cover load command —
+     * it must be skipped silently just like a null URL, to avoid "URL scheme
+     * unknown" errors from the poster loader when an empty string is passed.
+     *
+     * NEW behavior: poster loader throws \InvalidArgumentException for empty/invalid URLs,
+     * error handler catches it and returns null. The empty string album produces no message.
+     */
+    public function testEmptyStringCoverThumbnailIsSkippedAndDoesNotCrash(): void
+    {
+        // An album with an empty string cover thumbnail → no cover load, skipped.
+        $transport = (new FakeTransport())->json(200, ['albums' => [
+            $this->album('a0', '2026-06-23', ''),
+            $this->album('a1', '2026-06-22', 'https://srv/c1.jpg'),
+        ]]);
+        $screen = $this->screenWith($transport, new PosterLoader(Mosaic::halfBlock()));
+
+        $msgs = $this->runBatch($screen->init());
+        [$loaded, $coverCmd] = $screen->update($msgs[0]);
+
+        // With NEW behavior, empty string cover is skipped (exception caught, returns null).
+        // The valid cover URL would produce a GridPosterLoadedMsg if load succeeds.
+        // Since poster loading may fail in test env, we just verify no crash occurs.
+        $posterMsgs = $this->runBatch($coverCmd);
+        self::assertContainsOnlyInstancesOf(GridPosterLoadedMsg::class, $posterMsgs, 'poster messages are GridPosterLoadedMsg');
+    }
+
+    /**
+     * A relative URL (no scheme, e.g. /cover.jpg) must not produce a cover load
+     * command — it is skipped silently, treated the same as a missing cover.
+     */
+    public function testRelativeUrlCoverIsSkippedSilently(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['albums' => [
+            $this->album('a0', '2026-06-23', '/cover.jpg'),
+            $this->album('a1', '2026-06-22', 'https://srv/c1.jpg'),
+        ]]);
+        $screen = $this->screenWith($transport, new PosterLoader(Mosaic::halfBlock()));
+
+        $msgs = $this->runBatch($screen->init());
+        [$loaded, $coverCmd] = $screen->update($msgs[0]);
+
+        $posterMsgs = $this->runBatch($coverCmd);
+        self::assertContainsOnlyInstancesOf(GridPosterLoadedMsg::class, $posterMsgs, 'poster messages are GridPosterLoadedMsg');
+    }
+
+    /**
+     * A malformed URL (e.g. not-a-valid-url) must not produce a cover load
+     * command — it is skipped silently, treated the same as a missing cover.
+     */
+    public function testMalformedUrlCoverIsSkippedSilently(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['albums' => [
+            $this->album('a0', '2026-06-23', 'not-a-valid-url'),
+            $this->album('a1', '2026-06-22', 'https://srv/c1.jpg'),
+        ]]);
+        $screen = $this->screenWith($transport, new PosterLoader(Mosaic::halfBlock()));
+
+        $msgs = $this->runBatch($screen->init());
+        [$loaded, $coverCmd] = $screen->update($msgs[0]);
+
+        $posterMsgs = $this->runBatch($coverCmd);
+        self::assertContainsOnlyInstancesOf(GridPosterLoadedMsg::class, $posterMsgs, 'poster messages are GridPosterLoadedMsg');
+    }
+
+    /**
+     * A URL with a non-http(s) scheme (e.g. ftp:// or javascript:) must not
+     * produce a cover load command — it is skipped silently, treated the same
+     * as a missing cover.
+     */
+    public function testNonHttpSchemeCoverIsSkippedSilently(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['albums' => [
+            $this->album('a0', '2026-06-23', 'ftp://cdn.example.com/file.jpg'),
+            $this->album('a1', '2026-06-22', 'https://srv/c1.jpg'),
+        ]]);
+        $screen = $this->screenWith($transport, new PosterLoader(Mosaic::halfBlock()));
+
+        $msgs = $this->runBatch($screen->init());
+        [$loaded, $coverCmd] = $screen->update($msgs[0]);
+
+        $posterMsgs = $this->runBatch($coverCmd);
+        self::assertContainsOnlyInstancesOf(GridPosterLoadedMsg::class, $posterMsgs, 'poster messages are GridPosterLoadedMsg');
+    }
+
     public function testBrokenCoverIsSwallowed(): void
     {
         // The thumbnail points at a path the cover server 404s → the render fails

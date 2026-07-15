@@ -62,6 +62,10 @@ final class PosterLoader
             return resolve($this->present($hit, $width, $height));
         }
 
+        if (!$this->isValidImageUrl($url)) {
+            throw new \InvalidArgumentException('Invalid or missing URL scheme');
+        }
+
         // Phlix only ever loads image URLs handed back by its own configured
         // server, which for a self-hosted deployment is routinely on localhost
         // or a LAN address. candy-mosaic's fromUrlAsync() SSRF guard rejects
@@ -120,5 +124,27 @@ final class PosterLoader
     private function present(string $bytes, int $width, int $height): string
     {
         return $this->inline ? $bytes : $this->images->place($bytes, $width, $height);
+    }
+
+    /**
+     * Validates that a URL is a proper HTTP/HTTPS image URL.
+     */
+    private function isValidImageUrl(string $url): bool
+    {
+        if ($url === '') {
+            return false;
+        }
+
+        $scheme = parse_url($url, PHP_URL_SCHEME);
+        if ($scheme === null || !in_array($scheme, ['http', 'https'], true)) {
+            return false;
+        }
+
+        $host = parse_url($url, PHP_URL_HOST);
+        if ($host === null || $host === '') {
+            return false;
+        }
+
+        return true;
     }
 }

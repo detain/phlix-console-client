@@ -519,6 +519,89 @@ final class LibraryScreenTest extends TestCase
         self::assertNotSame('', $msg->ansi);
     }
 
+    /**
+     * Empty string posterUrl must not produce a poster load command — it must
+     * be skipped silently just like a null URL, to avoid "URL scheme unknown"
+     * errors from the poster loader when an empty string is passed.
+     */
+    public function testEmptyStringPosterUrlIsSkippedAndDoesNotCrash(): void
+    {
+        $transport = (new FakeTransport())->json(200, [
+            'items' => [['id' => '0', 'name' => 'M', 'type' => 'movie', 'poster_url' => '']],
+            'total' => 1,
+            'limit' => 50,
+            'offset' => 0,
+        ]);
+        $screen = $this->screenWith($transport, new PosterLoader(Mosaic::halfBlock()));
+
+        $range = $this->runBatch($screen->init())[0];
+        [$loaded, $cmd] = $screen->update($range);
+
+        // An empty-string poster URL must produce no poster load command.
+        self::assertSame([], $this->runBatch($cmd), 'empty string posterUrl produces no poster load');
+    }
+
+    /**
+     * A relative URL (no scheme, e.g. /poster.jpg) must not produce a poster
+     * load command — it is skipped silently, treated the same as a missing poster.
+     */
+    public function testRelativeUrlPosterIsSkippedSilently(): void
+    {
+        $transport = (new FakeTransport())->json(200, [
+            'items' => [['id' => '0', 'name' => 'M', 'type' => 'movie', 'poster_url' => '/poster.jpg']],
+            'total' => 1,
+            'limit' => 50,
+            'offset' => 0,
+        ]);
+        $screen = $this->screenWith($transport, new PosterLoader(Mosaic::halfBlock()));
+
+        $range = $this->runBatch($screen->init())[0];
+        [$loaded, $cmd] = $screen->update($range);
+
+        self::assertSame([], $this->runBatch($cmd), 'relative URL posterUrl produces no poster load');
+    }
+
+    /**
+     * A malformed URL (e.g. not-a-valid-url) must not produce a poster load
+     * command — it is skipped silently, treated the same as a missing poster.
+     */
+    public function testMalformedUrlPosterIsSkippedSilently(): void
+    {
+        $transport = (new FakeTransport())->json(200, [
+            'items' => [['id' => '0', 'name' => 'M', 'type' => 'movie', 'poster_url' => 'not-a-valid-url']],
+            'total' => 1,
+            'limit' => 50,
+            'offset' => 0,
+        ]);
+        $screen = $this->screenWith($transport, new PosterLoader(Mosaic::halfBlock()));
+
+        $range = $this->runBatch($screen->init())[0];
+        [$loaded, $cmd] = $screen->update($range);
+
+        self::assertSame([], $this->runBatch($cmd), 'malformed URL posterUrl produces no poster load');
+    }
+
+    /**
+     * A URL with a non-http(s) scheme (e.g. ftp:// or javascript:) must not
+     * produce a poster load command — it is skipped silently, treated the same
+     * as a missing poster.
+     */
+    public function testNonHttpSchemePosterIsSkippedSilently(): void
+    {
+        $transport = (new FakeTransport())->json(200, [
+            'items' => [['id' => '0', 'name' => 'M', 'type' => 'movie', 'poster_url' => 'ftp://cdn.example.com/file.jpg']],
+            'total' => 1,
+            'limit' => 50,
+            'offset' => 0,
+        ]);
+        $screen = $this->screenWith($transport, new PosterLoader(Mosaic::halfBlock()));
+
+        $range = $this->runBatch($screen->init())[0];
+        [$loaded, $cmd] = $screen->update($range);
+
+        self::assertSame([], $this->runBatch($cmd), 'non-http scheme posterUrl produces no poster load');
+    }
+
     // ---- async Cmd runners (shared shape with BrowseScreenTest) ---------
 
     /**

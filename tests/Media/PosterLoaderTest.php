@@ -125,6 +125,35 @@ final class PosterLoaderTest extends \PHPUnit\Framework\TestCase
         self::assertCount(1, $loader->imageLayer(), 'one registered image, not two');
     }
 
+    public function testLoadSkipsInvalidUrls(): void
+    {
+        $loader = new PosterLoader(Mosaic::halfBlock());
+
+        // NEW correct behavior: throws \InvalidArgumentException for invalid URLs
+        // (error handler catches it and returns null - no message created)
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid or missing URL scheme');
+        $this->await($loader->load('', 8, 12));
+    }
+
+    public function testLoadRejectsRelativeUrls(): void
+    {
+        $loader = new PosterLoader(Mosaic::halfBlock());
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid or missing URL scheme');
+        $this->await($loader->load('/images/poster.jpg', 8, 12));
+    }
+
+    public function testLoadRejectsFileSchemeUrls(): void
+    {
+        $loader = new PosterLoader(Mosaic::halfBlock());
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid or missing URL scheme');
+        $this->await($loader->load('file:///images/poster.jpg', 8, 12));
+    }
+
     private function startServer(): void
     {
         $png = $this->pngBytes();

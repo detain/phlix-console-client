@@ -164,6 +164,24 @@ final class BookDetailScreenTest extends TestCase
         self::assertIsString($loaded->view(), 'the placeholder still renders');
     }
 
+    /**
+     * Empty string coverUrl must not produce a hero fetch command — it must be
+     * skipped silently just like a null URL, to avoid "URL scheme unknown" errors
+     * from the poster loader when an empty string is passed.
+     */
+    public function testEmptyStringCoverUrlIsSkippedAndDoesNotCrash(): void
+    {
+        $transport = (new FakeTransport())->json(200, $this->detailResponse(['cover_url' => '']));
+        $screen = $this->screenWith($transport);
+        $msg = $this->runBatch($screen->init())[0];
+
+        [$loaded, $cmd] = $screen->update($msg);
+
+        self::assertFalse($loaded->hasHero());
+        self::assertNull($cmd, 'empty string coverUrl → no hero fetch Cmd');
+        self::assertIsString($loaded->view(), 'the placeholder still renders without crashing');
+    }
+
     public function testLoadingViewBeforeTheBookArrives(): void
     {
         $view = $this->screenWith((new FakeTransport())->pending())->view();

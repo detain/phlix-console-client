@@ -286,6 +286,118 @@ final class SearchScreenTest extends TestCase
         self::assertInstanceOf(\Closure::class, $moveCmd);
     }
 
+    /**
+     * Empty string posterUrl must not produce a poster load command — it must
+     * be skipped silently just like a null URL, to avoid "URL scheme unknown"
+     * errors from the poster loader when an empty string is passed.
+     */
+    public function testEmptyStringPosterUrlIsSkippedAndDoesNotCrash(): void
+    {
+        // Create a search response where items have empty string poster_url.
+        $transport = (new FakeTransport())->json(200, [
+            'items' => [
+                ['id' => '0', 'name' => 'Movie 0', 'type' => 'movie', 'poster_url' => ''],
+                ['id' => '1', 'name' => 'Movie 1', 'type' => 'movie', 'poster_url' => 'https://p/1.jpg'],
+            ],
+            'total' => 2,
+            'limit' => 50,
+            'offset' => 0,
+        ]);
+        $screen = $this->screenWith($transport);
+        [$screen] = $screen->update(new KeyMsg(KeyType::Char, 'm'));
+        [$screen, $fetch] = $screen->update(new SearchDebouncedMsg(1));
+        $range = $this->runCmd($fetch);
+
+        [$loaded, $posterCmd] = $screen->update($range);
+
+        // The item with empty string posterUrl must not produce a poster load.
+        // Only the item with a valid poster URL should be loaded.
+        $posterMsgs = $this->runBatch($posterCmd);
+        self::assertCount(1, $posterMsgs, 'only the valid poster URL is loaded, the empty string is skipped');
+    }
+
+    /**
+     * A relative URL (no scheme, e.g. /poster.jpg) must not produce a poster
+     * load command — it is skipped silently, treated the same as a missing poster.
+     */
+    public function testRelativeUrlPosterIsSkippedSilently(): void
+    {
+        $transport = (new FakeTransport())->json(200, [
+            'items' => [
+                ['id' => '0', 'name' => 'Movie 0', 'type' => 'movie', 'poster_url' => '/poster.jpg'],
+                ['id' => '1', 'name' => 'Movie 1', 'type' => 'movie', 'poster_url' => 'https://p/1.jpg'],
+            ],
+            'total' => 2,
+            'limit' => 50,
+            'offset' => 0,
+        ]);
+        $screen = $this->screenWith($transport);
+        [$screen] = $screen->update(new KeyMsg(KeyType::Char, 'm'));
+        [$screen, $fetch] = $screen->update(new SearchDebouncedMsg(1));
+        $range = $this->runCmd($fetch);
+
+        [$loaded, $posterCmd] = $screen->update($range);
+
+        // Only the item with a valid poster URL should be loaded.
+        $posterMsgs = $this->runBatch($posterCmd);
+        self::assertCount(1, $posterMsgs, 'only the valid poster URL is loaded, the relative URL is skipped');
+    }
+
+    /**
+     * A malformed URL (e.g. not-a-valid-url) must not produce a poster load
+     * command — it is skipped silently, treated the same as a missing poster.
+     */
+    public function testMalformedUrlPosterIsSkippedSilently(): void
+    {
+        $transport = (new FakeTransport())->json(200, [
+            'items' => [
+                ['id' => '0', 'name' => 'Movie 0', 'type' => 'movie', 'poster_url' => 'not-a-valid-url'],
+                ['id' => '1', 'name' => 'Movie 1', 'type' => 'movie', 'poster_url' => 'https://p/1.jpg'],
+            ],
+            'total' => 2,
+            'limit' => 50,
+            'offset' => 0,
+        ]);
+        $screen = $this->screenWith($transport);
+        [$screen] = $screen->update(new KeyMsg(KeyType::Char, 'm'));
+        [$screen, $fetch] = $screen->update(new SearchDebouncedMsg(1));
+        $range = $this->runCmd($fetch);
+
+        [$loaded, $posterCmd] = $screen->update($range);
+
+        // Only the item with a valid poster URL should be loaded.
+        $posterMsgs = $this->runBatch($posterCmd);
+        self::assertCount(1, $posterMsgs, 'only the valid poster URL is loaded, the malformed URL is skipped');
+    }
+
+    /**
+     * A URL with a non-http(s) scheme (e.g. ftp:// or javascript:) must not
+     * produce a poster load command — it is skipped silently, treated the same
+     * as a missing poster.
+     */
+    public function testNonHttpSchemePosterIsSkippedSilently(): void
+    {
+        $transport = (new FakeTransport())->json(200, [
+            'items' => [
+                ['id' => '0', 'name' => 'Movie 0', 'type' => 'movie', 'poster_url' => 'ftp://cdn.example.com/file.jpg'],
+                ['id' => '1', 'name' => 'Movie 1', 'type' => 'movie', 'poster_url' => 'https://p/1.jpg'],
+            ],
+            'total' => 2,
+            'limit' => 50,
+            'offset' => 0,
+        ]);
+        $screen = $this->screenWith($transport);
+        [$screen] = $screen->update(new KeyMsg(KeyType::Char, 'm'));
+        [$screen, $fetch] = $screen->update(new SearchDebouncedMsg(1));
+        $range = $this->runCmd($fetch);
+
+        [$loaded, $posterCmd] = $screen->update($range);
+
+        // Only the item with a valid poster URL should be loaded.
+        $posterMsgs = $this->runBatch($posterCmd);
+        self::assertCount(1, $posterMsgs, 'only the valid poster URL is loaded, the non-http scheme is skipped');
+    }
+
     public function testPagingAndJumpKeysMoveTheGrid(): void
     {
         $screen = $this->runSearch('matrix', 200);

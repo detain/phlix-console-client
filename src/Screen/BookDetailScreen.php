@@ -145,7 +145,7 @@ final class BookDetailScreen implements Breadcrumbed, Themed
         $next->loaded = true;
 
         // Load the hero cover (if the detail minted a signed one).
-        $cmd = $book->coverUrl !== null ? $next->fetchHero($this->resolveUrl($book->coverUrl)) : null;
+        $cmd = ($book->coverUrl !== null && $book->coverUrl !== '') ? $next->fetchHero($this->resolveUrl($book->coverUrl)) : null;
 
         return [$next, $cmd];
     }

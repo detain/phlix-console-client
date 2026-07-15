@@ -268,7 +268,7 @@ final class CastScreen implements Breadcrumbed, Themed
             $this->item->id,
             $this->resolveUrl($this->item->streamUrl ?? ''),
             $this->item->name,
-            $this->item->posterUrl !== null ? $this->resolveUrl($this->item->posterUrl) : null,
+            ($this->item->posterUrl !== null && $this->item->posterUrl !== '') ? $this->resolveUrl($this->item->posterUrl) : null,
             $this->item->runtime ?? $this->item->duration,
         );
 

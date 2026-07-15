@@ -294,6 +294,39 @@ final class CastScreenTest extends TestCase
         self::assertInstanceOf(\Closure::class, $tick, 'the status poll is armed on entering transport');
     }
 
+    /**
+     * Empty string posterUrl must not crash the cast — it must be treated as
+     * "no poster" and pass null to castTo, avoiding "URL scheme unknown" errors
+     * when an empty string is passed to URL resolution.
+     */
+    public function testEmptyStringPosterUrlDoesNotCrashAndTreatsAsNoPoster(): void
+    {
+        // Create an item with empty string posterUrl.
+        $itemEmptyPoster = MediaItem::fromArray([
+            'id' => 'm-8',
+            'name' => 'No Poster Movie',
+            'type' => 'movie',
+            'poster_url' => '', // empty string — the bug case
+            'runtime' => 90,
+            'stream_url' => 'https://srv.example/media/m-8/stream?sig=x',
+        ]);
+
+        $api = new ApiClient(self::BASE, (new FakeTransport())
+            ->json(200, ['devices' => [['device_id' => 'cc-1', 'name' => 'Living Room TV', 'model' => 'Chromecast Ultra']]])
+            ->json(200, ['session_id' => 'sess-2', 'state' => 'PLAYING']));
+        $api->setToken(new TokenBundle('access-1', 'refresh-1', 'Bearer', time() + 3600));
+
+        $screen = new CastScreen(new CastClient($api), $itemEmptyPoster, self::BASE, cols: 120, rows: 40);
+        $msg = $this->runCmd($screen->init());
+        self::assertInstanceOf(CastDevicesLoadedMsg::class, $msg);
+        $picker = $screen->update($msg)[0];
+
+        // Enter should still work and cast with null poster.
+        [, $cmd] = $picker->update(new KeyMsg(KeyType::Enter));
+        $castMsg = $this->runCmd($cmd);
+        self::assertInstanceOf(CastStartedMsg::class, $castMsg, 'cast with empty string posterUrl does not crash');
+    }
+
     public function testEnterWithNoDevicesIsANoOp(): void
     {
         $transport = (new FakeTransport())

@@ -304,7 +304,7 @@ final class BooksScreen implements Breadcrumbed, Loadable, Shimmering, Themed
     {
         return Cmd::promise(fn () => $this->books->book($bookId)->then(
             function (Book $book): PromiseInterface {
-                if ($book->coverUrl === null) {
+                if ($book->coverUrl === null || $book->coverUrl === '') {
                     return resolve(null); // no cover → keep the placeholder
                 }
 

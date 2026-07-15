@@ -729,6 +729,62 @@ final class BrowseScreenTest extends TestCase
     }
 
     /**
+     * Empty string posterUrl must not produce a poster load command — it must
+     * be skipped silently just like a null URL, to avoid "URL scheme unknown"
+     * errors from the poster loader when an empty string is passed.
+     */
+    public function testEmptyStringPosterUrlIsSkippedAndDoesNotCrash(): void
+    {
+        $page = MediaPage::fromArray(['items' => [['id' => 'm1', 'name' => 'M', 'type' => 'movie', 'poster_url' => '']], 'total' => 1, 'limit' => 18, 'offset' => 0]);
+        $screen = $this->screen()->update(new LibrariesLoadedMsg([$this->library('lib-a', 'Movies')]))[0];
+        [, $posterCmd] = $screen->update(new LibraryMediaLoadedMsg('lib-a', $page));
+
+        // An empty-string poster URL must produce no poster load command (or
+        // an empty batch that resolves to nothing), not a crash.
+        self::assertSame([], $this->runBatch($posterCmd), 'empty string posterUrl produces no poster load');
+    }
+
+    /**
+     * A relative URL (no scheme, e.g. /poster.jpg) must not produce a poster
+     * load command — it is skipped silently, treated the same as a missing poster.
+     */
+    public function testRelativeUrlPosterIsSkippedSilently(): void
+    {
+        $page = MediaPage::fromArray(['items' => [['id' => 'm1', 'name' => 'M', 'type' => 'movie', 'poster_url' => '/poster.jpg']], 'total' => 1, 'limit' => 18, 'offset' => 0]);
+        $screen = $this->screen()->update(new LibrariesLoadedMsg([$this->library('lib-a', 'Movies')]))[0];
+        [, $posterCmd] = $screen->update(new LibraryMediaLoadedMsg('lib-a', $page));
+
+        self::assertSame([], $this->runBatch($posterCmd), 'relative URL posterUrl produces no poster load');
+    }
+
+    /**
+     * A malformed URL (e.g. not-a-valid-url) must not produce a poster load
+     * command — it is skipped silently, treated the same as a missing poster.
+     */
+    public function testMalformedUrlPosterIsSkippedSilently(): void
+    {
+        $page = MediaPage::fromArray(['items' => [['id' => 'm1', 'name' => 'M', 'type' => 'movie', 'poster_url' => 'not-a-valid-url']], 'total' => 1, 'limit' => 18, 'offset' => 0]);
+        $screen = $this->screen()->update(new LibrariesLoadedMsg([$this->library('lib-a', 'Movies')]))[0];
+        [, $posterCmd] = $screen->update(new LibraryMediaLoadedMsg('lib-a', $page));
+
+        self::assertSame([], $this->runBatch($posterCmd), 'malformed URL posterUrl produces no poster load');
+    }
+
+    /**
+     * A URL with a non-http(s) scheme (e.g. ftp:// or javascript:) must not
+     * produce a poster load command — it is skipped silently, treated the same
+     * as a missing poster.
+     */
+    public function testNonHttpSchemePosterIsSkippedSilently(): void
+    {
+        $page = MediaPage::fromArray(['items' => [['id' => 'm1', 'name' => 'M', 'type' => 'movie', 'poster_url' => 'ftp://cdn.example.com/file.jpg']], 'total' => 1, 'limit' => 18, 'offset' => 0]);
+        $screen = $this->screen()->update(new LibrariesLoadedMsg([$this->library('lib-a', 'Movies')]))[0];
+        [, $posterCmd] = $screen->update(new LibraryMediaLoadedMsg('lib-a', $page));
+
+        self::assertSame([], $this->runBatch($posterCmd), 'non-http scheme posterUrl produces no poster load');
+    }
+
+    /**
      * Run a Cmd::batch (or single Cmd), resolving async children, and collect
      * the non-null Msgs they produce.
      *

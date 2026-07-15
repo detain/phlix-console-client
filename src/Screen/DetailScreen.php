@@ -297,7 +297,7 @@ final class DetailScreen implements Breadcrumbed, Themed
         }
 
         // Leaf: load the hero poster (if any).
-        $cmd = $item->posterUrl !== null ? $next->fetchHero($item->posterUrl) : null;
+        $cmd = ($item->posterUrl !== null && $item->posterUrl !== '') ? $next->fetchHero($item->posterUrl) : null;
 
         return [$next, $cmd];
     }
@@ -395,7 +395,15 @@ final class DetailScreen implements Breadcrumbed, Themed
         $cmds = [];
         for ($i = max(0, $start); $i <= $end; $i++) {
             $card = $grid->item($i);
-            if ($card === null || $card->posterUrl === null || $card->hasPoster()) {
+            if ($card === null || $card->posterUrl === null || $card->posterUrl === '' || $card->hasPoster()) {
+                continue;
+            }
+            // Defensive: validate URL has a valid http/https scheme before attempting load.
+            // parse_url returns false for malformed URLs and null for URLs with no scheme.
+            $scheme = parse_url($card->posterUrl, PHP_URL_SCHEME);
+            if ($scheme === null || $scheme === false || !in_array($scheme, ['http', 'https'], true)) {
+                // Skip relative URLs (no scheme), malformed URLs, or non-http(s) schemes
+                // silently - treat them the same as a missing poster.
                 continue;
             }
             $url = $card->posterUrl;
