@@ -100,6 +100,9 @@ final class DetailScreen implements Breadcrumbed, Themed
     /** @var array{0:int,1:int} the last child window requested (dedups fetches) */
     private array $childRequested = [0, -1];
 
+    // Cached renderer for synopsis markdown rendering (performance optimization).
+    private ?Renderer $synopsisRenderer = null;
+
     public function __construct(
         private readonly string $id,
         private readonly string $name,
@@ -581,13 +584,30 @@ final class DetailScreen implements Breadcrumbed, Themed
             return ['No synopsis available.'];
         }
 
-        $rendered = Renderer::ansi()->withWordWrap($width)->render($overview);
+        try {
+            $rendered = $this->getSynopsisRenderer($width)->render($overview);
+        } catch (\Throwable $e) {
+            // Fallback to plain text on render failure.
+            return [Width::truncate($overview, $width)];
+        }
         $all = explode("\n", rtrim($rendered, "\n"));
 
         $max = max(0, count($all) - $rows);
         $offset = min($this->synopsisScroll, $max);
 
         return array_slice($all, $offset, $rows);
+    }
+
+    /**
+     * Get a cached Renderer instance configured for synopsis rendering.
+     * Caching avoids repeated Renderer::ansi()->withWordWrap() instantiation.
+     */
+    private function getSynopsisRenderer(int $width): Renderer
+    {
+        if ($this->synopsisRenderer === null) {
+            $this->synopsisRenderer = Renderer::ansi()->withWordWrap($width);
+        }
+        return $this->synopsisRenderer;
     }
 
     /** A dim placeholder block the exact size of the hero, shown until it loads. */
