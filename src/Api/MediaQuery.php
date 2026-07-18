@@ -38,10 +38,14 @@ final readonly class MediaQuery
     ) {
     }
 
-    /** Scope a query to a single library. */
+    /**
+     * Creates a query for the home library rail (Anime/TV/Movies).
+     * Sets topLevel=1 so the API returns series/season items with real posters
+     * instead of individual episodes with stills.
+     */
     public static function forLibrary(string $libraryId, int $limit = 50, int $offset = 0): self
     {
-        return new self(libraryId: $libraryId, limit: $limit, offset: $offset);
+        return new self(libraryId: $libraryId, limit: $limit, offset: $offset, topLevel: true);
     }
 
     public function withOffset(int $offset): self

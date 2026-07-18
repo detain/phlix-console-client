@@ -7,6 +7,8 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **Library rails (Anime/TV) now show posters instead of stills** (`topLevel=1` in API
+  request via `forLibrary()`)
 - **Admin forms keep an invalid submit open with an inline error instead of a
   toast.** candy-forms now gates submit on each field's validator (upstream
   `candy-forms: gate Form submit on validation`), so the Backup *Schedule* and
