@@ -467,6 +467,7 @@ final class SearchScreenTest extends TestCase
         return new SearchScreen(
             new MediaStore($api),
             $posters ?? new PosterLoader(Mosaic::halfBlock()),
+            $api->baseUrl(),
             cols: 120,
             rows: 40,
         );

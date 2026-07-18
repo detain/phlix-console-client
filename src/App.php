@@ -1190,6 +1190,7 @@ final class App implements Model
         $screen = new SearchScreen(
             $this->media,
             $this->posters,
+            $this->api->baseUrl(),
             cols: $this->cols,
             rows: $this->rows,
         );

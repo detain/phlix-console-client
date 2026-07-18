@@ -7,6 +7,7 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **Search results now show poster images** (relative URLs resolved via baseUrl + resolveUrl())
 - **Detail page hero images and child-episode thumbnails now render** (relative poster URLs
   resolved via `baseUrl` + `resolveUrl()`)
 - **Library rails (Anime/TV) now show posters instead of stills** (`topLevel=1` in API
