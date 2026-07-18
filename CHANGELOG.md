@@ -7,6 +7,8 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **Detail page hero images and child-episode thumbnails now render** (relative poster URLs
+  resolved via `baseUrl` + `resolveUrl()`)
 - **Library rails (Anime/TV) now show posters instead of stills** (`topLevel=1` in API
   request via `forLibrary()`)
 - **Admin forms keep an invalid submit open with an inline error instead of a

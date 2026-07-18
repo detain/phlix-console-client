@@ -56,6 +56,7 @@ final class DetailScreenTest extends TestCase
             'The Matrix',
             new MediaStore($api),
             $posters ?? new PosterLoader(Mosaic::halfBlock()),
+            $api->baseUrl(),
             cols: 120,
             rows: 40,
         );

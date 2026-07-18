@@ -108,6 +108,7 @@ final class DetailScreen implements Breadcrumbed, Themed
         private readonly string $name,
         private readonly MediaStore $media,
         private readonly PosterLoader $posters,
+        private readonly string $baseUrl,
         private int $cols = 80,
         private int $rows = 24,
     ) {
@@ -307,6 +308,11 @@ final class DetailScreen implements Breadcrumbed, Themed
 
     private function fetchHero(string $url): ?\Closure
     {
+        // Resolve relative URLs against the server base URL; absolute/empty pass through.
+        $url = $this->resolveUrl($url);
+        if ($url === '') {
+            return null;
+        }
         // Defensive: validate URL has a valid http/https scheme before attempting load.
         // parse_url returns false for malformed URLs and null for URLs with no scheme.
         $scheme = parse_url($url, PHP_URL_SCHEME);
@@ -321,6 +327,20 @@ final class DetailScreen implements Breadcrumbed, Themed
             },
             static fn (\Throwable $e): ?Msg => null, // a broken poster keeps the placeholder
         ));
+    }
+
+    /**
+     * Resolves a relative URL to an absolute URL using the configured baseUrl.
+     * Handles empty strings and already-absolute http/https URLs as pass-through.
+     * Relative URLs (e.g., /api/v1/artwork/...) are resolved against baseUrl.
+     */
+    private function resolveUrl(string $url): string
+    {
+        if ($url === '' || preg_match('#^https?://#i', $url) === 1) {
+            return $url; // empty, or already absolute (signed URLs are absolute)
+        }
+
+        return rtrim($this->baseUrl, '/') . '/' . ltrim($url, '/');
     }
 
     // ---- data: the children grid (container mode) ----------------------
@@ -416,15 +436,19 @@ final class DetailScreen implements Breadcrumbed, Themed
             if ($card === null || $card->posterUrl === null || $card->posterUrl === '' || $card->hasPoster()) {
                 continue;
             }
+            // Resolve relative URLs against the server base URL; absolute/empty pass through.
+            $url = $this->resolveUrl($card->posterUrl);
+            if ($url === '') {
+                continue;
+            }
             // Defensive: validate URL has a valid http/https scheme before attempting load.
             // parse_url returns false for malformed URLs and null for URLs with no scheme.
-            $scheme = parse_url($card->posterUrl, PHP_URL_SCHEME);
+            $scheme = parse_url($url, PHP_URL_SCHEME);
             if ($scheme === null || $scheme === false || !in_array($scheme, ['http', 'https'], true)) {
                 // Skip relative URLs (no scheme), malformed URLs, or non-http(s) schemes
                 // silently - treat them the same as a missing poster.
                 continue;
             }
-            $url = $card->posterUrl;
             $index = $i;
             $cmds[] = Cmd::promise(fn () => $this->posters->load($url, self::CARD_WIDTH, self::POSTER_HEIGHT)->then(
                 function (\Phlix\Console\Media\PosterLoadResult $result) use ($parentId, $index): Msg {
