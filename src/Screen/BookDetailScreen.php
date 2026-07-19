@@ -11,6 +11,7 @@ namespace Phlix\Console\Screen;
 
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Book;
+use Phlix\Console\Media\PosterLoadResult;
 use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Msg\BookDetailPosterLoadedMsg;
 use Phlix\Console\Msg\BookFailedMsg;
@@ -153,7 +154,7 @@ final class BookDetailScreen implements Breadcrumbed, Themed
     private function fetchHero(string $url): \Closure
     {
         return Cmd::promise(fn () => $this->posters->load($url, self::HERO_WIDTH, self::HERO_HEIGHT)->then(
-            static fn (string $ansi): Msg => new BookDetailPosterLoadedMsg($ansi),
+            static fn (PosterLoadResult $result): Msg => new BookDetailPosterLoadedMsg($result->marker),
             static fn (\Throwable $e): ?Msg => null, // a broken cover keeps the placeholder
         ));
     }

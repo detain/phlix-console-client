@@ -574,4 +574,34 @@ final class SearchScreenTest extends TestCase
 
         return $state['value'];
     }
+
+    /** @return list<Msg> */
+    private function runBatch(?\Closure $cmd): array
+    {
+        if ($cmd === null) {
+            return [];
+        }
+
+        $result = $cmd();
+
+        if ($result instanceof BatchMsg) {
+            $msgs = [];
+            foreach ($result->cmds as $child) {
+                $msg = $this->runCmd($child);
+                if ($msg !== null) {
+                    $msgs[] = $msg;
+                }
+            }
+
+            return $msgs;
+        }
+
+        if ($result instanceof AsyncCmd) {
+            $msg = $this->await($result->promise);
+
+            return $msg instanceof Msg ? [$msg] : [];
+        }
+
+        return $result instanceof Msg ? [$result] : [];
+    }
 }

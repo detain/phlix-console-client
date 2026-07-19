@@ -11,6 +11,7 @@ namespace Phlix\Console\Screen;
 
 use Phlix\Console\Api\Dto\PhotoAlbum;
 use Phlix\Console\Media\PhotoCardFactory;
+use Phlix\Console\Media\PosterLoadResult;
 use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Msg\GridPosterLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
@@ -221,7 +222,7 @@ final class PhotoAlbumScreen implements Breadcrumbed, Themed
     private function loadCover(int $index, string $thumbnailUrl): \Closure
     {
         return Cmd::promise(fn () => $this->posters->load($this->resolveUrl($thumbnailUrl), self::CARD_WIDTH, self::POSTER_HEIGHT)->then(
-            static fn (string $ansi): Msg => new GridPosterLoadedMsg($index, $ansi),
+            static fn (PosterLoadResult $result): Msg => new GridPosterLoadedMsg($index, $result->marker),
             static fn (\Throwable $e): ?Msg => null, // best-effort: a broken thumbnail keeps its skeleton
         ));
     }

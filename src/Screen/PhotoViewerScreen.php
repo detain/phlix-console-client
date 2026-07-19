@@ -13,6 +13,7 @@ use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Photo;
 use Phlix\Console\Api\Dto\PhotoAlbum;
 use Phlix\Console\Api\Dto\PhotoExif;
+use Phlix\Console\Media\PosterLoadResult;
 use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\PhotoExifLoadedMsg;
@@ -301,7 +302,7 @@ final class PhotoViewerScreen implements Breadcrumbed, Themed
 
         if ($photo->fullUrl !== null) {
             $cmds[] = Cmd::promise(fn () => $this->posters->load($this->resolveUrl($photo->fullUrl), $this->imageWidth(), $this->imageHeight())->then(
-                static fn (string $ansi): Msg => new PhotoImageLoadedMsg($gen, $ansi),
+                static fn (PosterLoadResult $result): Msg => new PhotoImageLoadedMsg($gen, $result->marker),
                 static fn (\Throwable $e): ?Msg => null, // a broken image keeps the placeholder
             ));
         }

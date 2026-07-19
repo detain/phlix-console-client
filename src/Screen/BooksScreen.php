@@ -12,6 +12,7 @@ namespace Phlix\Console\Screen;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Book;
 use Phlix\Console\Media\BookCardFactory;
+use Phlix\Console\Media\PosterLoadResult;
 use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Msg\BooksFailedMsg;
 use Phlix\Console\Msg\BooksRangeLoadedMsg;
@@ -311,7 +312,7 @@ final class BooksScreen implements Breadcrumbed, Loadable, Shimmering, Themed
                 return $this->posters->load($this->resolveUrl($book->coverUrl), self::CARD_WIDTH, self::POSTER_HEIGHT);
             },
         )->then(
-            static fn (?string $ansi): ?Msg => $ansi !== null ? new GridPosterLoadedMsg($index, $ansi) : null,
+            static fn (?PosterLoadResult $result): ?Msg => $result !== null ? new GridPosterLoadedMsg($index, $result->marker) : null,
             static fn (\Throwable $e): ?Msg => null, // best-effort: a broken cover keeps its skeleton
         ));
     }

@@ -13,6 +13,7 @@ use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\LetterIndex;
 use Phlix\Console\Api\MediaQuery;
 use Phlix\Console\Media\PosterCardFactory;
+use Phlix\Console\Media\PosterLoadResult;
 use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Msg\GridPosterLoadedMsg;
 use Phlix\Console\Msg\LetterIndexLoadedMsg;
@@ -472,7 +473,7 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
             $url = $card->posterUrl;
             $index = $i;
             $cmds[] = Cmd::promise(fn () => $this->posters->load($url, self::CARD_WIDTH, self::POSTER_HEIGHT)->then(
-                static fn (string $ansi): Msg => new GridPosterLoadedMsg($index, $ansi),
+                static fn (PosterLoadResult $result): Msg => new GridPosterLoadedMsg($index, $result->marker),
                 static fn (\Throwable $e): ?Msg => null, // a broken poster keeps its skeleton
             ));
         }
