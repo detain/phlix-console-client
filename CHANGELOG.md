@@ -10,8 +10,21 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Search results now show poster images** (relative URLs resolved via baseUrl + resolveUrl())
 - **Detail page hero images and child-episode thumbnails now render** (relative poster URLs
   resolved via `baseUrl` + `resolveUrl()`)
+- **Photo library thumbnails now render** (`PhotoAlbumScreen` album covers and
+  `PhotosScreen` per-album thumbnails). These screens previously ran `parse_url`'s
+  scheme check on the *raw* card URL, so a relative signed thumbnail (no scheme)
+  was dropped before it could be resolved. Both now apply `baseUrl` +
+  `resolveUrl()` **before** the scheme check — matching Browse/Detail/Search —
+  so relative artwork paths resolve to absolute and load, while already-absolute
+  and empty URLs still pass through unchanged.
 - **Library rails (Anime/TV) now show posters instead of stills** (`topLevel=1` in API
-  request via `forLibrary()`)
+  request via `forLibrary()`). Drilling *into* a series (a `parentId` query) is
+  unaffected and still lists episodes with their stills.
+- **Test coverage for the poster-URL fixes is now genuine.** The `resolveUrl()`
+  relative→absolute behavior is exercised against a real local HTTP server with
+  deterministic scheduled-load counts (previously the Search/Photos assertions
+  were skipped or vacuous and did not actually verify resolution). `MediaQueryTest`
+  now asserts `forLibrary()` emits `topLevel=1`.
 - **Admin forms keep an invalid submit open with an inline error instead of a
   toast.** candy-forms now gates submit on each field's validator (upstream
   `candy-forms: gate Form submit on validation`), so the Backup *Schedule* and
