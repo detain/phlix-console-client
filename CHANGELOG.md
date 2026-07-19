@@ -3,7 +3,7 @@
 All notable changes to **phlix-console-client** are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [Unreleased] - 2026-07-18
 
 ### Fixed
 
