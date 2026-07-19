@@ -21,6 +21,7 @@ final class MediaQueryTest extends TestCase
         self::assertSame('lib-1', $params['libraryId']);
         self::assertSame(18, $params['limit']);
         self::assertSame(36, $params['offset']);
+        self::assertSame('1', $params['topLevel'], 'forLibrary emits topLevel=1 so containers get real posters');
     }
 
     public function testOmitsUnsetFields(): void

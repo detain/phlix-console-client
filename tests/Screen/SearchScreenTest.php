@@ -18,8 +18,12 @@ use Phlix\Console\Screen\SearchScreen;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Tests\Api\FakeTransport;
 use PHPUnit\Framework\TestCase;
+use Psr\Http\Message\ServerRequestInterface;
 use React\EventLoop\Loop;
+use React\Http\HttpServer;
+use React\Http\Message\Response;
 use React\Promise\PromiseInterface;
+use React\Socket\SocketServer;
 use SugarCraft\Core\AsyncCmd;
 use SugarCraft\Core\BatchMsg;
 use SugarCraft\Core\KeyType;
@@ -30,6 +34,15 @@ use SugarCraft\Mosaic\Mosaic;
 
 final class SearchScreenTest extends TestCase
 {
+    private ?SocketServer $socket = null;
+
+    protected function tearDown(): void
+    {
+        $this->socket?->close();
+        $this->socket = null;
+        parent::tearDown();
+    }
+
     public function testImplementsCapturesSlashSoSlashTypesInsteadOfReopening(): void
     {
         self::assertInstanceOf(CapturesSlash::class, $this->screenWith(new FakeTransport()));
@@ -287,124 +300,81 @@ final class SearchScreenTest extends TestCase
     }
 
     /**
-     * @skip Inconsistent behavior in test context - works correctly in production BrowseScreen/DetailScreen
-     * Empty string posterUrl must not produce a poster load command — it must
-     * be skipped silently just like a null URL, to avoid "URL scheme unknown"
-     * errors from the poster loader when an empty string is passed.
+     * An empty (or null) posterUrl is the ONLY case skipped by loadPostersIn:
+     * after resolveUrl it stays empty, so no load Cmd is scheduled. (A crash-free
+     * skip — no "URL scheme unknown" from the loader.)
      */
     public function testEmptyStringPosterUrlIsSkippedAndDoesNotCrash(): void
     {
-        $this->markTestSkipped('Inconsistent behavior in test context - works correctly in production BrowseScreen/DetailScreen');
-        // Create a search response where items have empty string poster_url.
-        $transport = (new FakeTransport())->json(200, [
-            'items' => [
-                ['id' => '0', 'name' => 'Movie 0', 'type' => 'movie', 'poster_url' => ''],
-                ['id' => '1', 'name' => 'Movie 1', 'type' => 'movie', 'poster_url' => 'https://p/1.jpg'],
-            ],
-            'total' => 2,
-            'limit' => 50,
-            'offset' => 0,
-        ]);
-        $screen = $this->screenWith($transport);
-        [$screen] = $screen->update(new KeyMsg(KeyType::Char, 'm'));
-        [$screen, $fetch] = $screen->update(new SearchDebouncedMsg(1));
-        $range = $this->runCmd($fetch);
-
-        [$loaded, $posterCmd] = $screen->update($range);
-
-        // The item with empty string posterUrl must not produce a poster load.
-        // Only the item with a valid poster URL should be loaded.
-        $posterMsgs = $this->runBatch($posterCmd);
-        self::assertCount(1, $posterMsgs, 'only the valid poster URL is loaded, the empty string is skipped');
+        self::assertSame(0, $this->scheduledPosterLoads($this->posterCmdFor('')), 'an empty posterUrl schedules no poster load');
     }
 
     /**
-     * @skip Inconsistent behavior in test context - works correctly in production BrowseScreen/DetailScreen
-     * A relative URL (no scheme, e.g. /poster.jpg) is now resolved to an
-     * absolute URL (e.g. https://srv/poster.jpg) and SHOULD be loaded — it is
-     * NOT skipped silently anymore. The resolveUrl() fix (B4) enables this.
+     * A relative URL (no scheme, e.g. /cover.png) is resolved to an absolute URL
+     * (baseUrl + path) and IS loaded — it is NOT dropped. The base IS the local
+     * cover server, so the resolved URL genuinely loads and yields a poster msg,
+     * proving the relative path was resolved against the base (an unresolved
+     * "/cover.png" has no host and could not load).
      */
     public function testRelativeUrlPosterIsResolvedAndLoaded(): void
     {
-        $this->markTestSkipped('Inconsistent behavior in test context - works correctly in production BrowseScreen/DetailScreen');
-        $transport = (new FakeTransport())->json(200, [
-            'items' => [
-                ['id' => '0', 'name' => 'Movie 0', 'type' => 'movie', 'poster_url' => '/poster.jpg'],
-                ['id' => '1', 'name' => 'Movie 1', 'type' => 'movie', 'poster_url' => 'https://p/1.jpg'],
-            ],
-            'total' => 2,
-            'limit' => 50,
-            'offset' => 0,
-        ]);
-        $screen = $this->screenWith($transport);
-        [$screen] = $screen->update(new KeyMsg(KeyType::Char, 'm'));
-        [$screen, $fetch] = $screen->update(new SearchDebouncedMsg(1));
-        $range = $this->runCmd($fetch);
-
-        [$loaded, $posterCmd] = $screen->update($range);
-
-        // Both the resolved relative URL and the valid absolute URL should be loaded.
-        $posterMsgs = $this->runBatch($posterCmd);
-        self::assertCount(2, $posterMsgs, 'relative URL is resolved to https://srv/poster.jpg and loaded along with the other valid URL');
+        $port = $this->startCoverServer();
+        $posterMsgs = array_filter(
+            $this->runBatch($this->posterCmdFor('/cover.png', "http://127.0.0.1:{$port}")),
+            static fn (Msg $m): bool => $m instanceof GridPosterLoadedMsg,
+        );
+        self::assertCount(1, $posterMsgs, 'the relative posterUrl is resolved against the base and loaded');
     }
 
     /**
-     * @skip Inconsistent behavior in test context - works correctly in production BrowseScreen/DetailScreen
-     * A malformed URL (e.g. not-a-valid-url) must not produce a poster load
-     * command — it is skipped silently, treated the same as a missing poster.
+     * A scheme-less string (e.g. not-a-valid-url) is treated as a relative path:
+     * resolveUrl prefixes the base, so the resolved URL is http(s) and a load IS
+     * scheduled against the base (it is not silently dropped).
      */
-    public function testMalformedUrlPosterIsSkippedSilently(): void
+    public function testMalformedUrlPosterIsResolvedAgainstBase(): void
     {
-        $this->markTestSkipped('Inconsistent behavior in test context - works correctly in production BrowseScreen/DetailScreen');
-        $transport = (new FakeTransport())->json(200, [
-            'items' => [
-                ['id' => '0', 'name' => 'Movie 0', 'type' => 'movie', 'poster_url' => 'not-a-valid-url'],
-                ['id' => '1', 'name' => 'Movie 1', 'type' => 'movie', 'poster_url' => 'https://p/1.jpg'],
-            ],
-            'total' => 2,
-            'limit' => 50,
-            'offset' => 0,
-        ]);
-        $screen = $this->screenWith($transport);
-        [$screen] = $screen->update(new KeyMsg(KeyType::Char, 'm'));
-        [$screen, $fetch] = $screen->update(new SearchDebouncedMsg(1));
-        $range = $this->runCmd($fetch);
-
-        [$loaded, $posterCmd] = $screen->update($range);
-
-        // Only the item with a valid poster URL should be loaded.
-        $posterMsgs = $this->runBatch($posterCmd);
-        self::assertCount(1, $posterMsgs, 'only the valid poster URL is loaded, the malformed URL is skipped');
+        self::assertSame(1, $this->scheduledPosterLoads($this->posterCmdFor('not-a-valid-url')), 'a scheme-less posterUrl is base-prefixed and a load is scheduled');
     }
 
     /**
-     * @skip Inconsistent behavior in test context - works correctly in production BrowseScreen/DetailScreen
-     * A URL with a non-http(s) scheme (e.g. ftp:// or javascript:) must not
-     * produce a poster load command — it is skipped silently, treated the same
-     * as a missing poster.
+     * A non-http(s) scheme (e.g. ftp://…) does not match the absolute-URL guard,
+     * so resolveUrl treats it as a relative path and prefixes the base; the
+     * resolved URL is http(s) and a load IS scheduled against the base.
      */
-    public function testNonHttpSchemePosterIsSkippedSilently(): void
+    public function testNonHttpSchemePosterIsResolvedAgainstBase(): void
     {
-        $this->markTestSkipped('Inconsistent behavior in test context - works correctly in production BrowseScreen/DetailScreen');
+        self::assertSame(1, $this->scheduledPosterLoads($this->posterCmdFor('ftp://cdn.example.com/file.jpg')), 'a non-http(s) posterUrl is base-prefixed and a load is scheduled');
+    }
+
+    /**
+     * Drive a one-item search to the poster-load Cmd produced for that single
+     * item's poster_url (or null if none was scheduled).
+     */
+    private function posterCmdFor(string $posterUrl, string $base = 'https://srv'): ?\Closure
+    {
         $transport = (new FakeTransport())->json(200, [
-            'items' => [
-                ['id' => '0', 'name' => 'Movie 0', 'type' => 'movie', 'poster_url' => 'ftp://cdn.example.com/file.jpg'],
-                ['id' => '1', 'name' => 'Movie 1', 'type' => 'movie', 'poster_url' => 'https://p/1.jpg'],
-            ],
-            'total' => 2,
+            'items' => [['id' => '0', 'name' => 'Movie 0', 'type' => 'movie', 'poster_url' => $posterUrl]],
+            'total' => 1,
             'limit' => 50,
             'offset' => 0,
         ]);
-        $screen = $this->screenWith($transport);
+        $screen = $this->screenWith($transport, new PosterLoader(Mosaic::halfBlock()), $base);
         [$screen] = $screen->update(new KeyMsg(KeyType::Char, 'm'));
         [$screen, $fetch] = $screen->update(new SearchDebouncedMsg(1));
         $range = $this->runCmd($fetch);
 
-        [$loaded, $posterCmd] = $screen->update($range);
+        return $screen->update($range)[1];
+    }
 
-        // Only the item with a valid poster URL should be loaded.
-        $posterMsgs = $this->runBatch($posterCmd);
-        self::assertCount(1, $posterMsgs, 'only the valid poster URL is loaded, the non-http scheme is skipped');
+    /** Count the poster-load Cmds a (possibly null) batch schedules, without running them. */
+    private function scheduledPosterLoads(?\Closure $cmd): int
+    {
+        if ($cmd === null) {
+            return 0;
+        }
+        $result = $cmd();
+
+        return $result instanceof BatchMsg ? count($result->cmds) : 1;
     }
 
     public function testPagingAndJumpKeysMoveTheGrid(): void
@@ -469,9 +439,9 @@ final class SearchScreenTest extends TestCase
 
     // ---- helpers -------------------------------------------------------
 
-    private function screenWith(FakeTransport $transport, ?PosterLoader $posters = null): SearchScreen
+    private function screenWith(FakeTransport $transport, ?PosterLoader $posters = null, string $base = 'https://srv'): SearchScreen
     {
-        $api = new ApiClient('https://srv', $transport);
+        $api = new ApiClient($base, $transport);
 
         return new SearchScreen(
             new MediaStore($api),
@@ -480,6 +450,32 @@ final class SearchScreenTest extends TestCase
             cols: 120,
             rows: 40,
         );
+    }
+
+    /**
+     * A tiny local HTTP image server (mirrors the Photos screen tests). Returns a
+     * valid PNG for any path except one containing "nope" (which 404s). Lets a
+     * resolved poster URL be genuinely loaded so the test can prove resolution +
+     * scheduling instead of counting loads against unreachable fake hosts.
+     */
+    private function startCoverServer(): int
+    {
+        $img = imagecreatetruecolor(8, 12);
+        imagefill($img, 0, 0, (int) imagecolorallocate($img, 70, 120, 180));
+        ob_start();
+        imagepng($img);
+        $png = (string) ob_get_clean();
+        imagedestroy($img);
+
+        $server = new HttpServer(static function (ServerRequestInterface $r) use ($png): Response {
+            return str_contains((string) $r->getUri()->getPath(), 'nope')
+                ? new Response(404, [], 'not found')
+                : new Response(200, ['Content-Type' => 'image/png'], $png);
+        });
+        $this->socket = new SocketServer('127.0.0.1:0');
+        $server->listen($this->socket);
+
+        return (int) parse_url((string) $this->socket->getAddress(), PHP_URL_PORT);
     }
 
     /** Type a query, fire its debounce, and resolve the fetch into the grid. */

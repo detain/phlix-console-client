@@ -257,15 +257,22 @@ final class PhotosScreen implements Breadcrumbed, Loadable, Shimmering, Themed
             if ($card === null || $card->hasPoster() || $card->posterUrl === null || $card->posterUrl === '') {
                 continue;
             }
-            // Defensive: validate URL has a valid http/https scheme before attempting load.
-            // parse_url returns false for malformed URLs and null for URLs with no scheme.
-            $scheme = parse_url($card->posterUrl, PHP_URL_SCHEME);
-            if ($scheme === null || $scheme === false || !in_array($scheme, ['http', 'https'], true)) {
-                // Skip relative URLs (no scheme), malformed URLs, or non-http(s) schemes
-                // silently - treat them the same as a missing poster.
+            // Resolve relative URLs against the server base URL BEFORE scheme validation;
+            // absolute/empty pass through. A raw relative thumbnail (e.g. /cover.png) has
+            // no scheme, so scheme-checking it first would drop it — resolve first.
+            $url = $this->resolveUrl($card->posterUrl);
+            if ($url === '') {
                 continue;
             }
-            $cmds[] = $this->loadCover($i, $card->posterUrl);
+            // Defensive: validate URL has a valid http/https scheme before attempting load.
+            // parse_url returns false for malformed URLs and null for URLs with no scheme.
+            $scheme = parse_url($url, PHP_URL_SCHEME);
+            if ($scheme === null || $scheme === false || !in_array($scheme, ['http', 'https'], true)) {
+                // Skip malformed URLs or non-http(s) schemes silently - treat them the
+                // same as a missing poster.
+                continue;
+            }
+            $cmds[] = $this->loadCover($i, $url);
         }
 
         return $cmds === [] ? null : Cmd::batch(...$cmds);
@@ -273,7 +280,7 @@ final class PhotosScreen implements Breadcrumbed, Loadable, Shimmering, Themed
 
     private function loadCover(int $index, string $thumbnailUrl): \Closure
     {
-        return Cmd::promise(fn () => $this->posters->load($this->resolveUrl($thumbnailUrl), self::CARD_WIDTH, self::POSTER_HEIGHT)->then(
+        return Cmd::promise(fn () => $this->posters->load($thumbnailUrl, self::CARD_WIDTH, self::POSTER_HEIGHT)->then(
             static fn (PosterLoadResult $result): Msg => new GridPosterLoadedMsg($index, $result->marker),
             static fn (\Throwable $e): ?Msg => null, // best-effort: a broken cover keeps its skeleton
         ));

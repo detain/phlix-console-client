@@ -47,9 +47,9 @@ final class DetailScreenTest extends TestCase
         parent::tearDown();
     }
 
-    private function screenWith(FakeTransport $transport, ?PosterLoader $posters = null): DetailScreen
+    private function screenWith(FakeTransport $transport, ?PosterLoader $posters = null, string $base = 'https://srv'): DetailScreen
     {
-        $api = new ApiClient('https://srv', $transport);
+        $api = new ApiClient($base, $transport);
 
         return new DetailScreen(
             'm1',
@@ -372,6 +372,32 @@ final class DetailScreenTest extends TestCase
         return $screen->update($rangeMsg)[0];
     }
 
+    /**
+     * Build a loaded series container over $childRows using $base as the server
+     * base and a real {@see PosterLoader}, returning [screen, posterCmd] where
+     * posterCmd is the child-poster load batch scheduled by onChildren. Unlike
+     * {@see loadedContainer} this keeps the poster Cmd so a test can inspect
+     * exactly which child posters were scheduled/loaded.
+     *
+     * @param list<array<string,mixed>> $childRows
+     * @return array{DetailScreen, ?\Closure}
+     */
+    private function loadedContainerWithPosterCmd(array $childRows, string $base): array
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->detailResponse(['type' => 'series', 'name' => 'My Show']))
+            ->json(200, ['items' => $childRows, 'total' => count($childRows), 'limit' => 50, 'offset' => 0]);
+        $screen = $this->screenWith($transport, new PosterLoader(Mosaic::halfBlock()), $base);
+
+        $itemMsg = $this->runBatch($screen->init())[0];
+        self::assertInstanceOf(DetailLoadedMsg::class, $itemMsg);
+        [$screen, $childCmd] = $screen->update($itemMsg);
+        $rangeMsg = $this->runBatch($childCmd)[0];
+        self::assertInstanceOf(ChildrenLoadedMsg::class, $rangeMsg);
+
+        return $screen->update($rangeMsg);
+    }
+
     public function testSeriesRendersAsASeasonGrid(): void
     {
         $screen = $this->loadedContainer('series', [
@@ -507,87 +533,74 @@ final class DetailScreenTest extends TestCase
     }
 
     /**
-     * Empty string posterUrl on a child item must not produce a child poster
-     * load command — it must be skipped silently just like a null URL, to avoid
-     * "URL scheme unknown" errors from the poster loader when an empty string
-     * is passed.
-     *
-     * NEW behavior: poster loader throws \InvalidArgumentException for empty/invalid URLs,
-     * error handler catches it and returns null. The result is no poster load command
-     * for the empty string item (and no crash).
+     * An empty (or null) child posterUrl is the ONLY case skipped by
+     * loadChildPostersIn: after resolveUrl it stays empty, so no child-poster
+     * load Cmd is scheduled (a crash-free skip).
      */
     public function testEmptyStringPosterUrlForChildIsSkippedAndDoesNotCrash(): void
     {
-        $screen = $this->loadedContainer('series', [
+        [, $posterCmd] = $this->loadedContainerWithPosterCmd([
             ['id' => 's1', 'name' => 'Season 1', 'type' => 'season', 'poster_url' => ''],
-            ['id' => 's2', 'name' => 'Season 2', 'type' => 'season', 'poster_url' => 'https://p/s2.jpg'],
-        ]);
+        ], 'https://srv');
 
-        // The child with empty string posterUrl should not produce a poster load.
-        // We can verify this by scrolling to ensure the child grid is accessed
-        // and checking that only valid poster URLs are processed.
-        [$moved, $scrollCmd] = $screen->update(new KeyMsg(KeyType::Down));
-
-        // The scroll should not produce a poster load command for the empty string item.
-        // NEW behavior: exception is thrown and caught, returning null (no crash).
-        // Only s2's poster would be loaded, but since s2 already has a poster loaded
-        // in loadedContainer, there's no additional work to do.
-        self::assertNull($scrollCmd, 'empty string posterUrl produces no poster load command');
+        self::assertSame(0, $this->scheduledPosterLoads($posterCmd), 'an empty child posterUrl schedules no poster load');
     }
 
     /**
-     * A relative URL (no scheme, e.g. /poster.jpg) on a child item must not
-     * produce a child poster load command — it is skipped silently, treated
-     * the same as a missing poster.
+     * A relative URL (no scheme, e.g. /poster.png) on a child item IS resolved to
+     * an absolute URL (baseUrl + path) and loaded — it is NOT dropped. The base
+     * IS the local poster server, so the resolved URL genuinely loads and yields
+     * a child-poster msg, proving the relative path was resolved before the
+     * scheme check (an unresolved "/poster.png" has no host and could not load).
      */
-    public function testRelativeUrlPosterForChildIsSkippedSilently(): void
+    public function testRelativeUrlPosterForChildIsResolvedAndLoaded(): void
     {
-        $screen = $this->loadedContainer('series', [
-            ['id' => 's1', 'name' => 'Season 1', 'type' => 'season', 'poster_url' => '/poster.jpg'],
-            ['id' => 's2', 'name' => 'Season 2', 'type' => 'season', 'poster_url' => 'https://p/s2.jpg'],
-        ]);
+        $port = $this->startPosterServer();
+        [, $posterCmd] = $this->loadedContainerWithPosterCmd([
+            ['id' => 's1', 'name' => 'Season 1', 'type' => 'season', 'poster_url' => '/poster.png'],
+        ], "http://127.0.0.1:{$port}");
 
-        // Scroll to trigger loading of child posters for the newly visible window.
-        [$moved, $scrollCmd] = $screen->update(new KeyMsg(KeyType::Down));
-
-        // The child with a relative URL posterUrl should not produce a poster load.
-        self::assertNull($scrollCmd, 'relative URL posterUrl produces no poster load command');
+        $posterMsgs = array_filter($this->runBatch($posterCmd), static fn (Msg $m): bool => $m instanceof ChildPosterLoadedMsg);
+        self::assertCount(1, $posterMsgs, 'the relative child poster is resolved against the base and loaded');
     }
 
     /**
-     * A malformed URL (e.g. not-a-valid-url) on a child item must not produce
-     * a child poster load command — it is skipped silently, treated the same
-     * as a missing poster.
+     * A scheme-less string (e.g. not-a-valid-url) is treated as a relative path:
+     * resolveUrl prefixes the base, so the resolved URL is http(s) and a
+     * child-poster load IS scheduled against the base (not silently dropped).
      */
-    public function testMalformedUrlPosterForChildIsSkippedSilently(): void
+    public function testMalformedUrlPosterForChildIsResolvedAgainstBase(): void
     {
-        $screen = $this->loadedContainer('series', [
+        [, $posterCmd] = $this->loadedContainerWithPosterCmd([
             ['id' => 's1', 'name' => 'Season 1', 'type' => 'season', 'poster_url' => 'not-a-valid-url'],
-            ['id' => 's2', 'name' => 'Season 2', 'type' => 'season', 'poster_url' => 'https://p/s2.jpg'],
-        ]);
+        ], 'https://srv');
 
-        [$moved, $scrollCmd] = $screen->update(new KeyMsg(KeyType::Down));
-
-        // The child with a malformed URL posterUrl should not produce a poster load.
-        self::assertNull($scrollCmd, 'malformed URL posterUrl produces no poster load command');
+        self::assertSame(1, $this->scheduledPosterLoads($posterCmd), 'a scheme-less child posterUrl is base-prefixed and a load is scheduled');
     }
 
     /**
-     * A URL with a non-http(s) scheme (e.g. ftp:// or javascript:) on a child
-     * item must not produce a child poster load command — it is skipped silently,
-     * treated the same as a missing poster.
+     * A non-http(s) scheme (e.g. ftp://…) does not match the absolute-URL guard,
+     * so resolveUrl treats it as a relative path and prefixes the base; the
+     * resolved URL is http(s) and a child-poster load IS scheduled.
      */
-    public function testNonHttpSchemePosterForChildIsSkippedSilently(): void
+    public function testNonHttpSchemePosterForChildIsResolvedAgainstBase(): void
     {
-        $screen = $this->loadedContainer('series', [
+        [, $posterCmd] = $this->loadedContainerWithPosterCmd([
             ['id' => 's1', 'name' => 'Season 1', 'type' => 'season', 'poster_url' => 'ftp://cdn.example.com/file.jpg'],
-            ['id' => 's2', 'name' => 'Season 2', 'type' => 'season', 'poster_url' => 'https://p/s2.jpg'],
-        ]);
+        ], 'https://srv');
 
-        [$moved, $scrollCmd] = $screen->update(new KeyMsg(KeyType::Down));
+        self::assertSame(1, $this->scheduledPosterLoads($posterCmd), 'a non-http(s) child posterUrl is base-prefixed and a load is scheduled');
+    }
 
-        // The child with a non-http scheme posterUrl should not produce a poster load.
-        self::assertNull($scrollCmd, 'non-http scheme posterUrl produces no poster load command');
+    /** Count the poster-load Cmds a (possibly null) batch schedules, without running them. */
+    private function scheduledPosterLoads(?\Closure $cmd): int
+    {
+        if ($cmd === null) {
+            return 0;
+        }
+        $result = $cmd();
+
+        return $result instanceof BatchMsg ? count($result->cmds) : 1;
     }
 
     public function testContainerChildrenFailureShowsError(): void

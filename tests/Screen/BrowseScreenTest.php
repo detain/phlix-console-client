@@ -54,16 +54,16 @@ final class BrowseScreenTest extends TestCase
         return $this->screenWith(new FakeTransport());
     }
 
-    private function screenWith(FakeTransport $transport, ?PosterLoader $posters = null): BrowseScreen
+    private function screenWith(FakeTransport $transport, ?PosterLoader $posters = null, string $base = 'https://srv'): BrowseScreen
     {
-        $api = new ApiClient('https://srv', $transport);
+        $api = new ApiClient($base, $transport);
 
         return new BrowseScreen(
             AuthUser::fromArray(['id' => 'u', 'username' => 'joe', 'display_name' => 'Joe Huss']),
             new LibrariesStore($api),
             new MediaStore($api),
             $posters ?? new PosterLoader(Mosaic::halfBlock()),
-            'https://srv',
+            $base,
             cols: 120,
             rows: 40,
         );
@@ -730,59 +730,70 @@ final class BrowseScreenTest extends TestCase
     }
 
     /**
-     * Empty string posterUrl must not produce a poster load command — it must
-     * be skipped silently just like a null URL, to avoid "URL scheme unknown"
-     * errors from the poster loader when an empty string is passed.
+     * An empty (or null) posterUrl is the ONLY case skipped by loadPostersIn:
+     * after resolveUrl it stays empty, so no poster load Cmd is scheduled (a
+     * crash-free skip — no "URL scheme unknown" from the loader).
      */
     public function testEmptyStringPosterUrlIsSkippedAndDoesNotCrash(): void
     {
-        $page = MediaPage::fromArray(['items' => [['id' => 'm1', 'name' => 'M', 'type' => 'movie', 'poster_url' => '']], 'total' => 1, 'limit' => 18, 'offset' => 0]);
-        $screen = $this->screen()->update(new LibrariesLoadedMsg([$this->library('lib-a', 'Movies')]))[0];
-        [, $posterCmd] = $screen->update(new LibraryMediaLoadedMsg('lib-a', $page));
-
-        // An empty-string poster URL must produce no poster load command (or
-        // an empty batch that resolves to nothing), not a crash.
-        self::assertSame([], $this->runBatch($posterCmd), 'empty string posterUrl produces no poster load');
+        self::assertSame(0, $this->scheduledPosterLoads($this->posterCmdFor('')), 'an empty posterUrl schedules no poster load');
     }
 
     /**
-     * A relative URL (no scheme, e.g. /poster.jpg) must not produce a poster
-     * load command — it is skipped silently, treated the same as a missing poster.
+     * A relative URL (no scheme, e.g. /poster.png) is resolved to an absolute URL
+     * (baseUrl + path) and IS loaded — it is NOT dropped. The base IS the local
+     * poster server, so the resolved URL genuinely loads and yields a poster msg,
+     * proving the relative path was resolved against the base (an unresolved
+     * "/poster.png" has no host and could not load).
      */
-    public function testRelativeUrlPosterIsSkippedSilently(): void
+    public function testRelativeUrlPosterIsResolvedAndLoaded(): void
     {
-        $page = MediaPage::fromArray(['items' => [['id' => 'm1', 'name' => 'M', 'type' => 'movie', 'poster_url' => '/poster.jpg']], 'total' => 1, 'limit' => 18, 'offset' => 0]);
-        $screen = $this->screen()->update(new LibrariesLoadedMsg([$this->library('lib-a', 'Movies')]))[0];
-        [, $posterCmd] = $screen->update(new LibraryMediaLoadedMsg('lib-a', $page));
+        $port = $this->startPosterServer();
+        $msgs = $this->runBatch($this->posterCmdFor('/poster.png', "http://127.0.0.1:{$port}"));
 
-        self::assertSame([], $this->runBatch($posterCmd), 'relative URL posterUrl produces no poster load');
+        self::assertCount(1, $msgs, 'the relative posterUrl is resolved against the base and loaded');
+        self::assertInstanceOf(PosterLoadedMsg::class, $msgs[0]);
     }
 
     /**
-     * A malformed URL (e.g. not-a-valid-url) must not produce a poster load
-     * command — it is skipped silently, treated the same as a missing poster.
+     * A scheme-less string (e.g. not-a-valid-url) is treated as a relative path:
+     * resolveUrl prefixes the base, so the resolved URL is http(s) and a load IS
+     * scheduled against the base (it is not silently dropped).
      */
-    public function testMalformedUrlPosterIsSkippedSilently(): void
+    public function testMalformedUrlPosterIsResolvedAgainstBase(): void
     {
-        $page = MediaPage::fromArray(['items' => [['id' => 'm1', 'name' => 'M', 'type' => 'movie', 'poster_url' => 'not-a-valid-url']], 'total' => 1, 'limit' => 18, 'offset' => 0]);
-        $screen = $this->screen()->update(new LibrariesLoadedMsg([$this->library('lib-a', 'Movies')]))[0];
-        [, $posterCmd] = $screen->update(new LibraryMediaLoadedMsg('lib-a', $page));
-
-        self::assertSame([], $this->runBatch($posterCmd), 'malformed URL posterUrl produces no poster load');
+        self::assertSame(1, $this->scheduledPosterLoads($this->posterCmdFor('not-a-valid-url')), 'a scheme-less posterUrl is base-prefixed and a load is scheduled');
     }
 
     /**
-     * A URL with a non-http(s) scheme (e.g. ftp:// or javascript:) must not
-     * produce a poster load command — it is skipped silently, treated the same
-     * as a missing poster.
+     * A non-http(s) scheme (e.g. ftp://…) does not match the absolute-URL guard,
+     * so resolveUrl treats it as a relative path and prefixes the base; the
+     * resolved URL is http(s) and a load IS scheduled against the base.
      */
-    public function testNonHttpSchemePosterIsSkippedSilently(): void
+    public function testNonHttpSchemePosterIsResolvedAgainstBase(): void
     {
-        $page = MediaPage::fromArray(['items' => [['id' => 'm1', 'name' => 'M', 'type' => 'movie', 'poster_url' => 'ftp://cdn.example.com/file.jpg']], 'total' => 1, 'limit' => 18, 'offset' => 0]);
-        $screen = $this->screen()->update(new LibrariesLoadedMsg([$this->library('lib-a', 'Movies')]))[0];
-        [, $posterCmd] = $screen->update(new LibraryMediaLoadedMsg('lib-a', $page));
+        self::assertSame(1, $this->scheduledPosterLoads($this->posterCmdFor('ftp://cdn.example.com/file.jpg')), 'a non-http(s) posterUrl is base-prefixed and a load is scheduled');
+    }
 
-        self::assertSame([], $this->runBatch($posterCmd), 'non-http scheme posterUrl produces no poster load');
+    /** Populate a one-item rail and return the poster-load Cmd for that item's poster_url. */
+    private function posterCmdFor(string $posterUrl, string $base = 'https://srv'): ?\Closure
+    {
+        $page = MediaPage::fromArray(['items' => [['id' => 'm1', 'name' => 'M', 'type' => 'movie', 'poster_url' => $posterUrl]], 'total' => 1, 'limit' => 18, 'offset' => 0]);
+        $screen = $this->screenWith(new FakeTransport(), new PosterLoader(Mosaic::halfBlock()), $base)
+            ->update(new LibrariesLoadedMsg([$this->library('lib-a', 'Movies')]))[0];
+
+        return $screen->update(new LibraryMediaLoadedMsg('lib-a', $page))[1];
+    }
+
+    /** Count the poster-load Cmds a (possibly null) batch schedules, without running them. */
+    private function scheduledPosterLoads(?\Closure $cmd): int
+    {
+        if ($cmd === null) {
+            return 0;
+        }
+        $result = $cmd();
+
+        return $result instanceof BatchMsg ? count($result->cmds) : 1;
     }
 
     /**
