@@ -243,6 +243,10 @@ final class SearchScreen implements Breadcrumbed, CapturesSlash, Loadable, Shimm
         $next->hasSearched = true;
         $next->requestedRange = [0, $next->initialWindowEnd()];
 
+        // IMPORTANT: fetchRange must be called on $next (not $this) so the
+        // closure captures $next->generation (the incremented value), not
+        // $this->generation which is still 0. When the fetch completes and
+        // onRange runs, it receives the correct generation to match $next.
         return [$next, $next->fetchRange(0, $next->initialWindowEnd())];
     }
 
