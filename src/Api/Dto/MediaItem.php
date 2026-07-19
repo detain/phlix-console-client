@@ -98,7 +98,11 @@ final readonly class MediaItem
             sortTitle: Coerce::str($row['name'] ?? ''),
             type: Coerce::str($row['type'] ?? 'movie', 'movie'),
             path: null,
-            posterUrl: Coerce::nstr($meta['poster_url'] ?? null),
+            // Prefer the top-level re-minted poster_url (fresh signature) and fall
+            // back to the nested metadata value; the server copies the re-minted URL
+            // into metadata too, but reading the top-level field is defense-in-depth
+            // and works even before that server fix deploys.
+            posterUrl: Coerce::nstr($row['poster_url'] ?? ($meta['poster_url'] ?? null)),
             posterSrcset: null,
             genres: Coerce::stringList($meta['genres'] ?? []),
             year: Coerce::nint($meta['year'] ?? null),

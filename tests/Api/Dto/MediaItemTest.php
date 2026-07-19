@@ -135,6 +135,39 @@ final class MediaItemTest extends TestCase
         self::assertSame('Weapons of Science', $item->episodeTitle);
     }
 
+    public function testFromContinueWatchingPrefersTopLevelPosterUrl(): void
+    {
+        // The server re-mints the top-level poster_url (fresh artwork signature);
+        // fromContinueWatching must PREFER it over the nested metadata value so the
+        // console fetches a non-expired artwork URL.
+        $item = MediaItem::fromContinueWatching([
+            'media_item_id' => 'media-42',
+            'name' => 'Dr. Stone',
+            'type' => 'episode',
+            'poster_url' => '/api/v1/artwork/series-1?size=w500&exp=999&sig=fresh',
+            'metadata' => [
+                'poster_url' => '/api/v1/artwork/series-1?size=w500&exp=1&sig=stale',
+            ],
+        ]);
+
+        self::assertSame('/api/v1/artwork/series-1?size=w500&exp=999&sig=fresh', $item->posterUrl);
+    }
+
+    public function testFromContinueWatchingFallsBackToNestedPosterUrl(): void
+    {
+        // When the top-level poster_url is absent, fall back to the nested value.
+        $item = MediaItem::fromContinueWatching([
+            'media_item_id' => 'media-42',
+            'name' => 'Dr. Stone',
+            'type' => 'episode',
+            'metadata' => [
+                'poster_url' => 'https://srv/drstone.jpg',
+            ],
+        ]);
+
+        self::assertSame('https://srv/drstone.jpg', $item->posterUrl);
+    }
+
     public function testFromContinueWatchingToleratesMissingMetadata(): void
     {
         $item = MediaItem::fromContinueWatching([
