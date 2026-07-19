@@ -416,88 +416,63 @@ final class PhotosScreenTest extends TestCase
     }
 
     /**
-     * Empty string cover thumbnail URL must not produce a cover load command —
-     * it must be skipped silently just like a null URL, to avoid "URL scheme
-     * unknown" errors from the poster loader when an empty string is passed.
-     *
-     * NEW behavior: poster loader throws \InvalidArgumentException for empty/invalid URLs,
-     * error handler catches it and returns null. The empty string album produces no message.
+     * An empty cover thumbnail URL is the ONLY case skipped by loadCoversIn: after
+     * resolveUrl it stays empty, so no cover load Cmd is scheduled (a crash-free
+     * skip — no "URL scheme unknown" from the loader).
      */
     public function testEmptyStringCoverThumbnailIsSkippedAndDoesNotCrash(): void
     {
-        // An album with an empty string cover thumbnail → no cover load, skipped.
-        $transport = (new FakeTransport())->json(200, ['albums' => [
-            $this->album('a0', '2026-06-23', ''),
-            $this->album('a1', '2026-06-22', 'https://srv/c1.jpg'),
-        ]]);
-        $screen = $this->screenWith($transport, new PosterLoader(Mosaic::halfBlock()));
-
-        $msgs = $this->runBatch($screen->init());
-        [$loaded, $coverCmd] = $screen->update($msgs[0]);
-
-        // With NEW behavior, empty string cover is skipped (exception caught, returns null).
-        // The valid cover URL would produce a GridPosterLoadedMsg if load succeeds.
-        // Since poster loading may fail in test env, we just verify no crash occurs.
-        $posterMsgs = $this->runBatch($coverCmd);
-        self::assertContainsOnlyInstancesOf(GridPosterLoadedMsg::class, $posterMsgs, 'poster messages are GridPosterLoadedMsg');
+        self::assertSame(0, $this->scheduledPosterLoads($this->coverCmdFor('')), 'an empty cover thumbnail schedules no cover load');
     }
 
     /**
-     * A relative URL (no scheme, e.g. /cover.jpg) must not produce a cover load
-     * command — it is skipped silently, treated the same as a missing cover.
+     * A relative URL (no scheme, e.g. /cover.jpg) is resolved against the base
+     * (baseUrl + path) and IS scheduled for load — it is NOT dropped.
      */
-    public function testRelativeUrlCoverIsSkippedSilently(): void
+    public function testRelativeUrlCoverIsResolvedAgainstBase(): void
     {
-        $transport = (new FakeTransport())->json(200, ['albums' => [
-            $this->album('a0', '2026-06-23', '/cover.jpg'),
-            $this->album('a1', '2026-06-22', 'https://srv/c1.jpg'),
-        ]]);
-        $screen = $this->screenWith($transport, new PosterLoader(Mosaic::halfBlock()));
-
-        $msgs = $this->runBatch($screen->init());
-        [$loaded, $coverCmd] = $screen->update($msgs[0]);
-
-        $posterMsgs = $this->runBatch($coverCmd);
-        self::assertContainsOnlyInstancesOf(GridPosterLoadedMsg::class, $posterMsgs, 'poster messages are GridPosterLoadedMsg');
+        self::assertSame(1, $this->scheduledPosterLoads($this->coverCmdFor('/cover.jpg')), 'a relative cover thumbnail is base-prefixed and a load is scheduled');
     }
 
     /**
-     * A malformed URL (e.g. not-a-valid-url) must not produce a cover load
-     * command — it is skipped silently, treated the same as a missing cover.
+     * A scheme-less string (e.g. not-a-valid-url) is treated as a relative path:
+     * resolveUrl prefixes the base, so the resolved URL is http(s) and a cover load
+     * IS scheduled against the base (it is not silently dropped).
      */
-    public function testMalformedUrlCoverIsSkippedSilently(): void
+    public function testMalformedUrlCoverIsResolvedAgainstBase(): void
     {
-        $transport = (new FakeTransport())->json(200, ['albums' => [
-            $this->album('a0', '2026-06-23', 'not-a-valid-url'),
-            $this->album('a1', '2026-06-22', 'https://srv/c1.jpg'),
-        ]]);
-        $screen = $this->screenWith($transport, new PosterLoader(Mosaic::halfBlock()));
-
-        $msgs = $this->runBatch($screen->init());
-        [$loaded, $coverCmd] = $screen->update($msgs[0]);
-
-        $posterMsgs = $this->runBatch($coverCmd);
-        self::assertContainsOnlyInstancesOf(GridPosterLoadedMsg::class, $posterMsgs, 'poster messages are GridPosterLoadedMsg');
+        self::assertSame(1, $this->scheduledPosterLoads($this->coverCmdFor('not-a-valid-url')), 'a scheme-less cover thumbnail is base-prefixed and a load is scheduled');
     }
 
     /**
-     * A URL with a non-http(s) scheme (e.g. ftp:// or javascript:) must not
-     * produce a cover load command — it is skipped silently, treated the same
-     * as a missing cover.
+     * A non-http(s) scheme (e.g. ftp://…) does not match the absolute-URL guard,
+     * so resolveUrl treats it as a relative path and prefixes the base; the
+     * resolved URL is http(s) and a cover load IS scheduled against the base.
      */
-    public function testNonHttpSchemeCoverIsSkippedSilently(): void
+    public function testNonHttpSchemeCoverIsResolvedAgainstBase(): void
     {
-        $transport = (new FakeTransport())->json(200, ['albums' => [
-            $this->album('a0', '2026-06-23', 'ftp://cdn.example.com/file.jpg'),
-            $this->album('a1', '2026-06-22', 'https://srv/c1.jpg'),
-        ]]);
-        $screen = $this->screenWith($transport, new PosterLoader(Mosaic::halfBlock()));
+        self::assertSame(1, $this->scheduledPosterLoads($this->coverCmdFor('ftp://cdn.example.com/file.jpg')), 'a non-http(s) cover thumbnail is base-prefixed and a load is scheduled');
+    }
 
+    /** Build a one-album screen and return the cover-load Cmd its albums-loaded update schedules (null if none). */
+    private function coverCmdFor(string $thumb, string $base = 'https://srv'): ?\Closure
+    {
+        $transport = (new FakeTransport())->json(200, ['albums' => [$this->album('a0', '2026-06-23', $thumb)]]);
+        $screen = $this->screenWith($transport, new PosterLoader(Mosaic::halfBlock()), $base);
         $msgs = $this->runBatch($screen->init());
-        [$loaded, $coverCmd] = $screen->update($msgs[0]);
 
-        $posterMsgs = $this->runBatch($coverCmd);
-        self::assertContainsOnlyInstancesOf(GridPosterLoadedMsg::class, $posterMsgs, 'poster messages are GridPosterLoadedMsg');
+        return $screen->update($msgs[0])[1];
+    }
+
+    /** Count the cover-load Cmds a (possibly null) batch schedules, without running them. */
+    private function scheduledPosterLoads(?\Closure $cmd): int
+    {
+        if ($cmd === null) {
+            return 0;
+        }
+        $result = $cmd();
+
+        return $result instanceof BatchMsg ? count($result->cmds) : 1;
     }
 
     public function testBrokenCoverIsSwallowed(): void

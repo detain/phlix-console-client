@@ -116,99 +116,68 @@ final class PhotoAlbumScreenTest extends TestCase
     }
 
     /**
-     * Empty string thumbnail URL must not produce a thumbnail load command — it
-     * must be skipped silently just like a null URL, to avoid "URL scheme unknown"
-     * errors from the poster loader when an empty string is passed.
-     *
-     * NEW behavior: poster loader throws \InvalidArgumentException for empty/invalid URLs,
-     * error handler catches it and returns null. The empty string item produces no message.
+     * An empty thumbnail URL is the ONLY case skipped by loadCoversIn: after
+     * resolveUrl it stays empty, so no load Cmd is scheduled (a crash-free skip —
+     * no "URL scheme unknown" from the loader).
      */
     public function testEmptyStringThumbnailUrlIsSkippedAndDoesNotCrash(): void
     {
-        // Create an album where the thumbnail_url is explicitly an empty string.
-        $album = PhotoAlbum::fromArray([
-            'id' => 'a0',
-            'date' => '2026-06-23',
-            'photo_count' => 2,
-            'photos' => [
-                ['id' => 'p0', 'name' => 'p0.jpg', 'thumbnail_url' => '', 'full_url' => ''],
-                ['id' => 'p1', 'name' => 'p1.jpg', 'thumbnail_url' => 'https://srv/p1.jpg', 'full_url' => 'https://srv/p1.jpg'],
-            ],
-        ]);
-        $screen = $this->screen($album, new PosterLoader(Mosaic::halfBlock()));
-
-        $cmd = $screen->init();
-
-        // With NEW behavior, empty string is skipped (exception caught, returns null).
-        // The valid thumbnail URL would produce a GridPosterLoadedMsg if load succeeds.
-        // Since poster loading may fail in test env, we just verify no crash occurs.
-        $posterMsgs = $this->runBatch($cmd);
-        self::assertContainsOnlyInstancesOf(GridPosterLoadedMsg::class, $posterMsgs, 'poster messages are GridPosterLoadedMsg');
+        self::assertSame(0, $this->scheduledPosterLoads($this->thumbCmdFor('')), 'an empty thumbnail_url schedules no poster load');
     }
 
     /**
-     * A relative URL (no scheme, e.g. /thumbnail.jpg) must not produce a
-     * thumbnail load command — it is skipped silently, treated the same as
-     * a missing thumbnail.
+     * A relative URL (no scheme, e.g. /thumbnail.jpg) is resolved against the base
+     * (baseUrl + path) and IS scheduled for load — it is NOT dropped.
      */
-    public function testRelativeUrlThumbnailIsSkippedSilently(): void
+    public function testRelativeUrlThumbnailIsResolvedAgainstBase(): void
+    {
+        self::assertSame(1, $this->scheduledPosterLoads($this->thumbCmdFor('/thumbnail.jpg')), 'a relative thumbnail_url is base-prefixed and a load is scheduled');
+    }
+
+    /**
+     * A scheme-less string (e.g. not-a-valid-url) is treated as a relative path:
+     * resolveUrl prefixes the base, so the resolved URL is http(s) and a load IS
+     * scheduled against the base (it is not silently dropped).
+     */
+    public function testMalformedUrlThumbnailIsResolvedAgainstBase(): void
+    {
+        self::assertSame(1, $this->scheduledPosterLoads($this->thumbCmdFor('not-a-valid-url')), 'a scheme-less thumbnail_url is base-prefixed and a load is scheduled');
+    }
+
+    /**
+     * A non-http(s) scheme (e.g. ftp://…) does not match the absolute-URL guard,
+     * so resolveUrl treats it as a relative path and prefixes the base; the
+     * resolved URL is http(s) and a load IS scheduled against the base.
+     */
+    public function testNonHttpSchemeThumbnailIsResolvedAgainstBase(): void
+    {
+        self::assertSame(1, $this->scheduledPosterLoads($this->thumbCmdFor('ftp://cdn.example.com/file.jpg')), 'a non-http(s) thumbnail_url is base-prefixed and a load is scheduled');
+    }
+
+    /** Build a one-photo album and return the poster-load Cmd its init schedules (null if none). */
+    private function thumbCmdFor(string $thumb, string $base = 'https://srv'): ?\Closure
     {
         $album = PhotoAlbum::fromArray([
             'id' => 'a0',
             'date' => '2026-06-23',
-            'photo_count' => 2,
+            'photo_count' => 1,
             'photos' => [
-                ['id' => 'p0', 'name' => 'p0.jpg', 'thumbnail_url' => '/thumbnail.jpg', 'full_url' => ''],
-                ['id' => 'p1', 'name' => 'p1.jpg', 'thumbnail_url' => 'https://srv/p1.jpg', 'full_url' => 'https://srv/p1.jpg'],
+                ['id' => 'p0', 'name' => 'p0.jpg', 'thumbnail_url' => $thumb, 'full_url' => $thumb],
             ],
         ]);
-        $screen = $this->screen($album, new PosterLoader(Mosaic::halfBlock()));
 
-        $posterMsgs = $this->runBatch($screen->init());
-        self::assertContainsOnlyInstancesOf(GridPosterLoadedMsg::class, $posterMsgs, 'poster messages are GridPosterLoadedMsg');
+        return $this->screen($album, new PosterLoader(Mosaic::halfBlock()), $base)->init();
     }
 
-    /**
-     * A malformed URL (e.g. not-a-valid-url) must not produce a thumbnail load
-     * command — it is skipped silently, treated the same as a missing thumbnail.
-     */
-    public function testMalformedUrlThumbnailIsSkippedSilently(): void
+    /** Count the poster-load Cmds a (possibly null) batch schedules, without running them. */
+    private function scheduledPosterLoads(?\Closure $cmd): int
     {
-        $album = PhotoAlbum::fromArray([
-            'id' => 'a0',
-            'date' => '2026-06-23',
-            'photo_count' => 2,
-            'photos' => [
-                ['id' => 'p0', 'name' => 'p0.jpg', 'thumbnail_url' => 'not-a-valid-url', 'full_url' => ''],
-                ['id' => 'p1', 'name' => 'p1.jpg', 'thumbnail_url' => 'https://srv/p1.jpg', 'full_url' => 'https://srv/p1.jpg'],
-            ],
-        ]);
-        $screen = $this->screen($album, new PosterLoader(Mosaic::halfBlock()));
+        if ($cmd === null) {
+            return 0;
+        }
+        $result = $cmd();
 
-        $posterMsgs = $this->runBatch($screen->init());
-        self::assertContainsOnlyInstancesOf(GridPosterLoadedMsg::class, $posterMsgs, 'poster messages are GridPosterLoadedMsg');
-    }
-
-    /**
-     * A URL with a non-http(s) scheme (e.g. ftp:// or javascript:) must not
-     * produce a thumbnail load command — it is skipped silently, treated the
-     * same as a missing thumbnail.
-     */
-    public function testNonHttpSchemeThumbnailIsSkippedSilently(): void
-    {
-        $album = PhotoAlbum::fromArray([
-            'id' => 'a0',
-            'date' => '2026-06-23',
-            'photo_count' => 2,
-            'photos' => [
-                ['id' => 'p0', 'name' => 'p0.jpg', 'thumbnail_url' => 'ftp://cdn.example.com/file.jpg', 'full_url' => ''],
-                ['id' => 'p1', 'name' => 'p1.jpg', 'thumbnail_url' => 'https://srv/p1.jpg', 'full_url' => 'https://srv/p1.jpg'],
-            ],
-        ]);
-        $screen = $this->screen($album, new PosterLoader(Mosaic::halfBlock()));
-
-        $posterMsgs = $this->runBatch($screen->init());
-        self::assertContainsOnlyInstancesOf(GridPosterLoadedMsg::class, $posterMsgs, 'poster messages are GridPosterLoadedMsg');
+        return $result instanceof BatchMsg ? count($result->cmds) : 1;
     }
 
     public function testBrokenThumbnailIsSwallowed(): void
