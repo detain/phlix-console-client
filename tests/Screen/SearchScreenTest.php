@@ -317,10 +317,11 @@ final class SearchScreenTest extends TestCase
     }
 
     /**
-     * A relative URL (no scheme, e.g. /poster.jpg) must not produce a poster
-     * load command — it is skipped silently, treated the same as a missing poster.
+     * A relative URL (no scheme, e.g. /poster.jpg) is now resolved to an
+     * absolute URL (e.g. https://srv/poster.jpg) and SHOULD be loaded — it is
+     * NOT skipped silently anymore. The resolveUrl() fix (B4) enables this.
      */
-    public function testRelativeUrlPosterIsSkippedSilently(): void
+    public function testRelativeUrlPosterIsResolvedAndLoaded(): void
     {
         $transport = (new FakeTransport())->json(200, [
             'items' => [
@@ -338,9 +339,9 @@ final class SearchScreenTest extends TestCase
 
         [$loaded, $posterCmd] = $screen->update($range);
 
-        // Only the item with a valid poster URL should be loaded.
+        // Both the resolved relative URL and the valid absolute URL should be loaded.
         $posterMsgs = $this->runBatch($posterCmd);
-        self::assertCount(1, $posterMsgs, 'only the valid poster URL is loaded, the relative URL is skipped');
+        self::assertCount(2, $posterMsgs, 'relative URL is resolved to https://srv/poster.jpg and loaded along with the other valid URL');
     }
 
     /**
