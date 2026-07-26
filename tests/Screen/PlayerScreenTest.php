@@ -86,6 +86,88 @@ final class PlayerScreenTest extends TestCase
         return ['items' => $items];
     }
 
+    /**
+     * The `GET /api/v1/media/{id}/playback` body — a `{playback_info: {…}}`
+     * wrapper. DISTINCT from {@see markersResponse()}, which is the flat
+     * `/playback-info` marker route; `PlayerScreen::init()` calls BOTH
+     * (markers, then this one for the audio tracks).
+     *
+     * Shape source of truth: phlix-server
+     * `Server/WebPortal/WebPortalRouter::getPlaybackInfo()` builds
+     * `{id, name, type, media_sources[], markers, audio_tracks[], subtitle_tracks[]}`,
+     * and every `audio_tracks` element comes from
+     * `Media/Library/StreamTrackShaper::audioTracks()` — the one shaper both
+     * server dispatch paths share — which emits exactly
+     * `{id, index, stream_index, codec, language, channels, bitrate, title, default}`
+     * with `language` defaulted to `'und'` and exactly one element `default: true`.
+     * The console's {@see \Phlix\Console\Api\Dto\StreamAudioTrack} consumes the
+     * `id/codec/language/channels/bitrate/title` subset of that; the remaining
+     * keys are kept here so the fixture matches the real wire payload.
+     *
+     * @param list<array<string,mixed>>|null $audioTracks null → the default
+     *        two-track (en 5.1 default + commentary stereo) set.
+     * @return array<string,mixed>
+     */
+    private function playbackResponse(
+        string $id = 'm1',
+        string $type = 'movie',
+        ?array $audioTracks = null,
+    ): array {
+        return ['playback_info' => [
+            'id' => $id,
+            'name' => 'The Matrix',
+            'type' => $type,
+            'media_sources' => [[
+                'id' => 'default',
+                'container' => 'mkv',
+                'path' => '/media/' . $id . '.mkv',
+                'direct_play' => true,
+            ]],
+            'markers' => [
+                'skip_intro_start' => 5.0,
+                'skip_intro_end' => 30.0,
+                'skip_outro_start' => 90.0,
+                'skip_outro_end' => 100.0,
+            ],
+            'audio_tracks' => $audioTracks ?? $this->audioTracksPayload(),
+            'subtitle_tracks' => [],
+        ]];
+    }
+
+    /**
+     * The default `audio_tracks` payload: an English 5.1 default track plus a
+     * stereo commentary track, in `StreamTrackShaper::audioTracks()` shape.
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function audioTracksPayload(): array
+    {
+        return [
+            [
+                'id' => 'as1',
+                'index' => 0,
+                'stream_index' => 1,
+                'codec' => 'eac3',
+                'language' => 'en',
+                'channels' => 6,
+                'bitrate' => 640000,
+                'title' => null,
+                'default' => true,
+            ],
+            [
+                'id' => 'as2',
+                'index' => 1,
+                'stream_index' => 2,
+                'codec' => 'aac',
+                'language' => 'en',
+                'channels' => 2,
+                'bitrate' => 128000,
+                'title' => 'Director Commentary',
+                'default' => false,
+            ],
+        ];
+    }
+
     /** A single continue-watching row for $id at $positionTicks / $durationTicks. */
     private function watchedRow(string $id, int $positionTicks, int $durationTicks): array
     {
@@ -146,8 +228,9 @@ final class PlayerScreenTest extends TestCase
 
     /**
      * Drive init → onReady (auto-play + open session) → SessionStarted, so the
-     * returned screen has a live session. The transport must queue, in order:
-     * markers, the session, then any progress responses the test triggers.
+     * returned screen has a live session. The transport must queue, in order,
+     * one response per request `init()` makes — markers, resume, playback (audio
+     * tracks) — then the session, then any progress responses the test triggers.
      */
     private function readyWithSession(FakeTransport $transport): PlayerScreen
     {
@@ -904,8 +987,9 @@ final class PlayerScreenTest extends TestCase
         $transport = (new FakeTransport())
             ->json(200, $this->markersResponse())  // 1: markers (init)
             ->json(200, $this->continueWatching())  // 2: resume (init)
-            ->json(200, ['tracks' => $tracks])      // 3: subtitle tracks (on `c`)
-            ->raw(200, $vtt);                        // 4: the WebVTT body
+            ->json(200, $this->playbackResponse())  // 3: audio tracks (init)
+            ->json(200, ['tracks' => $tracks])      // 4: subtitle tracks (on `c`)
+            ->raw(200, $vtt);                        // 5: the WebVTT body
         [$screen] = $this->screen(transport: $transport);
         $ready = $this->ready($screen);
 
@@ -973,6 +1057,7 @@ final class PlayerScreenTest extends TestCase
         $transport = (new FakeTransport())
             ->json(200, $this->markersResponse())
             ->json(200, $this->continueWatching())
+            ->json(200, $this->playbackResponse())
             ->fail(new \RuntimeException('boom')); // subtitle-tracks fetch fails
         [$screen] = $this->screen(transport: $transport);
         $ready = $this->ready($screen);
@@ -984,6 +1069,151 @@ final class PlayerScreenTest extends TestCase
 
         self::assertFalse($on->captionsOn(), 'a failed fetch leaves captions off');
         self::assertFalse($on->hasCaptions());
+    }
+
+    // ---- audio tracks (P3B) --------------------------------------------
+
+    /**
+     * A ready screen whose `init()` audio-track fetch resolved with the default
+     * two-track payload. The transport queues one response per `init()` request:
+     * markers, resume, playback.
+     *
+     * @param list<array<string,mixed>>|null $audioTracks
+     */
+    private function readyWithAudioTracks(?array $audioTracks = null): PlayerScreen
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->markersResponse())
+            ->json(200, $this->continueWatching())
+            ->json(200, $this->playbackResponse(audioTracks: $audioTracks));
+        [$screen] = $this->screen(transport: $transport);
+
+        return $this->ready($screen);
+    }
+
+    public function testInitFetchesTheAudioTracksFromThePlaybackEndpoint(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->markersResponse())
+            ->json(200, $this->continueWatching())
+            ->json(200, $this->playbackResponse());
+        [$screen] = $this->screen(transport: $transport);
+
+        $ready = $this->ready($screen);
+
+        // init() issues exactly three requests, in this order.
+        self::assertSame(3, $transport->requestCount());
+        self::assertStringEndsWith('/api/v1/media/m1/playback-info', $transport->requestAt(0)['url']);
+        self::assertStringEndsWith('/api/v1/users/me/continue-watching', $transport->requestAt(1)['url']);
+        self::assertSame('GET', $transport->requestAt(2)['method']);
+        self::assertStringEndsWith('/api/v1/media/m1/playback', $transport->requestAt(2)['url']);
+
+        $tracks = $ready->audioTracks();
+        self::assertCount(2, $tracks);
+        self::assertSame(['as1', 'as2'], array_map(static fn ($t): string => $t->id, $tracks));
+        self::assertSame('eac3', $tracks[0]->codec);
+        self::assertSame('en', $tracks[0]->language);
+        self::assertSame(6, $tracks[0]->channels);
+        self::assertSame(640000, $tracks[0]->bitrate);
+        self::assertNull($tracks[0]->title);
+        self::assertSame('Director Commentary', $tracks[1]->title);
+        self::assertSame(2, $tracks[1]->channels);
+        self::assertNull($ready->selectedAudioTrack(), 'nothing pinned yet → the default track plays');
+    }
+
+    public function testAudioTracksFetchFailureLeavesTheTrackListEmpty(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->markersResponse())
+            ->json(200, $this->continueWatching())
+            ->fail(new \RuntimeException('boom')); // the playback fetch fails
+        [$screen] = $this->screen(transport: $transport);
+
+        $ready = $this->ready($screen);
+
+        self::assertSame([], $ready->audioTracks(), 'a non-auth failure is swallowed');
+        self::assertTrue($ready->isPlaying(), 'playback continues regardless');
+
+        // a does nothing when there are no tracks to pick from.
+        [$same, $cmd] = $ready->update(new KeyMsg(KeyType::Char, 'a'));
+        self::assertSame($ready, $same);
+        self::assertNull($cmd);
+        self::assertFalse($same->isAudioTrackMenuOpen());
+    }
+
+    public function testAudioTracksAuthErrorBecomesSessionExpired(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->markersResponse())
+            ->json(200, $this->continueWatching())
+            ->json(401, ['error' => 'unauthorized']); // the playback fetch is unauthorized
+        [$screen] = $this->screen(transport: $transport);
+
+        $msgs = $this->runBatch($screen->init());
+
+        self::assertNotNull(
+            $this->firstOfType($msgs, SessionExpiredMsg::class),
+            'an audio-tracks 401 surfaces as session expiry',
+        );
+    }
+
+    public function testAudioTrackMenuListsTheLoadedTracksAndPicksOne(): void
+    {
+        $ready = $this->readyWithAudioTracks();
+        self::assertFalse($ready->isAudioTrackMenuOpen());
+
+        [$open, $cmd] = $ready->update(new KeyMsg(KeyType::Char, 'a'));
+
+        self::assertTrue($open->isAudioTrackMenuOpen());
+        self::assertNull($cmd, 'opening the overlay dispatches no Cmd');
+        self::assertSame(['as1', 'as2'], array_map(
+            static fn ($t): string => $t->id,
+            $open->audioTrackMenu()?->tracks() ?? [],
+        ));
+        self::assertSame(0, $open->audioTrackMenu()?->cursor(), 'the first track is pre-highlighted');
+        self::assertStringContainsString('Director Commentary', $open->view(), 'the overlay lists the track labels');
+
+        // ↓ → Enter pins the commentary track and closes the overlay.
+        [$moved] = $open->update(new KeyMsg(KeyType::Down));
+        self::assertSame(1, $moved->audioTrackMenu()?->cursor());
+        [$picked] = $moved->update(new KeyMsg(KeyType::Enter));
+
+        self::assertFalse($picked->isAudioTrackMenuOpen(), 'the overlay closes on pick');
+        self::assertSame('as2', $picked->selectedAudioTrack());
+    }
+
+    public function testAudioTrackMenuReopensOnThePinnedTrack(): void
+    {
+        $ready = $this->readyWithAudioTracks();
+        [$open] = $ready->update(new KeyMsg(KeyType::Char, 'a'));
+        [$moved] = $open->update(new KeyMsg(KeyType::Down));
+        [$picked] = $moved->update(new KeyMsg(KeyType::Enter));
+
+        [$reopened] = $picked->update(new KeyMsg(KeyType::Char, 'a'));
+
+        self::assertSame(1, $reopened->audioTrackMenu()?->cursor(), 'the pinned track is pre-highlighted');
+    }
+
+    public function testAudioTrackMenuIsDismissedByEscape(): void
+    {
+        $ready = $this->readyWithAudioTracks();
+        [$open] = $ready->update(new KeyMsg(KeyType::Char, 'a'));
+
+        [$closed, $cmd] = $open->update(new KeyMsg(KeyType::Escape));
+
+        self::assertFalse($closed->isAudioTrackMenuOpen(), 'Esc dismisses the overlay, not the player');
+        self::assertNull($cmd, 'and does NOT exit playback');
+        self::assertNull($closed->selectedAudioTrack(), 'a dismissed overlay pins nothing');
+    }
+
+    public function testEmptyAudioTracksPayloadLeavesTheMenuUnavailable(): void
+    {
+        $ready = $this->readyWithAudioTracks(audioTracks: []);
+
+        self::assertSame([], $ready->audioTracks(), 'an item with no audio streams has no pickable tracks');
+
+        [$same] = $ready->update(new KeyMsg(KeyType::Char, 'a'));
+        self::assertFalse($same->isAudioTrackMenuOpen());
     }
 
     // ---- up-next (episode queue) ---------------------------------------
@@ -1015,9 +1245,10 @@ final class PlayerScreenTest extends TestCase
     private function readyEpisode(string $id, int $frameCount = 60): PlayerScreen
     {
         $transport = (new FakeTransport())
-            ->json(200, $this->markersResponse())     // 1: markers
-            ->json(200, $this->continueWatching())     // 2: resume (none)
-            ->json(200, $this->episodesPage());        // 3: siblings
+            ->json(200, $this->markersResponse())                     // 1: markers
+            ->json(200, $this->continueWatching())                     // 2: resume (none)
+            ->json(200, $this->playbackResponse($id, 'episode'))       // 3: audio tracks
+            ->json(200, $this->episodesPage());                        // 4: siblings
         $decoder = new FakePlayerDecoder($this->frames($frameCount));
         $factory = static fn (string $u, int $c, int $r): Player => Player::openForTest($decoder, fps: 24.0, totalFrames: 2400, cellsW: $c, cellsH: $r, videoPath: '/fake', paused: true);
         $api = new ApiClient('https://srv', $transport);
@@ -1120,6 +1351,7 @@ final class PlayerScreenTest extends TestCase
         $transport = (new FakeTransport())
             ->json(200, $this->markersResponse())
             ->json(200, $this->continueWatching())
+            ->json(200, $this->playbackResponse('cur', 'episode'))
             ->json(200, ['items' => [
                 ['id' => 'cur', 'name' => 'Current', 'type' => 'episode', 'season_number' => 1, 'episode_number' => 1],
                 ['id' => 'spec', 'name' => 'A Special'], // no season/episode numbers
@@ -1262,12 +1494,14 @@ final class PlayerScreenTest extends TestCase
         $transport = (new FakeTransport())
             ->json(200, $this->markersResponse())
             ->json(200, $this->continueWatching())
+            ->json(200, $this->playbackResponse())
             ->json(201, ['session_id' => 'sess-1']);
 
         $ready = $this->readyWithSession($transport);
 
         self::assertSame('sess-1', $ready->sessionId());
-        $sessionReq = $transport->requestAt(2); // 0 = markers, 1 = continue-watching, 2 = session
+        // 0 = markers, 1 = continue-watching, 2 = playback (audio tracks), 3 = session
+        $sessionReq = $transport->requestAt(3);
         self::assertSame('POST', $sessionReq['method']);
         self::assertStringContainsString('/api/v1/sessions', $sessionReq['url']);
         self::assertStringContainsString('device_id', $sessionReq['body']);
@@ -1278,6 +1512,7 @@ final class PlayerScreenTest extends TestCase
         $transport = (new FakeTransport())
             ->json(200, $this->markersResponse())
             ->json(200, $this->continueWatching())
+            ->json(200, $this->playbackResponse())
             ->json(201, ['session_id' => 'sess-1'])
             ->json(200, ['message' => 'ok']);
         $ready = $this->readyWithSession($transport);
@@ -1299,6 +1534,7 @@ final class PlayerScreenTest extends TestCase
         $transport = (new FakeTransport())
             ->json(200, $this->markersResponse())
             ->json(200, $this->continueWatching())
+            ->json(200, $this->playbackResponse())
             ->fail(new \RuntimeException('boom')); // session create fails
 
         $ready = $this->readyWithSession($transport);
@@ -1312,6 +1548,7 @@ final class PlayerScreenTest extends TestCase
         $transport = (new FakeTransport())
             ->json(200, $this->markersResponse())
             ->json(200, $this->continueWatching())
+            ->json(200, $this->playbackResponse())
             ->json(201, ['session_id' => 'sess-1'])
             ->json(200, ['message' => 'ok'])     // final progress
             ->json(200, ['message' => 'ended']); // endSession
