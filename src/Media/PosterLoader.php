@@ -141,9 +141,9 @@ final class PosterLoader
             return new PosterLoadResult($bytes, null);
         }
 
-        $result = $this->images->place($bytes, $width, $height);
+        $placed = $this->images->placeTracked($bytes, $width, $height);
 
-        return new PosterLoadResult($result['marker'], $result['imageId']);
+        return new PosterLoadResult($placed->marker, $placed->imageId);
     }
 
     /**
