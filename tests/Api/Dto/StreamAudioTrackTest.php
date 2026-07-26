@@ -22,7 +22,10 @@ use PHPUnit\Framework\TestCase;
  */
 final class StreamAudioTrackTest extends TestCase
 {
-    /** @return array<string,mixed> a full server-shaped audio-track row */
+    /**
+     * @param array<string,mixed> $overrides keys to replace on the base row
+     * @return array<string,mixed> a full server-shaped audio-track row
+     */
     private function row(array $overrides = []): array
     {
         return array_merge([
