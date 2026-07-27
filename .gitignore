@@ -7,3 +7,5 @@
 /.caliber/
 .phpstan.cache/
 /phlix.phar
+# Cobertura report written by phpunit.xml.dist; uploaded to Codacy from CI.
+/coverage.xml
