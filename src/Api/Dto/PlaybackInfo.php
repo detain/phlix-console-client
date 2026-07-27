@@ -48,7 +48,10 @@ final readonly class PlaybackInfo
         $sources = [];
         foreach (Coerce::map($data['media_sources'] ?? null) as $source) {
             if (is_array($source)) {
-                $sources[] = $source;
+                // Coerce::map() re-keys to array<string,mixed>; a bare is_array()
+                // narrowing only yields array<mixed,mixed>, which does not satisfy
+                // the constructor's list<array<string,mixed>> under PHPStan level 9.
+                $sources[] = Coerce::map($source);
             }
         }
 
