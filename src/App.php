@@ -1077,6 +1077,7 @@ final class App implements Model
             $name,
             $this->media,
             $this->posters,
+            $this->api->baseUrl(),
             cols: $this->cols,
             rows: $this->rows,
         );

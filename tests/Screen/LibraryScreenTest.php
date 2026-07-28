@@ -46,15 +46,16 @@ final class LibraryScreenTest extends TestCase
         parent::tearDown();
     }
 
-    private function screenWith(FakeTransport $transport, ?PosterLoader $posters = null): LibraryScreen
+    private function screenWith(FakeTransport $transport, ?PosterLoader $posters = null, string $baseUrl = 'https://srv'): LibraryScreen
     {
-        $api = new ApiClient('https://srv', $transport);
+        $api = new ApiClient($baseUrl, $transport);
 
         return new LibraryScreen(
             'lib-a',
             'Movies',
             new MediaStore($api),
             $posters ?? new PosterLoader(Mosaic::halfBlock()),
+            $baseUrl,
             cols: 120,
             rows: 40,
         );
@@ -541,24 +542,63 @@ final class LibraryScreenTest extends TestCase
         self::assertSame([], $this->runBatch($cmd), 'empty string posterUrl produces no poster load');
     }
 
-    /**
-     * A relative URL (no scheme, e.g. /poster.jpg) must not produce a poster
-     * load command — it is skipped silently, treated the same as a missing poster.
-     */
-    public function testRelativeUrlPosterIsSkippedSilently(): void
+    public function testResolveUrlConvertsRelativeToAbsolute(): void
     {
+        $transport = new FakeTransport();
+        $screen = $this->screenWith($transport);
+
+        $refl = new \ReflectionClass(LibraryScreen::class);
+        $method = $refl->getMethod('resolveUrl');
+        $method->setAccessible(true);
+
+        // Relative URL should be resolved
+        $result = $method->invoke($screen, '/posters/abc.jpg');
+        $this->assertSame('https://srv/posters/abc.jpg', $result);
+
+        // Absolute URL should pass through unchanged
+        $result = $method->invoke($screen, 'https://other.com/img.jpg');
+        $this->assertSame('https://other.com/img.jpg', $result);
+
+        // Empty URL should pass through
+        $result = $method->invoke($screen, '');
+        $this->assertSame('', $result);
+    }
+
+    public function testResolveUrlHandlesTrailingSlashes(): void
+    {
+        $transport = new FakeTransport();
+        // Test with a baseUrl that has trailing slash
+        $screen = $this->screenWith($transport, null, 'https://srv/');
+
+        $refl = new \ReflectionClass(LibraryScreen::class);
+        $method = $refl->getMethod('resolveUrl');
+        $method->setAccessible(true);
+
+        // When baseUrl has trailing slash, resolveUrl should handle it correctly (rtrim removes trailing slash)
+        $result = $method->invoke($screen, '/posters/abc.jpg');
+        $this->assertSame('https://srv/posters/abc.jpg', $result);
+    }
+
+    /**
+     * Relative URL poster is resolved to absolute and loaded (not skipped).
+     */
+    public function testRelativeUrlPosterIsLoaded(): void
+    {
+        $port = $this->startPosterServer();
         $transport = (new FakeTransport())->json(200, [
-            'items' => [['id' => '0', 'name' => 'M', 'type' => 'movie', 'poster_url' => '/poster.jpg']],
+            'items' => [['id' => '0', 'name' => 'M', 'type' => 'movie', 'poster_url' => "/p.png"]],
             'total' => 1,
             'limit' => 50,
             'offset' => 0,
         ]);
-        $screen = $this->screenWith($transport, new PosterLoader(Mosaic::halfBlock()));
+        $screen = $this->screenWith($transport, new PosterLoader(Mosaic::halfBlock()), "http://127.0.0.1:{$port}");
 
         $range = $this->runBatch($screen->init())[0];
         [$loaded, $cmd] = $screen->update($range);
 
-        self::assertSame([], $this->runBatch($cmd), 'relative URL posterUrl produces no poster load');
+        self::assertInstanceOf(\Closure::class, $cmd, 'relative URL posterUrl produces a poster load command');
+        $posterMsgs = array_filter($this->runBatch($cmd), static fn (Msg $m): bool => $m instanceof GridPosterLoadedMsg);
+        self::assertNotEmpty($posterMsgs, 'relative URL poster should be resolved to absolute and loaded');
     }
 
     /**

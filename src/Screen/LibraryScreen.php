@@ -88,6 +88,7 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
         private readonly string $name,
         private readonly MediaStore $media,
         private readonly PosterLoader $posters,
+        private readonly string $baseUrl,
         private int $cols = 80,
         private int $rows = 24,
     ) {
@@ -462,15 +463,18 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
             if ($card === null || $card->posterUrl === null || $card->posterUrl === '' || $card->hasPoster()) {
                 continue;
             }
-            // Defensive: validate URL has a valid http/https scheme before attempting load.
-            // parse_url returns false for malformed URLs and null for URLs with no scheme.
-            $scheme = parse_url($card->posterUrl, PHP_URL_SCHEME);
-            if ($scheme === null || $scheme === false || !in_array($scheme, ['http', 'https'], true)) {
-                // Skip relative URLs (no scheme), malformed URLs, or non-http(s) schemes
-                // silently - treat them the same as a missing poster.
+            // Resolve relative URLs against the server base URL; absolute/empty pass through.
+            $url = $this->resolveUrl($card->posterUrl);
+            if ($url === '') {
                 continue;
             }
-            $url = $card->posterUrl;
+            // Defensive: validate URL has a valid http/https scheme before attempting load.
+            // parse_url returns false for malformed URLs and null for URLs with no scheme.
+            $scheme = parse_url($url, PHP_URL_SCHEME);
+            if ($scheme === null || $scheme === false || !in_array($scheme, ['http', 'https'], true)) {
+                // Skip malformed URLs or non-http(s) schemes silently - treat them the same as a missing poster.
+                continue;
+            }
             $index = $i;
             $cmds[] = Cmd::promise(fn () => $this->posters->load($url, self::CARD_WIDTH, self::POSTER_HEIGHT)->then(
                 static fn (PosterLoadResult $result): Msg => new GridPosterLoadedMsg($index, $result->marker),
@@ -479,6 +483,16 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
         }
 
         return $cmds === [] ? null : Cmd::batch(...$cmds);
+    }
+
+    /** Resolve a (possibly relative) URL against the server base; absolute/empty pass through. */
+    private function resolveUrl(string $url): string
+    {
+        if ($url === '' || preg_match('#^https?://#i', $url) === 1) {
+            return $url; // empty, or already absolute (signed URLs are absolute)
+        }
+
+        return rtrim($this->baseUrl, '/') . '/' . ltrim($url, '/');
     }
 
     /**
