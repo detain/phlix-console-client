@@ -73,8 +73,13 @@ final class DetailScreenTest extends TestCase
             'rating' => 'R',
             'runtime' => 136,
             'genres' => ['Action', 'Sci-Fi'],
-            'director' => 'The Wachowskis',
-            'actors' => ['Keanu Reeves', 'Laurence Fishburne'],
+            'crew' => [
+                ['name' => 'The Wachowskis', 'job' => 'Director', 'profile_url' => null],
+            ],
+            'cast' => [
+                ['name' => 'Keanu Reeves', 'role' => 'Neo', 'profile_url' => null],
+                ['name' => 'Laurence Fishburne', 'role' => 'Morpheus', 'profile_url' => null],
+            ],
             'overview' => 'A hacker discovers the shocking truth about his reality.',
             'poster_url' => 'https://p/m1.jpg',
             'stream_url' => 'https://srv/media/m1/stream?sig=x',

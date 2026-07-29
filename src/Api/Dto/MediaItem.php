@@ -20,7 +20,8 @@ final readonly class MediaItem
 {
     /**
      * @param list<string> $genres
-     * @param list<string> $actors
+     * @param list<CastMember>|null $cast
+     * @param list<CrewMember>|null $crew
      */
     public function __construct(
         public string $id,
@@ -36,8 +37,8 @@ final readonly class MediaItem
         public ?int $runtime,
         public ?int $duration,
         public ?string $overview,
-        public array $actors,
-        public ?string $director,
+        public ?array $cast,
+        public ?array $crew,
         public ?string $parentId,
         public ?int $seasonNumber,
         public ?int $episodeNumber,
@@ -69,8 +70,8 @@ final readonly class MediaItem
             runtime: Coerce::nint($data['runtime'] ?? null),
             duration: Coerce::nint($data['duration'] ?? null),
             overview: Coerce::nstr($data['overview'] ?? null),
-            actors: Coerce::actorNames($data['actors'] ?? []),
-            director: Coerce::nstr($data['director'] ?? null),
+            cast: Coerce::castList($data['cast'] ?? []),
+            crew: Coerce::crewList($data['crew'] ?? []),
             parentId: Coerce::nstr($data['parent_id'] ?? null),
             seasonNumber: Coerce::nint($data['season_number'] ?? null),
             episodeNumber: Coerce::nint($data['episode_number'] ?? null),
@@ -110,8 +111,8 @@ final readonly class MediaItem
             runtime: Coerce::nint($meta['runtime'] ?? null),
             duration: Coerce::nint($meta['duration_seconds'] ?? null),
             overview: Coerce::nstr($meta['overview'] ?? null),
-            actors: Coerce::actorNames($meta['actors'] ?? []),
-            director: Coerce::nstr($meta['director'] ?? null),
+            cast: Coerce::castList($meta['cast'] ?? []),
+            crew: Coerce::crewList($meta['crew'] ?? []),
             parentId: null,
             seasonNumber: Coerce::nint($meta['season'] ?? null),
             episodeNumber: Coerce::nint($meta['episode'] ?? null),

@@ -10,6 +10,8 @@ declare(strict_types=1);
 namespace Phlix\Console\Screen;
 
 use Phlix\Console\Api\AuthError;
+use Phlix\Console\Api\Dto\CastMember;
+use Phlix\Console\Api\Dto\CrewMember;
 use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\MediaQuery;
 use Phlix\Console\Media\PosterCardFactory;
@@ -35,6 +37,7 @@ use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\SubscriptionCapable;
+use SugarCraft\Core\Util\Color;
 use SugarCraft\Core\Util\Width;
 use SugarCraft\Gallery\PosterGrid;
 use SugarCraft\Shine\Renderer;
@@ -539,12 +542,8 @@ final class DetailScreen implements Breadcrumbed, Themed
         if ($item->genres !== []) {
             $lines[] = Width::truncate(implode(', ', $item->genres), $width);
         }
-        if ($item->director !== null && $item->director !== '') {
-            $lines[] = Width::truncate('Directed by ' . $item->director, $width);
-        }
-        if ($item->actors !== []) {
-            $lines[] = Width::truncate('Cast: ' . implode(', ', $item->actors), $width);
-        }
+        $lines = $this->appendCrewLines($lines, $item, $width);
+        $lines = $this->appendCastLines($lines, $item, $width);
 
         $header = $lines;
         $actions = $this->playNotice ? self::PLAY_NOTICE : '▶  p  Play        Esc  Back';
@@ -580,6 +579,93 @@ final class DetailScreen implements Breadcrumbed, Themed
         }
 
         return Width::truncate(implode('  ·  ', $parts), $this->columnWidth());
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return list<string>
+     */
+    private function appendCrewLines(array $lines, MediaItem $item, int $width): array
+    {
+        $crew = $item->crew;
+        if ($crew === null || $crew === []) {
+            return $lines;
+        }
+        // Show director first if present.
+        foreach ($crew as $member) {
+            if ($member->job !== null && strcasecmp($member->job, 'director') === 0) {
+                $lines[] = Width::truncate('Directed by ' . $member->name, $width);
+                return $lines;
+            }
+        }
+
+        return $lines;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return list<string>
+     */
+    private function appendCastLines(array $lines, MediaItem $item, int $width): array
+    {
+        $cast = $item->cast;
+        if ($cast === null || $cast === []) {
+            return $lines;
+        }
+        $lines[] = '';
+        $accent = Style::new()->bold();
+        $dim = Style::new()->faint();
+        $lines[] = $accent->render('Cast');
+        $maxShow = min(8, count($cast));
+        for ($i = 0; $i < $maxShow; $i++) {
+            $member = $cast[$i];
+            $avatar = $this->avatarForCastMember($member, $dim);
+            $role = $member->role !== null ? " as {$member->role}" : '';
+            $lines[] = $avatar . ' ' . Width::truncate($member->name . $role, $width - 3);
+        }
+        if (count($cast) > $maxShow) {
+            $remaining = count($cast) - $maxShow;
+            $lines[] = $dim->render("  +{$remaining} more");
+        }
+
+        return $lines;
+    }
+
+    /**
+     * Render a minimal initials-based avatar for a cast member using ANSI escape codes.
+     */
+    private function avatarForCastMember(CastMember $member, Style $style): string
+    {
+        static $colors = [
+            'red' => '#ff0000',
+            'green' => '#00ff00',
+            'yellow' => '#ffff00',
+            'blue' => '#0000ff',
+            'magenta' => '#ff00ff',
+            'cyan' => '#00ffff',
+        ];
+        $initials = $this->initials($member->name);
+        $color = $colors[array_keys($colors)[crc32($member->name) % count($colors)]];
+        return $style->bg($color)->render(" {$initials} ");
+    }
+
+    /**
+     * Extract a two-character initials abbreviation from a name.
+     */
+    private function initials(string $name): string
+    {
+        $trimmed = trim($name);
+        $parts = preg_split('/\s+/', $trimmed);
+        if ($parts === false) {
+            return strtoupper(substr($trimmed, 0, 2));
+        }
+        if (count($parts) === 1) {
+            return strtoupper(substr($trimmed, 0, 2));
+        }
+        $first = substr($parts[count($parts) - 1], 0, 1);
+        $second = substr($parts[0], 0, 1);
+
+        return strtoupper($first . $second);
     }
 
     /** A human runtime — TMDB minutes if present, else the probed duration seconds. */

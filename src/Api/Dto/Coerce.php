@@ -138,6 +138,70 @@ final class Coerce
     }
 
     /**
+     * Normalise a cast value from the shaped API response into CastMember DTOs.
+     * Returns null when the input is absent/empty to match the API shape.
+     *
+     * @param mixed $value
+     * @return list<CastMember>|null
+     */
+    public static function castList(mixed $value): ?array
+    {
+        if (!is_array($value) || $value === []) {
+            return null;
+        }
+
+        $out = [];
+        foreach ($value as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $name = self::nstr($item['name'] ?? null);
+            if ($name === null) {
+                continue;
+            }
+            $out[] = new CastMember(
+                name: $name,
+                role: self::nstr($item['role'] ?? null),
+                profileUrl: self::nstr($item['profile_url'] ?? null),
+            );
+        }
+
+        return $out;
+    }
+
+    /**
+     * Normalise a crew value from the shaped API response into CrewMember DTOs.
+     * Returns null when the input is absent/empty to match the API shape.
+     *
+     * @param mixed $value
+     * @return list<CrewMember>|null
+     */
+    public static function crewList(mixed $value): ?array
+    {
+        if (!is_array($value) || $value === []) {
+            return null;
+        }
+
+        $out = [];
+        foreach ($value as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $name = self::nstr($item['name'] ?? null);
+            if ($name === null) {
+                continue;
+            }
+            $out[] = new CrewMember(
+                name: $name,
+                job: self::nstr($item['job'] ?? null),
+                profileUrl: self::nstr($item['profile_url'] ?? null),
+            );
+        }
+
+        return $out;
+    }
+
+    /**
      * Coerce to an associative array, or [] when absent/non-array.
      *
      * @return array<string,mixed>
