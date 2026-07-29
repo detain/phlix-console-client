@@ -7,6 +7,7 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **Fixed ensureRange() calculating lastOffset incorrectly causing multi-page windows to under-fetch data** (MediaStore and BooksStore). The lastOffset calculation used `$windowEnd = max($start, $end - 1)` but then computed `lastOffset = intdiv($windowEnd, $limit) * $limit` — when $end was the exact boundary of a page, this truncated the final page. Corrected to `max($start, $end - 1)` before dividing, ensuring the full requested range is always fetched.
 - **Search results now show poster images** (relative URLs resolved via baseUrl + resolveUrl())
 - **Detail page hero images and child-episode thumbnails now render** (relative poster URLs
   resolved via `baseUrl` + `resolveUrl()`)

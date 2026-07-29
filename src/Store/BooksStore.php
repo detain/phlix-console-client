@@ -139,7 +139,18 @@ final class BooksStore
      * are TTL-cached and de-duplicated via {@see page()}, so the grid can call
      * this freely on scroll.
      *
+     * @param string|null $libraryId  The library to fetch from, or null for all
+     * @param int         $total      Total number of books in the library (used to clamp $end)
+     * @param int         $start      Absolute start index (inclusive)
+     * @param int         $end        Absolute end index (inclusive)
+     * @param int         $limit      Number of items per page (default 50)
+     *
      * @return PromiseInterface<array<int, Book>>
+     *
+     * @note The $windowEnd calculation uses max($start, $end - 1) to ensure the
+     *       last page is included in the fetch even when $end falls exactly on
+     *       a page boundary. Without this, lastOffset would under-fetch and miss
+     *       items at the boundary of the final page.
      */
     public function ensureRange(?string $libraryId, int $total, int $start, int $end, int $limit = 50): PromiseInterface
     {
@@ -154,8 +165,9 @@ final class BooksStore
             return resolve([]);
         }
 
+        $windowEnd = max($start, $end - 1);
         $firstOffset = intdiv($start, $limit) * $limit;
-        $lastOffset = intdiv($end, $limit) * $limit;
+        $lastOffset = intdiv($windowEnd, $limit) * $limit;
 
         /** @var array<int, PromiseInterface<BookPage>> $promises */
         $promises = [];

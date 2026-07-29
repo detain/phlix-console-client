@@ -155,6 +155,72 @@ final class MediaStoreTest extends TestCase
         self::assertSame(2, $transport->requestCount(), 'page@0 reused from cache');
     }
 
+    /**
+     * Regression test: ensureRange must fetch ALL pages covering a multi-page window.
+     *
+     * When limit=50 and the window [25, 74] spans two pages (items 25-49 on page 0,
+     * items 50-74 on page 50), the bug was using `lastOffset = intdiv($lastOffset, $limit) * $limit`
+     * directly instead of computing `windowEnd = max($lastOffset, $lastOffset - 1)` first.
+     * This caused `lastOffset` to be calculated from $lastOffset (the raw $lastOffset param)
+     * rather than the properly adjusted window end, resulting in under-fetching.
+     */
+    public function testEnsureRangeFetchesAllPagesForMultiPageWindow(): void
+    {
+        // Window [25, 74] with limit 50: page@0 covers 0-49, page@50 covers 50-99.
+        // Both pages are needed to satisfy the window.
+        $transport = (new FakeTransport())
+            ->json(200, $this->pageResponse(0, 50, 200, 50))
+            ->json(200, $this->pageResponse(50, 50, 200, 50));
+        $store = new MediaStore(new ApiClient('https://srv', $transport), 60.0, static fn (): float => 1000.0);
+        $query = MediaQuery::forLibrary('lib', limit: 50);
+
+        $range = $this->await($store->ensureRange($query, 25, 74));
+
+        self::assertSame(range(25, 74), array_keys($range->items));
+        self::assertSame(2, $transport->requestCount(), 'both covering pages fetched');
+        self::assertStringContainsString('offset=0', $transport->requestAt(0)['url']);
+        self::assertStringContainsString('offset=50', $transport->requestAt(1)['url']);
+    }
+
+    /**
+     * Single item at the start of a page boundary: item 50 is the first item on page 50.
+     * Verifies that requesting a single item at a page boundary correctly fetches
+     * only the covering page.
+     */
+    public function testEnsureRangeSingleItemAtPageBoundary(): void
+    {
+        // Item 50 is at offset 50 (first item of page 50, limit 50).
+        $transport = (new FakeTransport())
+            ->json(200, $this->pageResponse(50, 50, 200, 50));
+        $store = new MediaStore(new ApiClient('https://srv', $transport), 60.0, static fn (): float => 1000.0);
+        $query = MediaQuery::forLibrary('lib', limit: 50);
+
+        $range = $this->await($store->ensureRange($query, 50, 50));
+
+        self::assertSame([50], array_keys($range->items));
+        self::assertSame(1, $transport->requestCount(), 'only the covering page at offset 50 fetched');
+        self::assertStringContainsString('offset=50', $transport->requestAt(0)['url']);
+    }
+
+    /**
+     * Edge case: start == end (single item in the middle of a page).
+     * This verifies the window calculation handles the degenerate case correctly.
+     */
+    public function testEnsureRangeSingleItemSameStartAndEnd(): void
+    {
+        // Item 27 is on page 0 (limit 50).
+        $transport = (new FakeTransport())
+            ->json(200, $this->pageResponse(0, 50, 200, 50));
+        $store = new MediaStore(new ApiClient('https://srv', $transport), 60.0, static fn (): float => 1000.0);
+        $query = MediaQuery::forLibrary('lib', limit: 50);
+
+        $range = $this->await($store->ensureRange($query, 27, 27));
+
+        self::assertSame([27], array_keys($range->items));
+        self::assertSame(1, $transport->requestCount(), 'single page fetched for single item');
+        self::assertStringContainsString('offset=0', $transport->requestAt(0)['url']);
+    }
+
     public function testConcurrentPageFetchesAreDeduplicated(): void
     {
         $transport = (new FakeTransport())->pending();

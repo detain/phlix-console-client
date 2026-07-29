@@ -230,7 +230,16 @@ final class MediaStore
      * resolve the items keyed by their ABSOLUTE index, plus the total. Pages are
      * TTL-cached and de-duplicated, so the grid can call this freely on scroll.
      *
+     * @param MediaQuery $query  The query defining filters and page size ($limit)
+     * @param int        $start  Absolute start index (inclusive)
+     * @param int        $end    Absolute end index (inclusive)
+     *
      * @return PromiseInterface<MediaRange>
+     *
+     * @note The $windowEnd calculation uses max($start, $end - 1) to ensure the
+     *       last page is included in the fetch even when $end falls exactly on
+     *       a page boundary. Without this, lastOffset would under-fetch and miss
+     *       items at the boundary of the final page.
      */
     public function ensureRange(MediaQuery $query, int $start, int $end): PromiseInterface
     {
@@ -240,8 +249,11 @@ final class MediaStore
 
         $start = max(0, $start);
         $limit = max(1, $query->limit);
+        // Use windowEnd to ensure we fetch all pages needed to cover items from $start to $end.
+        // $end is inclusive, so windowEnd = $end - 1. Using max() handles edge case where $end < $start.
+        $windowEnd = max($start, $end - 1);
         $firstOffset = intdiv($start, $limit) * $limit;
-        $lastOffset = intdiv($end, $limit) * $limit;
+        $lastOffset = intdiv($windowEnd, $limit) * $limit;
 
         /** @var array<int, PromiseInterface<MediaPage>> $promises */
         $promises = [];
