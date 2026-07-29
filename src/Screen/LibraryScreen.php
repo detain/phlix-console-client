@@ -138,7 +138,7 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
             return [$msg->generation === $this->generation ? $this->withLetterIndex($msg->index) : $this, null];
         }
         if ($msg instanceof GridPosterLoadedMsg) {
-            return [$this->onPoster($msg->index, $msg->ansi), null];
+            return [$this->onPoster($msg->index, $msg->ansi, $msg->imageId), null];
         }
         if ($msg instanceof LibraryFailedMsg) {
             // A failure that blocked the first load replaces the screen body; a
@@ -422,14 +422,19 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
         return [$next, $next->loadPostersIn($grid, $start, $end)];
     }
 
-    private function onPoster(int $index, string $ansi): self
+    private function onPoster(int $index, string $ansi, ?int $imageId = null): self
     {
         $card = $this->grid->item($index);
         if ($card === null) {
             return $this;
         }
 
-        return $this->withGrid($this->grid->withItem($index, $card->withPoster($ansi)));
+        // Use withImage() for overlay modes (sixel/kitty/iterm2), withPoster() for inline modes
+        $newCard = ($imageId !== null && !$this->posters->isInline())
+            ? $card->withImage($ansi, $imageId)
+            : $card->withPoster($ansi);
+
+        return $this->withGrid($this->grid->withItem($index, $newCard));
     }
 
     private function fetchRange(int $start, int $end): \Closure
@@ -477,7 +482,7 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
             }
             $index = $i;
             $cmds[] = Cmd::promise(fn () => $this->posters->load($url, self::CARD_WIDTH, self::POSTER_HEIGHT)->then(
-                static fn (PosterLoadResult $result): Msg => new GridPosterLoadedMsg($index, $result->marker),
+                static fn (PosterLoadResult $result): Msg => new GridPosterLoadedMsg($index, $result->marker, $result->imageId),
                 static fn (\Throwable $e): ?Msg => null, // a broken poster keeps its skeleton
             ));
         }

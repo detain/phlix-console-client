@@ -17,6 +17,7 @@ final readonly class GridPosterLoadedMsg implements Msg
     public function __construct(
         public int $index,
         public string $ansi,
+        public ?int $imageId = null,
     ) {
     }
 }
