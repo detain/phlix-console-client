@@ -50,6 +50,9 @@ final class PosterLoader
     private readonly bool $inline;
     private readonly ImageLayer $images;
 
+    /** @var array<string, array{marker: string, imageId: int|null}> */
+    private array $placedByDigest = [];
+
     public function __construct(
         private readonly Mosaic $mosaic,
         private readonly ?DiskCache $cache = null,
@@ -141,7 +144,18 @@ final class PosterLoader
             return new PosterLoadResult($bytes, null);
         }
 
+        $digest = hash('xxh3', $bytes);
+        if (isset($this->placedByDigest[$digest])) {
+            $cached = $this->placedByDigest[$digest];
+
+            return new PosterLoadResult($cached['marker'], $cached['imageId']);
+        }
+
         $placed = $this->images->placeTracked($bytes, $width, $height);
+        $this->placedByDigest[$digest] = [
+            'marker' => $placed->marker,
+            'imageId' => $placed->imageId,
+        ];
 
         return new PosterLoadResult($placed->marker, $placed->imageId);
     }
