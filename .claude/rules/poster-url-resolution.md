@@ -26,11 +26,9 @@ if ($scheme === null || $scheme === false || !in_array($scheme, ['http', 'https'
 $cmds[] = $this->loadCover($i, $url);          // pass the RESOLVED url to PosterLoader
 ```
 
-- Do **not** call `resolveUrl()` again inside the `Cmd::promise()` closure — the
-  loader receives an already-absolute URL.
-- Screens on this pattern: `src/Screen/BrowseScreen.php`,
-  `src/Screen/DetailScreen.php`, `src/Screen/SearchScreen.php`,
-  `src/Screen/PhotosScreen.php`, `src/Screen/PhotoAlbumScreen.php`.
+- Do **not** call `resolveUrl()` again inside the `Cmd::promise()` closure — the loader gets an already-absolute URL.
+- Screens on this pattern: `src/Screen/BrowseScreen.php`, `src/Screen/DetailScreen.php`,
+  `src/Screen/SearchScreen.php`, `src/Screen/PhotosScreen.php`, `src/Screen/PhotoAlbumScreen.php`.
 
 ## API side
 
@@ -39,12 +37,16 @@ $cmds[] = $this->loadCover($i, $url);          // pass the RESOLVED url to Poste
   must **not** set it.
 - `MediaItem::fromContinueWatching()` prefers the top-level re-minted
   `poster_url` and falls back to `metadata.poster_url`.
+- `MediaItem::$cast` / `$crew` come from `Coerce::castList()` / `Coerce::crewList()`
+  (null when the API omits them); each member's `profileUrl` is relative like any
+  other artwork URL — `src/Screen/DetailScreen.php` draws initials-based ANSI
+  avatars for the `Cast` list instead of loading it.
 
 ## Tests
 
-Assert real resolve-and-load behavior — no skipped or vacuous assertions. Use a
-real local HTTP server for the relative case and deterministic scheduled-load
-counts for empty/malformed/non-http URLs.
+Assert real resolve-and-load behavior — no skipped or vacuous assertions. Use a real
+local HTTP server for the relative case and deterministic scheduled-load counts for
+empty/malformed/non-http URLs.
 
 ```sh
 vendor/bin/phpunit tests/Screen tests/Api

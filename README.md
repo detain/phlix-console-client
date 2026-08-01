@@ -43,7 +43,8 @@ compatibility.
 > [`../phlix_console_client.md`](../phlix_console_client.md). Working today: log
 > in, browse your libraries as poster rails beside a sidebar, open a library into
 > a virtualized poster grid (scroll, filter, sort, A–Z jump), open any poster
-> into a **detail screen** (hero poster, metadata, synopsis), and drill
+> into a **detail screen** (hero poster, metadata, synopsis, and a **Cast** list
+> with initials-based ANSI avatars), and drill
 > **series → season → episode**, with a **breadcrumb trail** in the header.
 >
 > Press `p` to launch the **in-terminal player** (Phase 4): it **direct-plays**
