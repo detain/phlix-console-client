@@ -396,6 +396,218 @@ final class MediaStoreTest extends TestCase
         self::assertSame(2, $transport->requestCount(), 'invalidate forces a refetch');
     }
 
+    // ---- ratings -----------------------------------------------------------
+
+    private function ratingsResponse(string $id): array
+    {
+        return [
+            'item_id' => $id,
+            'ratings' => [
+                ['source' => 'tmdb', 'type' => 'critic', 'value' => 8.5],
+                ['source' => 'user', 'type' => 'user', 'value' => 9.0],
+            ],
+            'aggregate_score' => 8.75,
+        ];
+    }
+
+    public function testRatingsCachesWithinTtl(): void
+    {
+        $now = 1000.0;
+        $clock = static function () use (&$now): float {
+            return $now;
+        };
+        $transport = (new FakeTransport())
+            ->json(200, $this->ratingsResponse('m1'))
+            ->json(200, $this->ratingsResponse('m1'));
+        $store = new MediaStore(new ApiClient('https://srv', $transport), 60.0, $clock);
+
+        $first = $this->await($store->ratings('m1'));
+        self::assertSame(1, $transport->requestCount());
+
+        $now = 1030.0;
+        $this->await($store->ratings('m1'));
+        self::assertSame(1, $transport->requestCount(), 'cached within TTL');
+    }
+
+    public function testRatingsForceBypassesCache(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->ratingsResponse('m1'))
+            ->json(200, $this->ratingsResponse('m1'));
+        $store = new MediaStore(new ApiClient('https://srv', $transport), 60.0, static fn (): float => 1000.0);
+
+        $this->await($store->ratings('m1'));
+        $this->await($store->ratings('m1', force: true));
+
+        self::assertSame(2, $transport->requestCount(), 'force refetches even within TTL');
+    }
+
+    public function testRatingsCachesPerId(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->ratingsResponse('m1'))
+            ->json(200, $this->ratingsResponse('m2'));
+        $store = new MediaStore(new ApiClient('https://srv', $transport), 60.0, static fn (): float => 1000.0);
+
+        $a = $this->await($store->ratings('m1'));
+        $b = $this->await($store->ratings('m2'));
+
+        self::assertNotSame($a, $b);
+        self::assertSame(2, $transport->requestCount(), 'a different id is a different cache entry');
+    }
+
+    public function testConcurrentRatingsFetchesAreDeduplicated(): void
+    {
+        $transport = (new FakeTransport())->pending();
+        $store = new MediaStore(new ApiClient('https://srv', $transport), 60.0, static fn (): float => 1000.0);
+
+        $first = $store->ratings('m1');
+        $second = $store->ratings('m1');
+
+        self::assertSame($first, $second, 'a concurrent fetch of the same item shares the in-flight promise');
+        self::assertSame(1, $transport->requestCount());
+    }
+
+    public function testFailedRatingsClearsInFlightSoARetryRefetches(): void
+    {
+        $transport = (new FakeTransport())
+            ->fail(new \RuntimeException('boom'))
+            ->json(200, $this->ratingsResponse('m1'));
+        $store = new MediaStore(new ApiClient('https://srv', $transport), 60.0, static fn (): float => 1000.0);
+
+        $error = null;
+        try {
+            $this->await($store->ratings('m1'));
+        } catch (\Throwable $e) {
+            $error = $e;
+        }
+        self::assertNotNull($error, 'first fetch rejects');
+
+        $ratings = $this->await($store->ratings('m1'));
+        self::assertNotNull($ratings, 'retry succeeds because in-flight was cleared');
+        self::assertSame(2, $transport->requestCount());
+    }
+
+    // ---- chapters ----------------------------------------------------------
+
+    private function chaptersResponse(): array
+    {
+        return [
+            'chapters' => [
+                ['start_seconds' => 0.0, 'end_seconds' => 300.0, 'title' => 'Chapter 1'],
+                ['start_seconds' => 300.0, 'end_seconds' => 600.0, 'title' => 'Chapter 2'],
+            ],
+        ];
+    }
+
+    public function testChaptersCachesWithinTtl(): void
+    {
+        $now = 1000.0;
+        $clock = static function () use (&$now): float {
+            return $now;
+        };
+        $transport = (new FakeTransport())
+            ->json(200, $this->chaptersResponse())
+            ->json(200, $this->chaptersResponse());
+        $store = new MediaStore(new ApiClient('https://srv', $transport), 60.0, $clock);
+
+        $first = $this->await($store->chapters('m1'));
+        self::assertCount(2, $first);
+        self::assertSame(1, $transport->requestCount());
+
+        $now = 1030.0;
+        $this->await($store->chapters('m1'));
+        self::assertSame(1, $transport->requestCount(), 'cached within TTL');
+    }
+
+    public function testChaptersForceBypassesCache(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->chaptersResponse())
+            ->json(200, $this->chaptersResponse());
+        $store = new MediaStore(new ApiClient('https://srv', $transport), 60.0, static fn (): float => 1000.0);
+
+        $this->await($store->chapters('m1'));
+        $this->await($store->chapters('m1', force: true));
+
+        self::assertSame(2, $transport->requestCount(), 'force refetches even within TTL');
+    }
+
+    public function testChaptersCachesPerId(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->chaptersResponse())
+            ->json(200, $this->chaptersResponse());
+        $store = new MediaStore(new ApiClient('https://srv', $transport), 60.0, static fn (): float => 1000.0);
+
+        $a = $this->await($store->chapters('m1'));
+        $b = $this->await($store->chapters('m2'));
+
+        self::assertNotSame($a, $b);
+        self::assertSame(2, $transport->requestCount(), 'a different id is a different cache entry');
+    }
+
+    public function testConcurrentChaptersFetchesAreDeduplicated(): void
+    {
+        $transport = (new FakeTransport())->pending();
+        $store = new MediaStore(new ApiClient('https://srv', $transport), 60.0, static fn (): float => 1000.0);
+
+        $first = $store->chapters('m1');
+        $second = $store->chapters('m1');
+
+        self::assertSame($first, $second, 'a concurrent fetch of the same item shares the in-flight promise');
+        self::assertSame(1, $transport->requestCount());
+    }
+
+    public function testFailedChaptersClearsInFlightSoARetryRefetches(): void
+    {
+        $transport = (new FakeTransport())
+            ->fail(new \RuntimeException('boom'))
+            ->json(200, $this->chaptersResponse());
+        $store = new MediaStore(new ApiClient('https://srv', $transport), 60.0, static fn (): float => 1000.0);
+
+        $error = null;
+        try {
+            $this->await($store->chapters('m1'));
+        } catch (\Throwable $e) {
+            $error = $e;
+        }
+        self::assertNotNull($error, 'first fetch rejects');
+
+        $chapters = $this->await($store->chapters('m1'));
+        self::assertNotNull($chapters, 'retry succeeds because in-flight was cleared');
+        self::assertCount(2, $chapters);
+        self::assertSame(2, $transport->requestCount());
+    }
+
+    public function testInvalidateDropsCachedRatings(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->ratingsResponse('m1'))
+            ->json(200, $this->ratingsResponse('m1'));
+        $store = new MediaStore(new ApiClient('https://srv', $transport), 60.0, static fn (): float => 1000.0);
+
+        $this->await($store->ratings('m1'));
+        $store->invalidate();
+        $this->await($store->ratings('m1'));
+
+        self::assertSame(2, $transport->requestCount(), 'invalidate forces a refetch');
+    }
+
+    public function testInvalidateDropsCachedChapters(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->chaptersResponse())
+            ->json(200, $this->chaptersResponse());
+        $store = new MediaStore(new ApiClient('https://srv', $transport), 60.0, static fn (): float => 1000.0);
+
+        $this->await($store->chapters('m1'));
+        $store->invalidate();
+        $this->await($store->chapters('m1'));
+
+        self::assertSame(2, $transport->requestCount(), 'invalidate forces a refetch');
+    }
+
     private function await(PromiseInterface $promise, float $timeout = 2.0): mixed
     {
         $state = ['done' => false, 'value' => null, 'error' => null];
