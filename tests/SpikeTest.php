@@ -47,6 +47,38 @@ final class SpikeTest extends TestCase
         (new PosterSpike())->render('/no/such/poster.png', 10);
     }
 
+    public function testProbeReportForNonFileReturnsNotLocalFileMessage(): void
+    {
+        $report = (new VideoSpike())->probeReport('https://example.com/video.mkv');
+
+        self::assertStringContainsString('not a local file', $report);
+        self::assertStringContainsString('https://example.com/video.mkv', $report);
+    }
+
+    public function testProbeReportForVideoFileReturnsVideoMetadata(): void
+    {
+        if (!$this->haveFfmpeg()) {
+            self::markTestSkipped('ffmpeg not available');
+        }
+
+        $this->mp4 = tempnam(sys_get_temp_dir(), 'phlix_video_') . '.mp4';
+        exec(sprintf(
+            'ffmpeg -y -f lavfi -i testsrc=duration=1:size=320x240:rate=15 -pix_fmt yuv420p %s 2>/dev/null',
+            escapeshellarg($this->mp4)
+        ), $_, $rc);
+
+        if ($rc !== 0 || !is_file($this->mp4) || filesize($this->mp4) === 0) {
+            self::markTestSkipped('could not synthesize a test video');
+        }
+
+        $report = (new VideoSpike())->probeReport($this->mp4);
+
+        self::assertStringContainsString('source:', $report);
+        self::assertStringContainsString('320x240', $report);
+        self::assertStringContainsString('fps', $report);
+        self::assertStringContainsString('audio=', $report);
+    }
+
     public function testVideoFrameDecodesToAnsi(): void
     {
         if (!$this->haveFfmpeg()) {

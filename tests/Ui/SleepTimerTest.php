@@ -7,6 +7,7 @@ namespace Phlix\Console\Tests\Ui;
 use Phlix\Console\Msg\SleepTimerFireMsg;
 use Phlix\Console\Msg\SleepTimerTickMsg;
 use Phlix\Console\Ui\SleepTimer;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class SleepTimerTest extends TestCase
@@ -21,9 +22,7 @@ final class SleepTimerTest extends TestCase
         self::assertSame('', $timer->formatRemaining());
     }
 
-    /**
-     * @dataProvider presetProvider
-     */
+    #[DataProvider('presetProvider')]
     public function testStartFromPresetActivatesAndSetsDuration(int $presetIndex, int $expectedMinutes): void
     {
         $timer = new SleepTimer();
@@ -130,9 +129,7 @@ final class SleepTimerTest extends TestCase
         self::assertSame(0, $msg->remainingSeconds);
     }
 
-    /**
-     * @dataProvider formatProvider
-     */
+    #[DataProvider('formatProvider')]
     public function testFormatRemaining(int $seconds, string $expected): void
     {
         $timer = new SleepTimer();
