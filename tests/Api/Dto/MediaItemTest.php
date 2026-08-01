@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Tests\Api\Dto;
 
+use Phlix\Console\Api\Dto\CastMember;
+use Phlix\Console\Api\Dto\CrewMember;
 use Phlix\Console\Api\Dto\MediaItem;
 use PHPUnit\Framework\TestCase;
 
@@ -25,8 +27,12 @@ final class MediaItemTest extends TestCase
             'runtime' => 136,
             'duration' => 8160,
             'overview' => 'A hacker learns the truth.',
-            'actors' => ['Keanu Reeves'],
-            'director' => 'The Wachowskis',
+            'cast' => [
+                ['name' => 'Keanu Reeves', 'role' => 'Neo', 'profile_url' => null],
+            ],
+            'crew' => [
+                ['name' => 'The Wachowskis', 'job' => 'Director', 'profile_url' => null],
+            ],
             'parent_id' => null,
             'season_number' => null,
             'episode_number' => null,
@@ -49,8 +55,12 @@ final class MediaItemTest extends TestCase
         self::assertSame(136, $item->runtime);
         self::assertSame(8160, $item->duration);
         self::assertSame('A hacker learns the truth.', $item->overview);
-        self::assertSame(['Keanu Reeves'], $item->actors);
-        self::assertSame('The Wachowskis', $item->director);
+        self::assertEquals([
+            new CastMember('Keanu Reeves', 'Neo', null),
+        ], $item->cast);
+        self::assertEquals([
+            new CrewMember('The Wachowskis', 'Director', null),
+        ], $item->crew);
         self::assertNull($item->parentId);
         self::assertSame('https://srv/stream?sig=x', $item->streamUrl);
         self::assertSame('2020-02-01 00:00:00', $item->updatedAt);
@@ -74,7 +84,8 @@ final class MediaItemTest extends TestCase
         self::assertSame(5, $item->episodeNumber);
         self::assertNull($item->posterUrl);
         self::assertSame([], $item->genres);
-        self::assertSame([], $item->actors);
+        self::assertNull($item->cast);
+        self::assertNull($item->crew);
         self::assertNull($item->streamUrl);
     }
 
@@ -85,18 +96,27 @@ final class MediaItemTest extends TestCase
         self::assertSame('movie', $item->type);
     }
 
-    public function testFromArrayNormalisesActorObjects(): void
+    public function testFromArrayNormalisesCastAndCrewObjects(): void
     {
         $item = MediaItem::fromArray([
             'id' => 'x',
             'name' => 'Cast',
-            'actors' => [
-                ['name' => 'Actor One', 'character' => 'Hero'],
-                'Actor Two',
+            'cast' => [
+                ['name' => 'Actor One', 'role' => 'Hero', 'profile_url' => null],
+                ['name' => 'Actor Two', 'role' => null, 'profile_url' => null],
+            ],
+            'crew' => [
+                ['name' => 'Director One', 'job' => 'Director', 'profile_url' => null],
             ],
         ]);
 
-        self::assertSame(['Actor One', 'Actor Two'], $item->actors);
+        self::assertEquals([
+            new CastMember('Actor One', 'Hero', null),
+            new CastMember('Actor Two', null, null),
+        ], $item->cast);
+        self::assertEquals([
+            new CrewMember('Director One', 'Director', null),
+        ], $item->crew);
     }
 
     public function testFromContinueWatchingPullsFromNestedMetadata(): void
@@ -114,8 +134,8 @@ final class MediaItemTest extends TestCase
                 'duration_seconds' => 1440,
                 'genres' => ['Anime'],
                 'overview' => 'Science!',
-                'actors' => [['name' => 'Yusuke Kobayashi']],
-                'director' => 'Iino',
+                'cast' => [['name' => 'Yusuke Kobayashi', 'role' => 'voice', 'profile_url' => null]],
+                'crew' => [['name' => 'Iino', 'job' => 'Director', 'profile_url' => null]],
                 'season' => 1,
                 'episode' => 3,
                 'episode_title' => 'Weapons of Science',
@@ -129,7 +149,12 @@ final class MediaItemTest extends TestCase
         self::assertSame(2019, $item->year);
         self::assertSame(1440, $item->duration);
         self::assertSame(['Anime'], $item->genres);
-        self::assertSame(['Yusuke Kobayashi'], $item->actors);
+        self::assertEquals([
+            new CastMember('Yusuke Kobayashi', 'voice', null),
+        ], $item->cast);
+        self::assertEquals([
+            new CrewMember('Iino', 'Director', null),
+        ], $item->crew);
         self::assertSame(1, $item->seasonNumber);
         self::assertSame(3, $item->episodeNumber);
         self::assertSame('Weapons of Science', $item->episodeTitle);
