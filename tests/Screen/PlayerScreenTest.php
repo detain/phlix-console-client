@@ -16,6 +16,7 @@ use Phlix\Console\Msg\ProgressTickMsg;
 use Phlix\Console\Msg\ResumeInfoMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\SessionStartedMsg;
+use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Msg\TranscodePollMsg;
 use Phlix\Console\Msg\TranscodeStartedMsg;
 use Phlix\Console\Msg\TranscodeStatusMsg;
@@ -1069,6 +1070,23 @@ final class PlayerScreenTest extends TestCase
 
         self::assertFalse($on->captionsOn(), 'a failed fetch leaves captions off');
         self::assertFalse($on->hasCaptions());
+    }
+
+    public function testFailedVttLoadProducesShowToastMsg(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->markersResponse())   // 1: markers (init)
+            ->json(200, $this->continueWatching()) // 2: resume (init)
+            ->json(200, $this->playbackResponse()) // 3: audio tracks (init)
+            ->json(200, [['index' => 0, 'default' => true, 'language' => 'eng', 'label' => 'English', 'codec' => 'subrip']]) // 4: subtitle tracks (on `c`)
+            ->fail(new \RuntimeException('VTT fetch failed')); // 5: VTT fetch fails
+        [$screen] = $this->screen(transport: $transport);
+        $ready = $this->ready($screen);
+
+        [$on, $cmd] = $ready->update(new KeyMsg(KeyType::Char, 'c'));
+        $msgs = $this->runBatch($cmd);
+
+        self::assertNotNull($this->firstOfType($msgs, ShowToastMsg::class), 'a failed VTT load should produce ShowToastMsg');
     }
 
     // ---- audio tracks (P3B) --------------------------------------------

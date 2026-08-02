@@ -841,6 +841,30 @@ final class ApiClientTest extends TestCase
         $this->await($client->subtitleVtt('m1', 0));
     }
 
+    public function testSubtitleVttRefreshesAndRetriesOnceOn401(): void
+    {
+        $vtt = "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nHi";
+        $t = (new FakeTransport())
+            ->json(401, ['error' => 'Unauthorized'])             // 1: subtitleVtt() 401
+            ->json(200, $this->authResponse('access-2', 'refresh-2')) // 2: refresh
+            ->raw(200, $vtt);                                      // 3: subtitleVtt() retried
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('stale', 'refresh-1', 'Bearer', null));
+        $refreshed = null;
+        $client->onTokenChanged(function (TokenBundle $b) use (&$refreshed): void {
+            $refreshed = $b;
+        });
+
+        $body = $this->await($client->subtitleVtt('m1', 2));
+
+        self::assertSame($vtt, $body);
+        self::assertSame(3, $t->requestCount(), 'subtitleVtt → refresh → subtitleVtt');
+        self::assertSame(self::BASE . '/api/v1/auth/refresh', $t->requestAt(1)['url']);
+        self::assertSame(['refresh_token' => 'refresh-1'], json_decode($t->requestAt(1)['body'], true));
+        self::assertSame('Bearer access-2', $t->requestAt(2)['headers']['Authorization'], 'retry uses the refreshed token');
+        self::assertSame('access-2', $refreshed?->accessToken);
+    }
+
     // ---- 401 refresh-and-retry ----------------------------------------
 
     public function testUnauthorizedTriggersRefreshAndRetry(): void

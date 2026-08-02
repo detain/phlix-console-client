@@ -527,28 +527,42 @@ final class ApiClient
 
     /**
      * Fetch one subtitle track as raw WebVTT text (a `text/vtt` body, not JSON).
-     * Best-effort — no refresh-and-retry; a failure just leaves captions off.
+     * Uses the 401 refresh-and-retry path on auth expiry.
      *
      * @return PromiseInterface<string>
      */
     public function subtitleVtt(string $id, int $index): PromiseInterface
     {
-        $headers = ['Accept' => 'text/vtt'];
+        return $this->retryOnAuthError(fn (): PromiseInterface => $this->vttExchange($id, $index));
+    }
+
+    /**
+     * @return PromiseInterface<string>
+     */
+    private function vttExchange(string $id, int $index): PromiseInterface
+    {
+        $headers = ['Accept' => 'application/octet-stream'];
         if ($this->token !== null) {
             $headers['Authorization'] = $this->token->authorizationHeader();
         }
-        $url = $this->url('/api/v1/media/' . rawurlencode($id) . '/subtitles/' . $index, []);
 
-        return $this->transport->send('GET', $url, $headers, '')->then(
+        return $this->transport->send(
+            'GET',
+            $this->url('/api/v1/media/' . rawurlencode($id) . '/subtitles/' . $index, []),
+            $headers,
+            '',
+        )->then(
             static function (ResponseInterface $response): string {
                 $status = $response->getStatusCode();
-                if ($status < 200 || $status >= 300) {
-                    throw new ApiError("Subtitle fetch failed (HTTP {$status})", $status);
+                if ($status >= 200 && $status < 300) {
+                    return (string) $response->getBody();
                 }
-
-                return (string) $response->getBody();
+                if ($status === 401) {
+                    throw new AuthError('Unauthorized', 401);
+                }
+                throw new ApiError("Subtitle fetch failed (HTTP {$status})", $status);
             },
-            static fn (\Throwable $error): never => throw $error instanceof ApiError
+            static fn (\Throwable $error): \Throwable => throw $error instanceof ApiError
                 ? $error
                 : new NetworkError('Could not reach the server: ' . $error->getMessage(), 0, null, $error),
         );
@@ -724,6 +738,35 @@ final class ApiClient
                 if ($error instanceof AuthError && ($this->token?->hasRefreshToken() ?? false)) {
                     return $this->refresh()->then(
                         fn (): PromiseInterface => $this->exchange($method, $path, $query, $body, auth: true),
+                        static fn (\Throwable $refreshError): never => throw new AuthError(
+                            'Session expired — please log in again.',
+                            401,
+                            null,
+                            $refreshError,
+                        ),
+                    );
+                }
+
+            throw $error;
+        },
+    );
+    }
+
+    /**
+     * Retry a promise once on a 401 by refreshing the token first.
+     *
+     * @template T
+     * @param \Closure(): PromiseInterface<T> $produce
+     * @return PromiseInterface<T>
+     */
+    private function retryOnAuthError(\Closure $produce): PromiseInterface
+    {
+        return $produce()->then(
+            null,
+            function (\Throwable $error) use ($produce): PromiseInterface {
+                if ($error instanceof AuthError && ($this->token?->hasRefreshToken() ?? false)) {
+                    return $this->refresh()->then(
+                        fn (): PromiseInterface => $produce(),
                         static fn (\Throwable $refreshError): never => throw new AuthError(
                             'Session expired — please log in again.',
                             401,

@@ -42,6 +42,7 @@ use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\SessionStartedMsg;
 use Phlix\Console\Msg\StreamLimitExceededMsg;
 use Phlix\Console\Msg\SiblingsLoadedMsg;
+use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Msg\SubtitleVttLoadedMsg;
 use Phlix\Console\Msg\SyncPlayFailedMsg;
 use Phlix\Console\Msg\SyncPlayJoinedMsg;
@@ -64,6 +65,7 @@ use Phlix\Console\Ui\SubtitleTrackList;
 use Phlix\Console\Ui\Scrubber;
 use Phlix\Console\Ui\SyncPlayModal;
 use Phlix\Console\Ui\SyncPlayOverlay;
+use SugarCraft\Core\BatchMsg;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Model;
@@ -767,7 +769,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
 
                 return $this->api->subtitleVtt($id, $track->index)->then(
                     static fn (string $vtt): Msg => new SubtitleVttLoadedMsg(\SugarCraft\Reel\Subtitle\WebVtt::parse($vtt)),
-                    static fn (\Throwable $e): Msg => new SubtitleVttLoadedMsg(null),
+                    static fn (\Throwable $e): Msg => ShowToastMsg::error('Subtitles failed to load'),
                 );
             },
             static fn (\Throwable $e): Msg => new SubtitleVttLoadedMsg(null),
