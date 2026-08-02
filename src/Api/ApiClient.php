@@ -562,7 +562,7 @@ final class ApiClient
                 }
                 throw new ApiError("Subtitle fetch failed (HTTP {$status})", $status);
             },
-            static fn (\Throwable $error): \Throwable => throw $error instanceof ApiError
+            static fn (\Throwable $error): never => throw $error instanceof ApiError
                 ? $error
                 : new NetworkError('Could not reach the server: ' . $error->getMessage(), 0, null, $error),
         );

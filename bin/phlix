@@ -48,6 +48,7 @@ use Phlix\Console\Media\MosaicFactory;
 use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Spike\PosterSpike;
 use Phlix\Console\Spike\VideoSpike;
+use Phlix\Console\Screen\PlayerScreen;
 use Phlix\Console\Store\AuthStore;
 use Phlix\Console\Store\LibrariesStore;
 use Phlix\Console\Store\MediaStore;
@@ -65,6 +66,185 @@ foreach ([__DIR__ . '/../vendor/autoload.php', __DIR__ . '/../../../autoload.php
 if (!class_exists(Program::class)) {
     fwrite(STDERR, "Phlix: Composer autoloader not found — run `composer install`.\n");
     exit(1);
+}
+
+/**
+ * Builds the full production object graph — shared by `run` and `run --selftest`.
+ *
+ * @return array{config: Config, auth: AuthStore, api: ApiClient, libraries: LibrariesStore, media: MediaStore, posters: PosterLoader}
+ */
+function buildContainer(?string $mode): array
+{
+    $config = Config::load();
+    // Honour PHLIX_SERVER_URL from the environment for CI / stub server use.
+    $serverUrl = getenv('PHLIX_SERVER_URL') ?: $config->serverUrl;
+    $api = new ApiClient($serverUrl ?? '');
+    $auth = new AuthStore($api, TokenStore::default());
+    $libraries = new LibrariesStore($api);
+    $media = new MediaStore($api);
+    // Cell modes tile as text; graphics modes (sixel/kitty/iterm2) tile as
+    // an overlay — PosterLoader routes them by Mosaic::isInline() and keys
+    // its cache by protocol(), so each mode caches separately.
+    $posters = new PosterLoader(MosaicFactory::forPosterGrid($mode), new DiskCache(Config::dir() . '/posters'));
+
+    return [
+        'config' => $config,
+        'auth' => $auth,
+        'api' => $api,
+        'libraries' => $libraries,
+        'media' => $media,
+        'posters' => $posters,
+    ];
+}
+
+/**
+ * Runs the selftest: builds the full container and verifies the graph is wired.
+ *
+ * @return bool true if all checks passed, false otherwise
+ */
+function runSelftest(?string $mode): bool
+{
+    $checks = [];
+    $allPassed = true;
+
+    // 1. config-loaded
+    $config = Config::load();
+    $serverUrl = getenv('PHLIX_SERVER_URL') ?: $config->serverUrl;
+    if ($config !== null && $serverUrl !== null && $serverUrl !== '') {
+        $checks[] = 'OK config-loaded';
+    } else {
+        $checks[] = 'FAIL config-loaded serverUrl is empty';
+        $allPassed = false;
+    }
+
+    // 2. graph-wired — every service in the graph is non-null
+    if ($allPassed) {
+        $container = buildContainer($mode);
+        $nulls = [];
+        foreach ($container as $name => $value) {
+            if ($value === null) {
+                $nulls[] = $name;
+            }
+        }
+
+        // Also verify App::boot() itself returns non-null
+        try {
+            $app = App::boot(
+                $container['config'],
+                $container['auth'],
+                $container['api'],
+                $container['libraries'],
+                $container['media'],
+                $container['posters'],
+            );
+            if ($app === null) {
+                $nulls[] = 'app (App::boot returned null)';
+            }
+        } catch (\Throwable $e) {
+            $checks[] = 'FAIL graph-wired App::boot threw: ' . $e->getMessage();
+            $allPassed = false;
+            $app = null;
+        }
+
+        if ($nulls !== []) {
+            $checks[] = 'FAIL graph-wired null services: ' . implode(', ', $nulls);
+            $allPassed = false;
+        } else {
+            $checks[] = 'OK graph-wired';
+        }
+
+        // Explicitly verify PlayerScreen's SyncPlayService dependency is wired.
+        // The SyncPlayService is a constructor parameter of PlayerScreen and should
+        // be injected via the DI container / App when openPlayer() creates the screen.
+        // We verify by checking the openPlayer method's implementation path.
+        if ($allPassed && $app !== null) {
+            try {
+                // PlayerScreen::openPlayer() calls: new PlayerScreen(..., ?SyncPlayService $syncPlayService = null)
+                // The hole (C1.2) is that SyncPlayService is passed as null.
+                // We verify the SYMPTOM: if we try to build a PlayerScreen with null
+                // SyncPlayService, the SyncPlayService field should be non-null after construction.
+                // Since we can't easily instantiate PlayerScreen without real dependencies,
+                // we verify the production factory builds correctly (prerequisite).
+                $factory = PlayerScreen::productionFactory(
+                    $container['posters']->protocol(),
+                    $container['posters']->cellSize(),
+                );
+                if ($factory === null) {
+                    $checks[] = 'FAIL graph-wired PlayerScreen::productionFactory returned null';
+                    $allPassed = false;
+                }
+                // Verify SyncPlayService is not nullable in the actual constructor
+                // (if it is still nullable, the hole exists).
+                $refl = new \ReflectionParameter(
+                    [PlayerScreen::class, '__construct'],
+                    'syncPlayService',
+                );
+                if ($refl->isOptional()) {
+                    // SyncPlayService is still optional/nullable — the C1.2 hole exists
+                    $checks[] = 'FAIL graph-wired PlayerScreen SyncPlayService is still nullable (C1.2 hole not fixed)';
+                    $allPassed = false;
+                }
+                // If we get here with a non-null factory, the graph is wired.
+            } catch (\Throwable $e) {
+                $checks[] = 'FAIL graph-wired PlayerScreen check: ' . $e->getMessage();
+                $allPassed = false;
+            }
+        }
+    }
+
+    // 3. http-reachable — make one real HTTP request to GET /api/v1/libraries
+    // 4. decode-ok — the response body decodes without throwing
+    if ($allPassed && $serverUrl !== null && $serverUrl !== '') {
+        $url = rtrim($serverUrl, '/') . '/api/v1/libraries';
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 20);  // 20-second timeout (C0.3 timeout + overhead)
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 20);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Accept: application/json',
+        ]);
+        $response = @curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($response === false || $curlError !== '') {
+            $checks[] = 'FAIL http-reachable curl error: ' . $curlError;
+            $allPassed = false;
+        } elseif ($httpCode === 0) {
+            // HTTP code 0 means couldn't connect (e.g., DNS failure, connection refused)
+            $checks[] = 'FAIL http-reachable connection failed (HTTP 0)';
+            $allPassed = false;
+        } elseif ($httpCode >= 200 && $httpCode < 300) {
+            $checks[] = 'OK http-reachable';
+        } elseif ($httpCode === 401) {
+            // 401 means server is up and we're unauthenticated — which is fine
+            $checks[] = 'OK http-reachable (401 unauthenticated)';
+        } else {
+            $checks[] = "FAIL http-reachable unexpected HTTP $httpCode";
+            $allPassed = false;
+        }
+
+        // 4. decode-ok
+        if ($allPassed && $response !== false) {
+            try {
+                json_decode($response, false, 512, JSON_THROW_ON_ERROR);
+                $checks[] = 'OK decode-ok';
+            } catch (\JsonException $e) {
+                $checks[] = 'FAIL decode-ok json error: ' . $e->getMessage();
+                $allPassed = false;
+            }
+        }
+    }
+
+    // Print one line per check
+    foreach ($checks as $line) {
+        echo $line . "\n";
+    }
+
+    return $allPassed;
 }
 
 $cmd = $argv[1] ?? 'help';
@@ -117,16 +297,19 @@ try {
             break;
 
         case 'run':
-            $config = Config::load();
-            $api = new ApiClient($config->serverUrl ?? '');
-            $auth = new AuthStore($api, TokenStore::default());
-            $libraries = new LibrariesStore($api);
-            $media = new MediaStore($api);
-            // Cell modes tile as text; graphics modes (sixel/kitty/iterm2) tile as
-            // an overlay — PosterLoader routes them by Mosaic::isInline() and keys
-            // its cache by protocol(), so each mode caches separately.
-            $posters = new PosterLoader(MosaicFactory::forPosterGrid($mode), new DiskCache(Config::dir() . '/posters'));
-            (new Program(App::boot($config, $auth, $api, $libraries, $media, $posters)))->run();
+            if (in_array('--selftest', $argv, true)) {
+                $result = runSelftest($mode);
+                exit($result ? 0 : 1);
+            }
+            $container = buildContainer($mode);
+            (new Program(App::boot(
+                $container['config'],
+                $container['auth'],
+                $container['api'],
+                $container['libraries'],
+                $container['media'],
+                $container['posters'],
+            )))->run();
             break;
 
         case '--version':
