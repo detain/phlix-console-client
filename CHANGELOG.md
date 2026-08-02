@@ -5,6 +5,15 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased] - 2026-07-18
 
+### Changed
+
+- **`composer.lock` is now tracked.** With 17 `dev-master` SugarCraft packages and
+  `minimum-stability: dev`, two `composer install` runs on the same commit previously
+  could resolve different dependency versions — making CI evidence about dependency
+  sets unreliable. Committing `composer.lock` pins every resolve, so a fresh
+  `composer install` always produces byte-identical dependencies and CI passes only
+  when the locked set is genuinely compatible.
+
 ### Fixed
 
 - **Fixed ensureRange() calculating lastOffset incorrectly causing multi-page windows to under-fetch data** (MediaStore and BooksStore). The lastOffset calculation used `$windowEnd = max($start, $end - 1)` but then computed `lastOffset = intdiv($windowEnd, $limit) * $limit` — when $end was the exact boundary of a page, this truncated the final page. Corrected to `max($start, $end - 1)` before dividing, ensuring the full requested range is always fetched.
