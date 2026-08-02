@@ -77,6 +77,7 @@ use SugarCraft\Core\Util\Ansi;
 use SugarCraft\Core\Util\Width;
 use SugarCraft\Reel\Msg\TickMsg as ReelTickMsg;
 use SugarCraft\Reel\Player;
+use SugarCraft\Reel\Subtitle\WebVtt;
 use SugarCraft\Reel\Render\Mode;
 use SugarCraft\Reel\Render\RendererFactory;
 use SugarCraft\Sprinkles\Style;
@@ -774,7 +775,9 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
                 }
 
                 return $this->api->subtitleVtt($id, $track->index)->then(
-                    static fn (string $vtt): Msg => new SubtitleVttLoadedMsg(\SugarCraft\Reel\Subtitle\WebVtt::parse($vtt)),
+                    static fn (WebVtt|string|Msg $vtt): Msg => new SubtitleVttLoadedMsg(
+                        $vtt instanceof Msg ? $vtt : \SugarCraft\Reel\Subtitle\WebVtt::parse($vtt)
+                    ),
                     static fn (\Throwable $e): Msg => ShowToastMsg::error('Subtitles failed to load'),
                 );
             },
