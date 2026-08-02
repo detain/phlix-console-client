@@ -57,3 +57,30 @@ jobs:
 
       - name: Run PHPStan
         run: vendor/bin/phpstan analyse --no-progress
+
+  smoke:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248e87452386958240
+        with:
+          php-version: '8.3'
+          extensions: gd, pcntl, posix
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Start stub HTTP server
+        run: php -S 127.0.0.1:8099 tests/stub/router.php &
+        working-directory: /home/sites/phlix/phlix-console-client
+
+      - name: Wait for port 8099
+        run: bash -c 'until nc -z 127.0.0.1 8099; do sleep 0.2; done' || bash -c 'timeout 20 bash -c "until nc -z 127.0.0.1 8099; do sleep 0.2; done" || exit 1"'
+
+      - name: Run selftest
+        run: PHLIX_SERVER_URL=http://127.0.0.1:8099 php bin/phlix run --selftest
+        working-directory: /home/sites/phlix/phlix-console-client
