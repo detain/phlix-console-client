@@ -329,9 +329,15 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
             return $this->onUpNextTick();
         }
         if ($msg instanceof SubtitleVttLoadedMsg) {
+            // If an error Msg was stored (e.g. ShowToastMsg from a failed VTT load),
+            // bubble it up so App can handle ShowToastMsg.
+            $error = $msg->getError();
+            if ($error !== null) {
+                return [$this, Cmd::send($error)];
+            }
             $next = clone $this;
-            $next->captions = $msg->captions;
-            if ($msg->captions === null) {
+            $next->captions = $msg->getCaptions();
+            if ($msg->getCaptions() === null) {
                 $next->captionsOn = false; // nothing to show
             }
 

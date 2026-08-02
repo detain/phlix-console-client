@@ -20,8 +20,21 @@ use SugarCraft\Reel\Subtitle\WebVtt;
  */
 final readonly class SubtitleVttLoadedMsg implements Msg
 {
+    /**
+     * @param WebVtt|Msg|null  $captionsOrError  Parsed VTT captions, or a Msg (e.g. ShowToastMsg) when load failed
+     */
     public function __construct(
-        public ?WebVtt $captions,
+        private WebVtt|Msg|null $captionsOrError = null,
     ) {
+    }
+
+    public function getCaptions(): ?WebVtt
+    {
+        return $this->captionsOrError instanceof WebVtt ? $this->captionsOrError : null;
+    }
+
+    public function getError(): ?Msg
+    {
+        return !$this->captionsOrError instanceof WebVtt ? $this->captionsOrError : null;
     }
 }
