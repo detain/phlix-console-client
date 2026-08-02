@@ -1,0 +1,38 @@
+name: Dependencies
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240
+        with:
+          php-version: '8.3'
+          extensions: gd, pcntl, posix
+          coverage: none
+
+      - name: Update dependencies
+        run: composer update --no-interaction --prefer-dist
+
+      - name: Run PHPStan
+        run: vendor/bin/phpstan analyse --no-progress
+
+      - name: Run tests
+        run: vendor/bin/phpunit
+
+      - name: Commit updated lock
+        run: |
+          if ! git diff --quiet composer.lock; then
+            git config user.name  "phlix-bot"
+            git config user.email "bot@phlix.local"
+            git add composer.lock
+            git commit -m "chore(deps): refresh composer.lock from dev-master"
+            git push origin master
+          fi
