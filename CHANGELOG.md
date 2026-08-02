@@ -16,6 +16,8 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **A stalled server can no longer freeze the TUI on a shimmer skeleton for 60 seconds.** `BrowserTransport` now enforces a 15-second request timeout (configurable via the constructor) instead of relying on PHP's `default_socket_timeout` (~60 s) which could not be cancelled from the UI. In addition, `GET` and `HEAD` requests that fail with a genuine connection or timeout error are retried exactly once after a 250 ms delay, while `POST`/`PUT`/`PATCH`/`DELETE` requests are not retried because they are not idempotent. A `GET` that returns an HTTP 4xx or 5xx status is still attempted only once — those statuses resolve normally through `withRejectErrorResponse(false)` and are mapped to typed errors by the API client.
+
 - **Fixed ensureRange() calculating lastOffset incorrectly causing multi-page windows to under-fetch data** (MediaStore and BooksStore). The lastOffset calculation used `$windowEnd = max($start, $end - 1)` but then computed `lastOffset = intdiv($windowEnd, $limit) * $limit` — when $end was the exact boundary of a page, this truncated the final page. Corrected to `max($start, $end - 1)` before dividing, ensuring the full requested range is always fetched.
 - **Search results now show poster images** (relative URLs resolved via baseUrl + resolveUrl())
 - **Detail page hero images and child-episode thumbnails now render** (relative poster URLs

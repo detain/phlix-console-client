@@ -9,9 +9,7 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Api;
 
-use React\EventLoop\Loop;
 use React\Http\Browser;
-use React\Promise\Deferred;
 use React\Promise\PromiseInterface;
 
 /**
@@ -27,14 +25,34 @@ use React\Promise\PromiseInterface;
 final class BrowserTransport implements Transport
 {
     /**
+     * HTTP methods considered idempotent and safe to retry on transport errors.
+     *
      * @var array<string>
      */
     private const RETRYABLE_METHODS = ['GET', 'HEAD'];
 
+    /**
+     * Maximum number of retry attempts beyond the initial request.
+     *
+     * A value of 1 means one initial attempt plus one retry = up to 2 attempts total.
+     */
     private const MAX_RETRIES = 1;
 
+    /**
+     * Seconds to wait before issuing a retry after a transport failure.
+     *
+     * @var float
+     */
     private const RETRY_DELAY_SECONDS = 0.25;
 
+    /**
+     * The underlying ReactPHP HTTP Browser used to send requests.
+     *
+     * Configured with `withRejectErrorResponse(false)` so 4xx/5xx resolve
+     * instead of rejecting — only genuine transport failures reject.
+     *
+     * @var Browser
+     */
     private readonly Browser $browser;
 
     /**
@@ -61,6 +79,13 @@ final class BrowserTransport implements Transport
     }
 
     /**
+     * Issue an HTTP request that retries once on a transport failure.
+     *
+     * Wraps the Browser request in a promise that catches rejection (transport
+     * errors only — not HTTP status codes, since withRejectErrorResponse(false)
+     * is set) and reschedules the attempt after RETRY_DELAY_SECONDS if the
+     * attempt count is below MAX_RETRIES.
+     *
      * @param array<string,string> $headers
      * @return PromiseInterface<\Psr\Http\Message\ResponseInterface>
      */
@@ -82,20 +107,17 @@ final class BrowserTransport implements Transport
     }
 
     /**
+     * Wait RETRY_DELAY_SECONDS then call retryableRequest with attempt+1.
+     *
      * @param array<string,string> $headers
      * @return PromiseInterface<\Psr\Http\Message\ResponseInterface>
      */
     private function delayAndRetry(string $method, string $url, array $headers, string $body, int $attempt): PromiseInterface
     {
-        /** @var Deferred<\React\Promise\PromiseInterface<\Psr\Http\Message\ResponseInterface>> $deferred */
-        $deferred = new Deferred();
-
-        $loop = Loop::get();
-        $loop->addTimer(self::RETRY_DELAY_SECONDS, function () use ($deferred, $method, $url, $headers, $body, $attempt): void {
-            $retryPromise = $this->retryableRequest($method, $url, $headers, $body, $attempt + 1);
-            $deferred->resolve($retryPromise);
-        });
-
-        return $deferred->promise();
+        return \React\Promise\Timer\sleep(self::RETRY_DELAY_SECONDS)->then(
+            function () use ($method, $url, $headers, $body, $attempt): PromiseInterface {
+                return $this->retryableRequest($method, $url, $headers, $body, $attempt + 1);
+            },
+        );
     }
 }
