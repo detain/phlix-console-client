@@ -71,6 +71,34 @@ final class BrowserTransportTest extends \PHPUnit\Framework\TestCase
         self::assertSame('{"k":"v"}', $seen['body'] ?? null);
     }
 
+    public function testPostWithServerErrorIsAttemptedExactlyOnce(): void
+    {
+        // POST should not be retried (non-idempotent), even on error status.
+        // withRejectErrorResponse(false) means 5xx resolves, it does not reject.
+        $requestCount = 0;
+        $this->startServerWithCounter($requestCount);
+        $transport = new BrowserTransport();
+
+        $response = $this->await($transport->send('POST', $this->url('/fail'), [], ''));
+
+        self::assertSame(500, $response->getStatusCode());
+        self::assertSame(1, $requestCount, 'POST with server error should be attempted exactly once');
+    }
+
+    public function testGetWithServerErrorIsAttemptedExactlyOnce(): void
+    {
+        // GET with HTTP 500 should not be retried - a status is not a transport error.
+        // withRejectErrorResponse(false) means 5xx resolves, it does not reject.
+        $requestCount = 0;
+        $this->startServerWithCounter($requestCount);
+        $transport = new BrowserTransport();
+
+        $response = $this->await($transport->send('GET', $this->url('/fail'), [], ''));
+
+        self::assertSame(500, $response->getStatusCode());
+        self::assertSame(1, $requestCount, 'GET returning HTTP 500 should be attempted exactly once');
+    }
+
     /** @param array<string,string> $seen */
     private function startServer(array &$seen = []): void
     {
@@ -93,11 +121,31 @@ final class BrowserTransportTest extends \PHPUnit\Framework\TestCase
         $this->port = (int) parse_url((string) $this->socket->getAddress(), PHP_URL_PORT);
     }
 
+    private function startServerWithCounter(int &$requestCount): void
+    {
+        $server = new HttpServer(static function (ServerRequestInterface $request) use (&$requestCount): Response {
+            $requestCount++;
+
+            return match ($request->getUri()->getPath()) {
+                '/ok'   => new Response(200, ['Content-Type' => 'application/json'], (string) json_encode(['hello' => 'world'])),
+                '/echo' => new Response(200, ['Content-Type' => 'application/json'], (string) json_encode(['ok' => true])),
+                default => new Response(500, ['Content-Type' => 'application/json'], (string) json_encode(['error' => 'boom'])),
+            };
+        });
+
+        $this->socket = new SocketServer('127.0.0.1:0');
+        $server->listen($this->socket);
+        $this->port = (int) parse_url((string) $this->socket->getAddress(), PHP_URL_PORT);
+    }
+
     private function url(string $path): string
     {
         return "http://127.0.0.1:{$this->port}{$path}";
     }
 
+    /**
+     * @param PromiseInterface<ResponseInterface> $promise
+     */
     private function await(PromiseInterface $promise, float $timeout = 5.0): ResponseInterface
     {
         $settled = null;
