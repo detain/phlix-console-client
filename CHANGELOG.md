@@ -7,12 +7,12 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
-- **`composer.lock` is now tracked.** With 17 `dev-master` SugarCraft packages and
-  `minimum-stability: dev`, two `composer install` runs on the same commit previously
-  could resolve different dependency versions — making CI evidence about dependency
-  sets unreliable. Committing `composer.lock` pins every resolve, so a fresh
-  `composer install` always produces byte-identical dependencies and CI passes only
-  when the locked set is genuinely compatible.
+- **Dependency drift is now detected automatically.** A scheduled workflow runs every
+  Monday at 06:00 UTC (and can be triggered manually), pulling the latest `dev-master`
+  resolves for all 17 SugarCraft packages, running PHPStan and PHPUnit, and — only
+  when both pass — committing the updated `composer.lock` directly to `master`. Without
+  this, upstream `dev-master` changes could silently break `master` between human-driven
+  PRs.
 
 ### Fixed
 
