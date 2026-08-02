@@ -83,6 +83,7 @@ use SugarCraft\Reel\Render\RendererFactory;
 use SugarCraft\Sprinkles\Style;
 use React\Promise\PromiseInterface;
 
+use function React\Promise\reject;
 use function React\Promise\resolve;
 
 /**
@@ -761,7 +762,13 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
 
     /**
      * Fetch the subtitle tracks, pick the default (or first), fetch + parse its
-     * WebVTT → SubtitleVttLoadedMsg(?WebVtt). Any failure / no track → null.
+     * WebVTT → SubtitleVttLoadedMsg(?WebVtt). If no track is available, returns
+     * SubtitleVttLoadedMsg(null). On VTT fetch failure, returns ShowToastMsg::error
+     * ('Subtitles failed to load') — the promise chain uses ->then(success)->catch(error)
+     * rather than the two-argument .then(success, error) form to satisfy PHPStan level 9
+     * type inference on ReactPHP promises.
+     *
+     * @return \Closure(): Msg
      */
     private function fetchCaptionsCmd(): \Closure
     {
@@ -776,9 +783,9 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
 
                 return $this->api->subtitleVtt($id, $track->index)
                     ->then(static fn (string $vttBody) => new SubtitleVttLoadedMsg(\SugarCraft\Reel\Subtitle\WebVtt::parse($vttBody)))
-                    ->catch(static fn (\Throwable $e): Msg => ShowToastMsg::error('Subtitles failed to load'));
+                    ->catch(static fn (): Msg => ShowToastMsg::error('Subtitles failed to load'));
             },
-            static fn (\Throwable $e): Msg => new SubtitleVttLoadedMsg(null),
+            static fn (): Msg => new SubtitleVttLoadedMsg(null),
         ));
     }
 

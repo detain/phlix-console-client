@@ -56,6 +56,8 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   attribution accordingly, and noted that a sub-240p source yields a `{height}p`
   fallback rung id. (phlix quality-program I1 cross-repo review finding.)
 
+- **api**: Restructure VTT promise chain in `fetchCaptionsCmd()` from `.then(success, error)` to `.then(success)->catch(error)` to satisfy PHPStan level 9 type inference. When VTT fetch fails, shows `ShowToastMsg` with error. (C0.4)
+
 
 ### Added — in-player quality selection
 
