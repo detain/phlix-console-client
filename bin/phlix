@@ -3,6 +3,42 @@
 
 declare(strict_types=1);
 
+/**
+ * phlix-console-client CLI entrypoint.
+ *
+ * Handles: doctor, poster, frame, run, version, and help commands.
+ * Exits 2 on unknown commands or usage errors; 1 on caught exceptions.
+ */
+
+const PHLIX_VERSION = '1.0.0-dev';
+
+const HELP_TEXT = <<<TXT
+phlix — Phlix console client
+
+usage:
+  phlix doctor                              report terminal graphics capabilities
+  phlix poster <image> [w] [h]              render an image at a cell size
+  phlix frame  <video|gif> [n] [cols] [rows]  decode N frames to ANSI
+  phlix run [--mode=…]                      launch the full-window app (needs a TTY)
+  phlix version                             print version information
+  phlix help                                show this help message
+
+flags:
+  --mode=<mode>   force a render mode (posters are cached per mode)
+
+render modes:
+  cell modes (tile in the poster grid):
+    halfblock     24-bit colour half-block (▀) — the default / "ansi" mode
+    quarterblock  denser colour blocks (▘▝▖▗)
+    ascii         monochrome character ramp
+    ansi256       256-colour character ramp
+    truecolor     24-bit-colour character ramp
+  graphics modes (real images; tiled in the grid as an overlay):
+    sixel | kitty | iterm2
+  auto            inline half-block (default; pass --mode=sixel for graphics)
+
+TXT;
+
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\App;
 use Phlix\Console\Capabilities;
@@ -93,33 +129,20 @@ try {
             (new Program(App::boot($config, $auth, $api, $libraries, $media, $posters)))->run();
             break;
 
+        case '--version':
+        case '-V':
+        case 'version':
+            echo "phlix " . PHLIX_VERSION . "\n";
+            exit(0);
+
         case 'help':
+            fwrite(STDOUT, HELP_TEXT);
+            exit(0);
+
         default:
-            fwrite(STDOUT, <<<TXT
-phlix — Phlix console client (Phase 0 spike)
-
-usage:
-  phlix doctor                              report terminal graphics capabilities
-  phlix poster <image> [w] [h]              render an image at a cell size
-  phlix frame  <video|gif> [n] [cols] [rows]  decode N frames to ANSI
-  phlix run [--mode=…]                      launch the full-window app (needs a TTY)
-
-flags:
-  --mode=<mode>   force a render mode (posters are cached per mode)
-
-render modes:
-  cell modes (tile in the poster grid):
-    halfblock     24-bit colour half-block (▀) — the default / "ansi" mode
-    quarterblock  denser colour blocks (▘▝▖▗)
-    ascii         monochrome character ramp
-    ansi256       256-colour character ramp
-    truecolor     24-bit-colour character ramp
-  graphics modes (real images; tiled in the grid as an overlay):
-    sixel | kitty | iterm2
-  auto            inline half-block (default; pass --mode=sixel for graphics)
-
-TXT);
-            break;
+            fwrite(STDERR, "Unknown command: {$cmd}\n");
+            fwrite(STDERR, HELP_TEXT);
+            exit(2);
     }
 } catch (\Throwable $e) {
     fwrite(STDERR, 'Error: ' . $e->getMessage() . "\n");
