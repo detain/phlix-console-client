@@ -63,6 +63,8 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **api**: Restructure VTT promise chain in `fetchCaptionsCmd()` from `.then(success, error)` to `.then(success)->catch(error)` to satisfy PHPStan level 9 type inference. When VTT fetch fails, shows `ShowToastMsg` with error. (C0.4)
 
+- **syncplay**: All four SyncPlay HTTP calls now use `/syncplay/groups` (not `/rooms`), leave uses `POST` (not `DELETE`), and response parsing reads `groups` key. DTOs renamed `SyncPlayRoom` → `SyncPlayGroup`. (C1.1)
+
 
 ### Added — in-player quality selection
 
