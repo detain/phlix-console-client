@@ -11,6 +11,7 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **cli**: Add `run --selftest` mode that boots the full object graph and performs config-loaded, graph-wired (including `PlayerScreen`'s `SyncPlayService` null check), http-reachable, and decode-ok checks. Exits 0 on all pass, 1 otherwise. Honours `PHLIX_SERVER_URL`. (C0.6)
 
 ### Changed
+- **player**: Add `completeSession()` to report playback completion. Sends `POST /api/v1/sessions/{id}/complete` when playback reaches 95% or natural end-of-stream. Guard prevents double-fire. Rejection raises `ShowToastMsg`. (C1.3)
 
 - **Dependency drift is now detected automatically.** A scheduled workflow runs every
   Monday at 06:00 UTC (and can be triggered manually), pulling the latest `dev-master`
