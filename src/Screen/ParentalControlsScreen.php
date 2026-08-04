@@ -266,10 +266,20 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
             return [$this, Cmd::send(new NavigateBackMsg())];
         }
         if ($msg->type === KeyType::Left || ($msg->type === KeyType::Char && $msg->rune === "\t" && !$msg->shift && $this->form === null)) {
-            return [$this->moveSection(-1), null];
+            [$next, $cmd] = $this->moveSection(-1);
+            if ($cmd !== null) {
+                $cmd();
+            }
+
+            return [$next, null];
         }
         if ($msg->type === KeyType::Right || ($msg->type === KeyType::Char && $msg->rune === "\t" && $msg->shift && $this->form === null)) {
-            return [$this->moveSection(1), null];
+            [$next, $cmd] = $this->moveSection(1);
+            if ($cmd !== null) {
+                $cmd();
+            }
+
+            return [$next, null];
         }
         if ($msg->type === KeyType::Up) {
             return [$this->moveSelection(-1), null];
@@ -637,7 +647,8 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
         return $next;
     }
 
-    private function withSection(string $section): self
+    /** @return array{self, ?\Closure} */
+    private function withSection(string $section): array
     {
         $next = clone $this;
         $next->section = $section;
@@ -651,10 +662,10 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
         };
 
         if (!$loaded) {
-            return $next;
+            return [$next, $next->fetchCmd($section)];
         }
 
-        return $next;
+        return [$next, null];
     }
 
     /** Enter the busy (in-flight) state, clearing any armed confirm. */
@@ -772,16 +783,17 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
         return $next;
     }
 
-    private function moveSection(int $delta): self
+    /** @return array{self, ?\Closure} */
+    private function moveSection(int $delta): array
     {
         $idx = array_search($this->section, self::SECTIONS, true);
         if ($idx === false) {
-            return $this;
+            return [$this, null];
         }
         $count = count(self::SECTIONS);
         $newIdx = max(0, min($count - 1, $idx + $delta));
         if ($newIdx === $idx) {
-            return $this;
+            return [$this, null];
         }
 
         return $this->withSection(self::SECTIONS[$newIdx]);
