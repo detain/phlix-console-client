@@ -394,6 +394,10 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
             $next->siblings = $msg->siblings;
             $next->currentIndex = $msg->currentIndex;
 
+            if ($msg->currentIndex === -1) {
+                return [$next, Cmd::send(ShowToastMsg::error('Could not locate this episode in its series'))];
+            }
+
             return [$next, null];
         }
         if ($msg instanceof UpNextTickMsg) {
@@ -715,6 +719,9 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     /**
      * Fetch the season's episodes (the up-next queue) for an episode item, or
      * null when this isn't an episode with a parent season. Best-effort.
+     *
+     * Uses paged fetching (100 items per page) to handle series with more than
+     * 100 episodes. The server clamps limit to PageLimit::MAX = 100.
      */
     private function fetchSiblings(): ?\Closure
     {
@@ -724,20 +731,56 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         $parentId = $this->item->parentId;
         $currentId = $this->item->id;
 
-        return Cmd::promise(fn (): PromiseInterface => $this->api->media(new MediaQuery(parentId: $parentId, limit: 500))->then(
-            static function (MediaPage $page) use ($currentId): Msg {
+        // Server clamps to PageLimit::MAX = 100.
+        $limit = 100;
+
+        /**
+         * Fetch pages sequentially and find the current item's index.
+         * Uses a recursive promise chain that flattens automatically.
+         *
+         * @param int $offset Current page offset
+         * @param list<MediaItem> $accumulated All items collected so far
+         * @param int $pageCount Number of pages fetched
+         * @return PromiseInterface<Msg>
+         */
+        $fetchPage = null;
+        $fetchPage = function (int $offset, array $accumulated, int $pageCount) use ($parentId, $currentId, $limit, &$fetchPage): \React\Promise\PromiseInterface {
+            $pageCount++;
+
+            /**
+             * @return \React\Promise\PromiseInterface<SugarCraft\Core\Msg>
+             */
+            $onPage = static function (MediaPage $page) use ($currentId, $offset, $limit, $accumulated, $pageCount, &$fetchPage) {
+                $items = array_merge($accumulated, $page->items);
+
+                // Check if the current item is in the accumulated list
                 $index = -1;
-                foreach ($page->items as $i => $episode) {
+                foreach ($items as $i => $episode) {
                     if ($episode->id === $currentId) {
                         $index = $i;
                         break;
                     }
                 }
 
-                return new SiblingsLoadedMsg($page->items, $index);
-            },
-            static fn (\Throwable $e): Msg => new SiblingsLoadedMsg([], -1),
-        ));
+                if ($index !== -1) {
+                    // Use array_values to ensure the list<int, MediaItem> type
+                    return \React\Promise\resolve(new SiblingsLoadedMsg(array_values($items), $index));
+                }
+
+                // If page is full and safety cap not reached, fetch next page
+                if (count($page->items) >= $limit && $pageCount < 100) {
+                    return $fetchPage($offset + $limit, $items, $pageCount);
+                }
+
+                // Not found after exhausting all pages
+                return \React\Promise\resolve(new SiblingsLoadedMsg([], -1));
+            };
+
+            return $this->api->media(new MediaQuery(parentId: $parentId, limit: $limit, offset: $offset))
+                ->then($onPage);
+        };
+
+        return Cmd::promise(fn (): PromiseInterface => $fetchPage(0, [], 0));
     }
 
     private function nextItem(): ?MediaItem
