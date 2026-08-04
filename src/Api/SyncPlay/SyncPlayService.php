@@ -68,6 +68,9 @@ final class SyncPlayService
     /** @var \Closure(bool): void */
     private \Closure $onDisconnect;
 
+    /** @var \Closure(): void */
+    private \Closure $onGroupState;
+
     private ?LoopInterface $loop = null;
     private int $lastPingSendTime = 0;
 
@@ -233,6 +236,16 @@ final class SyncPlayService
     public function onDisconnect(\Closure $callback): void
     {
         $this->onDisconnect = $callback;
+    }
+
+    /**
+     * Register callback for group state sync events.
+     *
+     * @param \Closure(): void $callback
+     */
+    public function onGroupState(\Closure $callback): void
+    {
+        $this->onGroupState = $callback;
     }
 
     // ---- Room Management ------------------------------------------------
@@ -623,6 +636,8 @@ final class SyncPlayService
                 $memberCount,
             );
         }
+
+        ($this->onGroupState ?? fn () => null)();
     }
 
     /**

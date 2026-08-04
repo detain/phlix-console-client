@@ -44,13 +44,16 @@ use Phlix\Console\Msg\StreamLimitExceededMsg;
 use Phlix\Console\Msg\SiblingsLoadedMsg;
 use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Msg\SubtitleVttLoadedMsg;
+use Phlix\Console\Msg\SyncPlayDisconnectedMsg;
 use Phlix\Console\Msg\SyncPlayFailedMsg;
+use Phlix\Console\Msg\SyncPlayHostChangedMsg;
 use Phlix\Console\Msg\SyncPlayJoinedMsg;
 use Phlix\Console\Msg\SyncPlayLeftMsg;
 use Phlix\Console\Msg\SyncPlayMemberJoinedMsg;
 use Phlix\Console\Msg\SyncPlayMemberLeftMsg;
 use Phlix\Console\Msg\SyncPlayPlaybackCommandMsg;
 use Phlix\Console\Msg\SyncPlayGroupsLoadedMsg;
+use Phlix\Console\Msg\SyncPlayGroupStateMsg;
 use Phlix\Console\Msg\TranscodePollMsg;
 use Phlix\Console\Msg\TranscodeStartedMsg;
 use Phlix\Console\Msg\TranscodeStatusMsg;
@@ -209,8 +212,8 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     private ?ChapterList $chapterMenu = null;
     /** A one-shot seek (seconds) to re-apply once a quality-switch rebuild becomes ready. */
     private ?float $pendingSeek = null;
-    /** The SyncPlay service for group playback sync, or null when not available. */
-    private ?SyncPlayService $syncPlayService = null;
+    /** The SyncPlay service for group playback sync. */
+    private SyncPlayService $syncPlayService;
     /** The open SyncPlay modal, or null when closed. */
     private ?SyncPlayModal $syncPlayModal = null;
     /** The current SyncPlay room name for overlay display, or null when not in a room. */
@@ -219,6 +222,9 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     private int $syncPlayMemberCount = 0;
     /** The current SyncPlay sync status for overlay display. */
     private string $syncPlayStatus = 'Not in room';
+    /** Pending SyncPlay events to process on next update cycle. */
+    /** @var list<Msg> */
+    private array $pendingSyncPlayEvents = [];
     /** The sleep timer (countdown to pause). */
     private SleepTimer $sleepTimer;
     /** The open sleep timer picker overlay, or null when closed. */
@@ -234,12 +240,13 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         private readonly string $baseUrl,
         private readonly ApiClient $api,
         private readonly \Closure $playerFactory,
+        SyncPlayService $syncPlayService,
         private int $cols = 80,
         private int $rows = 24,
-        ?SyncPlayService $syncPlayService = null,
     ) {
         $this->syncPlayService = $syncPlayService;
         $this->sleepTimer = new SleepTimer();
+        $this->initSyncPlay();
     }
 
     /**
@@ -267,6 +274,54 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
             => Player::open($url, $cols, $rows, null, $reelMode, false, 'standard', $cellPxW, $cellPxH);
     }
 
+    /**
+     * Register SyncPlay service callbacks to queue messages.
+     */
+    private function initSyncPlay(): void
+    {
+        $this->syncPlayService->onPlaybackCommand(
+            function (SyncPlayPlaybackCommand $cmd): void {
+                $this->pendingSyncPlayEvents[] = new SyncPlayPlaybackCommandMsg($cmd);
+            },
+        );
+
+        $this->syncPlayService->onMemberJoined(
+            function (SyncPlayUser $member): void {
+                $this->pendingSyncPlayEvents[] = new SyncPlayMemberJoinedMsg($member);
+            },
+        );
+
+        $this->syncPlayService->onMemberLeft(
+            function (string $memberId): void {
+                $this->pendingSyncPlayEvents[] = new SyncPlayMemberLeftMsg($memberId);
+            },
+        );
+
+        $this->syncPlayService->onHostChanged(
+            function (string $newHostId): void {
+                $this->pendingSyncPlayEvents[] = new SyncPlayHostChangedMsg($newHostId);
+            },
+        );
+
+        $this->syncPlayService->onDisconnect(
+            function (bool $wasIntentional): void {
+                $this->pendingSyncPlayEvents[] = new SyncPlayDisconnectedMsg($wasIntentional);
+            },
+        );
+
+        $this->syncPlayService->onError(
+            function (string $code, string $message): void {
+                $this->pendingSyncPlayEvents[] = ShowToastMsg::error("SyncPlay: {$message}");
+            },
+        );
+
+        $this->syncPlayService->onGroupState(
+            function (): void {
+                $this->pendingSyncPlayEvents[] = new \Phlix\Console\Msg\SyncPlayGroupStateMsg();
+            },
+        );
+    }
+
     public function init(): \Closure
     {
         // Build the player and fetch its markers + resume + episode queue concurrently.
@@ -287,6 +342,16 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     /** @return array{self, ?\Closure} */
     public function update(Msg $msg): array
     {
+        // Process any pending SyncPlay events first
+        $screen = $this;
+        while (!empty($screen->pendingSyncPlayEvents)) {
+            $pending = $screen->pendingSyncPlayEvents;
+            $screen->pendingSyncPlayEvents = [];
+            foreach ($pending as $event) {
+                [$screen] = $screen->update($event);
+            }
+        }
+
         if ($msg instanceof WindowSizeMsg) {
             return $this->onResize($msg->cols, $msg->rows);
         }
@@ -375,6 +440,15 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         if ($msg instanceof SyncPlayPlaybackCommandMsg) {
             return $this->onSyncPlayPlaybackCommand($msg->command);
         }
+        if ($msg instanceof SyncPlayHostChangedMsg) {
+            return $this->onSyncPlayHostChanged($msg->newHostId);
+        }
+        if ($msg instanceof SyncPlayGroupStateMsg) {
+            return $this->onSyncPlayGroupState();
+        }
+        if ($msg instanceof SyncPlayDisconnectedMsg) {
+            return $this->onSyncPlayDisconnected($msg->wasIntentional);
+        }
         if ($msg instanceof ProgressTickMsg) {
             return $this->onProgressTick();
         }
@@ -434,7 +508,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         }
 
         // SyncPlay overlay when in a room (but modal not open).
-        if ($this->syncPlayService?->isInRoom() === true) {
+        if ($this->syncPlayService->isInRoom() === true) {
             return SyncPlayOverlay::render(
                 $base,
                 $this->syncPlayRoomName,
@@ -1875,10 +1949,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         $next->syncPlayMemberCount = $room->memberCount;
         $next->syncPlayStatus = 'Connecting...';
 
-        // Start SyncPlay service if available
-        if ($this->syncPlayService !== null) {
-            $this->syncPlayService->joinRoom($room->id);
-        }
+        $this->syncPlayService->joinRoom($room->id);
 
         return [$next, null];
     }
@@ -1892,10 +1963,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         $next->syncPlayMemberCount = 0;
         $next->syncPlayStatus = 'Not in room';
 
-        // Stop SyncPlay service if available
-        if ($this->syncPlayService !== null) {
-            $this->syncPlayService->leaveRoom();
-        }
+        $this->syncPlayService->leaveRoom();
 
         return [$next, null];
     }
@@ -1926,8 +1994,8 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     private function onSyncPlayMemberJoined(SyncPlayUser $member): array
     {
         $next = clone $this;
-        $next->syncPlayMemberCount = $this->syncPlayService?->getMemberCount() ?? ($this->syncPlayMemberCount + 1);
-        $next->syncPlayStatus = $this->syncPlayService?->getSyncStatus() ?? 'Synced';
+        $next->syncPlayMemberCount = $this->syncPlayService->getMemberCount();
+        $next->syncPlayStatus = $this->syncPlayService->getSyncStatus();
 
         return [$next, null];
     }
@@ -1940,8 +2008,8 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     private function onSyncPlayMemberLeft(string $memberId): array
     {
         $next = clone $this;
-        $next->syncPlayMemberCount = max(1, ($this->syncPlayService?->getMemberCount() ?? $this->syncPlayMemberCount) - 1);
-        $next->syncPlayStatus = $this->syncPlayService?->getSyncStatus() ?? 'Synced';
+        $next->syncPlayMemberCount = max(1, $this->syncPlayService->getMemberCount() - 1);
+        $next->syncPlayStatus = $this->syncPlayService->getSyncStatus();
 
         return [$next, null];
     }
@@ -1976,6 +2044,46 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
                 $next->syncPlayStatus = 'Synced';
                 break;
         }
+
+        return [$next, null];
+    }
+
+    /**
+     * Handle host changed - update overlay.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function onSyncPlayHostChanged(string $newHostId): array
+    {
+        $next = clone $this;
+        $next->syncPlayStatus = $this->syncPlayService->getSyncStatus();
+
+        return [$next, null];
+    }
+
+    /**
+     * Handle group state sync - update member count and status from service state.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function onSyncPlayGroupState(): array
+    {
+        $next = clone $this;
+        $next->syncPlayMemberCount = $this->syncPlayService->getMemberCount();
+        $next->syncPlayStatus = $this->syncPlayService->getSyncStatus();
+
+        return [$next, null];
+    }
+
+    /**
+     * Handle disconnected - update overlay.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function onSyncPlayDisconnected(bool $wasIntentional): array
+    {
+        $next = clone $this;
+        $next->syncPlayStatus = $wasIntentional ? 'Not in room' : 'Reconnecting...';
 
         return [$next, null];
     }

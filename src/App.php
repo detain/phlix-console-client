@@ -13,6 +13,7 @@ use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Cast\CastClient;
+use Phlix\Console\Api\SyncPlay\SyncPlayService;
 use Phlix\Console\Api\Dto\Album;
 use Phlix\Console\Api\Dto\Audiobook;
 use Phlix\Console\Api\Dto\AudiobookChapter;
@@ -1707,6 +1708,8 @@ final class App implements Model
     /** @return array{App, ?\Closure} */
     private function openPlayer(MediaItem $item): array
     {
+        $syncPlayService = new SyncPlayService($this->api);
+
         $screen = new PlayerScreen(
             $item,
             $this->api->baseUrl(),
@@ -1715,6 +1718,7 @@ final class App implements Model
             // the terminal's detected cell pixel size so graphics modes decode at
             // full resolution.
             PlayerScreen::productionFactory($this->posters->protocol(), $this->posters->cellSize()),
+            $syncPlayService,
             cols: $this->cols,
             rows: $this->rows,
         );
