@@ -10,11 +10,11 @@ declare(strict_types=1);
 namespace Phlix\Console\Api\Dto;
 
 /**
- * A public SyncPlay room returned from the rooms list endpoint.
+ * A public SyncPlay group returned from the groups list endpoint.
  *
  * @readonly
  */
-final readonly class SyncPlayRoom
+final readonly class SyncPlayGroup
 {
     public function __construct(
         public string $id,

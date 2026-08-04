@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Ui;
 
-use Phlix\Console\Api\Dto\SyncPlayRoom;
+use Phlix\Console\Api\Dto\SyncPlayGroup;
 use SugarCraft\Boxer\SugarBoxer;
 use SugarCraft\Sprinkles\Style;
 use SugarCraft\Veil\Position;
@@ -44,7 +44,7 @@ final class SyncPlayModal
         private int $winHeight,
         private ?string $roomName,
         private bool $isPublic,
-        /** @var list<SyncPlayRoom> */
+        /** @var list<SyncPlayGroup> */
         private array $rooms,
         private ?string $error,
         /** @internal */
@@ -59,7 +59,7 @@ final class SyncPlayModal
     /**
      * Open the modal in initial state, optionally pre-loaded with public rooms.
      *
-     * @param list<SyncPlayRoom> $rooms
+     * @param list<SyncPlayGroup> $rooms
      */
     public static function open(array $rooms, int $cols, int $rows): self
     {
@@ -143,7 +143,7 @@ final class SyncPlayModal
         // A room was selected
         $index = $this->cursor - 1;
         if ($index >= 0 && $index < $roomCount) {
-            /** @var SyncPlayRoom */
+            /** @var SyncPlayGroup */
             $room = $this->rooms[$index];
 
             return [$this, $room->id];
@@ -433,7 +433,7 @@ final class SyncPlayModal
         return $this->error;
     }
 
-    /** @return list<SyncPlayRoom> */
+    /** @return list<SyncPlayGroup> */
     public function rooms(): array
     {
         return $this->rooms;

@@ -10,7 +10,7 @@ declare(strict_types=1);
 namespace Phlix\Console\Api\SyncPlay;
 
 use Phlix\Console\Api\ApiClient;
-use Phlix\Console\Api\Dto\SyncPlayRoom;
+use Phlix\Console\Api\Dto\SyncPlayGroup;
 use Phlix\Console\Api\Dto\SyncPlaySession;
 use Phlix\Console\Api\Dto\SyncPlayPlaybackCommand;
 use Phlix\Console\Api\Dto\SyncPlayUser;
@@ -28,7 +28,7 @@ use SugarCraft\Core\Cmd;
 final class SyncPlayService
 {
     private ?SyncPlaySession $session = null;
-    private ?SyncPlayRoom $currentRoom = null;
+    private ?SyncPlayGroup $currentRoom = null;
     private ?\Workerman\Connection\AsyncTcpConnection $wsConnection = null;
     private ?string $memberId = null;
     private ?string $memberName = null;
@@ -104,7 +104,7 @@ final class SyncPlayService
     /**
      * Get the current room.
      */
-    public function getCurrentRoom(): ?SyncPlayRoom
+    public function getCurrentRoom(): ?SyncPlayGroup
     {
         return $this->currentRoom;
     }
@@ -244,9 +244,9 @@ final class SyncPlayService
      */
     public function createRoom(string $name, bool $isPublic = true): PromiseInterface
     {
-        return $this->api->createSyncPlayRoom($name, $isPublic)->then(function (SyncPlaySession $session) use ($name, $isPublic) {
+        return $this->api->createSyncPlayGroup($name, $isPublic)->then(function (SyncPlaySession $session) use ($name, $isPublic) {
             $this->session = $session;
-            $this->currentRoom = new SyncPlayRoom($session->roomId, $name, $isPublic, 1);
+            $this->currentRoom = new SyncPlayGroup($session->roomId, $name, $isPublic, 1);
             $this->isHost = true;
             $this->members = [
                 new SyncPlayUser($this->memberId ?? '', $this->memberName ?? 'You', true),
@@ -264,7 +264,7 @@ final class SyncPlayService
      */
     public function joinRoom(string $roomId): PromiseInterface
     {
-        return $this->api->joinSyncPlayRoom($roomId)->then(function (SyncPlaySession $session) {
+        return $this->api->joinSyncPlayGroup($roomId)->then(function (SyncPlaySession $session) {
             $this->session = $session;
             $this->isHost = false;
             $this->playbackState = 'stopped';
@@ -309,11 +309,11 @@ final class SyncPlayService
     /**
      * List public rooms.
      *
-     * @return PromiseInterface<list<SyncPlayRoom>>
+     * @return PromiseInterface<list<SyncPlayGroup>>
      */
     public function listRooms(): PromiseInterface
     {
-        return $this->api->listSyncPlayRooms();
+        return $this->api->listSyncPlayGroups();
     }
 
     // ---- Playback Commands (Host Only) ----------------------------------
@@ -616,7 +616,7 @@ final class SyncPlayService
         // Update member count
         if ($this->currentRoom !== null) {
             $memberCount = is_int($group['member_count'] ?? null) ? $group['member_count'] : count($this->members);
-            $this->currentRoom = new SyncPlayRoom(
+            $this->currentRoom = new SyncPlayGroup(
                 $this->currentRoom->id,
                 $this->currentRoom->name,
                 $this->currentRoom->isPublic,

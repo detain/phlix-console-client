@@ -32,7 +32,7 @@ use Phlix\Console\Api\Dto\PlaybackInfo;
 use Phlix\Console\Api\Dto\PlaybackMarkers;
 use Phlix\Console\Api\Dto\Rating;
 use Phlix\Console\Api\Dto\SubtitleTrack;
-use Phlix\Console\Api\Dto\SyncPlayRoom;
+use Phlix\Console\Api\Dto\SyncPlayGroup;
 use Phlix\Console\Api\Dto\SyncPlaySession;
 use Phlix\Console\Api\Dto\TranscodeJob;
 use Phlix\Console\Config\TokenBundle;
@@ -653,9 +653,9 @@ final class ApiClient
      *
      * @return PromiseInterface<SyncPlaySession>
      */
-    public function createSyncPlayRoom(string $name, bool $isPublic = true): PromiseInterface
+    public function createSyncPlayGroup(string $name, bool $isPublic = true): PromiseInterface
     {
-        return $this->authed('POST', '/api/v1/syncplay/rooms', [], [
+        return $this->authed('POST', '/api/v1/syncplay/groups', [], [
             'name' => $name,
             'is_public' => $isPublic,
         ])->then(static fn (array $data): SyncPlaySession => SyncPlaySession::fromArray($data));
@@ -664,17 +664,17 @@ final class ApiClient
     /**
      * List all public SyncPlay rooms.
      *
-     * @return PromiseInterface<list<SyncPlayRoom>>
+     * @return PromiseInterface<list<SyncPlayGroup>>
      */
-    public function listSyncPlayRooms(): PromiseInterface
+    public function listSyncPlayGroups(): PromiseInterface
     {
-        return $this->authed('GET', '/api/v1/syncplay/rooms')->then(static function (array $data): array {
-            /** @var list<SyncPlayRoom> */
+        return $this->authed('GET', '/api/v1/syncplay/groups')->then(static function (array $data): array {
+            /** @var list<SyncPlayGroup> */
             $rooms = [];
-            foreach (Coerce::map($data['rooms'] ?? null) as $row) {
+            foreach (Coerce::map($data['groups'] ?? null) as $row) {
                 if (is_array($row)) {
                     /** @var array<string, mixed> $row */
-                    $rooms[] = SyncPlayRoom::fromArray($row);
+                    $rooms[] = SyncPlayGroup::fromArray($row);
                 }
             }
 
@@ -687,9 +687,9 @@ final class ApiClient
      *
      * @return PromiseInterface<SyncPlaySession>
      */
-    public function joinSyncPlayRoom(string $roomId): PromiseInterface
+    public function joinSyncPlayGroup(string $roomId): PromiseInterface
     {
-        return $this->authed('POST', '/api/v1/syncplay/rooms/' . rawurlencode($roomId) . '/join')
+        return $this->authed('POST', '/api/v1/syncplay/groups/' . rawurlencode($roomId) . '/join')
             ->then(static fn (array $data): SyncPlaySession => SyncPlaySession::fromArray($data));
     }
 
@@ -698,9 +698,9 @@ final class ApiClient
      *
      * @return PromiseInterface<bool>
      */
-    public function leaveSyncPlayRoom(string $roomId): PromiseInterface
+    public function leaveSyncPlayGroup(string $roomId): PromiseInterface
     {
-        return $this->authed('DELETE', '/api/v1/syncplay/rooms/' . rawurlencode($roomId) . '/leave')
+        return $this->authed('POST', '/api/v1/syncplay/groups/' . rawurlencode($roomId) . '/leave')
             ->then(static fn (array $data): bool => true);
     }
 

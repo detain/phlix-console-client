@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Msg;
 
-use Phlix\Console\Api\Dto\SyncPlayRoom;
+use Phlix\Console\Api\Dto\SyncPlayGroup;
 use SugarCraft\Core\Msg;
 
 /**
@@ -18,7 +18,7 @@ use SugarCraft\Core\Msg;
 final readonly class SyncPlayJoinedMsg implements Msg
 {
     public function __construct(
-        public SyncPlayRoom $room,
+        public SyncPlayGroup $room,
     ) {
     }
 }

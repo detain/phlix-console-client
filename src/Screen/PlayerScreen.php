@@ -18,7 +18,7 @@ use Phlix\Console\Api\Dto\PlaybackMarkers;
 use Phlix\Console\Api\Dto\Rendition;
 use Phlix\Console\Api\Dto\StreamAudioTrack;
 use Phlix\Console\Api\Dto\StreamSubtitleTrack;
-use Phlix\Console\Api\Dto\SyncPlayRoom;
+use Phlix\Console\Api\Dto\SyncPlayGroup;
 use Phlix\Console\Api\Dto\SubtitleTrack;
 use Phlix\Console\Api\Dto\SyncPlayUser;
 use Phlix\Console\Api\Dto\SyncPlayPlaybackCommand;
@@ -50,7 +50,7 @@ use Phlix\Console\Msg\SyncPlayLeftMsg;
 use Phlix\Console\Msg\SyncPlayMemberJoinedMsg;
 use Phlix\Console\Msg\SyncPlayMemberLeftMsg;
 use Phlix\Console\Msg\SyncPlayPlaybackCommandMsg;
-use Phlix\Console\Msg\SyncPlayRoomsLoadedMsg;
+use Phlix\Console\Msg\SyncPlayGroupsLoadedMsg;
 use Phlix\Console\Msg\TranscodePollMsg;
 use Phlix\Console\Msg\TranscodeStartedMsg;
 use Phlix\Console\Msg\TranscodeStatusMsg;
@@ -354,8 +354,8 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         if ($msg instanceof StreamLimitExceededMsg) {
             return $this->onStreamLimitExceeded($msg->reason);
         }
-        if ($msg instanceof SyncPlayRoomsLoadedMsg) {
-            return $this->onSyncPlayRoomsLoaded($msg->rooms);
+        if ($msg instanceof SyncPlayGroupsLoadedMsg) {
+            return $this->onSyncPlayGroupsLoaded($msg->rooms);
         }
         if ($msg instanceof SyncPlayJoinedMsg) {
             return $this->onSyncPlayJoined($msg->room);
@@ -1705,8 +1705,8 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
 
         // Load public rooms asynchronously - returns a Cmd that resolves to a Msg
         $loadRooms = Cmd::promise(
-            fn (): PromiseInterface => $this->api->listSyncPlayRooms()->then(
-                static fn (array $rooms): Msg => new SyncPlayRoomsLoadedMsg($rooms),
+            fn (): PromiseInterface => $this->api->listSyncPlayGroups()->then(
+                static fn (array $rooms): Msg => new SyncPlayGroupsLoadedMsg($rooms),
                 static fn (\Throwable $e): Msg => new SyncPlayFailedMsg('Failed to load rooms: ' . $e->getMessage()),
             ),
         );
@@ -1781,9 +1781,9 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
 
                 // Return a Cmd::promise that resolves to SyncPlayJoinedMsg or SyncPlayFailedMsg
                 $createCmd = Cmd::promise(
-                    fn (): PromiseInterface => $this->api->createSyncPlayRoom($roomName, $isPublic)->then(
+                    fn (): PromiseInterface => $this->api->createSyncPlayGroup($roomName, $isPublic)->then(
                         static function ($session) use ($roomName, $isPublic): Msg {
-                            return new SyncPlayJoinedMsg(new SyncPlayRoom(
+                            return new SyncPlayJoinedMsg(new SyncPlayGroup(
                                 $session->roomId,
                                 $roomName,
                                 $isPublic,
@@ -1799,9 +1799,9 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
 
             // Joining a room
             $joinCmd = Cmd::promise(
-                fn (): PromiseInterface => $this->api->joinSyncPlayRoom($action)->then(
+                fn (): PromiseInterface => $this->api->joinSyncPlayGroup($action)->then(
                     static function ($session): Msg {
-                        return new SyncPlayJoinedMsg(new SyncPlayRoom(
+                        return new SyncPlayJoinedMsg(new SyncPlayGroup(
                             $session->roomId,
                             'Room',
                             true,
@@ -1847,10 +1847,10 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     /**
      * Handle rooms list loaded - update the modal with rooms.
      *
-     * @param list<SyncPlayRoom> $rooms
+     * @param list<SyncPlayGroup> $rooms
      * @return array{self, ?\Closure}
      */
-    private function onSyncPlayRoomsLoaded(array $rooms): array
+    private function onSyncPlayGroupsLoaded(array $rooms): array
     {
         if ($this->syncPlayModal === null) {
             return [$this, null];
@@ -1867,7 +1867,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
      *
      * @return array{self, ?\Closure}
      */
-    private function onSyncPlayJoined(SyncPlayRoom $room): array
+    private function onSyncPlayJoined(SyncPlayGroup $room): array
     {
         $next = clone $this;
         $next->syncPlayModal = null;
