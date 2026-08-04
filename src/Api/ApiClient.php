@@ -463,6 +463,17 @@ final class ApiClient
     }
 
     /**
+     * Mark a playback session as complete (removes the item from Continue Watching).
+     *
+     * @return PromiseInterface<bool>
+     */
+    public function completeSession(string $sessionId): PromiseInterface
+    {
+        return $this->authed('POST', '/api/v1/sessions/' . rawurlencode($sessionId) . '/complete')
+            ->then(static fn (array $data): bool => true);
+    }
+
+    /**
      * End a playback session.
      *
      * @return PromiseInterface<bool>

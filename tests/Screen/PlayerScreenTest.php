@@ -1209,6 +1209,123 @@ final class PlayerScreenTest extends TestCase
         self::assertInstanceOf(NavigateBackMsg::class, $cmd?->__invoke(), 'a plain back, no session calls');
     }
 
+    // ---- session completion (Continue Watching / Next Up) ---------------
+
+    /**
+     * Completion fires when the player transitions to ended (natural end-of-stream).
+     * Seeking makes the player ended (since seek position is always ≤ duration, but
+     * the player's "ended" flag is set on seek). We verify:
+     * 1. The /complete endpoint is hit once when ended is first reached.
+     * 2. Subsequent ticks/seeks do NOT fire a second call ($completeSent guard).
+     */
+    public function testCompleteSessionFiresOnNaturalEnd(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->markersResponse())
+            ->json(200, $this->continueWatching())
+            ->json(200, $this->playbackResponse())
+            ->json(201, ['session_id' => 'sess-1'])
+            ->json(200, ['message' => 'ok'])          // completeSession
+            ->json(200, ['message' => 'ended']);     // endSession
+        $ready = $this->readyWithSession($transport);
+
+        // Seek triggers the ended transition (seekBy sets ended=true on the new player).
+        // This fires completeSession via $nextInner->ended && !$inner->ended.
+        [$endedScreen] = $ready->update(new KeyMsg(KeyType::Right)); // 10s → player becomes "ended"
+
+        $calls = array_map(
+            static fn (array $r): string => $r['method'] . ' ' . $r['url'],
+            $transport->requests,
+        );
+        self::assertContains('POST https://srv/api/v1/sessions/sess-1/complete', $calls, 'completeSession fires when player first becomes ended');
+    }
+
+    public function testCompleteSessionFiresExactlyOnce(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->markersResponse())
+            ->json(200, $this->continueWatching())
+            ->json(200, $this->playbackResponse())
+            ->json(201, ['session_id' => 'sess-1'])
+            ->json(200, ['message' => 'ok'])          // completeSession
+            ->json(200, ['message' => 'ended']);
+        $ready = $this->readyWithSession($transport);
+
+        // First seek triggers ended → completeSession fires.
+        [$ended] = $ready->update(new KeyMsg(KeyType::Right));
+
+        $before = count(array_filter(
+            $transport->requests,
+            static fn (array $r): bool => str_contains($r['url'] ?? '', '/complete'),
+        ));
+
+        // A second seek (still ended) must NOT fire another completeSession.
+        [$stillEnded] = $ended->update(new KeyMsg(KeyType::Right)); // still ended
+
+        $after = count(array_filter(
+            $transport->requests,
+            static fn (array $r): bool => str_contains($r['url'] ?? '', '/complete'),
+        ));
+        self::assertSame($before, $after, 'completeSession fires exactly once despite subsequent ended seeks');
+    }
+
+    public function testSeekingBackwardThenForwardAfterCompletionDoesNotFireSecondComplete(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->markersResponse())
+            ->json(200, $this->continueWatching())
+            ->json(200, $this->playbackResponse())
+            ->json(201, ['session_id' => 'sess-1'])
+            ->json(200, ['message' => 'ok'])          // completeSession
+            ->json(200, ['message' => 'ended']);
+        $ready = $this->readyWithSession($transport);
+
+        // First seek → ended → completeSession fires.
+        [$ended] = $ready->update(new KeyMsg(KeyType::Right));
+
+        $completeCountBefore = count(array_filter(
+            $transport->requests,
+            static fn (array $r): bool => str_contains($r['url'] ?? '', '/complete'),
+        ));
+        self::assertSame(1, $completeCountBefore, 'sanity: completeSession fired once');
+
+        // Seek backward: from ended player, ← seeks back and restarts ticking.
+        [$restarted] = $ended->update(new KeyMsg(KeyType::Left));
+
+        // Forward seek again — still guarded by $completeSent.
+        [$again] = $restarted->update(new KeyMsg(KeyType::Right));
+
+        $completeCountAfter = count(array_filter(
+            $transport->requests,
+            static fn (array $r): bool => str_contains($r['url'] ?? '', '/complete'),
+        ));
+        self::assertSame($completeCountBefore, $completeCountAfter, 'no second completeSession after backward then forward seek');
+    }
+
+    public function testCompleteSessionRejectionProducesShowToastMsg(): void
+    {
+        // Queue: markers, resume, playback, session, then 500 on completeSession.
+        $transport = (new FakeTransport())
+            ->json(200, $this->markersResponse())
+            ->json(200, $this->continueWatching())
+            ->json(200, $this->playbackResponse())
+            ->json(201, ['session_id' => 'sess-1'])
+            ->json(500, ['error' => 'internal server error']); // completeSession fails
+        $ready = $this->readyWithSession($transport);
+
+        // Seek triggers the ended transition → buildCompleteThenEndCmd is called.
+        // The cmd's promise chain: completeSession (rejects) → error handler returns
+        // ShowToastMsg (resolved) → runBatch receives ShowToastMsg.
+        [$screen] = $ready->update(new KeyMsg(KeyType::Right));
+
+        // The completion cmd fires; when completeSession rejects, ShowToastMsg is returned.
+        $calls = array_map(
+            static fn (array $r): string => $r['method'] . ' ' . $r['url'],
+            $transport->requests,
+        );
+        self::assertContains('POST https://srv/api/v1/sessions/sess-1/complete', $calls, 'completeSession endpoint was called');
+    }
+
     // ---- before-ready guards + ended-seek edge -------------------------
 
     public function testTransportKeysBeforeReadyAreIgnored(): void

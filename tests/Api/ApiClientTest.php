@@ -735,6 +735,20 @@ final class ApiClientTest extends TestCase
         self::assertStringEndsWith('/api/v1/sessions/sess-9', $req['url']);
     }
 
+    public function testCompleteSessionPostsTheCompleteRoute(): void
+    {
+        $t = (new FakeTransport())->json(200, ['message' => 'Session completed']);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $ok = $this->await($client->completeSession('sess-9'));
+
+        self::assertTrue($ok);
+        $req = $t->requestAt(0);
+        self::assertSame('POST', $req['method']);
+        self::assertStringEndsWith('/api/v1/sessions/sess-9/complete', $req['url']);
+    }
+
     public function testStartTranscodePostsWithProfile(): void
     {
         $t = (new FakeTransport())->json(200, ['job_id' => 'j1', 'master_url' => '/hls/j1/master.m3u8', 'status' => 'running']);

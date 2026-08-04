@@ -126,6 +126,8 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     private const RESUME_FLOOR = 5.0;
     /** Hide the "Resumed from …" hint once the user is this far past the resume point. */
     private const RESUME_HINT_WINDOW = 45.0;
+    /** Fraction of duration past which a session is considered complete. */
+    private const COMPLETE_THRESHOLD = 0.95;
     /** Seconds the up-next card counts down before auto-advancing. */
     private const UP_NEXT_COUNTDOWN = 8;
     /** Seconds between transcode-readiness polls. */
@@ -150,6 +152,8 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
      * instead makes the "request the session at most once" decision race-free.
      */
     private bool $sessionRequested = false;
+    /** True once completeSession has been sent for the current playback run. */
+    private bool $completeSent = false;
     private ?float $resumeSeconds = null;
     private bool $resumeApplied = false;
     /**
@@ -996,6 +1000,43 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         return $cmds;
     }
 
+    /**
+     * Cmd that fires completeSession (first) then endSession, surfacing a
+     * ShowToastMsg error if completeSession fails. The following Cmd is called
+     * before the error toast so ordering is preserved.
+     *
+     * @return \Closure(): Msg
+     */
+    private function buildCompleteThenEndCmd(string $sessionId, ?\Closure $following): \Closure
+    {
+        $api = $this->api;
+
+        // Chain completeSession → endSession. On completeSession failure the
+        // ShowToastMsg is returned as the resolved value (not propagated as a
+        // rejection) so Cmd::batch receives it directly.
+        $innerPromise = $api->completeSession($sessionId)->then(
+            function (bool $ok) use ($sessionId, $api, $following): PromiseInterface {
+                // Chain endSession after completeSession succeeds; swallow its errors (best-effort).
+                return $api->endSession($sessionId)->then(
+                    static fn (bool $_): ?Msg => $following !== null ? $following() : null,
+                    static fn (\Throwable $_): ?Msg => $following !== null ? $following() : null,
+                );
+            },
+            // Return ShowToastMsg as the resolved value so the outer promise
+            // resolves and Cmd::batch receives it as a Msg.
+            static function (\Throwable $e) use ($following): Msg {
+                if ($following !== null) {
+                    $following();
+                }
+
+                return ShowToastMsg::error('Failed to mark as watched');
+            },
+        );
+
+        // Wrap in Cmd::promise so Cmd::batch can schedule it.
+        return Cmd::promise(static fn (): PromiseInterface => $innerPromise);
+    }
+
     // ---- transcode fallback --------------------------------------------
 
     /**
@@ -1112,6 +1153,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
 
         $next = clone $this;
         $next->inner = $started instanceof Player ? $started : $player;
+        $next->completeSent = false;
         // A mid-playback quality switch rebuilt the player — re-seek to where the
         // viewer was (applied before resume, which is a no-op once resumed).
         if ($next->pendingSeek !== null) {
@@ -1355,6 +1397,20 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
             $next->upNext = self::UP_NEXT_COUNTDOWN;
 
             return [$next, $this->upNextTickCmd()];
+        }
+
+        // Fire completeSession once when playback reaches 95% or natural end.
+        if (!$this->completeSent) {
+            $duration = $nextInner->duration();
+            $position = $nextInner->position();
+            if ($nextInner->ended || ($duration > 0 && $position / $duration >= self::COMPLETE_THRESHOLD)) {
+                $sessionId = $this->sessionId;
+                if ($sessionId !== null) {
+                    $next->completeSent = true;
+
+                    return [$next, $this->buildCompleteThenEndCmd($sessionId, $cmd)];
+                }
+            }
         }
 
         return [$next, $cmd];
