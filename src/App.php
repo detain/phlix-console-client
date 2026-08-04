@@ -36,6 +36,7 @@ use Phlix\Console\Msg\OpenAdminPluginCatalogMsg;
 use Phlix\Console\Msg\OpenAdminPluginDetailMsg;
 use Phlix\Console\Msg\OpenAdminSectionMsg;
 use Phlix\Console\Msg\OpenAdminUserProfilesMsg;
+use Phlix\Console\Msg\OpenAdminParentalControlsMsg;
 use Phlix\Console\Msg\LoginSucceededMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\NowPlayingTickMsg;
@@ -102,6 +103,7 @@ use Phlix\Console\Screen\CapturesSlash;
 use Phlix\Console\Screen\PhotoAlbumScreen;
 use Phlix\Console\Screen\PhotosScreen;
 use Phlix\Console\Screen\PhotoViewerScreen;
+use Phlix\Console\Screen\ParentalControlsScreen;
 use Phlix\Console\Screen\PlayerScreen;
 use Phlix\Console\Screen\SearchScreen;
 use Phlix\Console\Screen\ServerScreen;
@@ -375,6 +377,9 @@ final class App implements Model
         }
         if ($msg instanceof OpenAdminUserProfilesMsg) {
             return $this->openUserProfiles($msg->userId, $msg->userLabel);
+        }
+        if ($msg instanceof OpenAdminParentalControlsMsg) {
+            return $this->openParentalControls($msg->profileId, $msg->profileName);
         }
         if ($msg instanceof OpenAdminPluginCatalogMsg) {
             return $this->openPluginCatalog();
@@ -1315,6 +1320,11 @@ final class App implements Model
 
             return [$this->push(Route::AdminLiveTv, $screen), $screen->init()];
         }
+        if ($section === Route::AdminParentalControls) {
+            $screen = new ParentalControlsScreen(new AdminClient($this->api), '0', '', $this->cols, $this->rows);
+
+            return [$this->push(Route::AdminParentalControls, $screen), $screen->init()];
+        }
 
         return [$this, null];
     }
@@ -1347,6 +1357,20 @@ final class App implements Model
         $screen = new AdminUserProfilesScreen(new AdminClient($this->api), $userId, $userLabel, $this->cols, $this->rows);
 
         return [$this->push(Route::AdminUserProfiles, $screen), $screen->init()];
+    }
+
+    /**
+     * Open the parental controls for a selected profile (emitted by the
+     * AdminUserProfilesScreen `C` key). The AdminClient is built locally from
+     * the shared ApiClient (the App holds no AdminClient field).
+     *
+     * @return array{App, ?\Closure}
+     */
+    private function openParentalControls(string $profileId, string $profileName): array
+    {
+        $screen = new ParentalControlsScreen(new AdminClient($this->api), $profileId, $profileName, $this->cols, $this->rows);
+
+        return [$this->push(Route::AdminParentalControls, $screen), $screen->init()];
     }
 
     /**

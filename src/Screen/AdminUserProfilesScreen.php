@@ -17,6 +17,7 @@ use Phlix\Console\Msg\AdminProfileActionFailedMsg;
 use Phlix\Console\Msg\AdminProfilesFailedMsg;
 use Phlix\Console\Msg\AdminProfilesLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
+use Phlix\Console\Msg\OpenAdminParentalControlsMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Ui\Chrome;
@@ -246,6 +247,7 @@ final class AdminUserProfilesScreen implements Breadcrumbed, Themed
         }
 
         return match ($rune) {
+            'C' => [$this, Cmd::send(new OpenAdminParentalControlsMsg($profile->id, $profile->name))],
             'E' => [$this->openEdit($profile), null],
             'p' => [$this->openPin($profile), null],
             'x' => [$this->arm(self::ACTION_DELETE, $profile), null],

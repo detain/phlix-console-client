@@ -50,6 +50,7 @@ enum Route
     case AdminDlna;
     case AdminRemote;
     case AdminLiveTv;
+    case AdminParentalControls;
     case Recommendations;
     case WatchHistory;
 }
