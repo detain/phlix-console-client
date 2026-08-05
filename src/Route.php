@@ -46,6 +46,7 @@ enum Route
     case AdminLogs;
     case AdminBackup;
     case AdminSettings;
+    case AdminTranscoding;
     case AdminLibraries;
     case AdminDlna;
     case AdminRemote;

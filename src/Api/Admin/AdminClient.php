@@ -37,9 +37,10 @@ use Phlix\Console\Api\Dto\Admin\RemoteAccessStatus;
 use Phlix\Console\Api\Dto\Admin\ScanJob;
 use Phlix\Console\Api\Dto\Admin\SeriesRule;
 use Phlix\Console\Api\Dto\Admin\ServerSettings;
+use Phlix\Console\Api\Dto\Admin\ToneMappingSettings;
+use Phlix\Console\Api\Dto\Admin\TranscodingAccelerators;
 use Phlix\Console\Api\Dto\Admin\Tuner;
 use Phlix\Console\Api\Dto\Admin\WatchHistoryEntry;
-use Phlix\Console\Api\Dto\Admin\SubdomainStatus;
 use Phlix\Console\Api\Dto\Coerce;
 use Phlix\Console\Api\Dto\Library;
 use React\Promise\PromiseInterface;
@@ -2105,6 +2106,57 @@ final class AdminClient
         }
 
         return $row;
+    }
+
+    // ---- transcoding ----------------------------------------------------
+
+    /** The base path every transcoding endpoint hangs off. */
+    private const TRANSCODING = '/api/v1/admin/transcoding';
+
+    /**
+     * Fetch hardware-accelerator introspection data. UNLIKE the server-settings
+     * endpoints (and LIKE the other unenveloped admin controllers), the
+     * {@see \Phlix\Server\Http\Controllers\Admin\AdminTranscodingController}
+     * returns its payload at the TOP LEVEL with NO `{success, data}` envelope,
+     * so the fields are read straight from `$body`. Rejects with the server
+     * `error` on a 500 (detection failure).
+     *
+     * @return PromiseInterface<TranscodingAccelerators>
+     */
+    public function transcodingAccelerators(): PromiseInterface
+    {
+        return $this->api->send('GET', self::TRANSCODING . '/accelerators')
+            ->then(static fn (array $body): TranscodingAccelerators => TranscodingAccelerators::fromArray($body));
+    }
+
+    /**
+     * Fetch the HDR tone-mapping settings. UNLIKE the server-settings endpoints
+     * (and LIKE the transcoding accelerators), the controller returns its payload
+     * at the TOP LEVEL with NO `{success, data}` envelope, so the fields are
+     * read straight from `$body`.
+     *
+     * @return PromiseInterface<ToneMappingSettings>
+     */
+    public function transcodingToneMapping(): PromiseInterface
+    {
+        return $this->api->send('GET', self::TRANSCODING . '/tone-mapping')
+            ->then(static fn (array $body): ToneMappingSettings => ToneMappingSettings::fromArray($body));
+    }
+
+    /**
+     * Update the HDR tone-mapping settings. The PUT body is
+     * `{tone_mapping_mode, prefer_hdr_output}`; the resolved {@see ToneMappingSettings}
+     * reflects the new state (the PUT response carries the full shape). Rejects
+     * with the server `error` on a 400 (invalid mode).
+     *
+     * @return PromiseInterface<ToneMappingSettings>
+     */
+    public function updateToneMapping(string $toneMappingMode, bool $preferHdrOutput): PromiseInterface
+    {
+        return $this->api->send('PUT', self::TRANSCODING . '/tone-mapping', [], [
+            'tone_mapping_mode' => $toneMappingMode,
+            'prefer_hdr_output' => $preferHdrOutput,
+        ])->then(static fn (array $body): ToneMappingSettings => ToneMappingSettings::fromArray($body));
     }
 
     // ---- watch history ---------------------------------------------------

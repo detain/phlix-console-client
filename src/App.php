@@ -87,6 +87,7 @@ use Phlix\Console\Screen\AdminUserProfilesScreen;
 use Phlix\Console\Screen\AdminPluginsScreen;
 use Phlix\Console\Screen\AdminRemoteAccessScreen;
 use Phlix\Console\Screen\AdminSettingsScreen;
+use Phlix\Console\Screen\AdminTranscodingScreen;
 use Phlix\Console\Screen\AdminUsersScreen;
 use Phlix\Console\Screen\AdminDuplicatesScreen;
 use Phlix\Console\Screen\AdminWatchHistoryScreen;
@@ -1323,6 +1324,11 @@ final class App implements Model
             $screen = new AdminSettingsScreen(new AdminClient($this->api), $this->cols, $this->rows);
 
             return [$this->push(Route::AdminSettings, $screen), $screen->init()];
+        }
+        if ($section === Route::AdminTranscoding) {
+            $screen = new AdminTranscodingScreen(new AdminClient($this->api), $this->cols, $this->rows);
+
+            return [$this->push(Route::AdminTranscoding, $screen), $screen->init()];
         }
         if ($section === Route::AdminLibraries) {
             $screen = new AdminLibrariesScreen(new AdminClient($this->api), $this->libraries, $this->media, $this->cols, $this->rows);
