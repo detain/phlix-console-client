@@ -95,6 +95,9 @@ final class AdminClient
     /** The base path every metrics endpoint hangs off. */
     private const METRICS = '/api/v1/admin/metrics';
 
+    /** The base path every stats endpoint hangs off. */
+    private const STATS = '/api/v1/admin/stats';
+
     /** The base path every server-control endpoint hangs off. */
     private const SERVER = '/api/v1/admin/server';
 
@@ -1991,6 +1994,168 @@ final class AdminClient
 
                 return $result;
             });
+    }
+
+    // ---- stats ----------------------------------------------------------
+
+    /**
+     * Get playback statistics as a time-series grouped by day.
+     *
+     * `GET /api/v1/admin/stats/playback?from=...&to=...` →
+     * `{data: [{date, play_count, total_duration, completed_count}, ...]}`
+     *
+     * @param string|null $from Start date (YYYY-MM-DD or relative like "-30 days")
+     * @param string|null $to   End date (YYYY-MM-DD or "now")
+     *
+     * @return PromiseInterface<list<array{date:string, play_count:int, total_duration:int, completed_count:int}>>
+     */
+    public function statsPlayback(?string $from = null, ?string $to = null): PromiseInterface
+    {
+        $query = [];
+        if ($from !== null) {
+            $query['from'] = $from;
+        }
+        if ($to !== null) {
+            $query['to'] = $to;
+        }
+
+        return $this->api->send('GET', self::STATS . '/playback', $query)
+            ->then(static function (array $body): array {
+                /** @var list<array{date:string, play_count:int, total_duration:int, completed_count:int}> $data */
+                $data = self::mapList(
+                    $body['data'] ?? null,
+                    static fn (array $row): array => [
+                        'date' => Coerce::str($row['date'] ?? ''),
+                        'play_count' => Coerce::int($row['play_count'] ?? 0),
+                        'total_duration' => Coerce::int($row['total_duration'] ?? 0),
+                        'completed_count' => Coerce::int($row['completed_count'] ?? 0),
+                    ],
+                );
+
+                return $data;
+            });
+    }
+
+    /**
+     * Get top users by total watch time.
+     *
+     * `GET /api/v1/admin/stats/top-users?limit=10&since=...` →
+     * `{data: [{user_id, total_watch_time, play_count}, ...]}`
+     *
+     * @param int         $limit Max users to return (default 10)
+     * @param string|null $since Start date (YYYY-MM-DD or relative like "-30 days")
+     *
+     * @return PromiseInterface<list<array{user_id:string, total_watch_time:int, play_count:int}>>
+     */
+    public function statsTopUsers(int $limit = 10, ?string $since = null): PromiseInterface
+    {
+        $query = ['limit' => (string) $limit];
+        if ($since !== null) {
+            $query['since'] = $since;
+        }
+
+        return $this->api->send('GET', self::STATS . '/top-users', $query)
+            ->then(static function (array $body): array {
+                /** @var list<array{user_id:string, total_watch_time:int, play_count:int}> $data */
+                $data = self::mapList(
+                    $body['data'] ?? null,
+                    static fn (array $row): array => [
+                        'user_id' => Coerce::str($row['user_id'] ?? ''),
+                        'total_watch_time' => Coerce::int($row['total_watch_time'] ?? 0),
+                        'play_count' => Coerce::int($row['play_count'] ?? 0),
+                    ],
+                );
+
+                return $data;
+            });
+    }
+
+    /**
+     * Get top media items by play count.
+     *
+     * `GET /api/v1/admin/stats/top-media?limit=10&since=...` →
+     * `{data: [{media_item_id, play_count, total_duration}, ...]}`
+     *
+     * @param int         $limit Max items to return (default 10)
+     * @param string|null $since Start date (YYYY-MM-DD or relative like "-30 days")
+     *
+     * @return PromiseInterface<list<array{media_item_id:string, play_count:int, total_duration:int}>>
+     */
+    public function statsTopMedia(int $limit = 10, ?string $since = null): PromiseInterface
+    {
+        $query = ['limit' => (string) $limit];
+        if ($since !== null) {
+            $query['since'] = $since;
+        }
+
+        return $this->api->send('GET', self::STATS . '/top-media', $query)
+            ->then(static function (array $body): array {
+                /** @var list<array{media_item_id:string, play_count:int, total_duration:int}> $data */
+                $data = self::mapList(
+                    $body['data'] ?? null,
+                    static fn (array $row): array => [
+                        'media_item_id' => Coerce::str($row['media_item_id'] ?? ''),
+                        'play_count' => Coerce::int($row['play_count'] ?? 0),
+                        'total_duration' => Coerce::int($row['total_duration'] ?? 0),
+                    ],
+                );
+
+                return $data;
+            });
+    }
+
+    /**
+     * Get storage usage snapshots.
+     *
+     * `GET /api/v1/admin/stats/storage` →
+     * `{data: [{id, recorded_at, library_id, media_type, item_count, total_bytes, transcode_cache_bytes}, ...]}`
+     *
+     * @return PromiseInterface<list<array{id:string, recorded_at:string, library_id:string, media_type:string, item_count:int, total_bytes:int, transcode_cache_bytes:int}>>
+     */
+    public function statsStorage(): PromiseInterface
+    {
+        return $this->api->send('GET', self::STATS . '/storage')
+            ->then(static function (array $body): array {
+                /** @var list<array{id:string, recorded_at:string, library_id:string, media_type:string, item_count:int, total_bytes:int, transcode_cache_bytes:int}> $data */
+                $data = self::mapList(
+                    $body['data'] ?? null,
+                    static fn (array $row): array => [
+                        'id' => Coerce::str($row['id'] ?? ''),
+                        'recorded_at' => Coerce::str($row['recorded_at'] ?? ''),
+                        'library_id' => Coerce::str($row['library_id'] ?? ''),
+                        'media_type' => Coerce::str($row['media_type'] ?? ''),
+                        'item_count' => Coerce::int($row['item_count'] ?? 0),
+                        'total_bytes' => Coerce::int($row['total_bytes'] ?? 0),
+                        'transcode_cache_bytes' => Coerce::int($row['transcode_cache_bytes'] ?? 0),
+                    ],
+                );
+
+                return $data;
+            });
+    }
+
+    /**
+     * Get an overview of all stats combined.
+     *
+     * Combines playback, storage, top_media, and top_users stats into a single call.
+     *
+     * @return PromiseInterface<array{playback:?array, storage:?array, top_media:?list<array>, top_users:?list<array>}>
+     */
+    public function statsOverview(): PromiseInterface
+    {
+        return all([
+            'playback' => $this->statsPlayback(),
+            'storage' => $this->statsStorage(),
+            'top_media' => $this->statsTopMedia(),
+            'top_users' => $this->statsTopUsers(),
+        ])->then(static function (array $stats): array {
+            return [
+                'playback' => $stats['playback'] ?? null,
+                'storage' => $stats['storage'] ?? null,
+                'top_media' => $stats['top_media'] ?? null,
+                'top_users' => $stats['top_users'] ?? null,
+            ];
+        });
     }
 
     // ---- webhooks -------------------------------------------------------
