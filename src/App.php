@@ -968,10 +968,12 @@ final class App implements Model
     /** @return array{App, ?\Closure} */
     private function goBrowse(AuthUser $user): array
     {
+        $favoritesStore = new FavoritesStore($this->api);
         $screen = new BrowseScreen(
             $user,
             $this->libraries,
             $this->media,
+            $favoritesStore,
             $this->posters,
             $this->api->baseUrl(),
             cols: $this->cols,

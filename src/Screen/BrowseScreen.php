@@ -17,7 +17,9 @@ use Phlix\Console\Api\Dto\MediaPage;
 use Phlix\Console\Api\MediaQuery;
 use Phlix\Console\Media\PosterCardFactory;
 use Phlix\Console\Media\PosterLoader;
+use Phlix\Console\Msg\BrowseFavoritesLoadedMsg;
 use Phlix\Console\Msg\ContinueWatchingLoadedMsg;
+use Phlix\Console\Msg\FavoritesFailedMsg;
 use Phlix\Console\Msg\LibrariesFailedMsg;
 use Phlix\Console\Msg\LibrariesLoadedMsg;
 use Phlix\Console\Msg\LibraryMediaLoadedMsg;
@@ -26,6 +28,7 @@ use Phlix\Console\Msg\OpenLibraryMsg;
 use Phlix\Console\Msg\OpenWatchHistoryMsg;
 use Phlix\Console\Msg\PosterLoadedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
+use Phlix\Console\Store\FavoritesStore;
 use Phlix\Console\Store\LibrariesStore;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Ui\Chrome;
@@ -74,11 +77,13 @@ final class BrowseScreen implements Breadcrumbed, Themed
     private const FILTER_ALL = 0;
     private const FILTER_WATCHED = 1;
     private const FILTER_UNWATCHED = 2;
+    private const FILTER_FAVORITES = 3;
 
     private const FILTER_LABELS = [
         self::FILTER_ALL => 'All',
         self::FILTER_WATCHED => 'Watched',
         self::FILTER_UNWATCHED => 'Unwatched',
+        self::FILTER_FAVORITES => '♥ Favorites',
     ];
 
     private const SIDEBAR_HINT = '↑↓  library      ⏎  open      H  history      Tab  rails      q  quit';
@@ -91,6 +96,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
     private array $libraryTypes = [];
     /** @var array<string, int> library id → item count (the grid total) */
     private array $libraryCounts = [];
+    private ?Rail $favoritesRail = null;
     private int $railCursor = 0;
     private int $railScroll = 0;
     private ?string $error = null;
@@ -103,6 +109,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
         private readonly AuthUser $user,
         private readonly LibrariesStore $libraries,
         private readonly MediaStore $media,
+        private readonly FavoritesStore $favorites,
         private readonly PosterLoader $posters,
         private readonly string $baseUrl,
         private int $cols = 80,
@@ -142,6 +149,9 @@ final class BrowseScreen implements Breadcrumbed, Themed
         }
         if ($msg instanceof LibrariesFailedMsg) {
             return [$this->withError($msg->reason), null];
+        }
+        if ($msg instanceof BrowseFavoritesLoadedMsg) {
+            return $this->onFavorites($msg->items);
         }
 
         return [$this, null];
@@ -199,6 +209,16 @@ final class BrowseScreen implements Breadcrumbed, Themed
             static fn (\Throwable $e): ?Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(self::SESSION_EXPIRED)
                 : null,
+        ));
+    }
+
+    private function fetchFavorites(): \Closure
+    {
+        return Cmd::promise(fn (): \React\Promise\PromiseInterface => $this->favorites->page()->then(
+            static fn (\Phlix\Console\Api\Dto\MediaPage $page): BrowseFavoritesLoadedMsg => new BrowseFavoritesLoadedMsg($page->items),
+            static fn (\Throwable $e): Msg => $e instanceof AuthError
+                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                : new FavoritesFailedMsg('Could not load your favorites.'),
         ));
     }
 
@@ -343,6 +363,28 @@ final class BrowseScreen implements Breadcrumbed, Themed
         return [$next, $next->loadPostersFor(self::CONTINUE_ID, $rail)];
     }
 
+    /**
+     * @param list<\Phlix\Console\Api\Dto\MediaItem> $items
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function onFavorites(array $items): array
+    {
+        if ($items === []) {
+            $rail = new Rail('♥ Favorites', []);
+        } else {
+            $cards = [];
+            foreach ($items as $item) {
+                $cards[] = PosterCardFactory::fromMediaItem($item);
+            }
+            $rail = new Rail('♥ Favorites', $cards);
+        }
+
+        $next = $this->withFavoritesRail($rail);
+
+        return [$next, $next->loadPostersFor('favorites', $rail)];
+    }
+
     /** @return array{self, ?\Closure} */
     private function onLibraryMedia(string $libraryId, MediaPage $page): array
     {
@@ -462,9 +504,26 @@ final class BrowseScreen implements Breadcrumbed, Themed
             return [$this->replaceRail($railId, $rail->moveCursor($delta, $perRow)), null];
         }
 
-        // 'a' → cycle watch filter: All → Watched → Unwatched → All
+        // 'a' → cycle watch filter: All → Watched → Unwatched → Favorites → All
         if ($msg->type === KeyType::Char && $msg->rune === 'a') {
-            $nextFilter = ($this->watchFilter + 1) % 3;
+            $nextFilter = ($this->watchFilter + 1) % 4;
+
+            if ($nextFilter === self::FILTER_FAVORITES) {
+                // Switching to Favorites: clear library rails and continue rail, then fetch favorites
+                $next = $this->withWatchFilter($nextFilter);
+                $next = $next->withLibraryRails([]);
+                $next = $next->withContinueRail(null);
+                $next = $next->withFavoritesRail(null);
+
+                return [$next, $next->fetchFavorites()];
+            }
+
+            // Switching away from Favorites: clear favorites rail
+            if ($this->watchFilter === self::FILTER_FAVORITES) {
+                $next = $this->withWatchFilter($nextFilter);
+
+                return [$next->withFavoritesRail(null), null];
+            }
 
             return [$this->withWatchFilter($nextFilter), null];
         }
@@ -507,6 +566,10 @@ final class BrowseScreen implements Breadcrumbed, Themed
     /** @return list<string> rail ids in display order */
     private function orderedRailIds(): array
     {
+        if ($this->favoritesRail !== null) {
+            return ['favorites'];
+        }
+
         $ids = [];
         if ($this->continueRail !== null) {
             $ids[] = self::CONTINUE_ID;
@@ -531,6 +594,10 @@ final class BrowseScreen implements Breadcrumbed, Themed
 
     private function railById(string $railId): ?Rail
     {
+        if ($railId === 'favorites') {
+            return $this->favoritesRail;
+        }
+
         return $railId === self::CONTINUE_ID
             ? $this->continueRail
             : ($this->libraryRails[$railId] ?? null);
@@ -540,6 +607,10 @@ final class BrowseScreen implements Breadcrumbed, Themed
     {
         if ($railId === self::CONTINUE_ID) {
             return $this->withContinueRail($rail);
+        }
+
+        if ($railId === 'favorites') {
+            return $this->withFavoritesRail($rail);
         }
 
         $rails = $this->libraryRails;
@@ -599,7 +670,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
 
     // ---- immutable copies (clone-mutate) -------------------------------
 
-    private function withContinueRail(Rail $rail): self
+    private function withContinueRail(?Rail $rail): self
     {
         $next = clone $this;
         $next->continueRail = $rail;
@@ -612,6 +683,14 @@ final class BrowseScreen implements Breadcrumbed, Themed
     {
         $next = clone $this;
         $next->libraryRails = $rails;
+
+        return $next;
+    }
+
+    private function withFavoritesRail(?Rail $rail): self
+    {
+        $next = clone $this;
+        $next->favoritesRail = $rail;
 
         return $next;
     }

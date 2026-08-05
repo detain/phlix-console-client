@@ -19,6 +19,7 @@ use Phlix\Console\Msg\OpenLibraryMsg;
 use Phlix\Console\Msg\PosterLoadedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Screen\BrowseScreen;
+use Phlix\Console\Store\FavoritesStore;
 use Phlix\Console\Store\LibrariesStore;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Tests\Api\FakeTransport;
@@ -62,6 +63,7 @@ final class BrowseScreenTest extends TestCase
             AuthUser::fromArray(['id' => 'u', 'username' => 'joe', 'display_name' => 'Joe Huss']),
             new LibrariesStore($api),
             new MediaStore($api),
+            new FavoritesStore($api),
             $posters ?? new PosterLoader(Mosaic::halfBlock()),
             $base,
             cols: 120,
