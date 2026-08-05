@@ -1850,15 +1850,22 @@ final class AdminClient
     public function webhooks(): PromiseInterface
     {
         return $this->api->send('GET', self::WEBHOOKS . '/subscriptions')
-            ->then(static function (array $body): array {
+            ->then(/**
+             * @param array{data?: array{subscriptions?: list<array<string, mixed>>}} $body
+             * @return list<array<string, mixed>>
+             */
+            static function (array $body): array {
                 $data = $body['data'] ?? null;
                 if (!is_array($data) || !isset($data['subscriptions']) || !is_array($data['subscriptions'])) {
                     return [];
                 }
 
+                /** @var list<array<string, mixed>> $subscriptions */
+                $subscriptions = $data['subscriptions'];
+
                 return array_map(
                     static fn (array $row): array => self::maskSecret($row),
-                    $data['subscriptions'],
+                    $subscriptions,
                 );
             });
     }
@@ -1902,15 +1909,22 @@ final class AdminClient
     public function setWebhookEnabled(string $id, bool $enabled): PromiseInterface
     {
         return $this->api->send('PUT', self::WEBHOOKS . '/subscriptions/' . rawurlencode($id), [], ['enabled' => $enabled])
-            ->then(static function (array $body): array {
+            ->then(/**
+             * @param array{data?: array{subscriptions?: list<array<string, mixed>>}} $body
+             * @return list<array<string, mixed>>
+             */
+            static function (array $body): array {
                 $data = $body['data'] ?? null;
                 if (!is_array($data) || !isset($data['subscriptions']) || !is_array($data['subscriptions'])) {
                     return [];
                 }
 
+                /** @var list<array<string, mixed>> $subscriptions */
+                $subscriptions = $data['subscriptions'];
+
                 return array_map(
                     static fn (array $row): array => self::maskSecret($row),
-                    $data['subscriptions'],
+                    $subscriptions,
                 );
             });
     }
@@ -1946,13 +1960,20 @@ final class AdminClient
     public function listAuthProviders(): PromiseInterface
     {
         return $this->api->send('GET', self::AUTH_PROVIDERS)
-            ->then(static function (array $body): array {
+            ->then(/**
+             * @param array{data?: array{providers?: list<array{name:string,enabled:bool,configured:bool}>}} $body
+             * @return list<array{name:string,enabled:bool,configured:bool}>
+             */
+            static function (array $body): array {
                 $data = $body['data'] ?? null;
                 if (!is_array($data) || !isset($data['providers']) || !is_array($data['providers'])) {
                     return [];
                 }
 
-                return $data['providers'];
+                /** @var list<array{name:string,enabled:bool,configured:bool}> $providers */
+                $providers = $data['providers'];
+
+                return $providers;
             });
     }
 
@@ -2230,13 +2251,17 @@ final class AdminClient
      * non-list payload yields an empty list.
      *
      * @param string|null $path The absolute filesystem path to browse, or null for root
-     * @return PromiseInterface<list<array{name:string,path:string,type:string,size:int,modified:string}>
+     * @return PromiseInterface<list<array{name:string,path:string,type:string,size:int,modified:string}>>
      */
     public function browseFilesystem(?string $path = null): PromiseInterface
     {
         $query = $path !== null ? ['path' => $path] : [];
 
-        return $this->api->send('GET', self::SERVER . '/fs', $query)->then(static function (array $body): array {
+        return $this->api->send('GET', self::SERVER . '/fs', $query)->then(/**
+         * @param array{entries?: list<array{name:string,path:string,type:string,size:int,modified:string}>} $body
+         * @return list<array{name:string,path:string,type:string,size:int,modified:string}>
+         */
+        static function (array $body): array {
             $entries = $body['entries'] ?? null;
             if (!is_array($entries)) {
                 return [];
