@@ -10,7 +10,7 @@ declare(strict_types=1);
 namespace Phlix\Console\Config;
 
 /**
- * Client configuration — the (configurable, never hard-coded) Phlix server URL,
+ * Client configuration — the (configurable, never hard-coded) Phlix server URL(s),
  * the chosen UI theme name, and the photo-slideshow interval, persisted as JSON
  * under the user's config directory.
  *
@@ -23,8 +23,12 @@ final class Config
     private const SLIDESHOW_MAX = 300;
     private const SLIDESHOW_DEFAULT = 4;
 
+    /**
+     * @param array<int, ServerEntry>|list<ServerEntry> $servers
+     */
     public function __construct(
-        public readonly ?string $serverUrl = null,
+        public readonly array $servers = [],
+        public readonly ?string $activeServerId = null,
         public readonly ?string $theme = null,
         public readonly int $slideshowInterval = self::SLIDESHOW_DEFAULT,
     ) {
@@ -51,7 +55,10 @@ final class Config
         return self::dir() . '/config.json';
     }
 
-    /** Load config from disk, returning defaults when absent or unreadable. */
+    /**
+     * Load config from disk, returning defaults when absent or unreadable.
+     * Migrates legacy single-server format to multi-server format.
+     */
     public static function load(?string $path = null): self
     {
         $path ??= self::path();
@@ -66,12 +73,39 @@ final class Config
             return new self();
         }
 
-        $url = $data['server_url'] ?? null;
+        // Migrate legacy single-server format
+        if (isset($data['server_url']) && is_string($data['server_url']) && $data['server_url'] !== '') {
+            $id = self::generateUuid();
+            $serverEntry = new ServerEntry(
+                id: $id,
+                label: self::extractLabelFromUrl($data['server_url']),
+                url: self::normalizeUrl($data['server_url']),
+            );
+            // Atomic: overwrite servers key entirely so migration runs once
+            unset($data['server_url']);
+            $data['servers'] = [$serverEntry];
+            $data['active_server_id'] = $id;
+        }
+
+        $servers = [];
+        foreach (self::array($data['servers'] ?? null) as $row) {
+            if (is_array($row)) {
+                $servers[] = new ServerEntry(
+                    id: self::string($row['id'] ?? null) ?: self::generateUuid(),
+                    label: self::string($row['label'] ?? null) ?: 'Server',
+                    url: self::normalizeUrl(self::string($row['url'] ?? null) ?: ''),
+                    hubId: self::string($row['hub_id'] ?? null) ?: null,
+                );
+            }
+        }
+
+        $activeServerId = is_string($data['active_server_id'] ?? null) ? $data['active_server_id'] : null;
         $theme = $data['theme'] ?? null;
         $interval = $data['slideshow_interval'] ?? null;
 
         return new self(
-            serverUrl: (is_string($url) && $url !== '') ? $url : null,
+            servers: $servers,
+            activeServerId: $activeServerId,
             theme: (is_string($theme) && $theme !== '') ? $theme : null,
             slideshowInterval: is_numeric($interval) ? self::clampInterval((int) $interval) : self::SLIDESHOW_DEFAULT,
         );
@@ -93,39 +127,118 @@ final class Config
 
         $json = json_encode(
             [
-                'server_url' => $this->serverUrl,
+                'servers' => array_map(
+                    static fn (ServerEntry $s): array => [
+                        'id' => $s->id,
+                        'label' => $s->label,
+                        'url' => $s->url,
+                        'hub_id' => $s->hubId,
+                    ],
+                    $this->servers,
+                ),
+                'active_server_id' => $this->activeServerId,
                 'theme' => $this->theme,
                 'slideshow_interval' => $this->slideshowInterval,
             ],
             JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES,
         );
 
-        if (@file_put_contents($path, $json) === false) {
+        $tmp = $path . '.' . bin2hex(random_bytes(4)) . '.tmp';
+        if (@file_put_contents($tmp, $json) === false) {
             throw new \RuntimeException("Cannot write config file: {$path}");
         }
+        @chmod($tmp, 0o600);
 
+        if (!@rename($tmp, $path)) {
+            @unlink($tmp);
+            throw new \RuntimeException("Cannot write config file: {$path}");
+        }
         @chmod($path, 0o600);
     }
 
-    /** Return a copy with the given (normalised) server URL, preserving the theme + slideshow interval. */
-    public function withServerUrl(string $url): self
+    /** Return the active server entry, or null if none is selected. */
+    public function activeServer(): ?ServerEntry
     {
-        return new self(serverUrl: self::normalizeUrl($url), theme: $this->theme, slideshowInterval: $this->slideshowInterval);
+        if ($this->activeServerId === null) {
+            return null;
+        }
+        foreach ($this->servers as $server) {
+            if ($server->id === $this->activeServerId) {
+                return $server;
+            }
+        }
+
+        return null;
     }
 
-    /** Return a copy with the given theme name, preserving the server URL + slideshow interval. */
+    /** Return a copy with a different active server id, preserving everything else. */
+    public function withActiveServerId(string $id): self
+    {
+        return new self(
+            servers: $this->servers,
+            activeServerId: $id,
+            theme: $this->theme,
+            slideshowInterval: $this->slideshowInterval,
+        );
+    }
+
+    /**
+     * Return a copy with a new server list, preserving activeServerId and other settings.
+     *
+     * @param list<ServerEntry> $servers
+     */
+    public function withServers(array $servers): self
+    {
+        return new self(
+            servers: $servers,
+            activeServerId: $this->activeServerId,
+            theme: $this->theme,
+            slideshowInterval: $this->slideshowInterval,
+        );
+    }
+
+    /** Return a copy with the given (normalised) server URL added as a new entry. */
+    public function withServerUrl(string $url, string $label = 'Server'): self
+    {
+        $id = self::generateUuid();
+        $newServers = $this->servers;
+        $newServers[] = new ServerEntry(
+            id: $id,
+            label: $label,
+            url: self::normalizeUrl($url),
+        );
+
+        return new self(
+            servers: $newServers,
+            activeServerId: $id,
+            theme: $this->theme,
+            slideshowInterval: $this->slideshowInterval,
+        );
+    }
+
+    /** Return a copy with the given theme name, preserving the server + slideshow settings. */
     public function withTheme(string $name): self
     {
-        return new self(serverUrl: $this->serverUrl, theme: $name, slideshowInterval: $this->slideshowInterval);
+        return new self(
+            servers: $this->servers,
+            activeServerId: $this->activeServerId,
+            theme: $name,
+            slideshowInterval: $this->slideshowInterval,
+        );
     }
 
     /**
      * Return a copy with the photo-slideshow interval (seconds), clamped to
-     * [1, 300], preserving the server URL + theme.
+     * [1, 300], preserving the server + theme settings.
      */
     public function withSlideshowInterval(int $seconds): self
     {
-        return new self(serverUrl: $this->serverUrl, theme: $this->theme, slideshowInterval: self::clampInterval($seconds));
+        return new self(
+            servers: $this->servers,
+            activeServerId: $this->activeServerId,
+            theme: $this->theme,
+            slideshowInterval: self::clampInterval($seconds),
+        );
     }
 
     /** Clamp a slideshow interval into the supported [1, 300] second range. */
@@ -136,7 +249,7 @@ final class Config
 
     public function hasServer(): bool
     {
-        return $this->serverUrl !== null && $this->serverUrl !== '';
+        return $this->activeServer() !== null;
     }
 
     /**
@@ -170,5 +283,31 @@ final class Config
         }
 
         return rtrim($url, '/');
+    }
+
+    private static function extractLabelFromUrl(string $url): string
+    {
+        $parsed = parse_url($url);
+        if (is_array($parsed) && isset($parsed['host'])) {
+            return $parsed['host'];
+        }
+
+        return 'Server';
+    }
+
+    private static function generateUuid(): string
+    {
+        return bin2hex(random_bytes(16));
+    }
+
+    /** @return array<mixed> */
+    private static function array(mixed $value): array
+    {
+        return is_array($value) ? $value : [];
+    }
+
+    private static function string(mixed $value): string
+    {
+        return is_string($value) ? $value : '';
     }
 }

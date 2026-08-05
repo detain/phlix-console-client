@@ -947,9 +947,14 @@ final class App implements Model
         }
 
         try {
-            $this->config->withServerUrl($url)->save();
-        } catch (\Throwable) {
-            // Persisting is best-effort; proceed with the in-memory URL anyway.
+            $newConfig = $this->config->withServerUrl($url);
+            $newConfig->save();
+        } catch (\Throwable $e) {
+            $path = Config::path();
+            $toast = ShowToastMsg::warning("Could not save server URL to {$path}: " . $e->getMessage());
+            $this->api->setBaseUrl($url);
+
+            return [$this->withStack([]), Cmd::batch(Cmd::send($toast), self::restoreCmd($this->auth))];
         }
         $this->api->setBaseUrl($url);
 
@@ -1503,8 +1508,12 @@ final class App implements Model
 
         try {
             $newConfig->save();
-        } catch (\Throwable) {
-            // Persisting is best-effort; proceed with the in-memory config anyway.
+        } catch (\Throwable $e) {
+            $path = Config::path();
+            $toast = ShowToastMsg::warning("Could not save settings to {$path}: " . $e->getMessage());
+
+            // Pop the Settings frame, then apply the new config + theme to that copy.
+            return [$this->popScreen()->withConfig($newConfig)->withTheme($newTheme), Cmd::send($toast)];
         }
 
         // Pop the Settings frame, then apply the new config + theme to that copy.
