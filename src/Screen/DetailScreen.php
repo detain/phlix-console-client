@@ -13,6 +13,7 @@ use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\CastMember;
 use Phlix\Console\Api\Dto\CrewMember;
 use Phlix\Console\Api\Dto\MediaItem;
+use Phlix\Console\Api\Dto\MediaRatings;
 use Phlix\Console\Api\MediaQuery;
 use Phlix\Console\Media\PosterCardFactory;
 use Phlix\Console\Media\PosterLoader;
@@ -26,7 +27,9 @@ use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\CastRequestedMsg;
 use Phlix\Console\Msg\PlayRequestedMsg;
+use Phlix\Console\Msg\RatingsLoadedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
+use Phlix\Console\Ui\RatingBadge;
 use Phlix\Console\Store\MediaRange;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Ui\Chrome;
@@ -95,6 +98,7 @@ final class DetailScreen implements Breadcrumbed, Themed
     private ?string $heroAnsi = null;
     private bool $playNotice = false;
     private int $synopsisScroll = 0;
+    private ?MediaRatings $ratings = null;
 
     // Container mode (null until a loaded item proves to be a series/season).
     private ?PosterGrid $childGrid = null;
@@ -149,6 +153,9 @@ final class DetailScreen implements Breadcrumbed, Themed
         if ($msg instanceof ChildrenFailedMsg) {
             // Only a failure that blocked the first child load is surfaced.
             return [$msg->parentId === $this->id && !$this->childLoaded ? $this->withError($msg->reason) : $this, null];
+        }
+        if ($msg instanceof RatingsLoadedMsg) {
+            return [$this->withRatings($msg->ratings), null];
         }
 
         return [$this, null];
@@ -303,10 +310,26 @@ final class DetailScreen implements Breadcrumbed, Themed
             return [$next, $next->fetchChildren(0, $end)];
         }
 
-        // Leaf: load the hero poster (if any).
-        $cmd = ($item->posterUrl !== null && $item->posterUrl !== '') ? $next->fetchHero($item->posterUrl) : null;
+        // Leaf: load the hero poster (if any) and the ratings.
+        $posterCmd = ($item->posterUrl !== null && $item->posterUrl !== '') ? $next->fetchHero($item->posterUrl) : null;
+        // Ratings are only fetched when there's a poster (maintains original behavior).
+        $ratingsCmd = $posterCmd !== null ? $next->fetchRatings() : null;
 
-        return [$next, $cmd];
+        // Return null when both would be null (no poster, no ratings).
+        if ($posterCmd === null && $ratingsCmd === null) {
+            return [$next, null];
+        }
+
+        // If only one command is present, return it directly.
+        if ($posterCmd !== null && $ratingsCmd === null) {
+            return [$next, $posterCmd];
+        }
+        if ($posterCmd === null && $ratingsCmd !== null) {
+            return [$next, $ratingsCmd];
+        }
+
+        // Both poster and ratings are present - batch them.
+        return [$next, Cmd::batch($posterCmd, $ratingsCmd)];
     }
 
     private function fetchHero(string $url): ?\Closure
@@ -329,6 +352,14 @@ final class DetailScreen implements Breadcrumbed, Themed
                 return new DetailPosterLoadedMsg($result->marker, $result->imageId);
             },
             static fn (\Throwable $e): ?Msg => null, // a broken poster keeps the placeholder
+        ));
+    }
+
+    private function fetchRatings(): \Closure
+    {
+        return Cmd::promise(fn () => $this->media->ratings($this->id)->then(
+            static fn (MediaRatings $ratings): Msg => new RatingsLoadedMsg($ratings),
+            static fn (\Throwable $e): ?Msg => null, // ratings failure renders nothing
         ));
     }
 
@@ -578,6 +609,20 @@ final class DetailScreen implements Breadcrumbed, Themed
             $parts[] = $length;
         }
 
+        // Append TMDB/IMDb rating badges if ratings have loaded.
+        $ratings = $this->ratings;
+        if ($ratings !== null) {
+            foreach ($ratings->ratings as $rating) {
+                if (in_array($rating->source, ['tmdb', 'imdb'], true) && $rating->type === 'average') {
+                    $badge = new RatingBadge($rating->score);
+                    $rendered = $badge->render();
+                    if ($rendered !== '') {
+                        $parts[] = $rendered;
+                    }
+                }
+            }
+        }
+
         return Width::truncate(implode('  ·  ', $parts), $this->columnWidth());
     }
 
@@ -761,6 +806,14 @@ final class DetailScreen implements Breadcrumbed, Themed
     {
         $next = clone $this;
         $next->error = $error;
+
+        return $next;
+    }
+
+    private function withRatings(MediaRatings $ratings): self
+    {
+        $next = clone $this;
+        $next->ratings = $ratings;
 
         return $next;
     }

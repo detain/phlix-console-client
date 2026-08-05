@@ -16,6 +16,7 @@ use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\CastRequestedMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\PlayRequestedMsg;
+use Phlix\Console\Msg\RatingsLoadedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Screen\DetailScreen;
 use Phlix\Console\Store\MediaRange;
@@ -314,6 +315,74 @@ final class DetailScreenTest extends TestCase
 
         [$withHero] = $loaded->update($posterMsg);
         self::assertTrue($withHero->hasHero());
+    }
+
+    public function testRatingsLoadedMsgIsEmittedAndRendered(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->detailResponse())
+            ->json(200, [
+                'item_id' => 'm1',
+                'ratings' => [
+                    ['id' => 1, 'media_item_id' => 'm1', 'source' => 'tmdb', 'type' => 'average', 'score' => 8.7, 'votes' => 1234],
+                    ['id' => 2, 'media_item_id' => 'm1', 'source' => 'imdb', 'type' => 'average', 'score' => 8.5, 'votes' => 5678],
+                ],
+                'aggregate_score' => 8.6,
+            ]);
+        $screen = $this->screenWith($transport);
+
+        // init() fetches the item detail
+        $loadMsg = $this->runBatch($screen->init())[0];
+        self::assertInstanceOf(DetailLoadedMsg::class, $loadMsg);
+
+        // update(DetailLoadedMsg) returns a batch cmd for hero poster (if any) and ratings
+        [$loaded, $batchCmd] = $screen->update($loadMsg);
+        self::assertInstanceOf(\Closure::class, $batchCmd, 'update returns a cmd for async loads');
+
+        // Run the batch to get the ratings msg
+        $msgs = $this->runBatch($batchCmd);
+        $ratingsMsg = null;
+        foreach ($msgs as $msg) {
+            if ($msg instanceof RatingsLoadedMsg) {
+                $ratingsMsg = $msg;
+                break;
+            }
+        }
+        self::assertInstanceOf(RatingsLoadedMsg::class, $ratingsMsg, 'RatingsLoadedMsg is emitted');
+        self::assertSame('m1', $ratingsMsg->ratings->itemId);
+        self::assertCount(2, $ratingsMsg->ratings->ratings, 'two rating sources are present');
+
+        // Update the model with ratings
+        [$withRatings] = $loaded->update($ratingsMsg);
+
+        // Verify the view renders the rating badges
+        $view = $withRatings->view();
+        self::assertStringContainsString('8.7/10', $view, 'TMDB rating score is rendered');
+        self::assertStringContainsString('8.5/10', $view, 'IMDb rating score is rendered');
+    }
+
+    public function testRatingsFailureRendersNothing(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->detailResponse())
+            ->fail(new \RuntimeException('ratings unavailable'));
+        $screen = $this->screenWith($transport);
+
+        $loadMsg = $this->runBatch($screen->init())[0];
+        [$loaded, $batchCmd] = $screen->update($loadMsg);
+
+        // Run the batch - ratings will fail but the error handler returns null
+        $msgs = $this->runBatch($batchCmd);
+
+        // No RatingsLoadedMsg should be present (failure returns null)
+        foreach ($msgs as $msg) {
+            self::assertNotInstanceOf(RatingsLoadedMsg::class, $msg, 'RatingsLoadedMsg is not emitted on failure');
+        }
+
+        // The view should still render without error
+        $view = $loaded->view();
+        self::assertIsString($view);
+        self::assertStringContainsString('The Matrix', $view, 'the title is still rendered');
     }
 
     /**
