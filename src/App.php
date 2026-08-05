@@ -89,6 +89,7 @@ use Phlix\Console\Screen\AdminPluginsScreen;
 use Phlix\Console\Screen\AdminPluginUpdateScreen;
 use Phlix\Console\Screen\AdminRemoteAccessScreen;
 use Phlix\Console\Screen\AdminServerRestartScreen;
+use Phlix\Console\Screen\AdminServicesScreen;
 use Phlix\Console\Screen\AdminSettingsScreen;
 use Phlix\Console\Screen\AdminTranscodingScreen;
 use Phlix\Console\Screen\AdminUsersScreen;
@@ -1397,6 +1398,11 @@ final class App implements Model
             $screen = new AdminFilesystemScreen(new AdminClient($this->api), $this->cols, $this->rows);
 
             return [$this->push(Route::AdminFilesystem, $screen), $screen->init()];
+        }
+        if ($section === Route::AdminServices) {
+            $screen = new AdminServicesScreen(new AdminClient($this->api), $this->cols, $this->rows);
+
+            return [$this->push(Route::AdminServices, $screen), $screen->init()];
         }
 
         return [$this, null];

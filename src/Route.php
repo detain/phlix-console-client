@@ -60,6 +60,7 @@ enum Route
     case AdminAuthProviders;
     case AdminServerRestart;
     case AdminFilesystem;
+    case AdminServices;
     case Recommendations;
     case WatchHistory;
     case Favorites;

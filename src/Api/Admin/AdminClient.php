@@ -98,6 +98,9 @@ final class AdminClient
     /** The base path every server-control endpoint hangs off. */
     private const SERVER = '/api/v1/admin/server';
 
+    /** The base path every services endpoint hangs off. */
+    private const SERVICES = '/api/v1/admin/services';
+
     public function __construct(
         private readonly ApiClient $api,
     ) {
@@ -2434,8 +2437,65 @@ final class AdminClient
         });
     }
 
+    // ---- services (Trakt / Last.fm) -------------------------------------
+
     /**
-     * Re-throw a rejected {@see ApiError} carrying the server's FRIENDLY text. The
+     * Fetch the status of all connected services (Trakt and Last.fm). Like the
+     * other admin controllers, the services controller returns data at the TOP
+     * LEVEL with NO `{success, data}` envelope, so each service status is read
+     * straight from its named key. A missing/non-array key yields the tolerant
+     * empty default so the mapping never breaks.
+     *
+     * @return PromiseInterface<array{trakt: array{connected:bool, username?:string, configured:bool}, lastfm: array{connected:bool, username?:string, api_key_set:bool}}>
+     */
+    public function servicesStatus(): PromiseInterface
+    {
+        return $this->api->send('GET', self::SERVICES)->then(/**
+         * @return array{trakt: array{connected:bool, username?:string, configured:bool}, lastfm: array{connected:bool, username?:string, api_key_set:bool}}
+         */
+        static function (array $body): array {
+            return [
+                'trakt' => [
+                    'connected' => (bool) ($body['trakt']['connected'] ?? false),
+                    'username' => is_string($body['trakt']['username'] ?? null) ? $body['trakt']['username'] : null,
+                    'configured' => (bool) ($body['trakt']['configured'] ?? false),
+                ],
+                'lastfm' => [
+                    'connected' => (bool) ($body['lastfm']['connected'] ?? false),
+                    'username' => is_string($body['lastfm']['username'] ?? null) ? $body['lastfm']['username'] : null,
+                    'api_key_set' => (bool) ($body['lastfm']['api_key_set'] ?? false),
+                ],
+            ];
+        });
+    }
+
+    /**
+     * Disconnect the Trakt OAuth session (clear stored tokens). ⚠️ Tokens are
+     * precious and were wiped on a previous plugin update — this action is
+     * irreversible for the user. The server returns `{message}` on success.
+     * Rejects with the server `error` on non-2xx.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function disconnectTrakt(): PromiseInterface
+    {
+        return $this->api->send('POST', self::SERVICES . '/trakt/disconnect')
+            ->then(static fn (array $body): string => Coerce::str($body['message'] ?? 'Trakt disconnected'));
+    }
+
+    /**
+     * Disconnect the Last.fm session. The server returns `{message}` on success.
+     * Rejects with the server `error` on non-2xx.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function disconnectLastfm(): PromiseInterface
+    {
+        return $this->api->send('POST', self::SERVICES . '/lastfm/disconnect')
+            ->then(static fn (array $body): string => Coerce::str($body['message'] ?? 'Last.fm disconnected'));
+    }
+
+    /**
      * admin controllers that wrap failures in an `error()` helper emit
      * `{success:false, message:…}` with NO `error` key (DLNA, Remote Access,
      * Live TV), but {@see ApiClient::decode()} only reads `error`, so without this
