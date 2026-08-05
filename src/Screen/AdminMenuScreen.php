@@ -66,6 +66,7 @@ final class AdminMenuScreen implements Breadcrumbed, Themed
         ['label' => 'Watch History', 'route' => Route::AdminWatchHistory, 'available' => true],
         ['label' => 'Duplicates', 'route' => Route::AdminDuplicates, 'available' => true],
         ['label' => 'Webhooks', 'route' => Route::AdminWebhooks, 'available' => true],
+        ['label' => 'Auth Providers', 'route' => Route::AdminAuthProviders, 'available' => true],
     ];
 
     private int $selected = 0;

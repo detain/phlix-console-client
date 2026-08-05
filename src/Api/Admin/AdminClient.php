@@ -1928,6 +1928,185 @@ final class AdminClient
         return $row;
     }
 
+    // ---- auth providers --------------------------------------------------
+
+    /** The base path every auth-providers endpoint hangs off. */
+    private const AUTH_PROVIDERS = '/api/v1/admin/auth-providers';
+
+    /**
+     * List all registered auth providers with their enabled state.
+     * The response shape is `{success, data: {providers: [{name, enabled, configured}]}}`.
+     *
+     * @return PromiseInterface<list<array{name:string,enabled:bool,configured:bool}>>
+     */
+    public function listAuthProviders(): PromiseInterface
+    {
+        return $this->api->send('GET', self::AUTH_PROVIDERS)
+            ->then(static function (array $body): array {
+                $data = $body['data'] ?? null;
+                if (!is_array($data) || !isset($data['providers']) || !is_array($data['providers'])) {
+                    return [];
+                }
+
+                return $data['providers'];
+            });
+    }
+
+    /**
+     * Enable an auth provider by name. Rejects with server `error` on failure.
+     *
+     * @return PromiseInterface<null>
+     */
+    public function enableAuthProvider(string $name): PromiseInterface
+    {
+        return $this->api->send('POST', self::AUTH_PROVIDERS . '/' . rawurlencode($name) . '/enable')
+            ->then(static fn (): null => null);
+    }
+
+    /**
+     * Disable an auth provider by name. Rejects with server `error` on failure.
+     *
+     * @return PromiseInterface<null>
+     */
+    public function disableAuthProvider(string $name): PromiseInterface
+    {
+        return $this->api->send('POST', self::AUTH_PROVIDERS . '/' . rawurlencode($name) . '/disable')
+            ->then(static fn (): null => null);
+    }
+
+    /**
+     * Fetch the OIDC provider configuration. The server strips `client_secret`
+     * from the response; this method applies additional defense-in-depth masking.
+     *
+     * @return PromiseInterface<array<string,mixed>>
+     */
+    public function getOidcConfig(): PromiseInterface
+    {
+        return $this->api->send('GET', self::AUTH_PROVIDERS . '/oidc/config')
+            ->then(static fn (array $body): array => self::maskOidcSecret($body));
+    }
+
+    /**
+     * Save OIDC provider configuration. A blank `client_secret` keeps the stored
+     * one. Rejects with server `error` on validation failure.
+     *
+     * @param array<string, mixed> $config
+     * @return PromiseInterface<string>
+     */
+    public function saveOidcConfig(array $config): PromiseInterface
+    {
+        return $this->api->send('POST', self::AUTH_PROVIDERS . '/oidc/config', [], $config)
+            ->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? 'OIDC settings saved'));
+    }
+
+    /**
+     * Fetch the LDAP provider configuration. The server strips `bind_pw` from the
+     * response; this method applies additional defense-in-depth masking.
+     *
+     * @return PromiseInterface<array<string,mixed>>
+     */
+    public function getLdapConfig(): PromiseInterface
+    {
+        return $this->api->send('GET', self::AUTH_PROVIDERS . '/ldap/config')
+            ->then(static fn (array $body): array => self::maskLdapSecret($body));
+    }
+
+    /**
+     * Save LDAP provider configuration. A blank `bind_pw` keeps the stored
+     * password. Rejects with server `error` on validation failure.
+     *
+     * @param array<string, mixed> $config
+     * @return PromiseInterface<string>
+     */
+    public function saveLdapConfig(array $config): PromiseInterface
+    {
+        return $this->api->send('POST', self::AUTH_PROVIDERS . '/ldap/config', [], $config)
+            ->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? 'LDAP settings saved'));
+    }
+
+    /**
+     * Test LDAP connection with the supplied configuration. Returns a descriptive
+     * message string indicating success or failure.
+     *
+     * @param array<string, mixed> $config
+     * @return PromiseInterface<string>
+     */
+    public function testLdapConnection(array $config): PromiseInterface
+    {
+        return $this->api->send('POST', self::AUTH_PROVIDERS . '/ldap/test', [], $config)
+            ->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? 'Connection test complete'));
+    }
+
+    /**
+     * Fetch the GitHub OAuth provider configuration. The server strips any secret
+     * from the response; defense-in-depth masking is applied.
+     *
+     * @return PromiseInterface<array<string,mixed>>
+     */
+    public function getGithubConfig(): PromiseInterface
+    {
+        return $this->api->send('GET', self::AUTH_PROVIDERS . '/github/config')
+            ->then(static fn (array $body): array => self::maskGithubSecret($body));
+    }
+
+    /**
+     * Save GitHub OAuth provider configuration. A blank `client_secret` keeps the
+     * stored one. Rejects with server `error` on validation failure.
+     *
+     * @param array<string, mixed> $config
+     * @return PromiseInterface<string>
+     */
+    public function saveGithubConfig(array $config): PromiseInterface
+    {
+        return $this->api->send('POST', self::AUTH_PROVIDERS . '/github/config', [], $config)
+            ->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? 'GitHub settings saved'));
+    }
+
+    /**
+     * Replace OIDC `client_secret` with a masked placeholder for display.
+     *
+     * @param array<string, mixed> $row
+     * @return array<string, mixed>
+     */
+    private static function maskOidcSecret(array $row): array
+    {
+        if (array_key_exists('client_secret', $row) && $row['client_secret'] !== null && $row['client_secret'] !== '') {
+            $row['client_secret'] = '********';
+        }
+
+        return $row;
+    }
+
+    /**
+     * Replace LDAP `bind_pw` with a masked placeholder for display.
+     *
+     * @param array<string, mixed> $row
+     * @return array<string, mixed>
+     */
+    private static function maskLdapSecret(array $row): array
+    {
+        if (array_key_exists('bind_pw', $row) && $row['bind_pw'] !== null && $row['bind_pw'] !== '') {
+            $row['bind_pw'] = '********';
+        }
+
+        return $row;
+    }
+
+    /**
+     * Replace GitHub `client_secret` with a masked placeholder for display.
+     *
+     * @param array<string, mixed> $row
+     * @return array<string, mixed>
+     */
+    private static function maskGithubSecret(array $row): array
+    {
+        if (array_key_exists('client_secret', $row) && $row['client_secret'] !== null && $row['client_secret'] !== '') {
+            $row['client_secret'] = '********';
+        }
+
+        return $row;
+    }
+
     // ---- watch history ---------------------------------------------------
 
     /**
