@@ -20,14 +20,11 @@ namespace Phlix\Console\Store;
  * Size bound prevents unbounded memory growth; TTL bound ensures stale data
  * is not served. Both mechanisms are independent and complementary.
  *
- * Concrete usage in stores:
- *   - Pages:  LruMap<string, array{page: MediaPage|BookPage|..., at: float}>
- *   - Items:  LruMap<string, array{item: MediaItem|Book|Audiobook|..., at: float}>
- *   - etc.
+ * @template T of mixed
  */
-final class LruMap
+final class LruMap implements \Countable
 {
-    /** @var array<string, mixed> */
+    /** @var array<string, T> */
     private array $data = [];
 
     /**
@@ -41,9 +38,9 @@ final class LruMap
     /**
      * Retrieve an entry by key, promoting it to the most-recently-used end.
      *
-     * @return mixed  The value if found, null otherwise.
+     * @return T|null
      */
-    public function get(string $key): mixed
+    public function get(string $key): ?T
     {
         if (!array_key_exists($key, $this->data)) {
             return null;
@@ -60,9 +57,9 @@ final class LruMap
     /**
      * Store an entry, evicting the least-recently-used entry if at capacity.
      *
-     * @param mixed $value
+     * @param T $value
      */
-    public function set(string $key, mixed $value): void
+    public function set(string $key, T $value): void
     {
         // If key exists, remove it first so the re-insert lands at the MRU end.
         if (array_key_exists($key, $this->data)) {
@@ -71,9 +68,9 @@ final class LruMap
 
         // Evict LRU entry when at capacity BEFORE inserting the new entry.
         if (count($this->data) >= $this->capacity) {
-            $lruKey = array_key_first($this->data);
-            if ($lruKey !== null) {
+            foreach ($this->data as $lruKey => $evictedValue) {
                 unset($this->data[$lruKey]);
+                break;
             }
         }
 
@@ -94,9 +91,9 @@ final class LruMap
      * Use this for TTL validation before deciding whether to use or discard an entry.
      * Use {@see get()} when the entry will be served to the caller (promotion is correct).
      *
-     * @return mixed  The value if found, null otherwise.
+     * @return T|null
      */
-    public function peek(string $key): mixed
+    public function peek(string $key): ?T
     {
         if (!array_key_exists($key, $this->data)) {
             return null;
@@ -119,5 +116,13 @@ final class LruMap
     public function clear(): void
     {
         $this->data = [];
+    }
+
+    /**
+     * Returns the number of entries currently cached.
+     */
+    public function count(): int
+    {
+        return count($this->data);
     }
 }

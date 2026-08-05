@@ -32,13 +32,13 @@ final class PhotosStore
     /** Maximum number of item/detail entries to cache. */
     private const ITEM_CAPACITY = 500;
 
-    /** @phpstan-var LruMap<string, array{albums: list<PhotoAlbum>, at: float}>  library id → cached albums */
+    /** @phpstan-var LruMap<array{albums: list<PhotoAlbum>, at: float}>  library id → cached albums */
     private LruMap $albums;
 
     /** @var array<string, PromiseInterface<list<PhotoAlbum>>>  library id → in-flight album fetch */
     private array $albumsInFlight = [];
 
-    /** @phpstan-var LruMap<string, array{photo: Photo, at: float}>  photo id → cached detail */
+    /** @phpstan-var LruMap<array{photo: Photo, at: float}>  photo id → cached detail */
     private LruMap $photos;
 
     /** @var array<string, PromiseInterface<Photo>>  photo id → in-flight detail fetch */

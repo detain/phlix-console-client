@@ -26,7 +26,7 @@ final class MusicStore
     /** Single-entry cache capacity. */
     private const CACHE_CAPACITY = 1;
 
-    /** @var LruMap<string, array{albums: list<Album>, at: float}> */
+    /** @var LruMap<array{albums: list<Album>, at: float}> */
     private LruMap $albums;
 
     /** @var PromiseInterface<list<Album>>|null  An album fetch in flight. */

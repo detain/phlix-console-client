@@ -36,28 +36,28 @@ final class MediaStore
     /** Maximum number of item/detail entries to cache. */
     private const ITEM_CAPACITY = 500;
 
-    /** @phpstan-var LruMap<string, array{page: MediaPage, at: float}> */
+    /** @phpstan-var LruMap<array{page: MediaPage, at: float}> */
     private LruMap $pages;
 
     /** @var array<string, PromiseInterface<MediaPage>>  page key → in-flight fetch */
     private array $inFlight = [];
 
-    /** @phpstan-var LruMap<string, array{index: LetterIndex, at: float}> */
+    /** @phpstan-var LruMap<array{index: LetterIndex, at: float}> */
     private LruMap $letterIndexes;
 
-    /** @phpstan-var LruMap<string, array{item: MediaItem, at: float}> */
+    /** @phpstan-var LruMap<array{item: MediaItem, at: float}> */
     private LruMap $items;
 
     /** @var array<string, PromiseInterface<MediaItem>>  item id → in-flight detail fetch */
     private array $itemsInFlight = [];
 
-    /** @phpstan-var LruMap<string, array{ratings: MediaRatings, at: float}> */
+    /** @phpstan-var LruMap<array{ratings: MediaRatings, at: float}> */
     private LruMap $ratings;
 
     /** @var array<string, PromiseInterface<MediaRatings>>  item id → in-flight ratings fetch */
     private array $ratingsInFlight = [];
 
-    /** @phpstan-var LruMap<string, array{chapters: list<Chapter>, at: float}> */
+    /** @phpstan-var LruMap<array{chapters: list<Chapter>, at: float}> */
     private LruMap $chapters;
 
     /** @var array<string, PromiseInterface<list<Chapter>>>  item id → in-flight chapters fetch */

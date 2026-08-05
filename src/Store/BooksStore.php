@@ -32,13 +32,13 @@ final class BooksStore
     /** Maximum number of item/detail entries to cache. */
     private const ITEM_CAPACITY = 500;
 
-    /** @phpstan-var LruMap<string, array{page: BookPage, at: float}>  page key → cached page */
+    /** @phpstan-var LruMap<array{page: BookPage, at: float}>  page key → cached page */
     private LruMap $pages;
 
     /** @var array<string, PromiseInterface<BookPage>>  page key → in-flight fetch */
     private array $inFlight = [];
 
-    /** @phpstan-var LruMap<string, array{book: Book, at: float}>  book id → cached detail */
+    /** @phpstan-var LruMap<array{book: Book, at: float}>  book id → cached detail */
     private LruMap $books;
 
     /** @var array<string, PromiseInterface<Book>>  book id → in-flight detail fetch */

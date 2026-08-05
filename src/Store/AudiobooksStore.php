@@ -43,19 +43,19 @@ final class AudiobooksStore
     /** Maximum number of item/detail entries to cache. */
     private const ITEM_CAPACITY = 500;
 
-    /** @phpstan-var LruMap<string, array{list: list<Audiobook>, at: float}>  library key → cached list */
+    /** @phpstan-var LruMap<array{list: list<Audiobook>, at: float}>  library key → cached list */
     private LruMap $lists;
 
     /** @var array<string, PromiseInterface<list<Audiobook>>>  library key → in-flight list fetch */
     private array $listsInFlight = [];
 
-    /** @phpstan-var LruMap<string, array{audiobook: Audiobook, at: float}>  id → cached detail */
+    /** @phpstan-var LruMap<array{audiobook: Audiobook, at: float}>  id → cached detail */
     private LruMap $audiobooks;
 
     /** @var array<string, PromiseInterface<Audiobook>>  id → in-flight detail fetch */
     private array $audiobooksInFlight = [];
 
-    /** @phpstan-var LruMap<string, array{chapters: list<AudiobookChapter>, at: float}>  id → cached chapters */
+    /** @phpstan-var LruMap<array{chapters: list<AudiobookChapter>, at: float}>  id → cached chapters */
     private LruMap $chapters;
 
     /** @var array<string, PromiseInterface<list<AudiobookChapter>>>  id → in-flight chapters fetch */

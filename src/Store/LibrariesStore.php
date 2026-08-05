@@ -24,7 +24,7 @@ final class LibrariesStore
     /** Single-entry cache capacity. */
     private const CACHE_CAPACITY = 1;
 
-    /** @var LruMap<string, array{cache: list<Library>, at: float}> */
+    /** @var LruMap<array{cache: list<Library>, at: float}> */
     private LruMap $cache;
 
     /** @var \Closure(): float */
