@@ -6,39 +6,36 @@ use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Msg\InitMsg;
 use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Msg\StatsLoadedMsg;
-use Phlix\Console\Store\LibrariesStore;
 use React\Promise\PromiseInterface;
+use SugarCraft\Core\Cmd;
 use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg;
+use SugarCraft\Core\Model;
+use SugarCraft\Core\SubscriptionCapable;
 
 /**
  * Stats screen showing server statistics.
  * Replaces the old LibrariesStore-based library row count with real server stats.
  */
-final class StatsScreen
+final class StatsScreen implements Model
 {
+    use SubscriptionCapable;
+
     private bool $loading = false;
-    private string $error = '';
-    /** @var array{playback:?array|null, storage:?array|null, top_media:?list<array>|null, top_users:?list<array>|null} */
-    private array $stats = [
-        'playback' => null,
-        'storage' => null,
-        'top_media' => null,
-        'top_users' => null,
-    ];
+    /** @var array<string, mixed> */
+    private array $stats = [];
 
     public function __construct(
         private AdminClient $adminClient,
-        private LibrariesStore $libraries,
     ) {}
 
     public function init(): \Closure
     {
-        return fn (): PromiseInterface => $this->fetchCmd();
+        return $this->fetchCmd();
     }
 
-    /** @return array{StatsScreen, PromiseInterface<\SugarCraft\Core\Msg>|null} */
-    public function update(mixed $msg): array
+    /** @return array{self, ?\Closure} */
+    public function update(Msg $msg): array
     {
         return match (true) {
             $msg instanceof InitMsg => [$this, $this->fetchCmd()],
@@ -48,8 +45,45 @@ final class StatsScreen
         };
     }
 
+    public function view(): string
+    {
+        if ($this->loading) {
+            return "\n\n  Loading stats...\n";
+        }
+
+        $out = "\n\n  Server Statistics\n";
+        $out .= "  ─────────────────\n\n";
+
+        $playback = $this->stats['playback'];
+        if (is_array($playback)) {
+            $out .= "  Playback:\n";
+            /** @var int $activeSessions */
+            $activeSessions = $playback['active_sessions'] ?? 0;
+            $out .= "    Active: {$activeSessions}\n";
+        }
+
+        $storage = $this->stats['storage'];
+        if (is_array($storage)) {
+            $out .= "  Storage:\n";
+            /** @var int $usedBytes */
+            $usedBytes = $storage['used_bytes'] ?? 0;
+            /** @var int $totalBytes */
+            $totalBytes = $storage['total_bytes'] ?? 0;
+            $out .= "    Used: {$usedBytes}\n";
+            $out .= "    Total: {$totalBytes}\n";
+        }
+
+        return $out;
+    }
+
+    /** @return \Closure */
+    private function fetchCmd(): \Closure
+    {
+        return Cmd::promise(fn (): PromiseInterface => $this->doFetchCmd());
+    }
+
     /** @return PromiseInterface<\SugarCraft\Core\Msg> */
-    private function fetchCmd(): PromiseInterface
+    private function doFetchCmd(): PromiseInterface
     {
         $this->loading = true;
         return $this->adminClient->statsOverview()
@@ -57,7 +91,7 @@ final class StatsScreen
             ->catch(fn ($e) => ShowToastMsg::error('Failed: ' . $e->getMessage()));
     }
 
-    /** @return array{StatsScreen, null} */
+    /** @return array{self, null} */
     private function onLoaded(StatsLoadedMsg $msg): array
     {
         $this->loading = false;
@@ -65,7 +99,7 @@ final class StatsScreen
         return [$this, null];
     }
 
-    /** @return array{StatsScreen, PromiseInterface<\SugarCraft\Core\Msg>|null} */
+    /** @return array{self, ?\Closure} */
     private function handleKey(KeyMsg $msg): array
     {
         $key = $msg->rune;

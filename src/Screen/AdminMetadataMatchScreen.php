@@ -81,7 +81,15 @@ final class AdminMetadataMatchScreen implements Breadcrumbed, Themed
         return Cmd::promise(
             fn (): PromiseInterface => $this->adminClient->metadataMatchSuggestions()
                 ->then(
-                    static fn ($items) => new AdminMetadataMatchLoadedMsg($items),
+                    /**
+                     * @param mixed $result
+                     * @return AdminMetadataMatchLoadedMsg
+                     */
+                    static function ($result): AdminMetadataMatchLoadedMsg {
+                        /** @var list<array{id:string,title:string,type:string,poster_url:?string}> $items */
+                        $items = is_array($result) ? $result : [];
+                        return new AdminMetadataMatchLoadedMsg($items);
+                    },
                     static fn (\Throwable $e): Msg => ShowToastMsg::error('Failed: ' . $e->getMessage()),
                 ),
         );

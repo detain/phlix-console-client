@@ -35,6 +35,7 @@ use Phlix\Console\Api\Dto\Admin\Recording;
 use Phlix\Console\Api\Dto\Admin\RelayStatus;
 use Phlix\Console\Api\Dto\Admin\RemoteAccessStatus;
 use Phlix\Console\Api\Dto\Admin\ScanJob;
+use Phlix\Console\Api\Dto\Admin\SubdomainStatus;
 use Phlix\Console\Api\Dto\Admin\SeriesRule;
 use Phlix\Console\Api\Dto\Admin\ServerSettings;
 use Phlix\Console\Api\Dto\Admin\ToneMappingSettings;
@@ -2139,7 +2140,7 @@ final class AdminClient
      *
      * Combines playback, storage, top_media, and top_users stats into a single call.
      *
-     * @return PromiseInterface<array{playback:?array, storage:?array, top_media:?list<array>, top_users:?list<array>}>
+     * @return PromiseInterface<array<string, mixed>>
      */
     public function statsOverview(): PromiseInterface
     {
@@ -2149,12 +2150,15 @@ final class AdminClient
             'top_media' => $this->statsTopMedia(),
             'top_users' => $this->statsTopUsers(),
         ])->then(static function (array $stats): array {
-            return [
+            /** @var array<string, mixed> $result */
+            $result = [
                 'playback' => $stats['playback'] ?? null,
                 'storage' => $stats['storage'] ?? null,
                 'top_media' => $stats['top_media'] ?? null,
                 'top_users' => $stats['top_users'] ?? null,
             ];
+
+            return $result;
         });
     }
 
@@ -2614,24 +2618,29 @@ final class AdminClient
      * straight from its named key. A missing/non-array key yields the tolerant
      * empty default so the mapping never breaks.
      *
-     * @return PromiseInterface<array{trakt: array{connected:bool, username?:string, configured:bool}, lastfm: array{connected:bool, username?:string, api_key_set:bool}}>
+     * @return PromiseInterface<array{trakt: array{connected:bool, username:string|null, configured:bool}, lastfm: array{connected:bool, username:string|null, api_key_set:bool}}>
      */
     public function servicesStatus(): PromiseInterface
     {
         return $this->api->send('GET', self::SERVICES)->then(/**
-         * @return array{trakt: array{connected:bool, username?:string, configured:bool}, lastfm: array{connected:bool, username?:string, api_key_set:bool}}
+         * @param array<string,mixed> $body
+         * @return array{trakt: array{connected:bool, username:string|null, configured:bool}, lastfm: array{connected:bool, username:string|null, api_key_set:bool}}
          */
         static function (array $body): array {
+            /** @var array{connected:bool, username:string|null, configured:bool} $trakt */
+            $trakt = $body['trakt'] ?? [];
+            /** @var array{connected:bool, username:string|null, api_key_set:bool} $lastfm */
+            $lastfm = $body['lastfm'] ?? [];
             return [
                 'trakt' => [
-                    'connected' => (bool) ($body['trakt']['connected'] ?? false),
-                    'username' => is_string($body['trakt']['username'] ?? null) ? $body['trakt']['username'] : null,
-                    'configured' => (bool) ($body['trakt']['configured'] ?? false),
+                    'connected' => (bool) $trakt['connected'],
+                    'username' => is_string($trakt['username']) ? $trakt['username'] : null,
+                    'configured' => (bool) $trakt['configured'],
                 ],
                 'lastfm' => [
-                    'connected' => (bool) ($body['lastfm']['connected'] ?? false),
-                    'username' => is_string($body['lastfm']['username'] ?? null) ? $body['lastfm']['username'] : null,
-                    'api_key_set' => (bool) ($body['lastfm']['api_key_set'] ?? false),
+                    'connected' => (bool) $lastfm['connected'],
+                    'username' => is_string($lastfm['username']) ? $lastfm['username'] : null,
+                    'api_key_set' => (bool) $lastfm['api_key_set'],
                 ],
             ];
         });
@@ -2677,7 +2686,7 @@ final class AdminClient
      * @param int|null $year Optional year filter
      * @param string|null $type Optional type filter ('tv' or 'movie')
      *
-     * @return PromiseInterface<array{results: list<array>, query: string, type: string}|list<array{id:string,title:string,type:string,poster_url:?string}>>
+     * @return PromiseInterface<mixed>
      */
     public function metadataMatchSuggestions(
         ?string $itemId = null,
@@ -2713,7 +2722,7 @@ final class AdminClient
             $params['type'] = $type;
         }
 
-        return $this->api->send('GET', self::MEDIA . '/' . rawurlencode($itemId) . '/match/search', $params)
+        return $this->api->send('GET', self::MEDIA . '/' . rawurlencode((string) $itemId) . '/match/search', $params)
             ->then(static function (array $body): array {
                 return [
                     'results' => self::mapList(
