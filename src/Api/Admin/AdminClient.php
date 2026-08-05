@@ -94,6 +94,9 @@ final class AdminClient
     /** The base path every metrics endpoint hangs off. */
     private const METRICS = '/api/v1/admin/metrics';
 
+    /** The base path every server-control endpoint hangs off. */
+    private const SERVER = '/api/v1/admin/server';
+
     public function __construct(
         private readonly ApiClient $api,
     ) {
@@ -2188,6 +2191,68 @@ final class AdminClient
                     static fn (array $row): WatchHistoryEntry => WatchHistoryEntry::fromArray($row),
                 );
             });
+    }
+
+    // ---- server control --------------------------------------------------
+
+    /**
+     * Trigger a server restart. This is the most destructive action; the caller
+     * is responsible for requiring typed confirmation before calling this. The
+     * server returns 200 with `{message}` on success; the TUI should poll
+     * {@see serverStatus()} until it resolves (the server is down during the
+     * restart window and the request will fail/reject until it comes back up).
+     *
+     * @return PromiseInterface<string>
+     */
+    public function restartServer(): PromiseInterface
+    {
+        return $this->api->send('POST', self::SERVER . '/restart')
+            ->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
+    }
+
+    /**
+     * Check server status (used to poll after a restart). Returns the server
+     * uptime in seconds if the server is up, or rejects if it is down.
+     *
+     * @return PromiseInterface<int>
+     */
+    public function serverStatus(): PromiseInterface
+    {
+        return $this->api->send('GET', self::SERVER . '/status')
+            ->then(static fn (array $body): int => Coerce::int($body['uptime'] ?? 0));
+    }
+
+    /**
+     * Browse the server filesystem at the given path. Returns a list of entries
+     * (files and directories) for the given path. The controller returns data
+     * at the TOP LEVEL with NO `{success, data}` envelope (admin envelopes are
+     * per-controller), so the list is read straight from `$body['entries']`. A
+     * non-list payload yields an empty list.
+     *
+     * @param string|null $path The absolute filesystem path to browse, or null for root
+     * @return PromiseInterface<list<array{name:string,path:string,type:string,size:int,modified:string}>
+     */
+    public function browseFilesystem(?string $path = null): PromiseInterface
+    {
+        $query = $path !== null ? ['path' => $path] : [];
+
+        return $this->api->send('GET', self::SERVER . '/fs', $query)->then(static function (array $body): array {
+            $entries = $body['entries'] ?? null;
+            if (!is_array($entries)) {
+                return [];
+            }
+
+            return self::mapList(
+                $entries,
+                static fn (array $row): array => [
+                    'name' => Coerce::str($row['name'] ?? ''),
+                    'path' => Coerce::str($row['path'] ?? ''),
+                    'type' => Coerce::str($row['type'] ?? ''),
+                    'size' => Coerce::int($row['size'] ?? 0),
+                    'modified' => Coerce::str($row['modified'] ?? ''),
+                ],
+            );
+        });
     }
 
     /**
