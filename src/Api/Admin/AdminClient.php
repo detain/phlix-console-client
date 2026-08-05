@@ -1276,6 +1276,66 @@ final class AdminClient
     }
 
     /**
+     * Request a new hub pairing claim code. The server initiates contact with the
+     * hub and returns a short-lived claim code the operator enters on the hub
+     * website to complete pairing.
+     *
+     * POST /api/v1/admin/remote/hub/pair → {success:true, claimCode, claimId, expiresIn}
+     * or {success:false, message:'...'}
+     *
+     * @param string $hubUrl     The hub base URL (e.g. https://hub.example.com)
+     * @param string $serverName The friendly server name shown on the hub dashboard
+     * @return PromiseInterface<array{claimCode:string,claimId:string,expiresIn:int}>
+     */
+    public function hubPair(string $hubUrl, string $serverName = 'Phlix Server'): PromiseInterface
+    {
+        return $this->api->send('POST', self::REMOTE . '/hub/pair', [], [
+            'hubUrl' => $hubUrl,
+            'serverName' => $serverName,
+        ])->then(static function (array $body): array {
+            if (($body['success'] ?? false) !== true) {
+                throw new ApiError(Coerce::str($body['message'] ?? 'Pairing request failed'), 400, $body);
+            }
+
+            return [
+                'claimCode' => Coerce::str($body['claimCode'] ?? ''),
+                'claimId' => Coerce::str($body['claimId'] ?? ''),
+                'expiresIn' => Coerce::int($body['expiresIn'] ?? 600),
+            ];
+        });
+    }
+
+    /**
+     * Poll the server for hub pairing completion. The server stores enrollment
+     * atomically the moment the hub consumes the claim, so a `paired:true` response
+     * means the pairing is complete — the operator has finished the hub web flow.
+     *
+     * POST /api/v1/admin/remote/hub/poll → {success:true, paired:true, token, hubJwksUrl, serverId}
+     *                                   or {success:false, message:'Claim is still pending.'}
+     *                                   or {success:false, message:'Claim has expired.'}
+     *
+     * @param string $claimId The claim ID returned by hubPair()
+     * @param string $hubUrl  The hub base URL (used as a fallback when not stored yet)
+     * @return PromiseInterface<array{paired:bool, serverId?:string}>
+     */
+    public function hubPoll(string $claimId, string $hubUrl): PromiseInterface
+    {
+        return $this->api->send('POST', self::REMOTE . '/hub/poll', [], [
+            'claimId' => $claimId,
+            'hubUrl' => $hubUrl,
+        ])->then(static function (array $body): array {
+            if (($body['success'] ?? false) === true) {
+                return [
+                    'paired' => (bool) ($body['paired'] ?? false),
+                    'serverId' => Coerce::str($body['serverId'] ?? ''),
+                ];
+            }
+
+            throw new ApiError(Coerce::str($body['message'] ?? 'Polling failed'), 400, $body);
+        });
+    }
+
+    /**
      * Fire one remote-access POST and resolve a confirmation string derived from
      * the 200 body. On rejection, prefer the server's friendly `message` (carried
      * on {@see ApiError::$body}) over the generic HTTP text — the remote-access

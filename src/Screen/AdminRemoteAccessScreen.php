@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace Phlix\Console\Screen;
 
 use Phlix\Console\Api\Admin\AdminClient;
+use Phlix\Console\Api\ApiError;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Admin\PortForwardCandidate;
 use Phlix\Console\Api\Dto\Admin\RemoteAccessStatus;
@@ -19,6 +20,9 @@ use Phlix\Console\Msg\AdminRemoteActionDoneMsg;
 use Phlix\Console\Msg\AdminRemoteActionFailedMsg;
 use Phlix\Console\Msg\AdminRemoteFailedMsg;
 use Phlix\Console\Msg\AdminRemoteStatusLoadedMsg;
+use Phlix\Console\Msg\HubPairingDoneMsg;
+use Phlix\Console\Msg\HubPairingExpiredMsg;
+use Phlix\Console\Msg\HubPairingPollSucceededMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\ShowToastMsg;
@@ -41,8 +45,7 @@ use SugarCraft\Core\SubscriptionCapable;
  * is accented and its available actions appear in the hint. Action keys are
  * interpreted PER selected panel:
  *  - Hub: `u` unenroll (only when paired — inline `y/n` confirm; removes the
- *    pairing). When unpaired the panel notes "Pair from the web admin" (the
- *    interactive pairing wizard is deferred).
+ *    pairing).
  *  - Subdomain: `c` claim (when not claimed), `x` release (when claimed — `y/n`).
  *  - Relay: `e` enable, `d` disable, `p` ping (toasts the latency).
  *  - Port Forward: `e` enable, `d` disable, `c` candidates (a read-only sub-view
@@ -82,6 +85,8 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
     private const PANEL_PORTFORWARD = 3;
     private const PANEL_COUNT = 4;
 
+    private const MAX_POLLS = 10;
+
     private ?RemoteAccessStatus $status = null;
     private bool $loaded = false;
     private ?string $error = null;
@@ -113,6 +118,9 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
     /** The cursor row within the candidates list. */
     private int $candidatesSelected = 0;
 
+    /** Hub pairing wizard state machine. */
+    private PairingWizard $wizard;
+
     /** @var list<string> */
     private array $crumbs = [];
 
@@ -121,6 +129,7 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
         private int $cols = 80,
         private int $rows = 24,
     ) {
+        $this->wizard = PairingWizard::idle();
     }
 
     public function init(): \Closure
@@ -206,6 +215,21 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
         if ($msg instanceof AdminPortForwardCandidatesFailedMsg) {
             return [$this->withCandidatesError($msg->message), null];
         }
+        if ($msg instanceof HubPairingDoneMsg) {
+            // Claim code received — wizard is in POLLING phase. Start bounded poll.
+            return [$this, $this->hubPairingPollCmd($msg->claimId, $msg->hubUrl)];
+        }
+        if ($msg instanceof HubPairingPollSucceededMsg) {
+            // Pairing completed — refetch all statuses to show paired state.
+            return [$this->cancelPairingWizard(), $this->fetchCmd()];
+        }
+        if ($msg instanceof HubPairingExpiredMsg) {
+            // Pairing failed (claim expired or hub unreachable after retries) —
+            // cancel the wizard and toast the failure reason.
+            $reason = $this->wizard->errorMessage() ?? 'Pairing failed.';
+
+            return [$this->cancelPairingWizard(), Cmd::send(ShowToastMsg::error($reason))];
+        }
 
         return [$this, null];
     }
@@ -229,6 +253,10 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
         // `c`/Esc here close the sub-view rather than navigating back.
         if ($this->candidatesOpen) {
             return $this->handleCandidatesKey($msg);
+        }
+        // The pairing wizard captures all keys while active (URL input or poll).
+        if (!$this->wizard->isIdle()) {
+            return $this->handlePairingWizardKey($msg);
         }
         // A pending y/n confirm captures every key until it is answered.
         if ($this->pendingConfirm !== null) {
@@ -277,10 +305,13 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
     /** @return array{self, ?\Closure} */
     private function hubAction(string $rune, RemoteAccessStatus $status): array
     {
-        // `u` unenroll is offered only when paired, and arms a y/n confirm. The
-        // pairing wizard is deferred — the panel notes "pair from the web admin".
+        // `u` unenroll is offered only when paired, and arms a y/n confirm.
         if ($rune === 'u' && $status->hub->paired) {
             return [$this->armConfirm('unenroll'), null];
+        }
+        // `p` starts the hub pairing wizard when not paired.
+        if ($rune === 'p' && !$status->hub->paired) {
+            return [$this->startPairingWizard(), null];
         }
 
         return [$this, null];
@@ -562,6 +593,186 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
         return $next;
     }
 
+    /**
+     * Handle a keypress while the pairing wizard is active. When the wizard is
+     * in WAITING_FOR_URL phase, Esc cancels the wizard and Enter submits the
+     * buffered hub URL. Any other key appends to the URL buffer.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function handlePairingWizardKey(KeyMsg $msg): array
+    {
+        if ($this->wizard->isWaitingForUrl()) {
+            if ($msg->type === KeyType::Escape) {
+                return [$this->cancelPairingWizard(), null];
+            }
+            if ($msg->type === KeyType::Enter) {
+                $url = $this->wizard->inputBuffer();
+                if ($url === '') {
+                    // Empty URL — stay in the wizard, no-op.
+                    return [$this, null];
+                }
+
+                return [$this->working(), $this->hubPairingRequestCmd($url)];
+            }
+            if ($msg->type === KeyType::Char) {
+                return [$this->wizardAppendChar($msg->rune), null];
+            }
+
+            return [$this, null];
+        }
+
+        // In any other wizard phase (SHOWING_CODE, POLLING, ERROR), only Esc
+        // is accepted — it cancels the wizard and returns to idle.
+        if ($msg->type === KeyType::Escape) {
+            return [$this->cancelPairingWizard(), null];
+        }
+
+        return [$this, null];
+    }
+
+    /** Start the pairing wizard — user presses `p` on an unpaired hub. */
+    private function startPairingWizard(): self
+    {
+        $next = clone $this;
+        $next->wizard = PairingWizard::waitingForUrl();
+
+        return $next;
+    }
+
+    /** Cancel the pairing wizard (Esc during any wizard phase). */
+    private function cancelPairingWizard(): self
+    {
+        $next = clone $this;
+        $next->wizard = PairingWizard::idle();
+
+        return $next;
+    }
+
+    /** Append a character to the wizard's URL input buffer. */
+    private function wizardAppendChar(string $char): self
+    {
+        $next = clone $this;
+        $next->wizard = $this->wizard->appendChar($char);
+
+        return $next;
+    }
+
+    /**
+     * Build the command for the hub pairing request (Enter was pressed with a
+     * URL in the buffer). On success the server returns {claimCode, claimId,
+     * expiresIn} and the wizard moves to SHOWING_CODE + starts polling. On
+     * failure the wizard enters ERROR and the friendly message is toasted.
+     */
+    private function hubPairingRequestCmd(string $hubUrl): \Closure
+    {
+        $admin = $this->admin;
+        $screen = $this;
+
+        return Cmd::promise(static function () use ($admin, $hubUrl, $screen): PromiseInterface {
+            return $admin->hubPair($hubUrl)->then(
+                static function (array $result) use ($screen, $hubUrl): Msg {
+                    // Move wizard to SHOWING_CODE phase with the claim details.
+                    $screen->wizard = PairingWizard::showingCode(
+                        $result['claimCode'],
+                        $result['claimId'],
+                        $hubUrl,
+                        $result['expiresIn'],
+                    );
+
+                    return new HubPairingDoneMsg(
+                        $result['claimCode'],
+                        $result['claimId'],
+                        $hubUrl,
+                        $result['expiresIn'],
+                        self::MAX_POLLS,
+                    );
+                },
+                static function (\Throwable $e) use ($screen): Msg {
+                    if ($e instanceof AuthError) {
+                        return new SessionExpiredMsg(self::SESSION_EXPIRED);
+                    }
+
+                    // Pairing request failed (hub unreachable, etc.).
+                    $screen->wizard = PairingWizard::error($e->getMessage() ?: 'Pairing request failed.');
+
+                    return new HubPairingExpiredMsg();
+                },
+            );
+        });
+    }
+
+    /**
+     * Build the bounded polling command for hub pairing. Polls up to MAX_POLLS
+     * times with a 3-second gap between each attempt. Resolves to
+     * HubPairingPollSucceededMsg on success, HubPairingExpiredMsg on expiry,
+     * or AdminRemoteActionFailedMsg on final network failure.
+     */
+    private function hubPairingPollCmd(string $claimId, string $hubUrl): \Closure
+    {
+        $admin = $this->admin;
+        $screen = $this;
+
+        // Recursive inner that captures the remaining poll count.
+        $poll = static function (int $remaining) use ($admin, $claimId, $hubUrl, $screen, &$poll): PromiseInterface {
+            if ($remaining <= 0) {
+                $screen->wizard = PairingWizard::error('Pairing timed out.');
+
+                return \React\Promise\Timer\sleep(0)->then(
+                    static fn (): Msg => new AdminRemoteActionFailedMsg('Pairing timed out.')
+                );
+            }
+
+            // Update wizard countdown so view() shows it.
+            $screen->wizard = $screen->wizard->withPollCountdown($remaining - 1);
+
+            return $admin->hubPoll($claimId, $hubUrl)->then(
+                static function (array $result) use ($screen, $hubUrl, $remaining, $poll): PromiseInterface {
+                    if ($result['paired']) {
+                        $screen->wizard = PairingWizard::idle();
+
+                        return \React\Promise\Timer\sleep(0)->then(
+                            static fn (): Msg => new HubPairingPollSucceededMsg($result['serverId'] ?? '', $hubUrl)
+                        );
+                    }
+
+                    // Still pending — poll again after 3 seconds.
+                    return \React\Promise\Timer\sleep(3)->then(
+                        static function () use ($remaining, $poll): PromiseInterface {
+                            return $poll($remaining - 1);
+                        }
+                    );
+                },
+                static function (\Throwable $e) use ($screen, $remaining, $poll): PromiseInterface {
+                    if (str_contains($e->getMessage(), 'expired')) {
+                        $screen->wizard = PairingWizard::error('Claim has expired.');
+
+                        return \React\Promise\Timer\sleep(0)->then(
+                            static fn (): Msg => new HubPairingExpiredMsg()
+                        );
+                    }
+
+                    // Transient failure (hub unreachable, etc.) — retry.
+                    if ($remaining > 1) {
+                        return \React\Promise\Timer\sleep(3)->then(
+                            static function () use ($remaining, $poll): PromiseInterface {
+                                return $poll($remaining - 1);
+                            }
+                        );
+                    }
+
+                    $screen->wizard = PairingWizard::error($e->getMessage());
+
+                    return \React\Promise\Timer\sleep(0)->then(
+                        static fn (): Msg => new AdminRemoteActionFailedMsg($e->getMessage())
+                    );
+                },
+            );
+        };
+
+        return static fn (): PromiseInterface => $poll(self::MAX_POLLS);
+    }
+
     private function resizedTo(int $cols, int $rows): self
     {
         $next = clone $this;
@@ -634,7 +845,7 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
             $lines[] = '    Hub URL:     ' . ($hub->hubUrl ?? '—');
             $lines[] = '    Enrolled at: ' . ($hub->enrolledAt ?? '—');
         } else {
-            $lines[] = '    Pair from the web admin (pairing wizard not available here).';
+            $lines[] = '    Press p to pair with a hub.';
         }
 
         return $lines;
@@ -754,6 +965,19 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
                 ? 'Unenroll from the hub? (y/n)'
                 : 'Release the subdomain? (y/n)';
         }
+        $phase = $this->wizard->phase();
+        if ($this->wizard->isWaitingForUrl()) {
+            return 'Hub URL: ' . $this->wizard->inputBuffer() . '_';
+        }
+        if ($this->wizard->isPolling()) {
+            return 'Claim code: ' . $this->wizard->claimCode() . '   (Esc to cancel)';
+        }
+        if ($this->wizard->isError()) {
+            $pollLeft = $this->wizard->pollLeft();
+            $attempts = $pollLeft === 1 ? '1 attempt left' : ($pollLeft > 0 ? $pollLeft . ' attempts left' : '');
+
+            return 'Waiting for hub… ' . $attempts . '   (Esc to cancel)';
+        }
         if ($this->busy) {
             return 'Working…';
         }
@@ -789,7 +1013,7 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
     private function panelActionHint(RemoteAccessStatus $status): string
     {
         return match ($this->panel) {
-            self::PANEL_HUB => $status->hub->paired ? 'u unenroll' : '(pair from web admin)',
+            self::PANEL_HUB => $status->hub->paired ? 'u unenroll' : 'p pair',
             self::PANEL_SUBDOMAIN => $status->subdomain->claimed ? 'x release' : 'c claim',
             self::PANEL_RELAY => 'e enable   d disable   p ping',
             self::PANEL_PORTFORWARD => 'e enable   d disable   c candidates',
@@ -869,4 +1093,5 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
     {
         return $this->candidatesSelected;
     }
+
 }
