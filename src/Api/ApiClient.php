@@ -29,6 +29,7 @@ use Phlix\Console\Api\Dto\MediaPage;
 use Phlix\Console\Api\Dto\MediaRatings;
 use Phlix\Console\Api\Dto\Photo;
 use Phlix\Console\Api\Dto\PhotoAlbum;
+use Phlix\Console\Api\Dto\PhotoAlbumPage;
 use Phlix\Console\Api\Dto\PlaybackInfo;
 use Phlix\Console\Api\Dto\PlaybackMarkers;
 use Phlix\Console\Api\Dto\Rating;
@@ -298,25 +299,19 @@ final class ApiClient
     // ---- photos --------------------------------------------------------
 
     /**
-     * The date-grouped photo albums for a library (required) — each album
-     * carries its full photo list, so no separate flat-photo fetch is needed.
-     * The server returns every album in one call, sorted date-descending.
+     * A page of the photo library's album list, paged by limit/offset.
+     * Albums are date-grouped collections of photos, sorted date-descending.
+     * Photos are NOT included inline — fetch them separately per album.
      *
-     * @return PromiseInterface<list<PhotoAlbum>>
+     * @return PromiseInterface<PhotoAlbumPage>
      */
-    public function photoAlbums(string $libraryId): PromiseInterface
+    public function photoAlbums(string $libraryId, int $limit = 100, int $offset = 0): PromiseInterface
     {
-        return $this->authed('GET', '/api/v1/photo/albums', ['library_id' => $libraryId])
-            ->then(static function (array $data): array {
-                $albums = [];
-                foreach (Coerce::map($data['albums'] ?? null) as $row) {
-                    if (is_array($row)) {
-                        $albums[] = PhotoAlbum::fromArray($row);
-                    }
-                }
-
-                return $albums;
-            });
+        return $this->authed('GET', '/api/v1/photo/albums', [
+            'library_id' => $libraryId,
+            'limit' => (string) $limit,
+            'offset' => (string) $offset,
+        ])->then(static fn (array $data): PhotoAlbumPage => PhotoAlbumPage::fromArray($data));
     }
 
     /**

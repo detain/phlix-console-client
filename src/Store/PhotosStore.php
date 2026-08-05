@@ -11,18 +11,21 @@ namespace Phlix\Console\Store;
 
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\Dto\Photo;
-use Phlix\Console\Api\Dto\PhotoAlbum;
+use Phlix\Console\Api\Dto\PhotoAlbumPage;
 use React\Promise\Deferred;
 use React\Promise\PromiseInterface;
 
+use function React\Promise\all;
 use function React\Promise\resolve;
 
 /**
- * Caches the date-grouped photo albums per library (the server returns every
- * album, each with its full photo list, in one `/photo/albums` call) and single
- * photo details over the {@see ApiClient} with a short TTL, de-duplicating
- * concurrent fetches. Mirrors {@see MusicStore} (the per-library album list) and
- * {@see BooksStore} (the single-detail cache).
+ * Caches photo album pages over the {@see ApiClient} with a short TTL,
+ * de-duplicating concurrent fetches. Pages are keyed by libraryId+offset so
+ * scrolling to a previously-visited region never re-fetches. The screen uses
+ * {@see ensureRange()} to fetch only the visible window (plus overscan), so
+ * even a large library scrolls smoothly.
+ *
+ * Also caches single photo details via {@see photo()}.
  */
 final class PhotosStore
 {
@@ -33,10 +36,10 @@ final class PhotosStore
     private const ITEM_CAPACITY = 500;
 
     /** @var LruMap */
-    private LruMap $albums;
+    private LruMap $pages;
 
-    /** @var array<string, PromiseInterface<list<PhotoAlbum>>>  library id → in-flight album fetch */
-    private array $albumsInFlight = [];
+    /** @var array<string, PromiseInterface<PhotoAlbumPage>>  page key → in-flight fetch */
+    private array $inFlight = [];
 
     /** @var LruMap */
     private LruMap $photos;
@@ -47,6 +50,8 @@ final class PhotosStore
     /** @var \Closure(): float */
     private readonly \Closure $clock;
 
+    private const DEFAULT_LIMIT = 100;
+
     /**
      * @param (\Closure(): float)|null $clock
      */
@@ -56,47 +61,85 @@ final class PhotosStore
         ?\Closure $clock = null,
     ) {
         $this->clock = $clock ?? static fn (): float => microtime(true);
-        $this->albums = new LruMap(self::PAGE_CAPACITY);
+        $this->pages = new LruMap(self::PAGE_CAPACITY);
         $this->photos = new LruMap(self::ITEM_CAPACITY);
     }
 
     /**
-     * The date-grouped album list for a library, TTL-cached per library id.
-     * Concurrent calls for the same library share one fetch.
+     * Fetch the page(s) covering the absolute-index window [$start, $end] for a
+     * library and resolve the albums keyed by their ABSOLUTE index, plus the
+     * total. Pages are cached and de-duplicated so a scroll that revisits an
+     * in-flight offset never doubles the request.
      *
-     * @return PromiseInterface<list<PhotoAlbum>>
+     * @return PromiseInterface<PhotoRange>
      */
-    public function albums(string $libraryId, bool $force = false): PromiseInterface
+    public function ensureRange(string $libraryId, int $start, int $end, int $limit = self::DEFAULT_LIMIT): PromiseInterface
     {
+        if ($end < 0 || $start > $end) {
+            return resolve(new PhotoRange([], 0));
+        }
+
+        $start = max(0, $start);
+        $windowEnd = max($start, $end - 1);
+        $firstOffset = intdiv($start, $limit) * $limit;
+        $lastOffset = intdiv($windowEnd, $limit) * $limit;
+
+        /** @var array<int, PromiseInterface<PhotoAlbumPage>> $promises */
+        $promises = [];
+        for ($offset = $firstOffset; $offset <= $lastOffset; $offset += $limit) {
+            $promises[$offset] = $this->page($libraryId, $offset, $limit);
+        }
+
+        return all($promises)->then(static function (array $pages) use ($start, $end): PhotoRange {
+            $albums = [];
+            $total = 0;
+            foreach ($pages as $offset => $page) {
+                $total = max($total, $page->total);
+                foreach ($page->albums as $i => $album) {
+                    $absolute = $offset + $i;
+                    if ($absolute >= $start && $absolute <= $end) {
+                        $albums[$absolute] = $album;
+                    }
+                }
+            }
+            ksort($albums);
+
+            return new PhotoRange($albums, $total);
+        });
+    }
+
+    /**
+     * @return PromiseInterface<PhotoAlbumPage>
+     */
+    private function page(string $libraryId, int $offset, int $limit): PromiseInterface
+    {
+        $key = "{$libraryId}:{$offset}:{$limit}";
         $now = ($this->clock)();
 
-        $entry = $this->albums->peek($libraryId);
-        /** @var array{albums: list<PhotoAlbum>, at: float}|null $entry */
-        if (!$force && $entry !== null && ($now - $entry['at']) < $this->ttl) {
-            $cached = $this->albums->get($libraryId);
-            /** @var array{albums: list<PhotoAlbum>, at: float} $cached */
-            return resolve($cached['albums']);
+        $entry = $this->pages->peek($key);
+        /** @var array{page: PhotoAlbumPage, at: float}|null $entry */
+        if ($entry !== null && ($now - $entry['at']) < $this->ttl) {
+            $cached = $this->pages->get($key);
+            /** @var array{page: PhotoAlbumPage, at: float} $cached */
+            return resolve($cached['page']);
         }
 
-        if (isset($this->albumsInFlight[$libraryId])) {
-            return $this->albumsInFlight[$libraryId];
+        if (isset($this->inFlight[$key])) {
+            return $this->inFlight[$key];
         }
 
-        // Drive a Deferred so the in-flight guard is registered before the inner
-        // request can settle (react may resolve synchronously) and cleared
-        // exactly once on settle/reject.
-        /** @var Deferred<list<PhotoAlbum>> $deferred */
+        /** @var Deferred<PhotoAlbumPage> $deferred */
         $deferred = new Deferred();
-        $this->albumsInFlight[$libraryId] = $deferred->promise();
+        $this->inFlight[$key] = $deferred->promise();
 
-        $this->api->photoAlbums($libraryId)->then(
-            function (array $albums) use ($libraryId, $now, $deferred): void {
-                $this->albums->set($libraryId, ['albums' => $albums, 'at' => $now]);
-                unset($this->albumsInFlight[$libraryId]);
-                $deferred->resolve($albums);
+        $this->api->photoAlbums($libraryId, $limit, $offset)->then(
+            function (PhotoAlbumPage $page) use ($key, $now, $deferred): void {
+                $this->pages->set($key, ['page' => $page, 'at' => $now]);
+                unset($this->inFlight[$key]);
+                $deferred->resolve($page);
             },
-            function (\Throwable $error) use ($libraryId, $deferred): void {
-                unset($this->albumsInFlight[$libraryId]);
+            function (\Throwable $error) use ($key, $deferred): void {
+                unset($this->inFlight[$key]);
                 $deferred->reject($error);
             },
         );
@@ -106,7 +149,7 @@ final class PhotosStore
 
     /**
      * A single photo's detail — the shape that adds the full EXIF map — TTL-cached
-     * and de-duplicated like {@see albums()}.
+     * and de-duplicated.
      *
      * @return PromiseInterface<Photo>
      */
@@ -147,8 +190,8 @@ final class PhotosStore
 
     public function invalidate(): void
     {
-        $this->albums->clear();
-        $this->albumsInFlight = [];
+        $this->pages->clear();
+        $this->inFlight = [];
         $this->photos->clear();
         $this->photosInFlight = [];
     }
