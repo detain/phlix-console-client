@@ -38,6 +38,7 @@ use Phlix\Console\Api\Dto\Admin\ScanJob;
 use Phlix\Console\Api\Dto\Admin\SeriesRule;
 use Phlix\Console\Api\Dto\Admin\ServerSettings;
 use Phlix\Console\Api\Dto\Admin\Tuner;
+use Phlix\Console\Api\Dto\Admin\WatchHistoryEntry;
 use Phlix\Console\Api\Dto\Admin\SubdomainStatus;
 use Phlix\Console\Api\Dto\Coerce;
 use Phlix\Console\Api\Dto\Library;
@@ -1777,6 +1778,37 @@ final class AdminClient
                 );
 
                 return $result;
+            });
+    }
+
+    // ---- watch history ---------------------------------------------------
+
+    /**
+     * Fetch recent watch-history rows across all users. Supports filtering by
+     * userId; the server clamps limit to [1, 200] (default 50). The controller
+     * returns an enveloped `{success, data, count}` response so the list is read
+     * from `$body['data']`.
+     *
+     * @return PromiseInterface<list<WatchHistoryEntry>>
+     */
+    public function watchHistory(?string $userId = null, int $limit = 50): PromiseInterface
+    {
+        $query = ['limit' => $limit];
+        if ($userId !== null) {
+            $query['userId'] = $userId;
+        }
+
+        return $this->api->send('GET', '/api/v1/admin/watch-history', $query)
+            ->then(static function (array $body): array {
+                $rows = $body['data'] ?? null;
+                if (!is_array($rows)) {
+                    return [];
+                }
+
+                return self::mapList(
+                    $rows,
+                    static fn (array $row): WatchHistoryEntry => WatchHistoryEntry::fromArray($row),
+                );
             });
     }
 

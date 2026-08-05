@@ -88,6 +88,7 @@ use Phlix\Console\Screen\AdminPluginsScreen;
 use Phlix\Console\Screen\AdminRemoteAccessScreen;
 use Phlix\Console\Screen\AdminSettingsScreen;
 use Phlix\Console\Screen\AdminUsersScreen;
+use Phlix\Console\Screen\AdminWatchHistoryScreen;
 use Phlix\Console\Screen\AlbumScreen;
 use Phlix\Console\Screen\AudiobookDetailScreen;
 use Phlix\Console\Screen\AudiobooksScreen;
@@ -1349,6 +1350,11 @@ final class App implements Model
             $screen = new AdminMetricsScreen(new AdminClient($this->api), $this->cols, $this->rows);
 
             return [$this->push(Route::AdminMetrics, $screen), $screen->init()];
+        }
+        if ($section === Route::AdminWatchHistory) {
+            $screen = new AdminWatchHistoryScreen(new AdminClient($this->api), $this->cols, $this->rows);
+
+            return [$this->push(Route::AdminWatchHistory, $screen), $screen->init()];
         }
 
         return [$this, null];
