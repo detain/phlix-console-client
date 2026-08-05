@@ -43,19 +43,19 @@ final class AudiobooksStore
     /** Maximum number of item/detail entries to cache. */
     private const ITEM_CAPACITY = 500;
 
-    /** @phpstan-var LruMap<array{list: list<Audiobook>, at: float}>  library key → cached list */
+    /** @var LruMap */
     private LruMap $lists;
 
     /** @var array<string, PromiseInterface<list<Audiobook>>>  library key → in-flight list fetch */
     private array $listsInFlight = [];
 
-    /** @phpstan-var LruMap<array{audiobook: Audiobook, at: float}>  id → cached detail */
+    /** @var LruMap */
     private LruMap $audiobooks;
 
     /** @var array<string, PromiseInterface<Audiobook>>  id → in-flight detail fetch */
     private array $audiobooksInFlight = [];
 
-    /** @phpstan-var LruMap<array{chapters: list<AudiobookChapter>, at: float}>  id → cached chapters */
+    /** @var LruMap */
     private LruMap $chapters;
 
     /** @var array<string, PromiseInterface<list<AudiobookChapter>>>  id → in-flight chapters fetch */
@@ -90,8 +90,12 @@ final class AudiobooksStore
         $key = $libraryId ?? '';
         $now = ($this->clock)();
 
-        if (!$force && ($entry = $this->lists->peek($key)) !== null && ($now - $entry['at']) < $this->ttl) {
-            return resolve($this->lists->get($key)['list']);
+        $entry = $this->lists->peek($key);
+        /** @var array{list: list<Audiobook>, at: float}|null $entry */
+        if (!$force && $entry !== null && ($now - $entry['at']) < $this->ttl) {
+            $cached = $this->lists->get($key);
+            /** @var array{list: list<Audiobook>, at: float} $cached */
+            return resolve($cached['list']);
         }
 
         // Coalesce concurrent fetches of the same library. Drive a Deferred so
@@ -159,8 +163,12 @@ final class AudiobooksStore
     {
         $now = ($this->clock)();
 
-        if (!$force && ($entry = $this->audiobooks->peek($id)) !== null && ($now - $entry['at']) < $this->ttl) {
-            return resolve($this->audiobooks->get($id)['audiobook']);
+        $entry = $this->audiobooks->peek($id);
+        /** @var array{audiobook: Audiobook, at: float}|null $entry */
+        if (!$force && $entry !== null && ($now - $entry['at']) < $this->ttl) {
+            $cached = $this->audiobooks->get($id);
+            /** @var array{audiobook: Audiobook, at: float} $cached */
+            return resolve($cached['audiobook']);
         }
 
         if (isset($this->audiobooksInFlight[$id])) {
@@ -195,8 +203,12 @@ final class AudiobooksStore
     {
         $now = ($this->clock)();
 
-        if (!$force && ($entry = $this->chapters->peek($id)) !== null && ($now - $entry['at']) < $this->ttl) {
-            return resolve($this->chapters->get($id)['chapters']);
+        $entry = $this->chapters->peek($id);
+        /** @var array{chapters: list<AudiobookChapter>, at: float}|null $entry */
+        if (!$force && $entry !== null && ($now - $entry['at']) < $this->ttl) {
+            $cached = $this->chapters->get($id);
+            /** @var array{chapters: list<AudiobookChapter>, at: float} $cached */
+            return resolve($cached['chapters']);
         }
 
         if (isset($this->chaptersInFlight[$id])) {

@@ -24,7 +24,7 @@ final class LibrariesStore
     /** Single-entry cache capacity. */
     private const CACHE_CAPACITY = 1;
 
-    /** @var LruMap<array{cache: list<Library>, at: float}> */
+    /** @var LruMap */
     private LruMap $cache;
 
     /** @var \Closure(): float */
@@ -52,8 +52,12 @@ final class LibrariesStore
         $key = 'libraries';
         $now = ($this->clock)();
 
-        if (!$force && ($entry = $this->cache->peek($key)) !== null && ($now - $entry['at']) < $this->ttl) {
-            return resolve($this->cache->get($key)['cache']);
+        $entry = $this->cache->peek($key);
+        /** @var array{cache: list<Library>, at: float}|null $entry */
+        if (!$force && $entry !== null && ($now - $entry['at']) < $this->ttl) {
+            $cached = $this->cache->get($key);
+            /** @var array{cache: list<Library>, at: float} $cached */
+            return resolve($cached['cache']);
         }
 
         return $this->api->libraries()->then(function (array $libraries) use ($key, $now): array {

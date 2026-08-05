@@ -36,28 +36,28 @@ final class MediaStore
     /** Maximum number of item/detail entries to cache. */
     private const ITEM_CAPACITY = 500;
 
-    /** @phpstan-var LruMap<array{page: MediaPage, at: float}> */
+    /** @var LruMap */
     private LruMap $pages;
 
     /** @var array<string, PromiseInterface<MediaPage>>  page key → in-flight fetch */
     private array $inFlight = [];
 
-    /** @phpstan-var LruMap<array{index: LetterIndex, at: float}> */
+    /** @var LruMap */
     private LruMap $letterIndexes;
 
-    /** @phpstan-var LruMap<array{item: MediaItem, at: float}> */
+    /** @var LruMap */
     private LruMap $items;
 
     /** @var array<string, PromiseInterface<MediaItem>>  item id → in-flight detail fetch */
     private array $itemsInFlight = [];
 
-    /** @phpstan-var LruMap<array{ratings: MediaRatings, at: float}> */
+    /** @var LruMap */
     private LruMap $ratings;
 
     /** @var array<string, PromiseInterface<MediaRatings>>  item id → in-flight ratings fetch */
     private array $ratingsInFlight = [];
 
-    /** @phpstan-var LruMap<array{chapters: list<Chapter>, at: float}> */
+    /** @var LruMap */
     private LruMap $chapters;
 
     /** @var array<string, PromiseInterface<list<Chapter>>>  item id → in-flight chapters fetch */
@@ -99,8 +99,12 @@ final class MediaStore
         $now = ($this->clock)();
 
         // Use peek() to check existence and TTL without promoting an expired entry.
-        if (!$force && ($entry = $this->pages->peek($key)) !== null && ($now - $entry['at']) < $this->ttl) {
-            return resolve($this->pages->get($key)['page']);
+        $entry = $this->pages->peek($key);
+        /** @var array{page: MediaPage, at: float}|null $entry */
+        if (!$force && $entry !== null && ($now - $entry['at']) < $this->ttl) {
+            $cached = $this->pages->get($key);
+            /** @var array{page: MediaPage, at: float} $cached */
+            return resolve($cached['page']);
         }
 
         // Coalesce concurrent fetches of the same page so a scroll that revisits
@@ -141,8 +145,12 @@ final class MediaStore
     {
         $now = ($this->clock)();
 
-        if (!$force && ($entry = $this->items->peek($id)) !== null && ($now - $entry['at']) < $this->ttl) {
-            return resolve($this->items->get($id)['item']);
+        $entry = $this->items->peek($id);
+        /** @var array{item: MediaItem, at: float}|null $entry */
+        if (!$force && $entry !== null && ($now - $entry['at']) < $this->ttl) {
+            $cached = $this->items->get($id);
+            /** @var array{item: MediaItem, at: float} $cached */
+            return resolve($cached['item']);
         }
 
         if (isset($this->itemsInFlight[$id])) {
@@ -178,8 +186,12 @@ final class MediaStore
     {
         $now = ($this->clock)();
 
-        if (!$force && ($entry = $this->ratings->peek($id)) !== null && ($now - $entry['at']) < $this->ttl) {
-            return resolve($this->ratings->get($id)['ratings']);
+        $entry = $this->ratings->peek($id);
+        /** @var array{ratings: MediaRatings, at: float}|null $entry */
+        if (!$force && $entry !== null && ($now - $entry['at']) < $this->ttl) {
+            $cached = $this->ratings->get($id);
+            /** @var array{ratings: MediaRatings, at: float} $cached */
+            return resolve($cached['ratings']);
         }
 
         if (isset($this->ratingsInFlight[$id])) {
@@ -215,8 +227,12 @@ final class MediaStore
     {
         $now = ($this->clock)();
 
-        if (!$force && ($entry = $this->chapters->peek($id)) !== null && ($now - $entry['at']) < $this->ttl) {
-            return resolve($this->chapters->get($id)['chapters']);
+        $entry = $this->chapters->peek($id);
+        /** @var array{chapters: list<Chapter>, at: float}|null $entry */
+        if (!$force && $entry !== null && ($now - $entry['at']) < $this->ttl) {
+            $cached = $this->chapters->get($id);
+            /** @var array{chapters: list<Chapter>, at: float} $cached */
+            return resolve($cached['chapters']);
         }
 
         if (isset($this->chaptersInFlight[$id])) {
@@ -306,8 +322,12 @@ final class MediaStore
         $key = $query->cacheKey();
         $now = ($this->clock)();
 
-        if (!$force && ($entry = $this->letterIndexes->peek($key)) !== null && ($now - $entry['at']) < $this->ttl) {
-            return resolve($this->letterIndexes->get($key)['index']);
+        $entry = $this->letterIndexes->peek($key);
+        /** @var array{index: LetterIndex, at: float}|null $entry */
+        if (!$force && $entry !== null && ($now - $entry['at']) < $this->ttl) {
+            $cached = $this->letterIndexes->get($key);
+            /** @var array{index: LetterIndex, at: float} $cached */
+            return resolve($cached['index']);
         }
 
         return $this->api->letterIndex($query)->then(function (LetterIndex $index) use ($key, $now): LetterIndex {

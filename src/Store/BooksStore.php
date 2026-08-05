@@ -32,13 +32,13 @@ final class BooksStore
     /** Maximum number of item/detail entries to cache. */
     private const ITEM_CAPACITY = 500;
 
-    /** @phpstan-var LruMap<array{page: BookPage, at: float}>  page key → cached page */
+    /** @var LruMap */
     private LruMap $pages;
 
     /** @var array<string, PromiseInterface<BookPage>>  page key → in-flight fetch */
     private array $inFlight = [];
 
-    /** @phpstan-var LruMap<array{book: Book, at: float}>  book id → cached detail */
+    /** @var LruMap */
     private LruMap $books;
 
     /** @var array<string, PromiseInterface<Book>>  book id → in-flight detail fetch */
@@ -71,8 +71,12 @@ final class BooksStore
         $key = ($libraryId ?? '') . '|' . $limit . '|' . $offset;
         $now = ($this->clock)();
 
-        if (!$force && ($entry = $this->pages->peek($key)) !== null && ($now - $entry['at']) < $this->ttl) {
-            return resolve($this->pages->get($key)['page']);
+        $entry = $this->pages->peek($key);
+        /** @var array{page: BookPage, at: float}|null $entry */
+        if (!$force && $entry !== null && ($now - $entry['at']) < $this->ttl) {
+            $cached = $this->pages->get($key);
+            /** @var array{page: BookPage, at: float} $cached */
+            return resolve($cached['page']);
         }
 
         // Coalesce concurrent fetches of the same page. Drive a Deferred so the
@@ -111,8 +115,12 @@ final class BooksStore
     {
         $now = ($this->clock)();
 
-        if (!$force && ($entry = $this->books->peek($id)) !== null && ($now - $entry['at']) < $this->ttl) {
-            return resolve($this->books->get($id)['book']);
+        $entry = $this->books->peek($id);
+        /** @var array{book: Book, at: float}|null $entry */
+        if (!$force && $entry !== null && ($now - $entry['at']) < $this->ttl) {
+            $cached = $this->books->get($id);
+            /** @var array{book: Book, at: float} $cached */
+            return resolve($cached['book']);
         }
 
         if (isset($this->booksInFlight[$id])) {

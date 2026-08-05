@@ -32,13 +32,13 @@ final class PhotosStore
     /** Maximum number of item/detail entries to cache. */
     private const ITEM_CAPACITY = 500;
 
-    /** @phpstan-var LruMap<array{albums: list<PhotoAlbum>, at: float}>  library id → cached albums */
+    /** @var LruMap */
     private LruMap $albums;
 
     /** @var array<string, PromiseInterface<list<PhotoAlbum>>>  library id → in-flight album fetch */
     private array $albumsInFlight = [];
 
-    /** @phpstan-var LruMap<array{photo: Photo, at: float}>  photo id → cached detail */
+    /** @var LruMap */
     private LruMap $photos;
 
     /** @var array<string, PromiseInterface<Photo>>  photo id → in-flight detail fetch */
@@ -70,8 +70,12 @@ final class PhotosStore
     {
         $now = ($this->clock)();
 
-        if (!$force && ($entry = $this->albums->peek($libraryId)) !== null && ($now - $entry['at']) < $this->ttl) {
-            return resolve($this->albums->get($libraryId)['albums']);
+        $entry = $this->albums->peek($libraryId);
+        /** @var array{albums: list<PhotoAlbum>, at: float}|null $entry */
+        if (!$force && $entry !== null && ($now - $entry['at']) < $this->ttl) {
+            $cached = $this->albums->get($libraryId);
+            /** @var array{albums: list<PhotoAlbum>, at: float} $cached */
+            return resolve($cached['albums']);
         }
 
         if (isset($this->albumsInFlight[$libraryId])) {
@@ -110,8 +114,12 @@ final class PhotosStore
     {
         $now = ($this->clock)();
 
-        if (!$force && ($entry = $this->photos->peek($id)) !== null && ($now - $entry['at']) < $this->ttl) {
-            return resolve($this->photos->get($id)['photo']);
+        $entry = $this->photos->peek($id);
+        /** @var array{photo: Photo, at: float}|null $entry */
+        if (!$force && $entry !== null && ($now - $entry['at']) < $this->ttl) {
+            $cached = $this->photos->get($id);
+            /** @var array{photo: Photo, at: float} $cached */
+            return resolve($cached['photo']);
         }
 
         if (isset($this->photosInFlight[$id])) {

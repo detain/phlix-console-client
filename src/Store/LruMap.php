@@ -19,12 +19,10 @@ namespace Phlix\Console\Store;
  * The LRU is a size bound; it works alongside TTL (time-to-live) caching.
  * Size bound prevents unbounded memory growth; TTL bound ensures stale data
  * is not served. Both mechanisms are independent and complementary.
- *
- * @template T of mixed
  */
 final class LruMap implements \Countable
 {
-    /** @var array<string, T> */
+    /** @var array<string, mixed> */
     private array $data = [];
 
     /**
@@ -38,9 +36,9 @@ final class LruMap implements \Countable
     /**
      * Retrieve an entry by key, promoting it to the most-recently-used end.
      *
-     * @return T|null
+     * @return mixed
      */
-    public function get(string $key): ?T
+    public function get(string $key): mixed
     {
         if (!array_key_exists($key, $this->data)) {
             return null;
@@ -57,9 +55,9 @@ final class LruMap implements \Countable
     /**
      * Store an entry, evicting the least-recently-used entry if at capacity.
      *
-     * @param T $value
+     * @param mixed $value
      */
-    public function set(string $key, T $value): void
+    public function set(string $key, mixed $value): void
     {
         // If key exists, remove it first so the re-insert lands at the MRU end.
         if (array_key_exists($key, $this->data)) {
@@ -91,9 +89,9 @@ final class LruMap implements \Countable
      * Use this for TTL validation before deciding whether to use or discard an entry.
      * Use {@see get()} when the entry will be served to the caller (promotion is correct).
      *
-     * @return T|null
+     * @return mixed
      */
-    public function peek(string $key): ?T
+    public function peek(string $key): mixed
     {
         if (!array_key_exists($key, $this->data)) {
             return null;

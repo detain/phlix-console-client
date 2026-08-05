@@ -26,7 +26,7 @@ final class MusicStore
     /** Single-entry cache capacity. */
     private const CACHE_CAPACITY = 1;
 
-    /** @var LruMap<array{albums: list<Album>, at: float}> */
+    /** @var LruMap */
     private LruMap $albums;
 
     /** @var PromiseInterface<list<Album>>|null  An album fetch in flight. */
@@ -57,8 +57,12 @@ final class MusicStore
         $key = 'albums';
         $now = ($this->clock)();
 
-        if (!$force && ($entry = $this->albums->peek($key)) !== null && ($now - $entry['at']) < $this->ttl) {
-            return resolve($this->albums->get($key)['albums']);
+        $entry = $this->albums->peek($key);
+        /** @var array{albums: list<Album>, at: float}|null $entry */
+        if (!$force && $entry !== null && ($now - $entry['at']) < $this->ttl) {
+            $cached = $this->albums->get($key);
+            /** @var array{albums: list<Album>, at: float} $cached */
+            return resolve($cached['albums']);
         }
 
         if ($this->inFlight !== null) {
