@@ -12,6 +12,7 @@ namespace Phlix\Console\Screen;
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Msg\NavigateBackMsg;
+use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\RecommendationsLoadedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Ui\Chrome;
@@ -165,10 +166,12 @@ final class RecommendationsScreen implements Model, Teardownable, CapturesSlash,
             return [$this, null];
         }
 
-        // Future: navigate to the item's detail screen.
-        // For now, this is a placeholder.
+        $item = $this->items[$this->selectedIndex];
 
-        return [$this, null];
+        return [$this, Cmd::batch(
+            Cmd::send(new NavigateBackMsg()),
+            Cmd::send(new OpenDetailMsg($item->id(), $item->title())),
+        )];
     }
 
     private function body(): string
