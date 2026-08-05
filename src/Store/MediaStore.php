@@ -45,6 +45,9 @@ final class MediaStore
     /** @var LruMap */
     private LruMap $letterIndexes;
 
+    /** @var array<string, PromiseInterface<LetterIndex>>  cache key → in-flight fetch */
+    private array $letterIndexesInFlight = [];
+
     /** @var LruMap */
     private LruMap $items;
 
@@ -65,6 +68,9 @@ final class MediaStore
 
     /** @var array{items: list<ContinueWatchingItem>, at: float}|null */
     private ?array $continue = null;
+
+    /** @var PromiseInterface<list<ContinueWatchingItem>>|null  in-flight continue-watching fetch */
+    private ?PromiseInterface $continueInFlight = null;
 
     /** @var \Closure(): float */
     private readonly \Closure $clock;
@@ -330,11 +336,27 @@ final class MediaStore
             return resolve($cached['index']);
         }
 
-        return $this->api->letterIndex($query)->then(function (LetterIndex $index) use ($key, $now): LetterIndex {
-            $this->letterIndexes->set($key, ['index' => $index, 'at' => $now]);
+        if (isset($this->letterIndexesInFlight[$key])) {
+            return $this->letterIndexesInFlight[$key];
+        }
 
-            return $index;
-        });
+        /** @var Deferred<LetterIndex> $deferred */
+        $deferred = new Deferred();
+        $this->letterIndexesInFlight[$key] = $deferred->promise();
+
+        $this->api->letterIndex($query)->then(
+            function (LetterIndex $index) use ($key, $now, $deferred): void {
+                $this->letterIndexes->set($key, ['index' => $index, 'at' => $now]);
+                unset($this->letterIndexesInFlight[$key]);
+                $deferred->resolve($index);
+            },
+            function (\Throwable $error) use ($key, $deferred): void {
+                unset($this->letterIndexesInFlight[$key]);
+                $deferred->reject($error);
+            },
+        );
+
+        return $deferred->promise();
     }
 
     /**
@@ -348,11 +370,27 @@ final class MediaStore
             return resolve($this->continue['items']);
         }
 
-        return $this->api->continueWatching()->then(function (array $items) use ($now): array {
-            $this->continue = ['items' => $items, 'at' => $now];
+        if ($this->continueInFlight !== null) {
+            return $this->continueInFlight;
+        }
 
-            return $items;
-        });
+        /** @var Deferred<list<ContinueWatchingItem>> $deferred */
+        $deferred = new Deferred();
+        $this->continueInFlight = $deferred->promise();
+
+        $this->api->continueWatching()->then(
+            function (array $items) use ($now, $deferred): void {
+                $this->continue = ['items' => $items, 'at' => $now];
+                $this->continueInFlight = null;
+                $deferred->resolve($items);
+            },
+            function (\Throwable $error) use ($deferred): void {
+                $this->continueInFlight = null;
+                $deferred->reject($error);
+            },
+        );
+
+        return $deferred->promise();
     }
 
     public function invalidate(): void
@@ -360,6 +398,7 @@ final class MediaStore
         $this->pages->clear();
         $this->inFlight = [];
         $this->letterIndexes->clear();
+        $this->letterIndexesInFlight = [];
         $this->items->clear();
         $this->itemsInFlight = [];
         $this->ratings->clear();
@@ -367,6 +406,7 @@ final class MediaStore
         $this->chapters->clear();
         $this->chaptersInFlight = [];
         $this->continue = null;
+        $this->continueInFlight = null;
     }
 
     private function pageKey(MediaQuery $query): string
