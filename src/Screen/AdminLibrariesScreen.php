@@ -13,6 +13,7 @@ use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Admin\ScanJob;
 use Phlix\Console\Api\Dto\Library;
+use Phlix\Console\Api\Dto\MediaItemType;
 use Phlix\Console\Msg\AdminLibrariesFailedMsg;
 use Phlix\Console\Msg\AdminLibrariesLoadedMsg;
 use Phlix\Console\Msg\AdminLibraryActionDoneMsg;
@@ -89,8 +90,13 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
     private const LOAD_FAILED = 'Could not load the libraries.';
     private const HISTORY_FAILED = 'Could not load the scan history.';
-    private const HINT = 's scan   R rescan   m match   h history   r refresh   Esc back';
+    private const HINT = 'c create   u update   d delete   p prune   M clear-metadata   A clear-artwork   D delete-all   s scan   R rescan   m match   h history   r refresh   Esc back';
     private const HISTORY_HINT = '↑/↓ scroll   r refresh   h/Esc close';
+    private const CREATE_HINT = '↑↓ type   Enter next field   Esc cancel';
+    private const UPDATE_HINT = '↑↓ type   Enter update   Esc cancel';
+
+    /** The fields for the create/edit form, in order. */
+    private const FORM_FIELDS = ['name', 'type', 'path'];
 
     /** @var list<Library> */
     private array $libraries = [];
@@ -137,6 +143,29 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
         private int $rows = 24,
     ) {
     }
+
+    // ---- library administration state -------------------------------------
+
+    /**
+     * An armed destructive-action confirmation (delete / prune / clear-* / delete-all),
+     * or null when no destructive action is pending.
+     */
+    private ?LibraryPendingAction $pendingLibraryAction = null;
+
+    /** Whether the create/edit form is open. */
+    private bool $formOpen = false;
+
+    /** 'create' or 'update'. */
+    private string $formMode = 'create';
+
+    /** The library being edited (for update mode), or null for create. */
+    private ?Library $formLibrary = null;
+
+    /** The current form field index (0=name, 1=type, 2=path). */
+    private int $formFieldIndex = 0;
+
+    /** @var array<string, string> The current form field values. */
+    private array $formValues = ['name' => '', 'type' => '', 'path' => ''];
 
     public function init(): \Closure
     {
@@ -261,6 +290,12 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
 
     public function view(): string
     {
+        if ($this->formOpen) {
+            $title = $this->formMode === 'create' ? 'Admin · Libraries · Create' : 'Admin · Libraries · Update';
+            $hint = $this->formMode === 'create' ? self::CREATE_HINT : self::UPDATE_HINT;
+
+            return Chrome::frame($title, $this->formBody(), $hint, $this->cols, $this->rows, $this->crumbs, $this->theme());
+        }
         if ($this->historyOpen) {
             return Chrome::frame('Admin · Scan history', $this->historyBody(), self::HISTORY_HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
         }
@@ -273,14 +308,21 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
     /** @return array{self, ?\Closure} */
     private function handleKey(KeyMsg $msg): array
     {
+        // The form captures ALL input while open.
+        if ($this->formOpen) {
+            return $this->handleFormKey($msg);
+        }
         // The history sub-view owns ALL input while open (it never coexists with an
         // armed rescan), so it is checked before anything else.
         if ($this->historyOpen) {
             return $this->handleHistoryKey($msg);
         }
-        // An armed rescan captures y/n/Esc before anything else.
+        // An armed rescan or library action captures y/n/Esc before anything else.
         if ($this->pendingRescan !== null) {
-            return $this->handleConfirmKey($msg, $this->pendingRescan);
+            return $this->handleRescanConfirmKey($msg, $this->pendingRescan);
+        }
+        if ($this->pendingLibraryAction !== null) {
+            return $this->handleLibraryActionKey($msg);
         }
 
         if ($msg->type === KeyType::Escape || ($msg->type === KeyType::Char && $msg->rune === 'q')) {
@@ -325,6 +367,16 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
         }
 
         return match ($rune) {
+            // Create and update forms
+            'c' => [$this->openCreateForm(), null],
+            'u' => [$this->openUpdateForm($library), null],
+            // Destructive actions (all require confirmation)
+            'd' => [$this->armLibraryAction('delete', $library), null],
+            'p' => [$this->armLibraryAction('prune', $library), null],
+            'M' => [$this->armLibraryAction('clear-metadata', $library), null],
+            'A' => [$this->armLibraryAction('clear-artwork', $library), null],
+            'D' => [$this->armLibraryAction('delete-all', $library), null],
+            // Existing scan actions
             's' => [$this->working(), $this->actionCmd($this->admin->scanLibrary($library->id))],
             'm' => [$this->working(), $this->actionCmd($this->admin->matchLibraryMetadata($library->id))],
             'R' => [$this->arm($library), null],
@@ -333,13 +385,99 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
     }
 
     /** @return array{self, ?\Closure} */
-    private function handleConfirmKey(KeyMsg $msg, Library $library): array
+    private function handleRescanConfirmKey(KeyMsg $msg, Library $library): array
     {
         if ($msg->type === KeyType::Char && $msg->rune === 'y') {
             return [$this->working(), $this->actionCmd($this->admin->rescanLibrary($library->id))];
         }
         if ($msg->type === KeyType::Escape || ($msg->type === KeyType::Char && $msg->rune === 'n')) {
             return [$this->cancelPending(), null];
+        }
+
+        return [$this, null];
+    }
+
+    /**
+     * Handle a key while a library destructive action is armed for confirmation.
+     * For typed confirmation (delete-all), accumulates characters until 'delete' is typed.
+     * For y/n confirmations (delete, prune, clear-*), accepts y/n/escape.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function handleLibraryActionKey(KeyMsg $msg): array
+    {
+        $action = $this->pendingLibraryAction;
+        if ($action === null) {
+            return [$this->cancelPendingLibraryAction(), null];
+        }
+
+        // Typed confirmation for delete-all: accumulate characters
+        if ($action->action === 'delete-all') {
+            if ($msg->type === KeyType::Char && $msg->rune !== '') {
+                $next = $action->withTyped($msg->rune);
+                if ($next->typed === 'delete') {
+                    // Confirmed! Execute delete-all
+                    return [$this->working(), $this->actionCmd($this->admin->deleteAllLibraryItems($action->library->id))];
+                }
+
+                return [$this->withPendingLibraryAction($next), null];
+            }
+            if ($msg->type === KeyType::Escape) {
+                return [$this->cancelPendingLibraryAction(), null];
+            }
+
+            return [$this, null];
+        }
+
+        // y/n confirmation for other destructive actions
+        if ($msg->type === KeyType::Char && $msg->rune === 'y') {
+            $promise = match ($action->action) {
+                'delete' => $this->admin->deleteLibrary($action->library->id),
+                'prune' => $this->admin->pruneLibrary($action->library->id),
+                'clear-metadata' => $this->admin->clearMetadata($action->library->id),
+                'clear-artwork' => $this->admin->clearArtwork($action->library->id),
+                default => throw new \LogicException('Unknown action: ' . $action->action),
+            };
+
+            return [$this->working(), $this->actionCmd($promise)];
+        }
+        if ($msg->type === KeyType::Escape || ($msg->type === KeyType::Char && $msg->rune === 'n')) {
+            return [$this->cancelPendingLibraryAction(), null];
+        }
+
+        return [$this, null];
+    }
+
+    /** @return array{self, ?\Closure} */
+    private function handleFormKey(KeyMsg $msg)
+    {
+        // Escape closes the form
+        if ($msg->type === KeyType::Escape) {
+            return [$this->closeForm(), null];
+        }
+
+        // Up/Down navigates between fields
+        if ($msg->type === KeyType::Up) {
+            return [$this->moveFormField(-1), null];
+        }
+        if ($msg->type === KeyType::Down) {
+            return [$this->moveFormField(1), null];
+        }
+
+        // Enter advances to next field, or submits on the last field
+        if ($msg->type === KeyType::Enter) {
+            // On the last field, submit the form
+            if ($this->formFieldIndex >= count(self::FORM_FIELDS) - 1) {
+                return $this->submitForm();
+            }
+
+            // Otherwise, advance to next field
+            return [$this->withFormField($this->formFieldIndex + 1), null];
+        }
+
+        // Character input: accumulate into current field
+        if ($msg->type === KeyType::Char && $msg->rune !== '') {
+            return [$this->typeInForm($msg->rune), null];
         }
 
         return [$this, null];
@@ -663,6 +801,144 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
         return $next;
     }
 
+    // ---- library administration helpers ---------------------------------
+
+    /** Arm a destructive library action for confirmation. */
+    private function armLibraryAction(string $action, ?Library $library): self
+    {
+        if ($library === null) {
+            return $this;
+        }
+        $next = clone $this;
+        $next->pendingLibraryAction = new LibraryPendingAction($action, $library);
+
+        return $next;
+    }
+
+    private function withPendingLibraryAction(LibraryPendingAction $action): self
+    {
+        $next = clone $this;
+        $next->pendingLibraryAction = $action;
+
+        return $next;
+    }
+
+    private function cancelPendingLibraryAction(): self
+    {
+        $next = clone $this;
+        $next->pendingLibraryAction = null;
+
+        return $next;
+    }
+
+    /** Open the create library form. */
+    private function openCreateForm(): self
+    {
+        $next = clone $this;
+        $next->formOpen = true;
+        $next->formMode = 'create';
+        $next->formLibrary = null;
+        $next->formFieldIndex = 0;
+        $next->formValues = ['name' => '', 'type' => '', 'path' => ''];
+
+        return $next;
+    }
+
+    /** Open the update library form pre-filled with the library's current values. */
+    private function openUpdateForm(Library $library): self
+    {
+        $next = clone $this;
+        $next->formOpen = true;
+        $next->formMode = 'update';
+        $next->formLibrary = $library;
+        $next->formFieldIndex = 0;
+        $next->formValues = [
+            'name' => $library->name,
+            'type' => $library->type,
+            'path' => $library->paths[0] ?? '',
+        ];
+
+        return $next;
+    }
+
+    private function closeForm(): self
+    {
+        $next = clone $this;
+        $next->formOpen = false;
+        $next->formLibrary = null;
+        $next->formValues = ['name' => '', 'type' => '', 'path' => ''];
+
+        return $next;
+    }
+
+    private function moveFormField(int $delta): self
+    {
+        $count = count(self::FORM_FIELDS);
+        $next = clone $this;
+        $next->formFieldIndex = max(0, min($count - 1, $this->formFieldIndex + $delta));
+
+        return $next;
+    }
+
+    private function withFormField(int $index): self
+    {
+        $count = count(self::FORM_FIELDS);
+        $next = clone $this;
+        $next->formFieldIndex = max(0, min($count - 1, $index));
+
+        return $next;
+    }
+
+    private function typeInForm(string $char): self
+    {
+        $field = self::FORM_FIELDS[$this->formFieldIndex] ?? 'name';
+        $next = clone $this;
+        $next->formValues[$field] = $this->formValues[$field] . $char;
+
+        return $next;
+    }
+
+    /**
+     * Submit the create/update form.
+     * @return array{self, ?\Closure}
+     */
+    private function submitForm()
+    {
+        $name = trim($this->formValues['name']);
+        $type = trim($this->formValues['type']);
+        $path = trim($this->formValues['path']);
+
+        // Validate required fields
+        if ($name === '' || $type === '' || $path === '') {
+            return [$this->closeForm(), Cmd::send(ShowToastMsg::error('Name, type, and path are required.'))];
+        }
+
+        // Validate type is a valid library type
+        if (!in_array($type, MediaItemType::validLibraryTypes(), true)) {
+            return [$this->closeForm(), Cmd::send(ShowToastMsg::error('Invalid library type: ' . $type))];
+        }
+
+        // Create or update
+        if ($this->formMode === 'create') {
+            $promise = $this->admin->createLibrary($name, $type, [$path]);
+
+            return [$this->closeForm(), $this->actionCmd($promise)];
+        }
+
+        // Update mode
+        if ($this->formLibrary === null) {
+            return [$this->closeForm(), Cmd::send(ShowToastMsg::error('No library selected for update.'))];
+        }
+
+        $promise = $this->admin->updateLibrary($this->formLibrary->id, [
+            'name' => $name,
+            'type' => $type,
+            'paths' => [$path],
+        ]);
+
+        return [$this->closeForm(), $this->actionCmd($promise)];
+    }
+
     /** Bump the poll epoch so any in-flight tick / late status is stranded on exit. */
     private function leaving(): self
     {
@@ -724,10 +1000,15 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
 
     /**
      * The status panel for the selected library: the armed rescan prompt when one
-     * is pending, else the busy note, else the selected library's scan-job readout.
+     * is pending, the library action confirmation prompt, the busy note, or the
+     * selected library's scan-job readout.
      */
     private function statusPanel(): string
     {
+        // Library action confirmation takes priority (typed or y/n)
+        if ($this->pendingLibraryAction !== null) {
+            return '  ' . $this->pendingLibraryAction->prompt();
+        }
         $pending = $this->pendingRescan;
         if ($pending !== null) {
             $name = $pending->name === '' ? $pending->id : $pending->name;
@@ -739,6 +1020,38 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
         }
 
         return $this->scanReadout();
+    }
+
+    /**
+     * The create/update library form body: shows the three fields (name, type, path)
+     * with the current field highlighted, and navigation hints.
+     */
+    private function formBody(): string
+    {
+        $lines = [];
+        $validTypes = MediaItemType::validLibraryTypes();
+
+        foreach (self::FORM_FIELDS as $index => $field) {
+            $value = $this->formValues[$field] ?? '';
+            $current = $index === $this->formFieldIndex;
+            $prefix = $current ? '> ' : '  ';
+            $label = ucfirst($field);
+
+            if ($field === 'type') {
+                // Show type selection
+                $typeOptions = implode(', ', $validTypes);
+                $display = $value === '' ? "[{$typeOptions}]" : $value . " ({$typeOptions})";
+                $lines[] = "{$prefix}{$label}: {$display}";
+            } else {
+                $display = $value === '' ? '—' : $value;
+                $lines[] = "{$prefix}{$label}: {$display}";
+            }
+        }
+
+        $lines[] = '';
+        $lines[] = '  ↑↓ navigate   Enter next/submit   Esc cancel';
+
+        return "\n  " . ($this->formMode === 'create' ? 'Create Library' : 'Update Library') . "\n\n" . implode("\n", $lines);
     }
 
     /**

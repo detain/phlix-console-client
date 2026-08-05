@@ -1234,6 +1234,102 @@ final class AdminClient
             ->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
     }
 
+    /**
+     * Create a new library. The server returns 201 with `{library_id, job_id,
+     * status, message}`; this resolves the `message`. Rejects with the server
+     * `error` on validation failure (400) or 404.
+     *
+     * @param string                $name       The library name
+     * @param string                $type       One of MediaItemType::validLibraryTypes()
+     * @param list<string>          $paths      One or more filesystem paths to scan
+     * @param array<string, mixed>  $options    Optional library options
+     * @return PromiseInterface<string>
+     */
+    public function createLibrary(string $name, string $type, array $paths, array $options = []): PromiseInterface
+    {
+        return $this->api->send('POST', self::LIBRARIES, [], [
+            'name' => $name,
+            'type' => $type,
+            'paths' => $paths,
+            'options' => $options,
+        ])->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
+    }
+
+    /**
+     * Update an existing library. The server returns 200 with `{message}`; this
+     * resolves the `message`. Rejects with the server `error` on 400/404.
+     *
+     * @param string               $id     The library UUID
+     * @param array<string,mixed>  $data   Partial update: name?, type?, paths?, options?
+     * @return PromiseInterface<string>
+     */
+    public function updateLibrary(string $id, array $data): PromiseInterface
+    {
+        return $this->api->send('PUT', self::LIBRARIES . '/' . rawurlencode($id), [], $data)
+            ->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
+    }
+
+    /**
+     * Delete a library and all its items. The server returns 200 with `{message}`;
+     * this resolves the `message`. Rejects with the server `error` on 404.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function deleteLibrary(string $id): PromiseInterface
+    {
+        return $this->api->send('DELETE', self::LIBRARIES . '/' . rawurlencode($id))
+            ->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
+    }
+
+    /**
+     * Enqueue a prune of a library (drop items whose files are gone). The server
+     * returns 202 with `{job_id, status, message}`; this resolves the `message`.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function pruneLibrary(string $id): PromiseInterface
+    {
+        return $this->enqueue('/' . rawurlencode($id) . '/prune');
+    }
+
+    /**
+     * Enqueue a metadata reset for a library (strip fetched metadata, keep items).
+     * The server returns 202 with `{job_id, status, message}`; this resolves the
+     * `message`.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function clearMetadata(string $id): PromiseInterface
+    {
+        return $this->enqueue('/' . rawurlencode($id) . '/clear-metadata');
+    }
+
+    /**
+     * Enqueue an artwork-cache purge for a library (free disk; re-downloads on next
+     * match). The server returns 202 with `{job_id, status, message}`; this
+     * resolves the `message`.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function clearArtwork(string $id): PromiseInterface
+    {
+        return $this->enqueue('/' . rawurlencode($id) . '/clear-artwork');
+    }
+
+    /**
+     * Enqueue a DESTRUCTIVE full item wipe for a library (remove every item, keeping
+     * the library row). Requires `confirm=true` in the request body. The server
+     * returns 202 with `{job_id, status, message}`; this resolves the `message`.
+     * Without confirm it returns 400 with `library.delete_all.confirm_required`.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function deleteAllLibraryItems(string $id): PromiseInterface
+    {
+        return $this->api->send('POST', self::LIBRARIES . '/' . rawurlencode($id) . '/delete-all', ['confirm' => 'true'])
+            ->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
+    }
+
     // ---- live tv -------------------------------------------------------
 
     /**
