@@ -125,7 +125,7 @@ final class PosterLoader
      * the event loop can drain other tasks (e.g. network I/O) before the
      * CPU-heavy pixel processing runs.
      *
-     * @return PromiseInterface
+     * @return PromiseInterface<string>
      */
     public function deferRender(ImageSource $image, int $width, int $height)
     {
@@ -136,7 +136,10 @@ final class PosterLoader
             $deferred->resolve($bytes);
         });
 
-        return $deferred->promise();
+        /** @var PromiseInterface<string> */
+        $promise = $deferred->promise();
+
+        return $promise;
     }
 
     /**
