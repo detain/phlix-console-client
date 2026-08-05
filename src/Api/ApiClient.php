@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace Phlix\Console\Api;
 
 use Phlix\Console\Api\Dto\Album;
+use Phlix\Console\Api\Dto\AlbumPage;
 use Phlix\Console\Api\Dto\Audiobook;
 use Phlix\Console\Api\Dto\AudiobookChapter;
 use Phlix\Console\Api\Dto\AudiobookPage;
@@ -241,23 +242,14 @@ final class ApiClient
     // ---- music ---------------------------------------------------------
 
     /**
-     * The full album list — the server returns every album (each carrying its
-     * full track list) in one call, with no pagination.
+     * A page of the music library's album list, paged by limit/offset.
      *
-     * @return PromiseInterface<list<Album>>
+     * @return PromiseInterface<AlbumPage>
      */
-    public function musicAlbums(): PromiseInterface
+    public function musicAlbums(int $limit = 100, int $offset = 0): PromiseInterface
     {
-        return $this->authed('GET', '/api/v1/music/albums')->then(static function (array $data): array {
-            $albums = [];
-            foreach (Coerce::map($data['albums'] ?? null) as $row) {
-                if (is_array($row)) {
-                    $albums[] = Album::fromArray($row);
-                }
-            }
-
-            return $albums;
-        });
+        return $this->authed('GET', '/api/v1/music/albums', ['limit' => (string) $limit, 'offset' => (string) $offset])
+            ->then(static fn (array $data): AlbumPage => AlbumPage::fromArray($data));
     }
 
     /**

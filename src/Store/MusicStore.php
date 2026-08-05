@@ -14,26 +14,28 @@ use Phlix\Console\Api\Dto\Album;
 use React\Promise\Deferred;
 use React\Promise\PromiseInterface;
 
+use function React\Promise\all;
 use function React\Promise\resolve;
 
 /**
- * Caches the music album list (the server returns every album, with its full
- * track list, in one `/music/albums` call) over the {@see ApiClient} with a
- * short TTL, de-duplicating concurrent fetches.
+ * Caches music album pages over the {@see ApiClient} with a short TTL,
+ * de-duplicating concurrent fetches. Pages are keyed by offset so scrolling
+ * to a previously-visited region never re-fetches. The screen uses
+ * {@see ensureRange()} to fetch only the visible window (plus overscan), so
+ * even a 5,000-album library scrolls smoothly.
  */
 final class MusicStore
 {
-    /** Single-entry cache capacity. */
-    private const CACHE_CAPACITY = 1;
-
     /** @var LruMap */
-    private LruMap $albums;
+    private LruMap $pages;
 
-    /** @var PromiseInterface<list<Album>>|null  An album fetch in flight. */
-    private ?PromiseInterface $inFlight = null;
+    /** @var array<string, PromiseInterface<\Phlix\Console\Api\Dto\AlbumPage>>  In-flight page fetches, keyed by offset. */
+    private array $inFlight = [];
 
     /** @var \Closure(): float */
     private readonly \Closure $clock;
+
+    private const DEFAULT_LIMIT = 100;
 
     /**
      * @param (\Closure(): float)|null $clock
@@ -44,46 +46,84 @@ final class MusicStore
         ?\Closure $clock = null,
     ) {
         $this->clock = $clock ?? static fn (): float => microtime(true);
-        $this->albums = new LruMap(self::CACHE_CAPACITY);
+        $this->pages = new LruMap(64); // enough for several pages of scrolling
     }
 
     /**
-     * The full album list, TTL-cached. Concurrent calls share one fetch.
+     * Fetch the page(s) covering the absolute-index window [$start, $end] and
+     * resolve the albums keyed by their ABSOLUTE index, plus the total. Pages are
+     * cached and de-duplicated so a scroll that revisits an in-flight offset never
+     * doubles the request.
      *
-     * @return PromiseInterface<list<Album>>
+     * @return PromiseInterface<MusicRange>
      */
-    public function albums(bool $force = false): PromiseInterface
+    public function ensureRange(int $start, int $end, int $limit = self::DEFAULT_LIMIT): PromiseInterface
     {
-        $key = 'albums';
+        if ($end < 0 || $start > $end) {
+            return resolve(new MusicRange([], 0));
+        }
+
+        $start = max(0, $start);
+        $windowEnd = max($start, $end - 1);
+        $firstOffset = intdiv($start, $limit) * $limit;
+        $lastOffset = intdiv($windowEnd, $limit) * $limit;
+
+        /** @var array<int, PromiseInterface<\Phlix\Console\Api\Dto\AlbumPage>> $promises */
+        $promises = [];
+        for ($offset = $firstOffset; $offset <= $lastOffset; $offset += $limit) {
+            $promises[$offset] = $this->page($offset, $limit);
+        }
+
+        return all($promises)->then(static function (array $pages) use ($start, $end): MusicRange {
+            $albums = [];
+            $total = 0;
+            foreach ($pages as $offset => $page) {
+                $total = max($total, $page->total);
+                foreach ($page->albums as $i => $album) {
+                    $absolute = $offset + $i;
+                    if ($absolute >= $start && $absolute <= $end) {
+                        $albums[$absolute] = $album;
+                    }
+                }
+            }
+            ksort($albums);
+
+            return new MusicRange($albums, $total);
+        });
+    }
+
+    /**
+     * @return PromiseInterface<\Phlix\Console\Api\Dto\AlbumPage>
+     */
+    private function page(int $offset, int $limit): PromiseInterface
+    {
+        $key = "{$offset}:{$limit}";
         $now = ($this->clock)();
 
-        $entry = $this->albums->peek($key);
-        /** @var array{albums: list<Album>, at: float}|null $entry */
-        if (!$force && $entry !== null && ($now - $entry['at']) < $this->ttl) {
-            $cached = $this->albums->get($key);
-            /** @var array{albums: list<Album>, at: float} $cached */
-            return resolve($cached['albums']);
+        $entry = $this->pages->peek($key);
+        /** @var array{page: \Phlix\Console\Api\Dto\AlbumPage, at: float}|null $entry */
+        if ($entry !== null && ($now - $entry['at']) < $this->ttl) {
+            $cached = $this->pages->get($key);
+            /** @var array{page: \Phlix\Console\Api\Dto\AlbumPage, at: float} $cached */
+            return resolve($cached['page']);
         }
 
-        if ($this->inFlight !== null) {
-            return $this->inFlight;
+        if (isset($this->inFlight[$key])) {
+            return $this->inFlight[$key];
         }
 
-        // Drive a Deferred so the in-flight guard is registered before the inner
-        // request can settle (react may resolve synchronously) and cleared
-        // exactly once on settle/reject.
-        /** @var Deferred<list<Album>> $deferred */
+        /** @var Deferred<\Phlix\Console\Api\Dto\AlbumPage> $deferred */
         $deferred = new Deferred();
-        $this->inFlight = $deferred->promise();
+        $this->inFlight[$key] = $deferred->promise();
 
-        $this->api->musicAlbums()->then(
-            function (array $albums) use ($key, $now, $deferred): void {
-                $this->albums->set($key, ['albums' => $albums, 'at' => $now]);
-                $this->inFlight = null;
-                $deferred->resolve($albums);
+        $this->api->musicAlbums($limit, $offset)->then(
+            function (\Phlix\Console\Api\Dto\AlbumPage $page) use ($key, $now, $deferred): void {
+                $this->pages->set($key, ['page' => $page, 'at' => $now]);
+                unset($this->inFlight[$key]);
+                $deferred->resolve($page);
             },
-            function (\Throwable $error) use ($deferred): void {
-                $this->inFlight = null;
+            function (\Throwable $error) use ($key, $deferred): void {
+                unset($this->inFlight[$key]);
                 $deferred->reject($error);
             },
         );
@@ -93,7 +133,7 @@ final class MusicStore
 
     public function invalidate(): void
     {
-        $this->albums->clear();
-        $this->inFlight = null;
+        $this->pages->clear();
+        $this->inFlight = [];
     }
 }

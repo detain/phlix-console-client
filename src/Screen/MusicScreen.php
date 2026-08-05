@@ -11,11 +11,12 @@ namespace Phlix\Console\Screen;
 
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Album;
-use Phlix\Console\Msg\AlbumsLoadedMsg;
 use Phlix\Console\Msg\MusicFailedMsg;
+use Phlix\Console\Msg\MusicRangeLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenAlbumMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
+use Phlix\Console\Store\MusicRange;
 use Phlix\Console\Store\MusicStore;
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\Table;
@@ -30,13 +31,13 @@ use SugarCraft\Core\SubscriptionCapable;
  * A music library's album list, rendered as a borderless sugar-table via
  * {@see Table} (Album · Artist · Year · Tracks) with reverse-video row
  * selection. Music has no cover art server-side, so the screen is text-forward.
- * ↑/↓ move the selection, Enter opens the album's track
- * list (an {@see OpenAlbumMsg} the App turns into an AlbumScreen), Esc/q go back.
+ * ↑/↓ move the selection (fetching more pages on scroll), Enter opens the
+ * album's track list (an {@see OpenAlbumMsg}), Esc/q go back.
  *
- * The album list is fetched once via {@see MusicStore::albums()} (the server
- * returns every album, with its tracks, in one call). Stable collaborators are
- * readonly; the mutable view state is private and copied via clone-mutate (the
- * established screen idiom).
+ * The album list is paged via {@see MusicStore::ensureRange()}: only the
+ * visible window (plus overscan) is fetched, so even a 5,000-album library
+ * scrolls smoothly. Stable collaborators are readonly; the mutable view state
+ * is private and copied via clone-mutate (the established screen idiom).
  */
 final class MusicScreen implements Breadcrumbed, Themed
 {
@@ -49,12 +50,22 @@ final class MusicScreen implements Breadcrumbed, Themed
     private const ARTIST_WIDTH = 22;
     private const YEAR_WIDTH = 6;
     private const TRACKS_WIDTH = 7;
+    private const PAGE_LIMIT = 100;
+    private const OVERSCAN = 5;
+    private const LOAD_MORE_FAILED = "Couldn't load more albums.";
 
-    /** @var list<Album> */
+    /**
+     * Sparse array of loaded albums, keyed by absolute index in the full result set.
+     * @var array<int, Album>
+     */
     private array $albums = [];
+    private int $total = 0;
     private int $selected = 0;
     private bool $loaded = false;
     private ?string $error = null;
+    private int $generation = 0;
+    /** @var array{0:int,1:int} the last absolute window requested (dedups fetches) */
+    private array $requestedRange;
     /** @var list<string> */
     private array $crumbs = [];
 
@@ -63,16 +74,12 @@ final class MusicScreen implements Breadcrumbed, Themed
         private int $cols = 80,
         private int $rows = 24,
     ) {
+        $this->requestedRange = [0, $this->initialWindowEnd()];
     }
 
     public function init(): \Closure
     {
-        return Cmd::promise(fn () => $this->music->albums()->then(
-            static fn (array $albums): Msg => new AlbumsLoadedMsg($albums),
-            static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
-                : new MusicFailedMsg('Could not load this library.'),
-        ));
+        return $this->fetchRange(0, $this->initialWindowEnd());
     }
 
     /** @return array{self, ?\Closure} */
@@ -84,8 +91,8 @@ final class MusicScreen implements Breadcrumbed, Themed
         if ($msg instanceof KeyMsg) {
             return $this->handleKey($msg);
         }
-        if ($msg instanceof AlbumsLoadedMsg) {
-            return [$this->withAlbums($msg->albums), null];
+        if ($msg instanceof MusicRangeLoadedMsg) {
+            return $this->onRange($msg->range, $msg->generation);
         }
         if ($msg instanceof MusicFailedMsg) {
             return [$this->withError($msg->reason), null];
@@ -108,34 +115,97 @@ final class MusicScreen implements Breadcrumbed, Themed
             return [$this, Cmd::send(new NavigateBackMsg())];
         }
         if ($msg->type === KeyType::Enter) {
-            return $this->albums === []
+            $album = $this->albums[$this->selected] ?? null;
+
+            return $album === null
                 ? [$this, null]
-                : [$this, Cmd::send(new OpenAlbumMsg($this->albums[$this->selected]))];
+                : [$this, Cmd::send(new OpenAlbumMsg($album))];
         }
         if ($msg->type === KeyType::Up) {
-            return [$this->moveSelection(-1), null];
+            return $this->moveSelection(-1);
         }
         if ($msg->type === KeyType::Down) {
-            return [$this->moveSelection(1), null];
+            return $this->moveSelection(1);
         }
 
         return [$this, null];
     }
 
-    private function moveSelection(int $delta): self
+    /**
+     * @return array{self, ?\Closure}
+     */
+    private function moveSelection(int $delta): array
     {
-        $count = count($this->albums);
+        $count = $this->total > 0 ? $this->total : count($this->albums);
         if ($count === 0) {
-            return $this;
+            return [$this, null];
         }
-        $selected = max(0, min($count - 1, $this->selected + $delta));
-        if ($selected === $this->selected) {
-            return $this;
-        }
-        $next = clone $this;
-        $next->selected = $selected;
 
-        return $next;
+        $nextSelected = max(0, min($count - 1, $this->selected + $delta));
+
+        if ($nextSelected === $this->selected) {
+            return [$this, null];
+        }
+
+        $next = clone $this;
+        $next->selected = $nextSelected;
+
+        // If the new selection is outside our currently loaded range, fetch more.
+        $cmds = [];
+        if ($nextSelected < $next->requestedRange[0] || $nextSelected > $next->requestedRange[1]) {
+            $fetchEnd = min($count - 1, $nextSelected + $this->fetchAhead());
+            $cmds[] = $this->fetchRange($nextSelected - $this->fetchAhead(), $fetchEnd);
+            $next->requestedRange = [$nextSelected - $this->fetchAhead(), $fetchEnd];
+        }
+
+        return [$next, $cmds === [] ? null : Cmd::batch(...$cmds)];
+    }
+
+    // ---- data ---------------------------------------------------------
+
+    private function fetchRange(int $start, int $end): \Closure
+    {
+        $generation = $this->generation;
+
+        return Cmd::promise(fn () => $this->music->ensureRange($start, $end, self::PAGE_LIMIT)->then(
+            static fn (MusicRange $range): Msg => new MusicRangeLoadedMsg($range, $generation),
+            static fn (\Throwable $e): Msg => $e instanceof AuthError
+                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                : new MusicFailedMsg(self::LOAD_MORE_FAILED),
+        ));
+    }
+
+    /**
+     * @return array{self, ?\Closure}
+     */
+    private function onRange(MusicRange $range, int $generation): array
+    {
+        if ($generation !== $this->generation) {
+            return [$this, null]; // a superseded query's result
+        }
+
+        // Splice albums in at their absolute indices.
+        $next = clone $this;
+        $next->albums = $this->albums;
+        foreach ($range->albums as $index => $album) {
+            $next->albums[$index] = $album;
+        }
+        $next->total = $range->total;
+        $next->loaded = true;
+        $next->error = null;
+
+        // Clamp selection to valid range.
+        $count = $range->total > 0 ? $range->total : count($next->albums);
+        if ($count > 0 && $next->selected >= $count) {
+            $next->selected = $count - 1;
+        }
+
+        // Extend the requested window to cover what we now have loaded.
+        $minIndex = $next->albums === [] ? 0 : min(array_keys($next->albums));
+        $maxIndex = $next->albums === [] ? 0 : max(array_keys($next->albums));
+        $next->requestedRange = [$minIndex, $maxIndex];
+
+        return [$next, null];
     }
 
     // ---- rendering -----------------------------------------------------
@@ -148,12 +218,21 @@ final class MusicScreen implements Breadcrumbed, Themed
         if ($this->error !== null) {
             return "\n  {$this->error}";
         }
-        if ($this->albums === []) {
+        if ($this->albums === [] && $this->total === 0) {
             return "\n  No albums in this library.";
         }
 
+        $vRows = $this->viewportRows();
+        $start = max(0, $this->selected - $vRows + 1);
+        $end = min($this->total > 0 ? $this->total - 1 : count($this->albums) - 1, $this->selected + $vRows - 1);
+
         $rows = [];
-        foreach ($this->albums as $album) {
+        for ($i = $start; $i <= $end; $i++) {
+            $album = $this->albums[$i] ?? null;
+            if ($album === null) {
+                // Gap in the sparse array — shouldn't happen, but be defensive.
+                continue;
+            }
             $rows[] = [
                 $album->name,
                 $album->artist ?? '—',
@@ -162,35 +241,34 @@ final class MusicScreen implements Breadcrumbed, Themed
             ];
         }
 
+        // Table::render expects list<list<string>> and a single selected index
+        // relative to the visible rows (not the full list). Remap selection.
+        $relativeSelected = $this->selected - $start;
+
         return Table::render([
             ['title' => 'Album', 'width' => 0],
             ['title' => 'Artist', 'width' => self::ARTIST_WIDTH],
             ['title' => 'Year', 'width' => self::YEAR_WIDTH, 'align' => 'right'],
             ['title' => 'Tracks', 'width' => self::TRACKS_WIDTH, 'align' => 'right'],
-        ], $rows, $this->selected, $this->cols - 4, $this->viewportRows());
+        ], $rows, $relativeSelected, $this->cols - 4, $vRows);
     }
 
     private function viewportRows(): int
     {
-        // The content panel fills the frame; window the table to that body height
-        // less the table's own header + separator (2), so the selected row is
-        // never clipped.
         return max(1, Chrome::bodyHeight($this->rows) - 2);
     }
 
-    // ---- immutable copies (clone-mutate) -------------------------------
-
-    /** @param list<Album> $albums */
-    private function withAlbums(array $albums): self
+    private function initialWindowEnd(): int
     {
-        $next = clone $this;
-        $next->albums = $albums;
-        $next->loaded = true;
-        $next->error = null;
-        $next->selected = $albums === [] ? 0 : min($this->selected, count($albums) - 1);
-
-        return $next;
+        return max(0, $this->viewportRows() - 1 + self::OVERSCAN);
     }
+
+    private function fetchAhead(): int
+    {
+        return max(1, $this->viewportRows() - 1 + self::OVERSCAN);
+    }
+
+    // ---- immutable copies (clone-mutate) -------------------------------
 
     private function withError(string $error): self
     {
@@ -247,8 +325,13 @@ final class MusicScreen implements Breadcrumbed, Themed
         return $this->selected;
     }
 
-    /** @return list<Album> */
-    public function albums(): array
+    public function total(): int
+    {
+        return $this->total;
+    }
+
+    /** @return array<int, Album> */
+    public function albumsByIndex(): array
     {
         return $this->albums;
     }
