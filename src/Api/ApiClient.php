@@ -705,6 +705,30 @@ final class ApiClient
             ->then(static fn (array $data): MediaPage => MediaPage::fromArray($data));
     }
 
+    // ---- watched -------------------------------------------------------
+
+    /**
+     * Mark a media item as watched.
+     *
+     * @return PromiseInterface<bool>
+     */
+    public function markWatched(string $mediaId): PromiseInterface
+    {
+        return $this->authed('POST', '/api/v1/media/' . rawurlencode($mediaId) . '/watched')
+            ->then(static fn (array $data): bool => true);
+    }
+
+    /**
+     * Mark a media item as unwatched.
+     *
+     * @return PromiseInterface<bool>
+     */
+    public function markUnwatched(string $mediaId): PromiseInterface
+    {
+        return $this->authed('POST', '/api/v1/media/' . rawurlencode($mediaId) . '/unwatched')
+            ->then(static fn (array $data): bool => true);
+    }
+
     // ---- SyncPlay ------------------------------------------------------
 
     /**

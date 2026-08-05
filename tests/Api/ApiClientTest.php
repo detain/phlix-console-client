@@ -934,6 +934,36 @@ final class ApiClientTest extends TestCase
         self::assertStringContainsString('offset=10', $req['url']);
     }
 
+    // ---- watched -------------------------------------------------------
+
+    public function testMarkWatchedPostsTheRouteAndReturnsTrue(): void
+    {
+        $t = (new FakeTransport())->json(200, ['message' => 'watched']);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $result = $this->await($client->markWatched('m1'));
+
+        self::assertTrue($result);
+        $req = $t->requestAt(0);
+        self::assertSame('POST', $req['method']);
+        self::assertStringEndsWith('/api/v1/media/m1/watched', $req['url']);
+    }
+
+    public function testMarkUnwatchedPostsTheRouteAndReturnsTrue(): void
+    {
+        $t = (new FakeTransport())->json(200, ['message' => 'unwatched']);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $result = $this->await($client->markUnwatched('m1'));
+
+        self::assertTrue($result);
+        $req = $t->requestAt(0);
+        self::assertSame('POST', $req['method']);
+        self::assertStringEndsWith('/api/v1/media/m1/unwatched', $req['url']);
+    }
+
     // ---- 401 refresh-and-retry ----------------------------------------
 
     public function testUnauthorizedTriggersRefreshAndRetry(): void
