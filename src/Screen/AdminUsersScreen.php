@@ -12,12 +12,15 @@ namespace Phlix\Console\Screen;
 use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Admin\AdminUser;
+use Phlix\Console\Api\Dto\Admin\UserQuota;
 use Phlix\Console\Msg\AdminUserActionDoneMsg;
 use Phlix\Console\Msg\AdminUserActionFailedMsg;
 use Phlix\Console\Msg\AdminUsersFailedMsg;
 use Phlix\Console\Msg\AdminUsersLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenAdminUserProfilesMsg;
+use Phlix\Console\Msg\QuotaLoadedMsg;
+use Phlix\Console\Msg\QuotaLoadFailedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Ui\Chrome;
@@ -73,7 +76,7 @@ final class AdminUsersScreen implements Breadcrumbed, Themed
 
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
     private const LOAD_FAILED = 'Could not load the users.';
-    private const HINT = 'c create  E edit  P profiles  f filter  a approve  d disable  x delete  j reject  m admin  p reset-pw  r refresh  Esc back';
+    private const HINT = 'c create  E edit  Q quota  P profiles  f filter  a approve  d disable  x delete  j reject  m admin  p reset-pw  r refresh  Esc back';
     private const FORM_HINT = 'Tab/↑↓  field      Enter  save      Esc  cancel';
 
     /** The username rule mirrors the server: 3–50 of [A-Za-z0-9_]. */
@@ -115,6 +118,12 @@ final class AdminUsersScreen implements Breadcrumbed, Themed
 
     /** A client-side validation note shown above an open form, or null. */
     private ?string $formError = null;
+
+    /** The embedded quota edit form while open, else null. */
+    private ?Form $quotaForm = null;
+
+    /** The user whose quota is being edited (null when quota form is closed). */
+    private ?AdminUser $quotaEditing = null;
 
     /** @var list<string> */
     private array $crumbs = [];
@@ -363,6 +372,9 @@ final class AdminUsersScreen implements Breadcrumbed, Themed
         if ($this->form !== null) {
             return $this->updateForm($msg, $this->form);
         }
+        if ($this->quotaForm !== null) {
+            return $this->updateQuotaForm($msg);
+        }
         if ($msg instanceof KeyMsg) {
             return $this->handleKey($msg);
         }
@@ -378,6 +390,12 @@ final class AdminUsersScreen implements Breadcrumbed, Themed
         if ($msg instanceof AdminUserActionFailedMsg) {
             return [$this->idle(), Cmd::send(ShowToastMsg::error($msg->message))];
         }
+        if ($msg instanceof QuotaLoadedMsg) {
+            return $this->onQuotaLoaded($msg);
+        }
+        if ($msg instanceof QuotaLoadFailedMsg) {
+            return $this->onQuotaLoadFailed($msg);
+        }
 
         return [$this, null];
     }
@@ -388,6 +406,10 @@ final class AdminUsersScreen implements Breadcrumbed, Themed
             $title = $this->editing !== null ? 'Admin · Users · Edit' : 'Admin · Users · Create';
 
             return Chrome::frame($title, $this->formBody($this->form), self::FORM_HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
+        }
+
+        if ($this->quotaForm !== null) {
+            return Chrome::frame('Admin · Users · Quota', $this->formBody($this->quotaForm), self::FORM_HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
         }
 
         return Chrome::frame('Admin · Users', $this->body(), self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
@@ -403,7 +425,11 @@ final class AdminUsersScreen implements Breadcrumbed, Themed
             return $this->handleConfirmKey($msg, $this->pending);
         }
 
-        if ($msg->type === KeyType::Escape || ($msg->type === KeyType::Char && $msg->rune === 'q')) {
+        if ($msg->type === KeyType::Escape) {
+            if ($this->quotaForm !== null) {
+                return [$this->closeQuotaForm(), null];
+            }
+
             return [$this, Cmd::send(new NavigateBackMsg())];
         }
         if ($msg->type === KeyType::Up) {
@@ -445,6 +471,7 @@ final class AdminUsersScreen implements Breadcrumbed, Themed
 
         return match ($rune) {
             'E' => [$this->openEdit($user), null],
+            'Q' => $this->openQuota($user),
             'P' => [$this, Cmd::send(new OpenAdminUserProfilesMsg($user->id, $user->label()))],
             'a' => $this->fire('approve', $user),
             'p' => $this->fire('reset-password', $user),
@@ -591,6 +618,120 @@ final class AdminUsersScreen implements Breadcrumbed, Themed
     private function openEdit(AdminUser $user): self
     {
         return $this->withForm(self::buildEditForm($user), $user);
+    }
+
+    /**
+     * Open the quota form for a user. Returns the screen in a loading state
+     * and a command to fetch the user's current quota.
+     *
+     * @return array{self, \Closure}
+     */
+    private function openQuota(AdminUser $user): array
+    {
+        $next = $this->withQuotaForm(self::buildQuotaForm(null), $user);
+        $admin = $this->admin;
+
+        $quotaCmd = static function () use ($user, $admin): PromiseInterface {
+            return $admin->getUserQuota($user->id)->then(
+                static function (UserQuota $quota) use ($user): Msg {
+                    return new QuotaLoadedMsg($user->id, $quota);
+                },
+                static fn (\Throwable $e): Msg => new QuotaLoadFailedMsg($e->getMessage()),
+            );
+        };
+
+        return [$next, $quotaCmd];
+    }
+
+    /**
+     * Handle a loaded quota: rebuild the form with the actual quota data.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function onQuotaLoaded(QuotaLoadedMsg $msg): array
+    {
+        // Only apply if we're still editing this user's quota.
+        if ($this->quotaEditing === null || $this->quotaEditing->id !== $msg->userId) {
+            return [$this, null];
+        }
+
+        $next = $this->withQuotaForm(self::buildQuotaForm($msg->quota), $this->quotaEditing);
+
+        return [$next, null];
+    }
+
+    /**
+     * Handle a quota load failure: close the form and show an error toast.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function onQuotaLoadFailed(QuotaLoadFailedMsg $msg): array
+    {
+        $next = $this->closeQuotaForm();
+
+        return [$next, Cmd::send(ShowToastMsg::error('Could not load quota: ' . $msg->message))];
+    }
+
+    private function closeQuotaForm(): self
+    {
+        return $this->withQuotaForm(null, null);
+    }
+
+    private function withQuotaForm(?Form $form, ?AdminUser $editing): self
+    {
+        $next = clone $this;
+        $next->quotaForm = $form;
+        $next->quotaEditing = $form === null ? null : $editing;
+
+        return $next;
+    }
+
+    private static function buildQuotaForm(?UserQuota $quota): Form
+    {
+        return Form::new(
+            Input::new('maxConcurrentStreams')
+                ->withTitle('Max concurrent streams')
+                ->withValue((string) ($quota !== null ? $quota->maxConcurrentStreams : 1)),
+            Input::new('maxTotalBandwidthKbps')
+                ->withTitle('Max total bandwidth (Kbps, optional)')
+                ->withValue($quota !== null && $quota->maxTotalBandwidthKbps !== null ? (string) $quota->maxTotalBandwidthKbps : ''),
+        );
+    }
+
+    /** @return array{self, ?\Closure} */
+    private function updateQuotaForm(Msg $msg): array
+    {
+        if ($this->quotaForm === null || $this->quotaEditing === null) {
+            return [$this, null];
+        }
+
+        /** @var array{0: Form, 1: ?\Closure} $result */
+        $result = $this->quotaForm->update($msg);
+        [$nextForm, $cmd] = $result;
+
+        if ($nextForm->isAborted()) {
+            return [$this->closeQuotaForm(), null];
+        }
+        if ($nextForm->isSubmitted()) {
+            return $this->submitQuota($nextForm, $this->quotaEditing);
+        }
+
+        return [$this->withQuotaForm($nextForm, $this->quotaEditing), $cmd];
+    }
+
+    /** @return array{self, ?\Closure} */
+    private function submitQuota(Form $form, AdminUser $user): array
+    {
+        $maxConcurrentStreams = max(1, (int) $form->getString('maxConcurrentStreams'));
+        $maxTotalBandwidthKbpsRaw = trim($form->getString('maxTotalBandwidthKbps'));
+        $maxTotalBandwidthKbps = $maxTotalBandwidthKbpsRaw !== '' ? (int) $maxTotalBandwidthKbpsRaw : null;
+
+        $next = $this->closeQuotaForm()->working();
+
+        return [$next, $this->mutationCmd(
+            $this->admin->setUserQuota($user->id, $maxConcurrentStreams, $maxTotalBandwidthKbps),
+            'Quota updated',
+        )];
     }
 
     /** Reopen a fresh create form pre-filled with the entered values + an error. */

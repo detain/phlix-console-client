@@ -40,6 +40,7 @@ use Phlix\Console\Api\Dto\Admin\ServerSettings;
 use Phlix\Console\Api\Dto\Admin\ToneMappingSettings;
 use Phlix\Console\Api\Dto\Admin\TranscodingAccelerators;
 use Phlix\Console\Api\Dto\Admin\Tuner;
+use Phlix\Console\Api\Dto\Admin\UserQuota;
 use Phlix\Console\Api\Dto\Admin\WatchHistoryEntry;
 use Phlix\Console\Api\Dto\Coerce;
 use Phlix\Console\Api\Dto\Library;
@@ -323,6 +324,42 @@ final class AdminClient
     private function userAction(string $method, string $suffix, ?array $body = null): PromiseInterface
     {
         return $this->api->send($method, self::USERS . $suffix, [], $body)
+            ->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
+    }
+
+    // ---- user quota ------------------------------------------------------
+
+    /**
+     * Get a user's quota and bandwidth limits. The response shape is
+     * `{quota: {max_concurrent_streams, max_total_bandwidth_kbps}}`.
+     *
+     * @return PromiseInterface<UserQuota>
+     */
+    public function getUserQuota(string $userId): PromiseInterface
+    {
+        return $this->api->send('GET', self::USERS . '/' . rawurlencode($userId) . '/quota')
+            ->then(static fn (array $body): UserQuota => UserQuota::fromArray(
+                Coerce::map($body['quota'] ?? null),
+            ));
+    }
+
+    /**
+     * Update a user's quota and bandwidth limits. The body is `{max_concurrent_streams}` and
+     * optionally `{max_total_bandwidth_kbps}`; on 200 the server returns
+     * `{quota, message}` and this resolves the `message`. Rejects with the
+     * server `error` on a 400 (validation) — the {@see \Phlix\Console\Api\ApiError}
+     * carries it as the exception message.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function setUserQuota(string $userId, int $maxConcurrentStreams, ?int $maxTotalBandwidthKbps = null): PromiseInterface
+    {
+        $body = ['max_concurrent_streams' => $maxConcurrentStreams];
+        if ($maxTotalBandwidthKbps !== null) {
+            $body['max_total_bandwidth_kbps'] = $maxTotalBandwidthKbps;
+        }
+
+        return $this->api->send('PUT', self::USERS . '/' . rawurlencode($userId) . '/quota', [], $body)
             ->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
     }
 
