@@ -753,6 +753,123 @@ final class AdminClient
             ->then(static fn (array $body): array => Coerce::stringList($body['sources'] ?? null));
     }
 
+    /**
+     * Fetch the catalog update channel. The GET returns `{channel: string}` read
+     * TOP-LEVEL from the body. Rejects with the server `error` on non-2xx.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function pluginCatalogChannel(): PromiseInterface
+    {
+        return $this->api->send('GET', self::PLUGINS . '/catalog/channel')
+            ->then(static fn (array $body): string => Coerce::str($body['channel'] ?? ''));
+    }
+
+    /**
+     * Set the catalog update channel. The PUT body is `{channel: string}`; on
+     * success the server returns `{message}`. Rejects with the server `error` on
+     * a 400 (invalid channel).
+     *
+     * @return PromiseInterface<string>
+     */
+    public function setPluginCatalogChannel(string $channel): PromiseInterface
+    {
+        return $this->api->send('PUT', self::PLUGINS . '/catalog/channel', [], ['channel' => $channel])
+            ->then(static fn (array $body): string => Coerce::str($body['message'] ?? ''));
+    }
+
+    /**
+     * Fetch the auto-update setting. The GET returns `{auto_update: bool}` read
+     * TOP-LEVEL from the body. Rejects with the server `error` on non-2xx.
+     *
+     * @return PromiseInterface<bool>
+     */
+    public function pluginAutoUpdate(): PromiseInterface
+    {
+        return $this->api->send('GET', self::PLUGINS . '/auto-update')
+            ->then(static fn (array $body): bool => Coerce::bool($body['auto_update'] ?? false));
+    }
+
+    /**
+     * Set the auto-update setting. The PUT body is `{auto_update: bool}`; on
+     * success the server returns `{message}`. Rejects with the server `error` on
+     * a 400.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function setPluginAutoUpdate(bool $enabled): PromiseInterface
+    {
+        return $this->api->send('PUT', self::PLUGINS . '/auto-update', [], ['auto_update' => $enabled])
+            ->then(static fn (array $body): string => Coerce::str($body['message'] ?? ''));
+    }
+
+    /**
+     * Check for available plugin updates. The GET returns `{updates: list<{name,
+     * current_version, latest_version}>}` read TOP-LEVEL from the body. An empty
+     * list means no updates are available. Rejects with the server `error` on
+     * non-2xx.
+     *
+     * @return PromiseInterface<list<array{name:string,current_version:string,latest_version:string}>>
+     */
+    public function pluginUpdates(): PromiseInterface
+    {
+        return $this->api->send('GET', self::PLUGINS . '/updates')->then(
+            static function (array $body): array {
+                /** @var list<array{name:string,current_version:string,latest_version:string}> $updates */
+                $updates = self::mapList(
+                    $body['updates'] ?? null,
+                    static fn (array $row): array => [
+                        'name' => Coerce::str($row['name'] ?? ''),
+                        'current_version' => Coerce::str($row['current_version'] ?? ''),
+                        'latest_version' => Coerce::str($row['latest_version'] ?? ''),
+                    ],
+                );
+
+                return $updates;
+            },
+        );
+    }
+
+    /**
+     * Fetch available plugin update info. The GET returns `{updates: list<{name,
+     * current_version, latest_version}>}` read TOP-LEVEL from the body. An empty
+     * list means no updates are available. Rejects with the server `error` on
+     * non-2xx.
+     *
+     * @return PromiseInterface<list<array{name:string,current_version:string,latest_version:string}>>
+     */
+    public function pluginUpdateInfo(): PromiseInterface
+    {
+        return $this->api->send('GET', self::PLUGINS . '/updates')->then(
+            static function (array $body): array {
+                /** @var list<array{name:string,current_version:string,latest_version:string}> $updates */
+                $updates = self::mapList(
+                    $body['updates'] ?? null,
+                    static fn (array $row): array => [
+                        'name' => Coerce::str($row['name'] ?? ''),
+                        'current_version' => Coerce::str($row['current_version'] ?? ''),
+                        'latest_version' => Coerce::str($row['latest_version'] ?? ''),
+                    ],
+                );
+
+                return $updates;
+            },
+        );
+    }
+
+    /**
+     * Apply all available plugin updates. ⚠️ Plugin updates can destroy settings
+     * (including OAuth tokens). The POST returns `{message}` on success.
+     * Rejects with the server `error` on non-2xx.
+     *
+     * @return PromiseInterface<string>
+     */
+    public function applyPluginUpdates(): PromiseInterface
+    {
+        return $this->api->send('POST', self::PLUGINS . '/updates/apply')
+            ->then(static fn (array $body): string => Coerce::str($body['message'] ?? ''));
+    }
+
     // ---- backups -------------------------------------------------------
 
     /**
