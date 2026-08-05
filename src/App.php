@@ -88,6 +88,7 @@ use Phlix\Console\Screen\AdminPluginsScreen;
 use Phlix\Console\Screen\AdminRemoteAccessScreen;
 use Phlix\Console\Screen\AdminSettingsScreen;
 use Phlix\Console\Screen\AdminUsersScreen;
+use Phlix\Console\Screen\AdminDuplicatesScreen;
 use Phlix\Console\Screen\AdminWatchHistoryScreen;
 use Phlix\Console\Screen\AlbumScreen;
 use Phlix\Console\Screen\AudiobookDetailScreen;
@@ -1355,6 +1356,11 @@ final class App implements Model
             $screen = new AdminWatchHistoryScreen(new AdminClient($this->api), $this->cols, $this->rows);
 
             return [$this->push(Route::AdminWatchHistory, $screen), $screen->init()];
+        }
+        if ($section === Route::AdminDuplicates) {
+            $screen = new AdminDuplicatesScreen(new AdminClient($this->api), '', $this->cols, $this->rows);
+
+            return [$this->push(Route::AdminDuplicates, $screen), $screen->init()];
         }
 
         return [$this, null];

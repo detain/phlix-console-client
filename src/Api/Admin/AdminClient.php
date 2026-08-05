@@ -1334,6 +1334,54 @@ final class AdminClient
             ->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
     }
 
+    // ---- duplicates & merge --------------------------------------------
+
+    /**
+     * Fetch the duplicate groups for one library. Each group carries a
+     * designated primary + a list of duplicate items, all hydrated from
+     * `media_items` with an added `descendant_count`. Groups with fewer than
+     * two members are excluded. An empty library yields `{groups: []}` (200,
+     * not 404). The controller returns data at the TOP LEVEL with NO
+     * `{success, data}` envelope (admin envelopes are per-controller), so
+     * the list is read straight from `$body['groups']`.
+     *
+     * @return PromiseInterface<list<array{canonical_key:string,type:string,library_id:string,primary:array<string,mixed>,duplicates:list<array<string,mixed>>}>>
+     */
+    /**
+     * @return PromiseInterface<list<array{canonical_key:string,type:string,library_id:string,primary:array<string,mixed>,duplicates:list<array<string,mixed>>}>>
+     */
+    public function duplicates(string $libraryId): PromiseInterface
+    {
+        return $this->api->send('GET', self::LIBRARIES . '/' . rawurlencode($libraryId) . '/duplicates')
+            ->then(static function (array $body): array {
+                /** @var list<array{canonical_key:string,type:string,library_id:string,primary:array<string,mixed>,duplicates:list<array<string,mixed>>}> */
+                $groups = $body['groups'] ?? [];
+
+                return $groups;
+            });
+    }
+
+    /**
+     * Apply a merge: re-parent every duplicate's children onto the primary
+     * and delete the empty duplicate shells. The POST body is
+     * `{primary_id, duplicate_ids[]}`; the response is `{moved, deleted}`.
+     * Merge is destructive — the server validates all items are in the same
+     * library and of the same type before mutating anything.
+     *
+     * @param list<string> $duplicateIds
+     * @return PromiseInterface<array{moved:int,deleted:int}>
+     */
+    public function merge(string $primaryId, array $duplicateIds): PromiseInterface
+    {
+        return $this->api->send('POST', '/api/v1/admin/media/merge', [], [
+            'primary_id' => $primaryId,
+            'duplicate_ids' => $duplicateIds,
+        ])->then(static fn (array $body): array => [
+            'moved' => Coerce::int($body['moved'] ?? 0),
+            'deleted' => Coerce::int($body['deleted'] ?? 0),
+        ]);
+    }
+
     // ---- live tv -------------------------------------------------------
 
     /**

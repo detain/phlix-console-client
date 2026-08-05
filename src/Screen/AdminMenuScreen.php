@@ -64,6 +64,7 @@ final class AdminMenuScreen implements Breadcrumbed, Themed
         ['label' => 'Parental Controls', 'route' => Route::AdminParentalControls, 'available' => true],
         ['label' => 'Metrics', 'route' => Route::AdminMetrics, 'available' => true],
         ['label' => 'Watch History', 'route' => Route::AdminWatchHistory, 'available' => true],
+        ['label' => 'Duplicates', 'route' => Route::AdminDuplicates, 'available' => true],
     ];
 
     private int $selected = 0;
