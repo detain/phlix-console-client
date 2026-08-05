@@ -65,4 +65,5 @@ enum Route
     case Recommendations;
     case WatchHistory;
     case Favorites;
+    case Servers;
 }

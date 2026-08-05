@@ -48,11 +48,15 @@ use Phlix\Console\Msg\OpenLibraryMsg;
 use Phlix\Console\Msg\OpenPhotoAlbumMsg;
 use Phlix\Console\Msg\OpenPhotoMsg;
 use Phlix\Console\Msg\OpenSearchMsg;
+use Phlix\Console\Msg\OpenServersMsg;
 use Phlix\Console\Msg\OpenSettingsMsg;
 use Phlix\Console\Msg\OpenStatsMsg;
 use Phlix\Console\Msg\OpenRecommendationsMsg;
 use Phlix\Console\Msg\OpenFavoritesMsg;
 use Phlix\Console\Msg\OpenWatchHistoryMsg;
+use Phlix\Console\Msg\AddServerMsg;
+use Phlix\Console\Msg\RemoveServerMsg;
+use Phlix\Console\Msg\SwitchServerMsg;
 use Phlix\Console\Msg\PaletteLibrariesLoadedMsg;
 use Phlix\Console\Msg\PlayAudiobookMsg;
 use Phlix\Console\Msg\PlayNextMsg;
@@ -119,6 +123,7 @@ use Phlix\Console\Screen\ParentalControlsScreen;
 use Phlix\Console\Screen\PlayerScreen;
 use Phlix\Console\Screen\SearchScreen;
 use Phlix\Console\Screen\ServerScreen;
+use Phlix\Console\Screen\ServersScreen;
 use Phlix\Console\Screen\SettingsScreen;
 use Phlix\Console\Screen\Shimmering;
 use Phlix\Console\Screen\StatsScreen;
@@ -382,6 +387,18 @@ final class App implements Model
         }
         if ($msg instanceof OpenFavoritesMsg) {
             return $this->openFavorites();
+        }
+        if ($msg instanceof OpenServersMsg) {
+            return $this->openServers();
+        }
+        if ($msg instanceof SwitchServerMsg) {
+            return $this->onServerSwitch($msg->serverId);
+        }
+        if ($msg instanceof AddServerMsg) {
+            return $this->onServerAdd($msg->url, $msg->label, $msg->hubId);
+        }
+        if ($msg instanceof RemoveServerMsg) {
+            return $this->onServerRemove($msg->serverId);
         }
         if ($msg instanceof OpenAdminMsg) {
             return $this->openAdmin();
@@ -847,6 +864,7 @@ final class App implements Model
             new PaletteAction('Stats', new OpenStatsMsg()),
             new PaletteAction('Watch History', new OpenWatchHistoryMsg()),
             new PaletteAction('Favorites', new OpenFavoritesMsg()),
+            new PaletteAction('Servers', new OpenServersMsg()),
             // The metrics / HUD overlay is toggled from the palette (no global key,
             // so no conflict); the label flips with the current visibility.
             new PaletteAction($this->metricsVisible ? 'Hide metrics' : 'Show metrics', new ToggleMetricsMsg()),
@@ -1278,6 +1296,153 @@ final class App implements Model
         $screen = new FavoritesScreen($favoritesStore, $this->cols, $this->rows);
 
         return [$this->push(Route::Favorites, $screen), $screen->init()];
+    }
+
+    /** @return array{App, ?\Closure} */
+    private function openServers(): array
+    {
+        $screen = ServersScreen::create(
+            $this->config->servers,
+            $this->config->activeServerId,
+            $this->cols,
+            $this->rows,
+        );
+
+        return [$this->push(Route::Servers, $screen), $screen->init()];
+    }
+
+    /**
+     * Switch to a different server: update config active id, swap the ApiClient
+     * token to that server's stored token, invalidate ALL caches, and return to browse.
+     *
+     * @return array{App, ?\Closure}
+     */
+    private function onServerSwitch(string $serverId): array
+    {
+        $server = null;
+        foreach ($this->config->servers as $s) {
+            if ($s->id === $serverId) {
+                $server = $s;
+                break;
+            }
+        }
+
+        if ($server === null) {
+            $toast = ShowToastMsg::warning("Server not found: {$serverId}");
+
+            return [$this->withStack([]), Cmd::send($toast)];
+        }
+
+        // Persist the active server id
+        $newConfig = $this->config->withActiveServerId($serverId);
+        try {
+            $newConfig->save();
+        } catch (\Throwable $e) {
+            $toast = ShowToastMsg::warning('Could not save server selection: ' . $e->getMessage());
+
+            return [$this, Cmd::send($toast)];
+        }
+
+        // Invalidate the stores App holds as properties so fresh data is fetched
+        $this->libraries->invalidate();
+        $this->media->invalidate();
+
+        // Update API base URL for the new server
+        $this->api->setBaseUrl($server->url);
+
+        // Load and set the token for the new server from per-server token storage
+        $tokens = \Phlix\Console\Config\TokenStore::default()->getForServer($serverId);
+        if ($tokens !== null) {
+            $bundle = new \Phlix\Console\Config\TokenBundle($tokens['token'], $tokens['refresh']);
+            $this->api->setToken($bundle);
+        } else {
+            // No stored token — clear and let the user re-authenticate
+            $this->api->clearToken();
+        }
+
+        // Clear the in-memory auth user so the next screen render will
+        // re-check the token and either restore the user or redirect to login.
+        $this->auth->clearUser();
+
+        // Attempt to re-authenticate with the new server's token asynchronously.
+        // BootResolvedMsg will drive goBrowse or goLogin based on the result.
+        return [$this, Cmd::promise(
+            fn () => $this->auth->restore()->then(
+                static fn (?\Phlix\Console\Api\Dto\AuthUser $user): \SugarCraft\Core\Msg => new \Phlix\Console\Msg\BootResolvedMsg($user),
+            ),
+        )];
+    }
+
+    /**
+     * Add a new server to the config (from manual entry or hub import).
+     *
+     * @return array{App, ?\Closure}
+     */
+    private function onServerAdd(string $url, string $label, ?string $hubId): array
+    {
+        try {
+            $newConfig = $this->config->withServerUrl($url, $label);
+            // Preserve hub_id if provided
+            if ($hubId !== null) {
+                $servers = $newConfig->servers;
+                $last = end($servers);
+                // Replace the last-added server's hub_id
+                $serversWithHubId = [];
+                foreach ($servers as $s) {
+                    if ($s === $last) {
+                        $serversWithHubId[] = new \Phlix\Console\Config\ServerEntry(
+                            id: $s->id,
+                            label: $s->label,
+                            url: $s->url,
+                            hubId: $hubId,
+                        );
+                    } else {
+                        $serversWithHubId[] = $s;
+                    }
+                }
+                $newConfig = $newConfig->withServers($serversWithHubId);
+            }
+            $newConfig->save();
+
+            return [$this->withConfig($newConfig), null];
+        } catch (\Throwable $e) {
+            $toast = ShowToastMsg::warning('Could not add server: ' . $e->getMessage());
+
+            return [$this, Cmd::send($toast)];
+        }
+    }
+
+    /**
+     * Remove a server from the config.
+     *
+     * @return array{App, ?\Closure}
+     */
+    private function onServerRemove(string $serverId): array
+    {
+        // Don't remove the active server
+        if ($serverId === $this->config->activeServerId) {
+            $toast = ShowToastMsg::warning('Cannot remove the active server.');
+
+            return [$this, Cmd::send($toast)];
+        }
+
+        $newServers = array_values(array_filter(
+            $this->config->servers,
+            static fn (\Phlix\Console\Config\ServerEntry $s): bool => $s->id !== $serverId,
+        ));
+
+        try {
+            $newConfig = $this->config->withServers($newServers);
+            $newConfig->save();
+
+            $toast = ShowToastMsg::info('Server removed.');
+
+            return [$this->withConfig($newConfig), Cmd::send($toast)];
+        } catch (\Throwable $e) {
+            $toast = ShowToastMsg::warning('Could not remove server: ' . $e->getMessage());
+
+            return [$this, Cmd::send($toast)];
+        }
     }
 
     /**

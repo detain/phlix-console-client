@@ -177,6 +177,22 @@ final class ApiClient
         return $deferred->promise();
     }
 
+    // ---- servers (hub) -------------------------------------------------
+
+    /**
+     * The list of servers the authenticated user has access to on the hub.
+     * Each entry: {hub_id, name, url}.
+     *
+     * @return PromiseInterface<list<array{hub_id:string,name:string,url:string}>>
+     */
+    public function myServers(): PromiseInterface
+    {
+        return $this->authed('GET', '/api/v1/me/servers')->then(static function (array $data): array {
+            /** @var list<array{hub_id:string,name:string,url:string}> */
+            return Coerce::map($data['servers'] ?? null);
+        });
+    }
+
     // ---- media ---------------------------------------------------------
 
     /** @return PromiseInterface<list<Library>> */

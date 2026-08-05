@@ -110,4 +110,13 @@ final class AuthStore
         $this->api->clearToken();
         $this->tokens->clear();
     }
+
+    /**
+     * Clear the in-memory user (used during server switch where we want to
+     * keep the API token intact for the new server).
+     */
+    public function clearUser(): void
+    {
+        $this->user = null;
+    }
 }
