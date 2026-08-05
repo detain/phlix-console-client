@@ -828,6 +828,7 @@ final class App implements Model
             new PaletteAction('Home', new GoHomeMsg()),
             new PaletteAction('Settings', new OpenSettingsMsg()),
             new PaletteAction('Stats', new OpenStatsMsg()),
+            new PaletteAction('Watch History', new OpenWatchHistoryMsg()),
             // The metrics / HUD overlay is toggled from the palette (no global key,
             // so no conflict); the label flips with the current visibility.
             new PaletteAction($this->metricsVisible ? 'Hide metrics' : 'Show metrics', new ToggleMetricsMsg()),
