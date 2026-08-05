@@ -1245,7 +1245,7 @@ final class App implements Model
         // The stats panel aggregates the libraries the App already fetches, so it
         // reuses the App's LibrariesStore (the same cache the browse home + palette
         // use) — no new store instance.
-        $screen = new StatsScreen($this->libraries, $this->cols, $this->rows);
+        $screen = new StatsScreen(new AdminClient($this->api), $this->libraries);
 
         return [$this->push(Route::Stats, $screen), $screen->init()];
     }
