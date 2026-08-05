@@ -158,6 +158,63 @@ final class PosterLoaderTest extends \PHPUnit\Framework\TestCase
         $this->await($loader->load('file:///images/poster.jpg', 8, 12));
     }
 
+    public function testReleaseRemovesPlacementFromImageLayerAndDigestIndex(): void
+    {
+        $this->startServer();
+        $loader = new PosterLoader(Mosaic::sixel(), null);
+        $url = "http://127.0.0.1:{$this->port}/poster.png";
+
+        $result = $this->await($loader->load($url, 6, 9));
+        self::assertNotNull($result->imageId);
+        self::assertNotNull($result->digest);
+        self::assertCount(1, $loader->imageLayer(), 'placement was added');
+
+        $loader->release($result->digest);
+
+        self::assertSame([], $loader->imageLayer(), 'placement was removed from image layer');
+    }
+
+    public function testReleaseAllExceptKeepsOnlyNamedDigests(): void
+    {
+        $this->startServer();
+        $loader = new PosterLoader(Mosaic::sixel(), null);
+        $url = "http://127.0.0.1:{$this->port}/poster.png";
+
+        // Load three different posters (using different URLs would require more server setup,
+        // but we can simulate by loading the same URL at different sizes which produces
+        // different rendered bytes and thus different digests)
+        $a = $this->await($loader->load($url, 6, 9));
+        $b = $this->await($loader->load($url, 8, 12));
+        $c = $this->await($loader->load($url, 10, 15));
+
+        self::assertNotNull($a->digest);
+        self::assertNotNull($b->digest);
+        self::assertNotNull($c->digest);
+        self::assertCount(3, $loader->imageLayer(), 'three placements');
+
+        // Keep only A and B, release C
+        $loader->releaseAllExcept([$a->digest, $b->digest]);
+
+        self::assertCount(2, $loader->imageLayer(), 'only two placements remain');
+        self::assertArrayHasKey($a->imageId, $loader->imageLayer());
+        self::assertArrayHasKey($b->imageId, $loader->imageLayer());
+        self::assertArrayNotHasKey($c->imageId, $loader->imageLayer());
+    }
+
+    public function testDigestDiffersForSameBytesAtDifferentSizes(): void
+    {
+        $this->startServer();
+        $loader = new PosterLoader(Mosaic::sixel(), null);
+        $url = "http://127.0.0.1:{$this->port}/poster.png";
+
+        $a = $this->await($loader->load($url, 6, 9));
+        $b = $this->await($loader->load($url, 8, 12));
+
+        self::assertNotNull($a->digest);
+        self::assertNotNull($b->digest);
+        self::assertNotSame($a->digest, $b->digest, 'same source bytes at different sizes must produce different digests');
+    }
+
     private function startServer(): void
     {
         $png = $this->pngBytes();

@@ -82,6 +82,8 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
     private int $searchSeq = 0;
     /** @var list<string> */
     private array $crumbs = [];
+    /** @var array<int, string> digest by item index, for releaseAllExcept */
+    private array $digestByIndex = [];
 
     public function __construct(
         private readonly string $libraryId,
@@ -138,7 +140,7 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
             return [$msg->generation === $this->generation ? $this->withLetterIndex($msg->index) : $this, null];
         }
         if ($msg instanceof GridPosterLoadedMsg) {
-            return [$this->onPoster($msg->index, $msg->ansi, $msg->imageId), null];
+            return [$this->onPoster($msg->index, $msg->ansi, $msg->imageId, $msg->digest), null];
         }
         if ($msg instanceof LibraryFailedMsg) {
             // A failure that blocked the first load replaces the screen body; a
@@ -406,20 +408,33 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
     /**
      * After the grid's cursor/viewport moved: fetch the new visible window (if
      * not already covered) and load posters for the cells now on screen.
+     * Also releases image layer entries that are no longer in the visible window.
      *
      * @return array{self, ?\Closure}
      */
     private function afterGridChange(PosterGrid $grid): array
     {
-        [$start, $end] = $grid->visibleRange(self::OVERSCAN);
+        [$start, $overScanEnd] = $grid->visibleRange(self::OVERSCAN);
+
+        // Release image layer entries that are no longer in the visible window.
+        // Digests for the new visible range come from digestByIndex (populated by
+        // onPoster as async loads complete). Items newly visible but not yet loaded
+        // don't have entries yet - their loads are already queued via loadPostersIn.
+        $digestsToKeep = [];
+        for ($i = $start; $i <= $overScanEnd; $i++) {
+            if (isset($this->digestByIndex[$i])) {
+                $digestsToKeep[] = $this->digestByIndex[$i];
+            }
+        }
+        $this->posters->releaseAllExcept($digestsToKeep);
 
         $cmds = [];
         $requested = $this->requestedRange;
-        if ($end >= $start && !($start >= $requested[0] && $end <= $requested[1])) {
-            $cmds[] = $this->fetchRange($start, $end);
-            $requested = [$start, $end];
+        if ($overScanEnd >= $start && !($start >= $requested[0] && $overScanEnd <= $requested[1])) {
+            $cmds[] = $this->fetchRange($start, $overScanEnd);
+            $requested = [$start, $overScanEnd];
         }
-        $posterCmd = $this->loadPostersIn($grid, $start, $end);
+        $posterCmd = $this->loadPostersIn($grid, $start, $overScanEnd);
         if ($posterCmd !== null) {
             $cmds[] = $posterCmd;
         }
@@ -450,7 +465,7 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
         return [$next, $next->loadPostersIn($grid, $start, $end)];
     }
 
-    private function onPoster(int $index, string $ansi, ?int $imageId = null): self
+    private function onPoster(int $index, string $ansi, ?int $imageId = null, ?string $digest = null): self
     {
         $card = $this->grid->item($index);
         if ($card === null) {
@@ -462,7 +477,10 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
             ? $card->withImage($ansi, $imageId)
             : $card->withPoster($ansi);
 
-        return $this->withGrid($this->grid->withItem($index, $newCard));
+        $next = clone $this;
+        $next->digestByIndex = [...$this->digestByIndex, ...($digest !== null ? [$index => $digest] : [])];
+
+        return $next->withGrid($this->grid->withItem($index, $newCard));
     }
 
     private function fetchRange(int $start, int $end): \Closure
@@ -510,7 +528,7 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
             }
             $index = $i;
             $cmds[] = Cmd::promise(fn () => $this->posters->load($url, self::CARD_WIDTH, self::POSTER_HEIGHT)->then(
-                static fn (PosterLoadResult $result): Msg => new GridPosterLoadedMsg($index, $result->marker, $result->imageId),
+                static fn (PosterLoadResult $result): Msg => new GridPosterLoadedMsg($index, $result->marker, $result->imageId, $result->digest),
                 static fn (\Throwable $e): ?Msg => null, // a broken poster keeps its skeleton
             ));
         }

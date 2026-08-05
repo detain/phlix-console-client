@@ -18,6 +18,7 @@ final readonly class GridPosterLoadedMsg implements Msg
         public int $index,
         public string $ansi,
         public ?int $imageId = null,
+        public ?string $digest = null,
     ) {
     }
 }

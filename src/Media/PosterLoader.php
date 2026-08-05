@@ -22,12 +22,14 @@ use function React\Promise\resolve;
  * The result of {@see PosterLoader::load()}: in inline mode the marker is the
  * rendered poster bytes and imageId is null; in overlay mode the marker is the
  * placeholder cell block and imageId is the assigned overlay image ID.
+ * The digest is the xxh3 hash of bytes+width+height and is non-null in overlay mode.
  */
 final readonly class PosterLoadResult
 {
     public function __construct(
         public string $marker,
         public ?int $imageId,
+        public ?string $digest = null,
     ) {
     }
 }
@@ -144,7 +146,7 @@ final class PosterLoader
             return new PosterLoadResult($bytes, null);
         }
 
-        $digest = hash('xxh3', $bytes);
+        $digest = hash('xxh3', $bytes . ':' . $width . ':' . $height);
         if (isset($this->placedByDigest[$digest])) {
             $cached = $this->placedByDigest[$digest];
 
@@ -157,7 +159,43 @@ final class PosterLoader
             'imageId' => $placed->imageId,
         ];
 
-        return new PosterLoadResult($placed->marker, $placed->imageId);
+        return new PosterLoadResult($placed->marker, $placed->imageId, $digest);
+    }
+
+    /**
+     * Release a placement by digest, removing it from the image layer and the
+     * digest index. Safe to call even if the digest is not currently tracked.
+     */
+    public function release(string $digest): void
+    {
+        if (!isset($this->placedByDigest[$digest])) {
+            return;
+        }
+
+        $imageId = $this->placedByDigest[$digest]['imageId'];
+        // imageId is null when the id space was exhausted at placement time;
+        // in that case nothing was added to the image layer, so nothing to remove.
+        if ($imageId !== null) {
+            $this->images->removeById($imageId);
+        }
+        unset($this->placedByDigest[$digest]);
+    }
+
+    /**
+     * Release all placements except those whose digests are in $keepDigests.
+     * Used when the visible window scrolls: keep the visible items plus a margin,
+     * release everything else to free memory.
+     *
+     * @param list<string> $keepDigests
+     */
+    public function releaseAllExcept(array $keepDigests): void
+    {
+        $keep = array_flip($keepDigests);
+        foreach (array_keys($this->placedByDigest) as $digest) {
+            if (!isset($keep[$digest])) {
+                $this->release($digest);
+            }
+        }
     }
 
     /**

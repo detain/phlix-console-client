@@ -74,6 +74,8 @@ final class SearchScreen implements Breadcrumbed, CapturesSlash, Loadable, Shimm
     private ?string $error = null;
     /** @var list<string> */
     private array $crumbs = [];
+    /** @var array<int, string> digest by item index, for releaseAllExcept */
+    private array $digestByIndex = [];
 
     public function __construct(
         private readonly MediaStore $media,
@@ -108,7 +110,7 @@ final class SearchScreen implements Breadcrumbed, CapturesSlash, Loadable, Shimm
             return $this->onRange($msg->range, $msg->generation);
         }
         if ($msg instanceof GridPosterLoadedMsg) {
-            return [$this->onPoster($msg->index, $msg->ansi), null];
+            return [$this->onPoster($msg->index, $msg->ansi, $msg->imageId, $msg->digest), null];
         }
         if ($msg instanceof LibraryFailedMsg) {
             return [$this->loaded ? $this : $this->withError($msg->reason), null];
@@ -260,15 +262,24 @@ final class SearchScreen implements Breadcrumbed, CapturesSlash, Loadable, Shimm
     /** @return array{self, ?\Closure} */
     private function afterGridChange(PosterGrid $grid): array
     {
-        [$start, $end] = $grid->visibleRange(self::OVERSCAN);
+        [$start, $overScanEnd] = $grid->visibleRange(self::OVERSCAN);
+
+        // Release image layer entries that are no longer in the visible window.
+        $digestsToKeep = [];
+        for ($i = $start; $i <= $overScanEnd; $i++) {
+            if (isset($this->digestByIndex[$i])) {
+                $digestsToKeep[] = $this->digestByIndex[$i];
+            }
+        }
+        $this->posters->releaseAllExcept($digestsToKeep);
 
         $cmds = [];
         $requested = $this->requestedRange;
-        if ($end >= $start && !($start >= $requested[0] && $end <= $requested[1])) {
-            $cmds[] = $this->fetchRange($start, $end);
-            $requested = [$start, $end];
+        if ($overScanEnd >= $start && !($start >= $requested[0] && $overScanEnd <= $requested[1])) {
+            $cmds[] = $this->fetchRange($start, $overScanEnd);
+            $requested = [$start, $overScanEnd];
         }
-        $posterCmd = $this->loadPostersIn($grid, $start, $end);
+        $posterCmd = $this->loadPostersIn($grid, $start, $overScanEnd);
         if ($posterCmd !== null) {
             $cmds[] = $posterCmd;
         }
@@ -299,15 +310,21 @@ final class SearchScreen implements Breadcrumbed, CapturesSlash, Loadable, Shimm
         return [$next, $next->loadPostersIn($grid, $start, $end)];
     }
 
-    private function onPoster(int $index, string $ansi): self
+    private function onPoster(int $index, string $ansi, ?int $imageId = null, ?string $digest = null): self
     {
         $card = $this->grid->item($index);
         if ($card === null) {
             return $this;
         }
 
+        // Use withImage() for overlay modes (sixel/kitty/iterm2), withPoster() for inline modes
+        $newCard = ($imageId !== null && !$this->posters->isInline())
+            ? $card->withImage($ansi, $imageId)
+            : $card->withPoster($ansi);
+
         $next = clone $this;
-        $next->grid = $this->grid->withItem($index, $card->withPoster($ansi));
+        $next->digestByIndex = [...$this->digestByIndex, ...($digest !== null ? [$index => $digest] : [])];
+        $next->grid = $this->grid->withItem($index, $newCard);
 
         return $next;
     }
@@ -360,7 +377,7 @@ final class SearchScreen implements Breadcrumbed, CapturesSlash, Loadable, Shimm
             }
             $index = $i;
             $cmds[] = Cmd::promise(fn () => $this->posters->load($url, self::CARD_WIDTH, self::POSTER_HEIGHT)->then(
-                static fn (\Phlix\Console\Media\PosterLoadResult $result): Msg => new GridPosterLoadedMsg($index, $result->marker),
+                static fn (\Phlix\Console\Media\PosterLoadResult $result): Msg => new GridPosterLoadedMsg($index, $result->marker, $result->imageId, $result->digest),
                 static fn (\Throwable $e): ?Msg => null,
             ));
         }
