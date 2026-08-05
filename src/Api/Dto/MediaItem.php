@@ -47,6 +47,7 @@ final readonly class MediaItem
         public ?string $createdAt,
         public ?string $updatedAt,
         public bool $isFavorite = false,
+        public bool $watched = false,
     ) {
     }
 
@@ -81,6 +82,7 @@ final readonly class MediaItem
             createdAt: Coerce::nstr($data['created_at'] ?? null),
             updatedAt: Coerce::nstr($data['updated_at'] ?? null),
             isFavorite: (bool) ($data['is_favorite'] ?? false),
+            watched: (bool) ($data['watched'] ?? false),
         );
     }
 
@@ -123,6 +125,7 @@ final readonly class MediaItem
             createdAt: Coerce::nstr($row['created_at'] ?? null),
             updatedAt: Coerce::nstr($row['updated_at'] ?? null),
             isFavorite: (bool) ($row['is_favorite'] ?? false),
+            watched: (bool) ($row['watched'] ?? false),
         );
     }
 

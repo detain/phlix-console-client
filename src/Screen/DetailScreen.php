@@ -35,6 +35,8 @@ use Phlix\Console\Msg\RatingSetMsg;
 use Phlix\Console\Msg\RatingsLoadedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\ShowToastMsg;
+use Phlix\Console\Msg\WatchedToggleFailedMsg;
+use Phlix\Console\Msg\WatchedToggledMsg;
 use Phlix\Console\Store\MediaRange;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Ui\Chrome;
@@ -92,7 +94,7 @@ final class DetailScreen implements Breadcrumbed, Themed
     private const OVERSCAN = 1;
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
     private const PLAY_NOTICE = '▶  This title has no playable source.';
-    private const HINT = '↑↓  scroll synopsis      p  play      C  cast      r  rate      F  favorite      Esc  back';
+    private const HINT = '↑↓  scroll synopsis      p  play      C  cast      r  rate      F  favorite      w  watched      Esc  back';
     private const CONTAINER_HINT = '↑↓←→  move      ⏎  open      Esc  back';
     private const LOADING_HINT = 'Esc  back';
 
@@ -109,6 +111,7 @@ final class DetailScreen implements Breadcrumbed, Themed
     private ?MediaRatings $ratings = null;
     private ?UserRatingPicker $ratingPicker = null;
     private ?bool $isFavorited = null;
+    private ?bool $isWatched = null;
     /** @var ?MediaItem The item before the last optimistic favorite toggle (for revert). */
     private ?MediaItem $previousItem = null;
     // Container mode (null until a loaded item proves to be a series/season).
@@ -190,6 +193,28 @@ final class DetailScreen implements Breadcrumbed, Themed
 
             return [$next, Cmd::send(ShowToastMsg::error($msg->reason))];
         }
+        if ($msg instanceof WatchedToggledMsg) {
+            // Optimistic update already applied; clear the revert snapshot.
+            if ($this->previousItem !== null) {
+                $next = clone $this;
+                $next->previousItem = null;
+
+                return [$next, null];
+            }
+
+            return [$this, null];
+        }
+        if ($msg instanceof WatchedToggleFailedMsg) {
+            // Revert the optimistic update and show a toast.
+            $next = clone $this;
+            if ($this->previousItem !== null) {
+                $next->item = $this->previousItem;
+                $next->isWatched = $this->previousItem->watched;
+                $next->previousItem = null;
+            }
+
+            return [$next, Cmd::send(ShowToastMsg::error($msg->reason))];
+        }
 
         return [$this, null];
     }
@@ -256,6 +281,10 @@ final class DetailScreen implements Breadcrumbed, Themed
         // Leaf: F → toggle favorite (optimistic update, revert on failure).
         if ($msg->type === KeyType::Char && ($msg->rune === 'f' || $msg->rune === 'F')) {
             return $this->toggleFavorite();
+        }
+        // Leaf: w → toggle watched (optimistic update, revert on failure).
+        if ($msg->type === KeyType::Char && ($msg->rune === 'w' || $msg->rune === 'W')) {
+            return $this->toggleWatched();
         }
         if ($msg->type === KeyType::Up) {
             return [$this->scrollSynopsis(-1), null];
@@ -474,6 +503,38 @@ final class DetailScreen implements Breadcrumbed, Themed
         ];
     }
 
+    /**
+     * Toggle the watched state of the current item (optimistic update).
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function toggleWatched(): array
+    {
+        if ($this->item === null) {
+            return [$this, null];
+        }
+
+        $next = clone $this;
+        $wasWatched = $this->isWatched ?? false;
+        $next->isWatched = !$wasWatched;
+        // Capture for revert-on-failure: we store the current item so the
+        // failure handler can restore it if the API call rejects.
+        $next->previousItem = $this->item;
+
+        $id = $this->id;
+        $apiPromise = !$wasWatched
+            ? $this->media->api()->markWatched($id)
+            : $this->media->api()->markUnwatched($id);
+
+        return [
+            $next,
+            Cmd::promise(fn () => $apiPromise->then(
+                static fn (bool $_): Msg => new WatchedToggledMsg($id, !$wasWatched),
+                static fn (\Throwable $e): Msg => new WatchedToggleFailedMsg($e->getMessage()),
+            )),
+        ];
+    }
+
     private function scrollSynopsis(int $delta): self
     {
         $scroll = max(0, $this->synopsisScroll + $delta);
@@ -521,6 +582,7 @@ final class DetailScreen implements Breadcrumbed, Themed
         $next->item = $item;
         $next->loaded = true;
         $next->isFavorited = $item->isFavorite;
+        $next->isWatched = $item->watched;
 
         if ($item->isContainer()) {
             $grid = PosterGrid::new(self::CARD_WIDTH, self::POSTER_HEIGHT, self::H_SPACING, self::V_SPACING)
@@ -846,6 +908,11 @@ final class DetailScreen implements Breadcrumbed, Themed
         // Append favorite marker if this item is favorited.
         if ($this->isFavorited === true) {
             $parts[] = '♥';
+        }
+
+        // Append watched marker if this item has been watched.
+        if ($this->isWatched === true) {
+            $parts[] = '✓';
         }
 
         return Width::truncate(implode('  ·  ', $parts), $this->columnWidth());
