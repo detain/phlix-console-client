@@ -528,6 +528,17 @@ final class BrowseScreen implements Breadcrumbed, Themed
             return [$this->withWatchFilter($nextFilter), null];
         }
 
+        // 'R' → manual refresh: invalidate browse caches and re-fetch
+        if ($msg->type === KeyType::Char && $msg->rune === 'R') {
+            $this->libraries->invalidate();
+            $this->media->invalidate();
+            $next = $this->withLibraryRails([]);
+            $next = $next->withContinueRail(null);
+            $next = $next->withFavoritesRail(null);
+
+            return [$next, Cmd::batch($next->fetchContinueWatching(), $next->fetchLibraries())];
+        }
+
         return [$this, null];
     }
 
@@ -648,7 +659,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
     {
         $filter = self::FILTER_LABELS[$this->watchFilter] ?? 'All';
 
-        return "↑↓  rails      ←→  items      ⏎  open      Tab  menu      a  filter({$filter})      q  quit";
+        return "↑↓  rails      ←→  items      ⏎  open      Tab  menu      a  filter({$filter})      R  refresh      q  quit";
     }
 
     /**

@@ -24,6 +24,8 @@ use Phlix\Console\Msg\AdminScanStatusTickMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\ShowToastMsg;
+use Phlix\Console\Store\LibrariesStore;
+use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\Table;
 use React\Promise\PromiseInterface;
@@ -129,6 +131,8 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
 
     public function __construct(
         private readonly AdminClient $admin,
+        private readonly LibrariesStore $librariesStore,
+        private readonly MediaStore $mediaStore,
         private int $cols = 80,
         private int $rows = 24,
     ) {
@@ -194,14 +198,22 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
 
     /**
      * Build the command for a fired action: the action's promise mapped to a
-     * done/failed Msg with the given success message.
+     * done/failed Msg with the given success message. On success, the browse
+     * caches (LibrariesStore + MediaStore) are invalidated so the user sees
+     * fresh data when they navigate back.
      *
      * @param PromiseInterface<string> $promise
      */
     private function actionCmd(PromiseInterface $promise): \Closure
     {
-        return Cmd::promise(static fn () => $promise->then(
-            static fn (string $message): Msg => new AdminLibraryActionDoneMsg($message),
+        return Cmd::promise(fn () => $promise->then(
+            function (string $message): Msg {
+                // Invalidate browse caches so navigating back shows fresh data.
+                $this->librariesStore->invalidate();
+                $this->mediaStore->invalidate();
+
+                return new AdminLibraryActionDoneMsg($message);
+            },
             static fn (\Throwable $e): Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(self::SESSION_EXPIRED)
                 : new AdminLibraryActionFailedMsg($e->getMessage()),

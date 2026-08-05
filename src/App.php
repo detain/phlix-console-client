@@ -1320,7 +1320,7 @@ final class App implements Model
             return [$this->push(Route::AdminSettings, $screen), $screen->init()];
         }
         if ($section === Route::AdminLibraries) {
-            $screen = new AdminLibrariesScreen(new AdminClient($this->api), $this->cols, $this->rows);
+            $screen = new AdminLibrariesScreen(new AdminClient($this->api), $this->libraries, $this->media, $this->cols, $this->rows);
 
             return [$this->push(Route::AdminLibraries, $screen), $screen->init()];
         }

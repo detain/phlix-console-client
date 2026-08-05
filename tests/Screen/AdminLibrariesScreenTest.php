@@ -21,6 +21,8 @@ use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Screen\AdminLibrariesScreen;
+use Phlix\Console\Store\LibrariesStore;
+use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Tests\Api\FakeTransport;
 use PHPUnit\Framework\TestCase;
 use React\EventLoop\Loop;
@@ -35,6 +37,12 @@ use SugarCraft\Toast\ToastType;
 
 final class AdminLibrariesScreenTest extends TestCase
 {
+    /** @var LibrariesStore */
+    private LibrariesStore $librariesStore;
+
+    /** @var MediaStore */
+    private MediaStore $mediaStore;
+
     /** The real top-level `GET /libraries` shape. Two libraries. */
     private function librariesPayload(): array
     {
@@ -108,7 +116,16 @@ final class AdminLibrariesScreenTest extends TestCase
         $api = new ApiClient('https://srv', $transport);
         $api->setToken(new TokenBundle('access-1', 'refresh-1', 'Bearer', time() + 3600));
 
-        return new AdminLibrariesScreen(new AdminClient($api), cols: 120, rows: 40);
+        $this->librariesStore = new LibrariesStore($api);
+        $this->mediaStore = new MediaStore($api);
+
+        return new AdminLibrariesScreen(
+            new AdminClient($api),
+            $this->librariesStore,
+            $this->mediaStore,
+            cols: 120,
+            rows: 40,
+        );
     }
 
     /**
@@ -122,6 +139,181 @@ final class AdminLibrariesScreenTest extends TestCase
         self::assertInstanceOf(AdminLibrariesLoadedMsg::class, $msg);
 
         return $screen->update($msg)[0];
+    }
+
+    // ---- invalidate on success / failure --------------------------------
+
+    /**
+     * Check via reflection that LibrariesStore was invalidated (cache = null, fetchedAt = 0.0).
+     */
+    private function assertLibrariesStoreInvalidated(LibrariesStore $store, string $message): void
+    {
+        $cacheReflect = new \ReflectionProperty($store, 'cache');
+        $cacheReflect->setAccessible(true);
+        self::assertNull($cacheReflect->getValue($store), $message . ': cache should be null');
+
+        $fetchedReflect = new \ReflectionProperty($store, 'fetchedAt');
+        $fetchedReflect->setAccessible(true);
+        self::assertSame(0.0, $fetchedReflect->getValue($store), $message . ': fetchedAt should be 0.0');
+    }
+
+    /**
+     * Check via reflection that MediaStore was invalidated (pages = []).
+     */
+    private function assertMediaStoreInvalidated(MediaStore $store, string $message): void
+    {
+        $pagesReflect = new \ReflectionProperty($store, 'pages');
+        $pagesReflect->setAccessible(true);
+        self::assertSame([], $pagesReflect->getValue($store), $message . ': pages should be empty');
+    }
+
+    /**
+     * Pre-populate LibrariesStore's cache via reflection.
+     */
+    private function populateLibrariesStore(LibrariesStore $store, array $data): void
+    {
+        $cacheReflect = new \ReflectionProperty($store, 'cache');
+        $cacheReflect->setAccessible(true);
+        $cacheReflect->setValue($store, $data);
+
+        $fetchedReflect = new \ReflectionProperty($store, 'fetchedAt');
+        $fetchedReflect->setAccessible(true);
+        $fetchedReflect->setValue($store, time() - 10);
+    }
+
+    /**
+     * Pre-populate MediaStore's pages via reflection.
+     */
+    private function populateMediaStore(MediaStore $store): void
+    {
+        $pagesReflect = new \ReflectionProperty($store, 'pages');
+        $pagesReflect->setAccessible(true);
+        $pagesReflect->setValue($store, ['some-key' => ['page' => 'data', 'at' => time() - 10]]);
+    }
+
+    public function testScanLibraryInvalidatesCachesOnSuccess(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->librariesPayload())
+            ->json(202, ['message' => 'Library scan queued']);
+        $screen = $this->loaded($transport);
+
+        [$busy, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 's'));
+        $msg = $this->runCmd($cmd);
+        self::assertInstanceOf(AdminLibraryActionDoneMsg::class, $msg);
+
+        $this->assertLibrariesStoreInvalidated($this->librariesStore, 'librariesStore after scan success');
+        $this->assertMediaStoreInvalidated($this->mediaStore, 'mediaStore after scan success');
+    }
+
+    public function testScanLibraryDoesNotInvalidateCachesOnFailure(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->librariesPayload())
+            ->json(404, ['error' => 'Library not found']);
+        $screen = $this->loaded($transport);
+
+        // Pre-populate the caches via reflection
+        $libPayload = $this->librariesPayload();
+        $this->populateLibrariesStore($this->librariesStore, $libPayload['libraries']);
+        $this->populateMediaStore($this->mediaStore);
+
+        [$busy, $busyCmd] = $screen->update(new KeyMsg(KeyType::Char, 's'));
+        $failMsg = $this->runCmd($busyCmd);
+        self::assertInstanceOf(AdminLibraryActionFailedMsg::class, $failMsg);
+
+        // Verify caches are STILL populated (invalidate was NOT called on failure)
+        $cacheReflect = new \ReflectionProperty($this->librariesStore, 'cache');
+        $cacheReflect->setAccessible(true);
+        self::assertNotNull($cacheReflect->getValue($this->librariesStore), 'librariesStore cache should still be populated after failure');
+
+        $pagesReflect = new \ReflectionProperty($this->mediaStore, 'pages');
+        $pagesReflect->setAccessible(true);
+        self::assertNotSame([], $pagesReflect->getValue($this->mediaStore), 'mediaStore pages should still be populated after failure');
+    }
+
+    public function testMatchLibraryMetadataInvalidatesCachesOnSuccess(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->librariesPayload())
+            ->json(202, ['message' => 'Metadata match queued']);
+        $screen = $this->loaded($transport);
+
+        [$busy, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'm'));
+        $msg = $this->runCmd($cmd);
+        self::assertInstanceOf(AdminLibraryActionDoneMsg::class, $msg);
+
+        $this->assertLibrariesStoreInvalidated($this->librariesStore, 'librariesStore after match success');
+        $this->assertMediaStoreInvalidated($this->mediaStore, 'mediaStore after match success');
+    }
+
+    public function testMatchLibraryMetadataDoesNotInvalidateCachesOnFailure(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->librariesPayload())
+            ->json(404, ['error' => 'Library not found']);
+        $screen = $this->loaded($transport);
+
+        $libPayload = $this->librariesPayload();
+        $this->populateLibrariesStore($this->librariesStore, $libPayload['libraries']);
+        $this->populateMediaStore($this->mediaStore);
+
+        [$busy, $busyCmd] = $screen->update(new KeyMsg(KeyType::Char, 'm'));
+        $failMsg = $this->runCmd($busyCmd);
+        self::assertInstanceOf(AdminLibraryActionFailedMsg::class, $failMsg);
+
+        $cacheReflect = new \ReflectionProperty($this->librariesStore, 'cache');
+        $cacheReflect->setAccessible(true);
+        self::assertNotNull($cacheReflect->getValue($this->librariesStore), 'librariesStore cache should still be populated after failure');
+
+        $pagesReflect = new \ReflectionProperty($this->mediaStore, 'pages');
+        $pagesReflect->setAccessible(true);
+        self::assertNotSame([], $pagesReflect->getValue($this->mediaStore), 'mediaStore pages should still be populated after failure');
+    }
+
+    public function testRescanInvalidatesCachesOnSuccess(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->librariesPayload())
+            ->json(202, ['message' => 'Library rescan queued']);
+        $screen = $this->loaded($transport);
+
+        // R arms the confirm
+        [$armed] = $screen->update(new KeyMsg(KeyType::Char, 'R'));
+        // y performs the rescan
+        [$busy, $cmd] = $armed->update(new KeyMsg(KeyType::Char, 'y'));
+        $msg = $this->runCmd($cmd);
+        self::assertInstanceOf(AdminLibraryActionDoneMsg::class, $msg);
+
+        $this->assertLibrariesStoreInvalidated($this->librariesStore, 'librariesStore after rescan success');
+        $this->assertMediaStoreInvalidated($this->mediaStore, 'mediaStore after rescan success');
+    }
+
+    public function testRescanDoesNotInvalidateCachesOnFailure(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->librariesPayload())
+            ->json(404, ['error' => 'Library not found']);
+        $screen = $this->loaded($transport);
+
+        $libPayload = $this->librariesPayload();
+        $this->populateLibrariesStore($this->librariesStore, $libPayload['libraries']);
+        $this->populateMediaStore($this->mediaStore);
+
+        // R arms the confirm
+        [$armed] = $screen->update(new KeyMsg(KeyType::Char, 'R'));
+        // y performs the rescan
+        [$busy, $busyCmd] = $armed->update(new KeyMsg(KeyType::Char, 'y'));
+        $failMsg = $this->runCmd($busyCmd);
+        self::assertInstanceOf(AdminLibraryActionFailedMsg::class, $failMsg);
+
+        $cacheReflect = new \ReflectionProperty($this->librariesStore, 'cache');
+        $cacheReflect->setAccessible(true);
+        self::assertNotNull($cacheReflect->getValue($this->librariesStore), 'librariesStore cache should still be populated after failure');
+
+        $pagesReflect = new \ReflectionProperty($this->mediaStore, 'pages');
+        $pagesReflect->setAccessible(true);
+        self::assertNotSame([], $pagesReflect->getValue($this->mediaStore), 'mediaStore pages should still be populated after failure');
     }
 
     // ---- list / loading / error ----------------------------------------

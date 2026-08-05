@@ -66,7 +66,7 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
     private const SEARCH_DEBOUNCE = 0.3;
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
     private const LOAD_MORE_FAILED = "Couldn't load more items.";
-    private const HINT = '↑↓←→  move      A–Z  jump      /  filter      Esc  back';
+    private const HINT = '↑↓←→  move      A–Z  jump      /  filter      R  refresh      Esc  back';
     private const FILTER_HINT = 'type to search      Tab  field      ←→  change      Esc  done';
 
     private MediaQuery $query;
@@ -211,6 +211,10 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
                 ? [$this, Cmd::send(new OpenDetailMsg($card->id, $card->title))]
                 : [$this, null];
         }
+        // 'R' → manual refresh: invalidate media cache and re-fetch the current range
+        if ($msg->type === KeyType::Char && ($msg->rune === 'r' || $msg->rune === 'R')) {
+            return $this->refresh();
+        }
         // '/' opens the filter/sort bar; other letters (and # / digit) jump A–Z.
         // (Quit is Ctrl-C globally, or Esc back to Browse — so letters are free.)
         if ($msg->type === KeyType::Char && $msg->rune === '/') {
@@ -334,6 +338,30 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
         $next = clone $this;
         $next->filterBar = $bar;
         $next->query = $this->buildQuery($bar);
+        $next->generation = $this->generation + 1;
+        $next->grid = $this->grid->reset(0);
+        $next->loaded = false;
+        $next->letterIndex = null;
+        $next->requestedRange = [0, $next->initialWindowEnd()];
+
+        $cmds = [$next->fetchRange(0, $next->initialWindowEnd())];
+        if ($next->isNameAscending()) {
+            $cmds[] = $next->fetchLetterIndex();
+        }
+
+        return [$next, Cmd::batch(...$cmds)];
+    }
+
+    /**
+     * Manual refresh: invalidate the media cache, reset the grid, bump the
+     * generation (so in-flight results are dropped), and refetch.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function refresh(): array
+    {
+        $this->media->invalidate();
+        $next = clone $this;
         $next->generation = $this->generation + 1;
         $next->grid = $this->grid->reset(0);
         $next->loaded = false;
