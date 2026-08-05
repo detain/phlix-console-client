@@ -704,9 +704,12 @@ final class DetailScreen implements Breadcrumbed, Themed
         }
 
         // Use withImage() for overlay modes (sixel/kitty/iterm2), withPoster() for inline modes
-        $newCard = ($imageId !== null && !$this->posters->isInline())
-            ? $card->withImage($marker, $imageId)
-            : $card->withPoster($marker);
+        if ($imageId !== null && !$this->posters->isInline()) {
+            $bytes = $this->posters->imageLayer()[$imageId]->bytes ?? $marker;
+            $newCard = $card->withImage($bytes, $imageId);
+        } else {
+            $newCard = $card->withPoster($marker);
+        }
 
         $next = clone $this;
         $next->childGrid = $this->childGrid->withItem($index, $newCard);

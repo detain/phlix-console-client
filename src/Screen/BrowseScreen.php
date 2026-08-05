@@ -416,9 +416,12 @@ final class BrowseScreen implements Breadcrumbed, Themed
         foreach ($rail->cards as $card) {
             if ($card->id === $cardId) {
                 // Use withImage() for overlay modes (sixel/kitty/iterm2), withPoster() for inline modes
-                $newCard = ($imageId !== null && !$this->posters->isInline())
-                    ? $card->withImage($marker, $imageId)
-                    : $card->withPoster($marker);
+                if ($imageId !== null && !$this->posters->isInline()) {
+                    $bytes = $this->posters->imageLayer()[$imageId]->bytes ?? $marker;
+                    $newCard = $card->withImage($bytes, $imageId);
+                } else {
+                    $newCard = $card->withPoster($marker);
+                }
                 return $this->replaceRail($railId, $rail->withCard($newCard));
             }
         }
