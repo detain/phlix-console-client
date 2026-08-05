@@ -26,14 +26,20 @@ use function React\Promise\resolve;
  */
 final class BooksStore
 {
-    /** @var array<string, array{page: BookPage, at: float}>  page key → cached page */
-    private array $pages = [];
+    /** Maximum number of page entries to cache. */
+    private const PAGE_CAPACITY = 2000;
+
+    /** Maximum number of item/detail entries to cache. */
+    private const ITEM_CAPACITY = 500;
+
+    /** @phpstan-var LruMap<string, array{page: BookPage, at: float}>  page key → cached page */
+    private LruMap $pages;
 
     /** @var array<string, PromiseInterface<BookPage>>  page key → in-flight fetch */
     private array $inFlight = [];
 
-    /** @var array<string, array{book: Book, at: float}>  book id → cached detail */
-    private array $books = [];
+    /** @phpstan-var LruMap<string, array{book: Book, at: float}>  book id → cached detail */
+    private LruMap $books;
 
     /** @var array<string, PromiseInterface<Book>>  book id → in-flight detail fetch */
     private array $booksInFlight = [];
@@ -50,6 +56,8 @@ final class BooksStore
         ?\Closure $clock = null,
     ) {
         $this->clock = $clock ?? static fn (): float => microtime(true);
+        $this->pages = new LruMap(self::PAGE_CAPACITY);
+        $this->books = new LruMap(self::ITEM_CAPACITY);
     }
 
     /**
@@ -63,8 +71,8 @@ final class BooksStore
         $key = ($libraryId ?? '') . '|' . $limit . '|' . $offset;
         $now = ($this->clock)();
 
-        if (!$force && isset($this->pages[$key]) && ($now - $this->pages[$key]['at']) < $this->ttl) {
-            return resolve($this->pages[$key]['page']);
+        if (!$force && ($entry = $this->pages->peek($key)) !== null && ($now - $entry['at']) < $this->ttl) {
+            return resolve($this->pages->get($key)['page']);
         }
 
         // Coalesce concurrent fetches of the same page. Drive a Deferred so the
@@ -80,7 +88,7 @@ final class BooksStore
 
         $this->api->books($libraryId, $limit, $offset)->then(
             function (BookPage $page) use ($key, $now, $deferred): void {
-                $this->pages[$key] = ['page' => $page, 'at' => $now];
+                $this->pages->set($key, ['page' => $page, 'at' => $now]);
                 unset($this->inFlight[$key]);
                 $deferred->resolve($page);
             },
@@ -103,8 +111,8 @@ final class BooksStore
     {
         $now = ($this->clock)();
 
-        if (!$force && isset($this->books[$id]) && ($now - $this->books[$id]['at']) < $this->ttl) {
-            return resolve($this->books[$id]['book']);
+        if (!$force && ($entry = $this->books->peek($id)) !== null && ($now - $entry['at']) < $this->ttl) {
+            return resolve($this->books->get($id)['book']);
         }
 
         if (isset($this->booksInFlight[$id])) {
@@ -117,7 +125,7 @@ final class BooksStore
 
         $this->api->book($id)->then(
             function (Book $book) use ($id, $now, $deferred): void {
-                $this->books[$id] = ['book' => $book, 'at' => $now];
+                $this->books->set($id, ['book' => $book, 'at' => $now]);
                 unset($this->booksInFlight[$id]);
                 $deferred->resolve($book);
             },
@@ -193,9 +201,9 @@ final class BooksStore
 
     public function invalidate(): void
     {
-        $this->pages = [];
+        $this->pages->clear();
         $this->inFlight = [];
-        $this->books = [];
+        $this->books->clear();
         $this->booksInFlight = [];
     }
 }

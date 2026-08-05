@@ -37,20 +37,26 @@ final class AudiobooksStore
     /** A hard safety ceiling on the page loop (100 * 50 = 5000 audiobooks). */
     private const MAX_PAGES = 50;
 
-    /** @var array<string, array{list: list<Audiobook>, at: float}>  library key → cached list */
-    private array $lists = [];
+    /** Maximum number of page entries to cache. */
+    private const PAGE_CAPACITY = 2000;
+
+    /** Maximum number of item/detail entries to cache. */
+    private const ITEM_CAPACITY = 500;
+
+    /** @phpstan-var LruMap<string, array{list: list<Audiobook>, at: float}>  library key → cached list */
+    private LruMap $lists;
 
     /** @var array<string, PromiseInterface<list<Audiobook>>>  library key → in-flight list fetch */
     private array $listsInFlight = [];
 
-    /** @var array<string, array{audiobook: Audiobook, at: float}>  id → cached detail */
-    private array $audiobooks = [];
+    /** @phpstan-var LruMap<string, array{audiobook: Audiobook, at: float}>  id → cached detail */
+    private LruMap $audiobooks;
 
     /** @var array<string, PromiseInterface<Audiobook>>  id → in-flight detail fetch */
     private array $audiobooksInFlight = [];
 
-    /** @var array<string, array{chapters: list<AudiobookChapter>, at: float}>  id → cached chapters */
-    private array $chapters = [];
+    /** @phpstan-var LruMap<string, array{chapters: list<AudiobookChapter>, at: float}>  id → cached chapters */
+    private LruMap $chapters;
 
     /** @var array<string, PromiseInterface<list<AudiobookChapter>>>  id → in-flight chapters fetch */
     private array $chaptersInFlight = [];
@@ -67,6 +73,9 @@ final class AudiobooksStore
         ?\Closure $clock = null,
     ) {
         $this->clock = $clock ?? static fn (): float => microtime(true);
+        $this->lists = new LruMap(self::PAGE_CAPACITY);
+        $this->audiobooks = new LruMap(self::ITEM_CAPACITY);
+        $this->chapters = new LruMap(self::ITEM_CAPACITY);
     }
 
     /**
@@ -81,8 +90,8 @@ final class AudiobooksStore
         $key = $libraryId ?? '';
         $now = ($this->clock)();
 
-        if (!$force && isset($this->lists[$key]) && ($now - $this->lists[$key]['at']) < $this->ttl) {
-            return resolve($this->lists[$key]['list']);
+        if (!$force && ($entry = $this->lists->peek($key)) !== null && ($now - $entry['at']) < $this->ttl) {
+            return resolve($this->lists->get($key)['list']);
         }
 
         // Coalesce concurrent fetches of the same library. Drive a Deferred so
@@ -98,7 +107,7 @@ final class AudiobooksStore
 
         $this->fetchPage($libraryId, 0, 0, [])->then(
             function (array $list) use ($key, $now, $deferred): void {
-                $this->lists[$key] = ['list' => $list, 'at' => $now];
+                $this->lists->set($key, ['list' => $list, 'at' => $now]);
                 unset($this->listsInFlight[$key]);
                 $deferred->resolve($list);
             },
@@ -150,8 +159,8 @@ final class AudiobooksStore
     {
         $now = ($this->clock)();
 
-        if (!$force && isset($this->audiobooks[$id]) && ($now - $this->audiobooks[$id]['at']) < $this->ttl) {
-            return resolve($this->audiobooks[$id]['audiobook']);
+        if (!$force && ($entry = $this->audiobooks->peek($id)) !== null && ($now - $entry['at']) < $this->ttl) {
+            return resolve($this->audiobooks->get($id)['audiobook']);
         }
 
         if (isset($this->audiobooksInFlight[$id])) {
@@ -164,7 +173,7 @@ final class AudiobooksStore
 
         $this->api->audiobook($id)->then(
             function (Audiobook $audiobook) use ($id, $now, $deferred): void {
-                $this->audiobooks[$id] = ['audiobook' => $audiobook, 'at' => $now];
+                $this->audiobooks->set($id, ['audiobook' => $audiobook, 'at' => $now]);
                 unset($this->audiobooksInFlight[$id]);
                 $deferred->resolve($audiobook);
             },
@@ -186,8 +195,8 @@ final class AudiobooksStore
     {
         $now = ($this->clock)();
 
-        if (!$force && isset($this->chapters[$id]) && ($now - $this->chapters[$id]['at']) < $this->ttl) {
-            return resolve($this->chapters[$id]['chapters']);
+        if (!$force && ($entry = $this->chapters->peek($id)) !== null && ($now - $entry['at']) < $this->ttl) {
+            return resolve($this->chapters->get($id)['chapters']);
         }
 
         if (isset($this->chaptersInFlight[$id])) {
@@ -200,7 +209,7 @@ final class AudiobooksStore
 
         $this->api->audiobookChapters($id)->then(
             function (array $chapters) use ($id, $now, $deferred): void {
-                $this->chapters[$id] = ['chapters' => $chapters, 'at' => $now];
+                $this->chapters->set($id, ['chapters' => $chapters, 'at' => $now]);
                 unset($this->chaptersInFlight[$id]);
                 $deferred->resolve($chapters);
             },
@@ -243,11 +252,11 @@ final class AudiobooksStore
 
     public function invalidate(): void
     {
-        $this->lists = [];
+        $this->lists->clear();
         $this->listsInFlight = [];
-        $this->audiobooks = [];
+        $this->audiobooks->clear();
         $this->audiobooksInFlight = [];
-        $this->chapters = [];
+        $this->chapters->clear();
         $this->chaptersInFlight = [];
     }
 }

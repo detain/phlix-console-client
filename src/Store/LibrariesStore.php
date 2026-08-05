@@ -21,9 +21,11 @@ use function React\Promise\resolve;
  */
 final class LibrariesStore
 {
-    /** @var list<Library>|null */
-    private ?array $cache = null;
-    private float $fetchedAt = 0.0;
+    /** Single-entry cache capacity. */
+    private const CACHE_CAPACITY = 1;
+
+    /** @var LruMap<string, array{cache: list<Library>, at: float}> */
+    private LruMap $cache;
 
     /** @var \Closure(): float */
     private readonly \Closure $clock;
@@ -37,6 +39,7 @@ final class LibrariesStore
         ?\Closure $clock = null,
     ) {
         $this->clock = $clock ?? static fn (): float => microtime(true);
+        $this->cache = new LruMap(self::CACHE_CAPACITY);
     }
 
     /**
@@ -46,14 +49,15 @@ final class LibrariesStore
      */
     public function all(bool $force = false): PromiseInterface
     {
+        $key = 'libraries';
         $now = ($this->clock)();
-        if (!$force && $this->cache !== null && ($now - $this->fetchedAt) < $this->ttl) {
-            return resolve($this->cache);
+
+        if (!$force && ($entry = $this->cache->peek($key)) !== null && ($now - $entry['at']) < $this->ttl) {
+            return resolve($this->cache->get($key)['cache']);
         }
 
-        return $this->api->libraries()->then(function (array $libraries) use ($now): array {
-            $this->cache = $libraries;
-            $this->fetchedAt = $now;
+        return $this->api->libraries()->then(function (array $libraries) use ($key, $now): array {
+            $this->cache->set($key, ['cache' => $libraries, 'at' => $now]);
 
             return $libraries;
         });
@@ -62,12 +66,14 @@ final class LibrariesStore
     /** @return list<Library>|null */
     public function cached(): ?array
     {
-        return $this->cache;
+        /** @var array{cache: list<Library>, at: float}|null $entry */
+        $entry = $this->cache->peek('libraries');
+
+        return $entry !== null ? $entry['cache'] : null;
     }
 
     public function invalidate(): void
     {
-        $this->cache = null;
-        $this->fetchedAt = 0.0;
+        $this->cache->clear();
     }
 }

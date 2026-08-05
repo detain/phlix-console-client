@@ -26,14 +26,20 @@ use function React\Promise\resolve;
  */
 final class PhotosStore
 {
-    /** @var array<string, array{albums: list<PhotoAlbum>, at: float}>  library id → cached albums */
-    private array $albums = [];
+    /** Maximum number of page entries to cache. */
+    private const PAGE_CAPACITY = 2000;
+
+    /** Maximum number of item/detail entries to cache. */
+    private const ITEM_CAPACITY = 500;
+
+    /** @phpstan-var LruMap<string, array{albums: list<PhotoAlbum>, at: float}>  library id → cached albums */
+    private LruMap $albums;
 
     /** @var array<string, PromiseInterface<list<PhotoAlbum>>>  library id → in-flight album fetch */
     private array $albumsInFlight = [];
 
-    /** @var array<string, array{photo: Photo, at: float}>  photo id → cached detail */
-    private array $photos = [];
+    /** @phpstan-var LruMap<string, array{photo: Photo, at: float}>  photo id → cached detail */
+    private LruMap $photos;
 
     /** @var array<string, PromiseInterface<Photo>>  photo id → in-flight detail fetch */
     private array $photosInFlight = [];
@@ -50,6 +56,8 @@ final class PhotosStore
         ?\Closure $clock = null,
     ) {
         $this->clock = $clock ?? static fn (): float => microtime(true);
+        $this->albums = new LruMap(self::PAGE_CAPACITY);
+        $this->photos = new LruMap(self::ITEM_CAPACITY);
     }
 
     /**
@@ -62,8 +70,8 @@ final class PhotosStore
     {
         $now = ($this->clock)();
 
-        if (!$force && isset($this->albums[$libraryId]) && ($now - $this->albums[$libraryId]['at']) < $this->ttl) {
-            return resolve($this->albums[$libraryId]['albums']);
+        if (!$force && ($entry = $this->albums->peek($libraryId)) !== null && ($now - $entry['at']) < $this->ttl) {
+            return resolve($this->albums->get($libraryId)['albums']);
         }
 
         if (isset($this->albumsInFlight[$libraryId])) {
@@ -79,7 +87,7 @@ final class PhotosStore
 
         $this->api->photoAlbums($libraryId)->then(
             function (array $albums) use ($libraryId, $now, $deferred): void {
-                $this->albums[$libraryId] = ['albums' => $albums, 'at' => $now];
+                $this->albums->set($libraryId, ['albums' => $albums, 'at' => $now]);
                 unset($this->albumsInFlight[$libraryId]);
                 $deferred->resolve($albums);
             },
@@ -102,8 +110,8 @@ final class PhotosStore
     {
         $now = ($this->clock)();
 
-        if (!$force && isset($this->photos[$id]) && ($now - $this->photos[$id]['at']) < $this->ttl) {
-            return resolve($this->photos[$id]['photo']);
+        if (!$force && ($entry = $this->photos->peek($id)) !== null && ($now - $entry['at']) < $this->ttl) {
+            return resolve($this->photos->get($id)['photo']);
         }
 
         if (isset($this->photosInFlight[$id])) {
@@ -116,7 +124,7 @@ final class PhotosStore
 
         $this->api->photo($id)->then(
             function (Photo $photo) use ($id, $now, $deferred): void {
-                $this->photos[$id] = ['photo' => $photo, 'at' => $now];
+                $this->photos->set($id, ['photo' => $photo, 'at' => $now]);
                 unset($this->photosInFlight[$id]);
                 $deferred->resolve($photo);
             },
@@ -131,9 +139,9 @@ final class PhotosStore
 
     public function invalidate(): void
     {
-        $this->albums = [];
+        $this->albums->clear();
         $this->albumsInFlight = [];
-        $this->photos = [];
+        $this->photos->clear();
         $this->photosInFlight = [];
     }
 }

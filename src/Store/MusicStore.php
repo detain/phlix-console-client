@@ -23,8 +23,11 @@ use function React\Promise\resolve;
  */
 final class MusicStore
 {
-    /** @var array{albums: list<Album>, at: float}|null */
-    private ?array $albums = null;
+    /** Single-entry cache capacity. */
+    private const CACHE_CAPACITY = 1;
+
+    /** @var LruMap<string, array{albums: list<Album>, at: float}> */
+    private LruMap $albums;
 
     /** @var PromiseInterface<list<Album>>|null  An album fetch in flight. */
     private ?PromiseInterface $inFlight = null;
@@ -41,6 +44,7 @@ final class MusicStore
         ?\Closure $clock = null,
     ) {
         $this->clock = $clock ?? static fn (): float => microtime(true);
+        $this->albums = new LruMap(self::CACHE_CAPACITY);
     }
 
     /**
@@ -50,10 +54,11 @@ final class MusicStore
      */
     public function albums(bool $force = false): PromiseInterface
     {
+        $key = 'albums';
         $now = ($this->clock)();
 
-        if (!$force && $this->albums !== null && ($now - $this->albums['at']) < $this->ttl) {
-            return resolve($this->albums['albums']);
+        if (!$force && ($entry = $this->albums->peek($key)) !== null && ($now - $entry['at']) < $this->ttl) {
+            return resolve($this->albums->get($key)['albums']);
         }
 
         if ($this->inFlight !== null) {
@@ -68,8 +73,8 @@ final class MusicStore
         $this->inFlight = $deferred->promise();
 
         $this->api->musicAlbums()->then(
-            function (array $albums) use ($now, $deferred): void {
-                $this->albums = ['albums' => $albums, 'at' => $now];
+            function (array $albums) use ($key, $now, $deferred): void {
+                $this->albums->set($key, ['albums' => $albums, 'at' => $now]);
                 $this->inFlight = null;
                 $deferred->resolve($albums);
             },
@@ -84,7 +89,7 @@ final class MusicStore
 
     public function invalidate(): void
     {
-        $this->albums = null;
+        $this->albums->clear();
         $this->inFlight = null;
     }
 }
