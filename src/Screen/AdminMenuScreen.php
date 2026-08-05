@@ -62,6 +62,7 @@ final class AdminMenuScreen implements Breadcrumbed, Themed
         ['label' => 'Remote Access', 'route' => Route::AdminRemote, 'available' => true],
         ['label' => 'Live TV', 'route' => Route::AdminLiveTv, 'available' => true],
         ['label' => 'Parental Controls', 'route' => Route::AdminParentalControls, 'available' => true],
+        ['label' => 'Metrics', 'route' => Route::AdminMetrics, 'available' => true],
     ];
 
     private int $selected = 0;

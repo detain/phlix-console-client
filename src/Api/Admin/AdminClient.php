@@ -89,6 +89,9 @@ final class AdminClient
     /** The base path every Live-TV endpoint hangs off. */
     private const LIVETV = '/api/v1/admin/livetv';
 
+    /** The base path every metrics endpoint hangs off. */
+    private const METRICS = '/api/v1/admin/metrics';
+
     public function __construct(
         private readonly ApiClient $api,
     ) {
@@ -1692,6 +1695,89 @@ final class AdminClient
 
                 return Channel::fromArray(is_array($channel) ? $channel : []);
             })->otherwise(self::reThrowFriendly(...));
+    }
+
+    // ---- metrics -------------------------------------------------------
+
+    /**
+     * Fetch the current metrics snapshot (bytes in/out per sec, active connections,
+     * requests per sec, error rate, latency percentiles). The
+     * {@see \Phlix\Server\Http\Controllers\Stats\MetricsController} uses the
+     * `{success: true, data: {...}}` envelope, so the snapshot object is read from
+     * `$body['data']`.
+     *
+     * @return PromiseInterface<array<string,mixed>>
+     */
+    public function metricsSnapshot(int $window = 60): PromiseInterface
+    {
+        return $this->api->send('GET', self::METRICS . '/snapshot', ['window' => $window])
+            ->then(static fn (array $body): array => Coerce::map($body['data'] ?? null));
+    }
+
+    /**
+     * Fetch historical metrics time-series. The enveloped `data` is a list of
+     * bucket objects.
+     *
+     * @return PromiseInterface<list<array<string,mixed>>>
+     */
+    /**
+     * Fetch historical metrics time-series. The enveloped `data` is a list of
+     * bucket objects.
+     *
+     * @return PromiseInterface<list<array<string,mixed>>>
+     */
+    public function metricsHistory(int $minutes = 60, int $resolution = 60): PromiseInterface
+    {
+        return $this->api->send('GET', self::METRICS . '/history', ['minutes' => $minutes, 'resolution' => $resolution])
+            ->then(static function (array $body): array {
+                /** @var list<array<string,mixed>> $result */
+                $result = self::mapList(
+                    $body['data'] ?? null,
+                    static fn (array $row): array => $row,
+                );
+
+                return $result;
+            });
+    }
+
+    /**
+     * Fetch live WebSocket connections. The enveloped `data` is a list of
+     * connection descriptor objects.
+     *
+     * @return PromiseInterface<list<array<string,mixed>>>
+     */
+    public function metricsConnections(int $ttl = 15): PromiseInterface
+    {
+        return $this->api->send('GET', self::METRICS . '/connections', ['ttl' => $ttl])
+            ->then(static function (array $body): array {
+                /** @var list<array<string,mixed>> $result */
+                $result = self::mapList(
+                    $body['data'] ?? null,
+                    static fn (array $row): array => $row,
+                );
+
+                return $result;
+            });
+    }
+
+    /**
+     * Fetch top routes by request count. The enveloped `data` is a list of
+     * route descriptor objects.
+     *
+     * @return PromiseInterface<list<array<string,mixed>>>
+     */
+    public function metricsRoutes(int $minutes = 15, int $limit = 20): PromiseInterface
+    {
+        return $this->api->send('GET', self::METRICS . '/routes', ['minutes' => $minutes, 'limit' => $limit])
+            ->then(static function (array $body): array {
+                /** @var list<array<string,mixed>> $result */
+                $result = self::mapList(
+                    $body['data'] ?? null,
+                    static fn (array $row): array => $row,
+                );
+
+                return $result;
+            });
     }
 
     /**

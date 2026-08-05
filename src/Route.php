@@ -51,6 +51,7 @@ enum Route
     case AdminRemote;
     case AdminLiveTv;
     case AdminParentalControls;
+    case AdminMetrics;
     case Recommendations;
     case WatchHistory;
     case Favorites;

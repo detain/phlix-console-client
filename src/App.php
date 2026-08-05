@@ -80,6 +80,7 @@ use Phlix\Console\Screen\AdminLibrariesScreen;
 use Phlix\Console\Screen\AdminLiveTvScreen;
 use Phlix\Console\Screen\AdminLogsScreen;
 use Phlix\Console\Screen\AdminMenuScreen;
+use Phlix\Console\Screen\AdminMetricsScreen;
 use Phlix\Console\Screen\AdminPluginCatalogScreen;
 use Phlix\Console\Screen\AdminPluginDetailScreen;
 use Phlix\Console\Screen\AdminUserProfilesScreen;
@@ -1343,6 +1344,11 @@ final class App implements Model
             $screen = new ParentalControlsScreen(new AdminClient($this->api), '0', '', $this->cols, $this->rows);
 
             return [$this->push(Route::AdminParentalControls, $screen), $screen->init()];
+        }
+        if ($section === Route::AdminMetrics) {
+            $screen = new AdminMetricsScreen(new AdminClient($this->api), $this->cols, $this->rows);
+
+            return [$this->push(Route::AdminMetrics, $screen), $screen->init()];
         }
 
         return [$this, null];
