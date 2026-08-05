@@ -71,9 +71,19 @@ final class BrowseScreen implements Breadcrumbed, Themed
     private const RAIL_HEIGHT = 12;        // estimate for vertical windowing
     private const PER_LIBRARY_LIMIT = 18;
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
-    private const RAILS_HINT = '↑↓  rails      ←→  items      ⏎  open      Tab  menu      q  quit';
+    private const FILTER_ALL = 0;
+    private const FILTER_WATCHED = 1;
+    private const FILTER_UNWATCHED = 2;
+
+    private const FILTER_LABELS = [
+        self::FILTER_ALL => 'All',
+        self::FILTER_WATCHED => 'Watched',
+        self::FILTER_UNWATCHED => 'Unwatched',
+    ];
+
     private const SIDEBAR_HINT = '↑↓  library      ⏎  open      H  history      Tab  rails      q  quit';
 
+    private int $watchFilter = self::FILTER_ALL;
     private ?Rail $continueRail = null;
     /** @var array<string, Rail> keyed by library id, in display order */
     private array $libraryRails = [];
@@ -167,7 +177,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
         $railsBody = $blocks === [] ? '' : Layout::joinVerticalWithSpacing(0.0, 1, ...$blocks);
         $body = Layout::joinHorizontalWithSpacing(0.0, self::SIDEBAR_GAP, $this->sidebar->render($this->contentHeight()), $railsBody);
 
-        return Chrome::frame('Browse', $body, $railsFocused ? self::RAILS_HINT : self::SIDEBAR_HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
+        return Chrome::frame('Browse', $body, $railsFocused ? $this->railsHint() : self::SIDEBAR_HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
     }
 
     // ---- data loading --------------------------------------------------
@@ -310,6 +320,10 @@ final class BrowseScreen implements Breadcrumbed, Themed
                 continue;
             }
             $seen[$id] = true;
+            // Apply watch filter — skip items that don't match the current filter.
+            if (!$this->matchesWatchFilter($entry->item)) {
+                continue;
+            }
             $cards[] = PosterCardFactory::fromMediaItem($entry->item, $entry->progress());
         }
         if ($cards === []) {
@@ -338,6 +352,9 @@ final class BrowseScreen implements Breadcrumbed, Themed
 
         $cards = [];
         foreach ($page->items as $item) {
+            if (!$this->matchesWatchFilter($item)) {
+                continue;
+            }
             $cards[] = PosterCardFactory::fromMediaItem($item);
         }
 
@@ -445,6 +462,13 @@ final class BrowseScreen implements Breadcrumbed, Themed
             return [$this->replaceRail($railId, $rail->moveCursor($delta, $perRow)), null];
         }
 
+        // 'a' → cycle watch filter: All → Watched → Unwatched → All
+        if ($msg->type === KeyType::Char && $msg->rune === 'a') {
+            $nextFilter = ($this->watchFilter + 1) % 3;
+
+            return [$this->withWatchFilter($nextFilter), null];
+        }
+
         return [$this, null];
     }
 
@@ -548,6 +572,31 @@ final class BrowseScreen implements Breadcrumbed, Themed
         return $this->user->displayName !== '' ? $this->user->displayName : $this->user->username;
     }
 
+    /** Build the rails-region hint, including the current watch-filter label. */
+    private function railsHint(): string
+    {
+        $filter = self::FILTER_LABELS[$this->watchFilter] ?? 'All';
+
+        return "↑↓  rails      ←→  items      ⏎  open      Tab  menu      a  filter({$filter})      q  quit";
+    }
+
+    /**
+     * Whether the given media item matches the current watch-filter setting.
+     * FILTER_ALL: all items match.
+     * FILTER_WATCHED: only items with watched=true match.
+     * FILTER_UNWATCHED: only items with watched=false match.
+     */
+    private function matchesWatchFilter(\Phlix\Console\Api\Dto\MediaItem $item): bool
+    {
+        if ($this->watchFilter === self::FILTER_ALL) {
+            return true;
+        }
+
+        return $this->watchFilter === self::FILTER_WATCHED
+            ? $item->watched
+            : !$item->watched;
+    }
+
     // ---- immutable copies (clone-mutate) -------------------------------
 
     private function withContinueRail(Rail $rail): self
@@ -580,6 +629,14 @@ final class BrowseScreen implements Breadcrumbed, Themed
     {
         $next = clone $this;
         $next->error = $error;
+
+        return $next;
+    }
+
+    private function withWatchFilter(int $filter): self
+    {
+        $next = clone $this;
+        $next->watchFilter = $filter;
 
         return $next;
     }
