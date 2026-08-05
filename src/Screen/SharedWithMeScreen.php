@@ -8,27 +8,27 @@ use Phlix\Console\Api\Hub\HubClient;
 use Phlix\Console\Msg\SharedWithMeActionDoneMsg;
 use Phlix\Console\Msg\SharedWithMeFailedMsg;
 use Phlix\Console\Msg\SharedWithMeLoadedMsg;
+use SugarCraft\Core\Cmd;
+use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\InitMsg;
 use SugarCraft\Core\Msg\KeyMsg;
-use SugarCraft\Screen\Breadcrumbed;
-use SugarCraft\Screen\Screen;
-use SugarCraft\Screen\Themed;
-use SugarCraft\Screen\ThemedScreen;
-use SugarCraft\Subscription\SubscriptionCapable;
+use SugarCraft\Core\SubscriptionCapable;
 
-final readonly class SharedWithMeScreen implements Breadcrumbed, Themed
+final class SharedWithMeScreen implements Breadcrumbed, Themed
 {
     use SubscriptionCapable;
     use ThemedScreen;
 
-    private ?string $error = null;
-    private bool $loading = true;
-    private int $selectedIndex = 0;
+    private const HINT = 'a  accept  r  reject  Esc  back';
+
     /** @var list<array{id:string,title:string,from:string,date:string}> */
     private array $items = [];
+    private int $selectedIndex = 0;
+    private bool $loading = true;
+    private ?string $error = null;
 
     public function __construct(
-        private HubClient $hub,
+        private readonly HubClient $hub,
     ) {}
 
     public function init(): array
@@ -39,9 +39,10 @@ final readonly class SharedWithMeScreen implements Breadcrumbed, Themed
     private function fetchCmd(): array
     {
         $this->loading = true;
+        $this->error = null;
         return $this->hub->sharedWithMe()->then(
-            fn (array $items): array => [new SharedWithMeLoadedMsg($items), null],
-            fn (\Throwable $e): array => [new SharedWithMeFailedMsg($e->getMessage()), null],
+            fn (array $items): array => $this->fetchSucceeded($items),
+            fn (\Throwable $e): array => $this->fetchFailed($e->getMessage()),
         )->wait();
     }
 
@@ -59,7 +60,7 @@ final readonly class SharedWithMeScreen implements Breadcrumbed, Themed
         return $this->view();
     }
 
-    public function update(\SugarCraft\Core\Msg\Msg $msg): array
+    public function update(Msg $msg): array
     {
         return match (true) {
             $msg instanceof InitMsg => [$this, null],
@@ -73,7 +74,7 @@ final readonly class SharedWithMeScreen implements Breadcrumbed, Themed
     private function handleKey(KeyMsg $msg): array
     {
         return match ($msg->rune) {
-            'q', 'Escape' => [$this->back(), null],
+            'q', 'Escape' => $this->back(),
             'a' => $this->acceptSelected(),
             'r' => $this->rejectSelected(),
             default => [$this, null],
@@ -104,9 +105,9 @@ final readonly class SharedWithMeScreen implements Breadcrumbed, Themed
         )->wait();
     }
 
-    private function back(): Screen
+    private function back(): array
     {
-        return new AdminMenuScreen();
+        return [$this, Cmd::send(new NavigateBackMsg())];
     }
 
     public function crumbs(): array
