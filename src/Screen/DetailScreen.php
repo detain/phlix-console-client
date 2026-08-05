@@ -14,9 +14,11 @@ use Phlix\Console\Api\Dto\CastMember;
 use Phlix\Console\Api\Dto\CrewMember;
 use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\Dto\MediaRatings;
+use Phlix\Console\Api\Dto\Rating;
 use Phlix\Console\Api\MediaQuery;
 use Phlix\Console\Media\PosterCardFactory;
 use Phlix\Console\Media\PosterLoader;
+use Phlix\Console\Msg\CastRequestedMsg;
 use Phlix\Console\Msg\ChildPosterLoadedMsg;
 use Phlix\Console\Msg\ChildrenFailedMsg;
 use Phlix\Console\Msg\ChildrenLoadedMsg;
@@ -25,14 +27,17 @@ use Phlix\Console\Msg\DetailLoadedMsg;
 use Phlix\Console\Msg\DetailPosterLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
-use Phlix\Console\Msg\CastRequestedMsg;
 use Phlix\Console\Msg\PlayRequestedMsg;
+use Phlix\Console\Msg\RatingSetFailedMsg;
+use Phlix\Console\Msg\RatingSetMsg;
 use Phlix\Console\Msg\RatingsLoadedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
-use Phlix\Console\Ui\RatingBadge;
+use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Store\MediaRange;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Ui\Chrome;
+use Phlix\Console\Ui\RatingBadge;
+use Phlix\Console\Ui\UserRatingPicker;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Model;
@@ -46,6 +51,7 @@ use SugarCraft\Gallery\PosterGrid;
 use SugarCraft\Shine\Renderer;
 use SugarCraft\Sprinkles\Layout;
 use SugarCraft\Sprinkles\Style;
+
 
 /**
  * A single item's detail, in one of two modes decided by the loaded item:
@@ -84,7 +90,7 @@ final class DetailScreen implements Breadcrumbed, Themed
     private const OVERSCAN = 1;
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
     private const PLAY_NOTICE = '▶  This title has no playable source.';
-    private const HINT = '↑↓  scroll synopsis      p  play      C  cast      R  rate      Esc  back';
+    private const HINT = '↑↓  scroll synopsis      p  play      C  cast      r  rate      Esc  back';
     private const CONTAINER_HINT = '↑↓←→  move      ⏎  open      Esc  back';
     private const LOADING_HINT = 'Esc  back';
 
@@ -99,7 +105,7 @@ final class DetailScreen implements Breadcrumbed, Themed
     private bool $playNotice = false;
     private int $synopsisScroll = 0;
     private ?MediaRatings $ratings = null;
-
+    private ?UserRatingPicker $ratingPicker = null;
     // Container mode (null until a loaded item proves to be a series/season).
     private ?PosterGrid $childGrid = null;
     private ?MediaQuery $childQuery = null;
@@ -185,6 +191,11 @@ final class DetailScreen implements Breadcrumbed, Themed
     /** @return array{self, ?\Closure} */
     private function handleKey(KeyMsg $msg): array
     {
+        // While the rating picker is open it captures every keystroke.
+        if ($this->ratingPicker !== null) {
+            return $this->handleRatingPickerKey($this->ratingPicker, $msg);
+        }
+
         if ($msg->type === KeyType::Escape) {
             return [$this, Cmd::send(new NavigateBackMsg())];
         }
@@ -210,6 +221,10 @@ final class DetailScreen implements Breadcrumbed, Themed
             }
 
             return [$this, null];
+        }
+        // Leaf: r → open the user rating picker.
+        if ($msg->type === KeyType::Char && ($msg->rune === 'r' || $msg->rune === 'R')) {
+            return $this->openRatingPicker();
         }
         if ($msg->type === KeyType::Up) {
             return [$this->scrollSynopsis(-1), null];
@@ -249,6 +264,151 @@ final class DetailScreen implements Breadcrumbed, Themed
         }
 
         return $this->afterChildGridChange($moved);
+    }
+
+    // ---- rating picker -------------------------------------------------
+
+    /**
+     * Open the user rating picker, pre-selecting the current user rating if set.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function openRatingPicker(): array
+    {
+        $currentUserRating = $this->ratings?->userRating()?->score;
+        $next = clone $this;
+        $next->ratingPicker = UserRatingPicker::open($currentUserRating !== null ? (int) $currentUserRating : null, $this->cols, $this->rows);
+
+        return [$next, null];
+    }
+
+    /**
+     * Drive the open rating picker: ←/→ move, 1-6 select, Enter confirm, Esc dismiss.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function handleRatingPickerKey(UserRatingPicker $picker, KeyMsg $msg): array
+    {
+        if ($msg->type === KeyType::Escape) {
+            $next = clone $this;
+            $next->ratingPicker = null;
+
+            return [$next, null];
+        }
+        if ($msg->type === KeyType::Left) {
+            $next = clone $this;
+            $next->ratingPicker = $picker->left();
+
+            return [$next, null];
+        }
+        if ($msg->type === KeyType::Right) {
+            $next = clone $this;
+            $next->ratingPicker = $picker->right();
+
+            return [$next, null];
+        }
+        // Number keys 1-6 directly select a position
+        if ($msg->type === KeyType::Char && $msg->rune >= '1' && $msg->rune <= '6') {
+            $index = (int) $msg->rune - 1; // 0-5
+            $next = clone $this;
+            // Use resizedTo to get a fresh picker with correct window dims, then navigate
+            $next->ratingPicker = $picker->resizedTo($this->cols, $this->rows);
+            // Navigate to the selected index (0 = clear, 1-5 = stars)
+            for ($i = 0; $i < $index; $i++) {
+                $next->ratingPicker = $next->ratingPicker->right();
+            }
+
+            return [$next, null];
+        }
+        if ($msg->type === KeyType::Enter) {
+            return $this->applyRatingSelection($picker);
+        }
+
+        return [$this, null];
+    }
+
+    /**
+     * Apply the rating selection: optimistically update the model and send the API request.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function applyRatingSelection(UserRatingPicker $picker): array
+    {
+        $next = clone $this;
+        $next->ratingPicker = null;
+
+        $rating = $picker->selectedRating();
+        $isClearing = $picker->isClearing();
+
+        // Capture the previous ratings for potential revert
+        $previousRatings = $this->ratings;
+
+        // Optimistically update the model
+        if ($isClearing) {
+            $next->ratings = $this->ratings?->userRating() !== null
+                ? $this->withoutUserRating($this->ratings)
+                : $this->ratings;
+        } else {
+            $next->ratings = $this->withOptimisticUserRating($this->ratings, $rating ?? 0);
+        }
+
+        // Build the API promise
+        $apiPromise = $isClearing
+            ? $this->media->api()->deleteMediaRating($this->id)
+            : $this->media->api()->setMediaRating($this->id, (float) $rating);
+
+        return [
+            $next,
+            Cmd::promise(fn () => $apiPromise->then(
+                static fn (bool $result): Msg => new RatingSetMsg($result),
+                static fn (\Throwable $e): Msg => new RatingSetFailedMsg($e->getMessage()),
+            )),
+        ];
+    }
+
+    /**
+     * Remove the user rating from the ratings object.
+     */
+    private function withoutUserRating(?MediaRatings $ratings): ?MediaRatings
+    {
+        if ($ratings === null) {
+            return null;
+        }
+
+        $filtered = array_filter(
+            $ratings->ratings,
+            static fn (Rating $r): bool => !($r->source === 'user' && $r->type === 'user'),
+        );
+
+        return new MediaRatings($ratings->itemId, array_values($filtered), $ratings->aggregateScore);
+    }
+
+    /**
+     * Add or update the user rating optimistically in the ratings object.
+     */
+    private function withOptimisticUserRating(?MediaRatings $ratings, int $score): MediaRatings
+    {
+        // Remove existing user rating if present
+        $withoutUser = $this->withoutUserRating($ratings);
+
+        // Create a new user rating
+        $userRating = new Rating(
+            id: 0,
+            mediaItemId: $this->id,
+            source: 'user',
+            type: 'user',
+            score: (float) $score,
+            votes: null,
+        );
+
+        $newRatings = $withoutUser !== null ? $withoutUser->ratings : [];
+        $newRatings[] = $userRating;
+
+        return new MediaRatings(
+            $this->id,
+            $newRatings,
+            $ratings?->aggregateScore,
+        );
     }
 
     private function scrollSynopsis(int $delta): self
@@ -315,21 +475,17 @@ final class DetailScreen implements Breadcrumbed, Themed
         // Ratings are only fetched when there's a poster (maintains original behavior).
         $ratingsCmd = $posterCmd !== null ? $next->fetchRatings() : null;
 
-        // Return null when both would be null (no poster, no ratings).
-        if ($posterCmd === null && $ratingsCmd === null) {
+        // No poster means no ratings either (ratingsCmd is only set when posterCmd is set).
+        if ($posterCmd === null) {
             return [$next, null];
         }
 
-        // If only one command is present, return it directly.
-        if ($posterCmd !== null && $ratingsCmd === null) {
-            return [$next, $posterCmd];
-        }
-        if ($posterCmd === null && $ratingsCmd !== null) {
-            return [$next, $ratingsCmd];
+        // Poster present — batch with ratings if available.
+        if ($ratingsCmd !== null) {
+            return [$next, Cmd::batch($posterCmd, $ratingsCmd)];
         }
 
-        // Both poster and ratings are present - batch them.
-        return [$next, Cmd::batch($posterCmd, $ratingsCmd)];
+        return [$next, $posterCmd];
     }
 
     private function fetchHero(string $url): ?\Closure

@@ -74,6 +74,11 @@ final class MediaStore
         $this->clock = $clock ?? static fn (): float => microtime(true);
     }
 
+    public function api(): ApiClient
+    {
+        return $this->api;
+    }
+
     /**
      * @return PromiseInterface<MediaPage>
      */

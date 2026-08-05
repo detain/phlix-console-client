@@ -17,21 +17,23 @@ use SugarCraft\Veil\Veil;
 /**
  * Interactive star rating picker overlay for the terminal.
  *
- * Opened via the 'R' key on the detail screen. Displays 5 stars representing
- * ratings 1-10 (2 points per star). The user navigates with ←/→ or 1-5 keys,
+ * Opened via the 'r' key on the detail screen. Displays 5 stars representing
+ * ratings 2-10 (2 points per star) plus a "clear" option at position 0.
+ * The user navigates with ←/→ or 1-6 keys (1 = clear, 2-6 = stars),
  * confirms with Enter, and cancels with Escape.
  *
- * Immutable (clone-mutate). The cursor is always in [0, 4] representing
- * which star is currently selected (rating = (cursor + 1) * 2).
+ * Immutable (clone-mutate). The cursor is in [0, 5] where 0 = clear and
+ * 1-5 represent stars (rating = cursor * 2).
  */
 final class UserRatingPicker
 {
     private const MAX_WIDTH = 30;
     private const BACKDROP_DIM = 40;
-    private const RATING_MULTIPLIER = 2;
+    private const STAR_MULTIPLIER = 2;
+    private const STAR_COUNT = 5;
 
     /**
-     * @param int  $cursor           Star index 0-4 (rating = (cursor + 1) * 2)
+     * @param int  $cursor           Index 0-5 (0 = clear, 1-5 = stars giving ratings 2,4,6,8,10)
      * @param ?int $currentUserRating The user's existing rating, or null
      */
     private function __construct(
@@ -44,13 +46,15 @@ final class UserRatingPicker
 
     /**
      * Open the rating picker, pre-selecting the current user rating if set.
+     * Position 0 is "clear"; positions 1-5 are stars (ratings 2, 4, 6, 8, 10).
      */
     public static function open(?int $currentUserRating, int $cols, int $rows): self
     {
-        // Cursor represents star index 0-4, which gives rating = (index + 1) * 2
+        // Cursor 0 = clear, cursor 1-5 = stars
         $cursor = 0;
-        if ($currentUserRating !== null) {
-            $cursor = max(0, min(4, (int) (($currentUserRating / self::RATING_MULTIPLIER) - 1)));
+        if ($currentUserRating !== null && $currentUserRating > 0) {
+            // Rating maps to star index: cursor = rating / 2, clamped to [1, 5]
+            $cursor = max(1, min(self::STAR_COUNT, (int) ($currentUserRating / self::STAR_MULTIPLIER)));
         }
 
         [$w, $h] = self::dims($cols, $rows);
@@ -69,7 +73,7 @@ final class UserRatingPicker
     public function right(): self
     {
         $next = clone $this;
-        $next->cursor = min(4, $this->cursor + 1);
+        $next->cursor = min(self::STAR_COUNT, $this->cursor + 1);
 
         return $next;
     }
@@ -85,15 +89,29 @@ final class UserRatingPicker
         return $next;
     }
 
-    /** The rating value for the current cursor position (2, 4, 6, 8, 10). */
-    public function selectedRating(): int
+    /** The rating value for the current cursor position (2, 4, 6, 8, 10), or null if clear is selected. */
+    public function selectedRating(): ?int
     {
-        return ($this->cursor + 1) * self::RATING_MULTIPLIER;
+        if ($this->cursor === 0) {
+            return null; // clear
+        }
+
+        return $this->cursor * self::STAR_MULTIPLIER;
+    }
+
+    /** Whether the user has selected the "clear" option. */
+    public function isClearing(): bool
+    {
+        return $this->cursor === 0;
     }
 
     /** Whether the current selection differs from the existing user rating. */
     public function hasChanges(): bool
     {
+        if ($this->isClearing()) {
+            return $this->currentUserRating !== null;
+        }
+
         return $this->currentUserRating === null || $this->selectedRating() !== $this->currentUserRating;
     }
 
@@ -127,9 +145,19 @@ final class UserRatingPicker
     {
         $accent = Style::new()->bold()->fg('#ffcc00');
         $dim = Style::new()->faint();
+        $clearColor = Style::new()->bold()->fg('#ff6666');
 
         $result = '';
-        for ($i = 0; $i < 5; $i++) {
+        // Position 0: "✕" (clear/rating removal)
+        if ($this->cursor === 0) {
+            $result .= Style::new()->reverse()->bold()->fg('#ff6666')->render('✕');
+        } else {
+            $result .= $clearColor->render('✕');
+        }
+        $result .= ' ';
+
+        // Positions 1-5: stars representing ratings 2, 4, 6, 8, 10
+        for ($i = 1; $i <= self::STAR_COUNT; $i++) {
             if ($i === $this->cursor) {
                 $result .= Style::new()->reverse()->bold()->fg('#ffcc00')->render('★');
             } elseif ($i < $this->cursor) {
@@ -140,7 +168,8 @@ final class UserRatingPicker
         }
 
         $rating = $this->selectedRating();
-        $result .= '  ' . Style::new()->bold()->render((string) $rating . '/10');
+        $ratingText = $rating !== null ? "{$rating}/10" : '—';
+        $result .= '  ' . Style::new()->bold()->render($ratingText);
 
         return $result;
     }
@@ -149,7 +178,7 @@ final class UserRatingPicker
     {
         $dim = Style::new()->faint();
 
-        return $dim->render('←/→ or 1-5  select    ⏎ confirm    Esc  cancel');
+        return $dim->render('←/→ or 1-6  select    ⏎ confirm    Esc  cancel');
     }
 
     /**

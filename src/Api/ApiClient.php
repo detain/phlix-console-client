@@ -657,6 +657,17 @@ final class ApiClient
         ])->then(static fn (array $data): bool => true);
     }
 
+    /**
+     * Delete the authenticated user's personal rating for a media item (clear).
+     *
+     * @return PromiseInterface<bool>
+     */
+    public function deleteMediaRating(string $id): PromiseInterface
+    {
+        return $this->authed('DELETE', '/api/v1/media/' . rawurlencode($id) . '/ratings')
+            ->then(static fn (array $data): bool => true);
+    }
+
     // ---- SyncPlay ------------------------------------------------------
 
     /**
