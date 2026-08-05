@@ -67,6 +67,7 @@ final class AdminMenuScreen implements Breadcrumbed, Themed
         ['label' => 'Metrics', 'route' => Route::AdminMetrics, 'available' => true],
         ['label' => 'Watch History', 'route' => Route::AdminWatchHistory, 'available' => true],
         ['label' => 'Duplicates', 'route' => Route::AdminDuplicates, 'available' => true],
+        ['label' => 'Metadata Match', 'route' => Route::AdminMetadataMatch, 'available' => true],
         ['label' => 'Webhooks', 'route' => Route::AdminWebhooks, 'available' => true],
         ['label' => 'Auth Providers', 'route' => Route::AdminAuthProviders, 'available' => true],
         ['label' => 'Server Restart', 'route' => Route::AdminServerRestart, 'available' => true],

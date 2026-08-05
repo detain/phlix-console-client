@@ -101,6 +101,9 @@ final class AdminClient
     /** The base path every services endpoint hangs off. */
     private const SERVICES = '/api/v1/admin/services';
 
+    /** The base path every media item endpoint hangs off. */
+    private const MEDIA = '/api/v1/media';
+
     public function __construct(
         private readonly ApiClient $api,
     ) {
@@ -2493,6 +2496,158 @@ final class AdminClient
     {
         return $this->api->send('POST', self::SERVICES . '/lastfm/disconnect')
             ->then(static fn (array $body): string => Coerce::str($body['message'] ?? 'Last.fm disconnected'));
+    }
+
+    // ---- media metadata match --------------------------------------------
+
+    /**
+     * Fetch match suggestions for a media item. Returns candidate results
+     * from TMDB based on the item's title/year or a manual query.
+     * When called with no arguments, returns a list of all items needing
+     * metadata match review.
+     *
+     * @param string|null $itemId The media item ID (optional - if not provided,
+     *                            returns list of items needing match review)
+     * @param string|null $query Optional manual search query (default: item title)
+     * @param int|null $year Optional year filter
+     * @param string|null $type Optional type filter ('tv' or 'movie')
+     *
+     * @return PromiseInterface<array{results: list<array>, query: string, type: string}|list<array{id:string,title:string,type:string,poster_url:?string}>>
+     */
+    public function metadataMatchSuggestions(
+        ?string $itemId = null,
+        ?string $query = null,
+        ?int $year = null,
+        ?string $type = null,
+    ): PromiseInterface {
+        // When called with no itemId, return list of items needing match review
+        if ($itemId === null && func_num_args() === 0) {
+            return $this->api->send('GET', self::MEDIA . '/match')
+                ->then(static function (array $body): array {
+                    return self::mapList(
+                        $body['items'] ?? null,
+                        static fn (array $row): array => [
+                            'id' => Coerce::str($row['id'] ?? ''),
+                            'title' => Coerce::str($row['title'] ?? ''),
+                            'type' => Coerce::str($row['type'] ?? ''),
+                            'poster_url' => is_string($row['poster_url'] ?? null) ? $row['poster_url'] : null,
+                        ],
+                    );
+                });
+        }
+
+        // Original search behavior when itemId is provided
+        $params = [];
+        if ($query !== null && $query !== '') {
+            $params['query'] = $query;
+        }
+        if ($year !== null) {
+            $params['year'] = (string) $year;
+        }
+        if ($type !== null && ($type === 'tv' || $type === 'movie')) {
+            $params['type'] = $type;
+        }
+
+        return $this->api->send('GET', self::MEDIA . '/' . rawurlencode($itemId) . '/match/search', $params)
+            ->then(static function (array $body): array {
+                return [
+                    'results' => self::mapList(
+                        $body['results'] ?? null,
+                        static fn (array $row): array => $row,
+                    ),
+                    'query' => Coerce::str($body['query'] ?? ''),
+                    'type' => Coerce::str($body['type'] ?? ''),
+                ];
+            });
+    }
+
+    /**
+     * Apply a metadata match to a media item. Resolves with the updated item
+     * and applied status; rejects with ApiError on failure.
+     *
+     * @param string $itemId The media item ID
+     * @param string $tmdbId The TMDB ID to match against
+     * @param string|null $type The type ('tv' or 'movie'), auto-derived if null
+     *
+     * @return PromiseInterface<array{item: array<string,mixed>, applied: array<string,mixed>}>
+     */
+    public function matchMetadata(string $itemId, string $tmdbId, ?string $type = null): PromiseInterface
+    {
+        $body = ['tmdb_id' => $tmdbId];
+        if ($type !== null && ($type === 'tv' || $type === 'movie')) {
+            $body['type'] = $type;
+        }
+
+        return $this->api->send('POST', self::MEDIA . '/' . rawurlencode($itemId) . '/match/apply', [], $body)
+            ->then(static function (array $body): array {
+                return [
+                    'item' => Coerce::map($body['item'] ?? null),
+                    'applied' => Coerce::map($body['applied'] ?? null),
+                ];
+            });
+    }
+
+    // ---- media posters ----------------------------------------------------
+
+    /**
+     * Fetch available alternate poster candidates for a media item.
+     *
+     * @param string $itemId The media item ID
+     *
+     * @return PromiseInterface<array{providers: list<array{provider: string, posters: list<array{url: string, url_original: string, width: int, height: int, language: string|null}>}>, current: string|null}>
+     */
+    public function alternatePosters(string $itemId): PromiseInterface
+    {
+        return $this->api->send('GET', self::MEDIA . '/' . rawurlencode($itemId) . '/posters')
+            ->then(static function (array $body): array {
+                return [
+                    'providers' => self::mapList(
+                        $body['providers'] ?? null,
+                        static fn (array $provider): array => [
+                            'provider' => Coerce::str($provider['provider'] ?? ''),
+                            'posters' => self::mapList(
+                                $provider['posters'] ?? null,
+                                static fn (array $poster): array => [
+                                    'url' => Coerce::str($poster['url'] ?? ''),
+                                    'url_original' => Coerce::str($poster['url_original'] ?? ''),
+                                    'width' => Coerce::int($poster['width'] ?? 0),
+                                    'height' => Coerce::int($poster['height'] ?? 0),
+                                    'language' => is_string($poster['language'] ?? null) ? $poster['language'] : null,
+                                ],
+                            ),
+                        ],
+                    ),
+                    'current' => is_string($body['current'] ?? null) ? $body['current'] : null,
+                ];
+            });
+    }
+
+    /**
+     * Set a poster URL on a media item. The URL must be among the known
+     * poster candidates for the item (anti-SSRF validation).
+     *
+     * @param string $itemId The media item ID
+     * @param string $posterUrl The poster URL to set
+     *
+     * @return PromiseInterface<array<string,mixed>> The updated media item
+     */
+    public function setPoster(string $itemId, string $posterUrl): PromiseInterface
+    {
+        return $this->api->send('PUT', self::MEDIA . '/' . rawurlencode($itemId) . '/poster', [], ['poster_url' => $posterUrl])
+            ->then(static fn (array $body): array => Coerce::map($body['item'] ?? null));
+    }
+
+    /**
+     * Set an alternate poster URL on a media item. Alias for setPoster.
+     *
+     * @param string $itemId The media item ID
+     * @param string $posterUrl The poster URL to set
+     *
+     * @return PromiseInterface<bool> True on success
+     */
+    public function setAlternatePoster(string $itemId, string $posterUrl): PromiseInterface
+    {
+        return $this->setPoster($itemId, $posterUrl)->then(static fn ($result): bool => true);
     }
 
     /**

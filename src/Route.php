@@ -56,6 +56,7 @@ enum Route
     case AdminMetrics;
     case AdminWatchHistory;
     case AdminDuplicates;
+    case AdminMetadataMatch;
     case AdminWebhooks;
     case AdminAuthProviders;
     case AdminServerRestart;

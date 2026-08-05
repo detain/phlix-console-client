@@ -94,6 +94,7 @@ use Phlix\Console\Screen\AdminSettingsScreen;
 use Phlix\Console\Screen\AdminTranscodingScreen;
 use Phlix\Console\Screen\AdminUsersScreen;
 use Phlix\Console\Screen\AdminDuplicatesScreen;
+use Phlix\Console\Screen\AdminMetadataMatchScreen;
 use Phlix\Console\Screen\AdminWatchHistoryScreen;
 use Phlix\Console\Screen\AdminWebhooksScreen;
 use Phlix\Console\Screen\AdminAuthProvidersScreen;
@@ -1383,6 +1384,11 @@ final class App implements Model
             $screen = new AdminDuplicatesScreen(new AdminClient($this->api), '', $this->cols, $this->rows);
 
             return [$this->push(Route::AdminDuplicates, $screen), $screen->init()];
+        }
+        if ($section === Route::AdminMetadataMatch) {
+            $screen = new AdminMetadataMatchScreen(new AdminClient($this->api), $this->posters, $this->cols, $this->rows);
+
+            return [$this->push(Route::AdminMetadataMatch, $screen), $screen->init()];
         }
         if ($section === Route::AdminAuthProviders) {
             $screen = new AdminAuthProvidersScreen(new AdminClient($this->api), $this->cols, $this->rows);
