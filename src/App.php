@@ -1386,7 +1386,7 @@ final class App implements Model
             return [$this->push(Route::AdminDuplicates, $screen), $screen->init()];
         }
         if ($section === Route::AdminMetadataMatch) {
-            $screen = new AdminMetadataMatchScreen(new AdminClient($this->api), $this->posters, $this->cols, $this->rows);
+            $screen = new AdminMetadataMatchScreen(new AdminClient($this->api), $this->cols, $this->rows);
 
             return [$this->push(Route::AdminMetadataMatch, $screen), $screen->init()];
         }
