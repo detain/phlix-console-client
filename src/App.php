@@ -51,6 +51,7 @@ use Phlix\Console\Msg\OpenSearchMsg;
 use Phlix\Console\Msg\OpenSettingsMsg;
 use Phlix\Console\Msg\OpenStatsMsg;
 use Phlix\Console\Msg\OpenRecommendationsMsg;
+use Phlix\Console\Msg\OpenFavoritesMsg;
 use Phlix\Console\Msg\OpenWatchHistoryMsg;
 use Phlix\Console\Msg\PaletteLibrariesLoadedMsg;
 use Phlix\Console\Msg\PlayAudiobookMsg;
@@ -112,6 +113,7 @@ use Phlix\Console\Screen\Shimmering;
 use Phlix\Console\Screen\StatsScreen;
 use Phlix\Console\Screen\RecommendationsScreen;
 use Phlix\Console\Screen\WatchHistoryScreen;
+use Phlix\Console\Screen\FavoritesScreen;
 use Phlix\Console\Screen\Teardownable;
 use Phlix\Console\Screen\Themed;
 use Phlix\Console\Store\AudiobooksStore;
@@ -121,6 +123,7 @@ use Phlix\Console\Store\LibrariesStore;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Store\MusicStore;
 use Phlix\Console\Store\PhotosStore;
+use Phlix\Console\Store\FavoritesStore;
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\CommandPalette;
 use Phlix\Console\Ui\MetricsOverlay;
@@ -365,6 +368,9 @@ final class App implements Model
         }
         if ($msg instanceof OpenWatchHistoryMsg) {
             return $this->openWatchHistory();
+        }
+        if ($msg instanceof OpenFavoritesMsg) {
+            return $this->openFavorites();
         }
         if ($msg instanceof OpenAdminMsg) {
             return $this->openAdmin();
@@ -829,6 +835,7 @@ final class App implements Model
             new PaletteAction('Settings', new OpenSettingsMsg()),
             new PaletteAction('Stats', new OpenStatsMsg()),
             new PaletteAction('Watch History', new OpenWatchHistoryMsg()),
+            new PaletteAction('Favorites', new OpenFavoritesMsg()),
             // The metrics / HUD overlay is toggled from the palette (no global key,
             // so no conflict); the label flips with the current visibility.
             new PaletteAction($this->metricsVisible ? 'Hide metrics' : 'Show metrics', new ToggleMetricsMsg()),
@@ -1244,6 +1251,15 @@ final class App implements Model
         $screen = new WatchHistoryScreen($this->api, $this->cols, $this->rows);
 
         return [$this->push(Route::WatchHistory, $screen), $screen->init()];
+    }
+
+    /** @return array{App, ?\Closure} */
+    private function openFavorites(): array
+    {
+        $favoritesStore = new FavoritesStore($this->api);
+        $screen = new FavoritesScreen($favoritesStore, $this->cols, $this->rows);
+
+        return [$this->push(Route::Favorites, $screen), $screen->init()];
     }
 
     /**

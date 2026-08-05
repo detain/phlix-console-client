@@ -46,6 +46,7 @@ final readonly class MediaItem
         public ?string $streamUrl,
         public ?string $createdAt,
         public ?string $updatedAt,
+        public bool $isFavorite = false,
     ) {
     }
 
@@ -79,6 +80,7 @@ final readonly class MediaItem
             streamUrl: Coerce::nstr($data['stream_url'] ?? null),
             createdAt: Coerce::nstr($data['created_at'] ?? null),
             updatedAt: Coerce::nstr($data['updated_at'] ?? null),
+            isFavorite: (bool) ($data['is_favorite'] ?? false),
         );
     }
 
@@ -120,6 +122,7 @@ final readonly class MediaItem
             streamUrl: null,
             createdAt: Coerce::nstr($row['created_at'] ?? null),
             updatedAt: Coerce::nstr($row['updated_at'] ?? null),
+            isFavorite: (bool) ($row['is_favorite'] ?? false),
         );
     }
 

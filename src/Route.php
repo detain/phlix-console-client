@@ -53,4 +53,5 @@ enum Route
     case AdminParentalControls;
     case Recommendations;
     case WatchHistory;
+    case Favorites;
 }
