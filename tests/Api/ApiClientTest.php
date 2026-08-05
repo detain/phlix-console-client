@@ -879,6 +879,61 @@ final class ApiClientTest extends TestCase
         self::assertSame('access-2', $refreshed?->accessToken);
     }
 
+    // ---- favorites ----------------------------------------------------
+
+    public function testAddFavoritePostsTheRouteAndReturnsTrue(): void
+    {
+        $t = (new FakeTransport())->json(200, ['message' => 'added']);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $result = $this->await($client->addFavorite('m1'));
+
+        self::assertTrue($result);
+        $req = $t->requestAt(0);
+        self::assertSame('POST', $req['method']);
+        self::assertStringEndsWith('/api/v1/media/m1/favorite', $req['url']);
+    }
+
+    public function testRemoveFavoriteDeletesTheRouteAndReturnsTrue(): void
+    {
+        $t = (new FakeTransport())->json(200, ['message' => 'removed']);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $result = $this->await($client->removeFavorite('m1'));
+
+        self::assertTrue($result);
+        $req = $t->requestAt(0);
+        self::assertSame('DELETE', $req['method']);
+        self::assertStringEndsWith('/api/v1/media/m1/favorite', $req['url']);
+    }
+
+    public function testFavoritesHitsEndpointWithPaginationAndMapsPage(): void
+    {
+        $t = (new FakeTransport())->json(200, [
+            'items' => [['id' => 'm1', 'name' => 'A', 'type' => 'movie']],
+            'total' => 42,
+            'limit' => 20,
+            'offset' => 10,
+        ]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $page = $this->await($client->favorites(20, 10));
+
+        self::assertInstanceOf(MediaPage::class, $page);
+        self::assertSame(42, $page->total);
+        self::assertSame(20, $page->limit);
+        self::assertSame(10, $page->offset);
+        self::assertCount(1, $page->items);
+        $req = $t->requestAt(0);
+        self::assertSame('GET', $req['method']);
+        self::assertStringContainsString('/api/v1/users/me/favorites?', $req['url']);
+        self::assertStringContainsString('limit=20', $req['url']);
+        self::assertStringContainsString('offset=10', $req['url']);
+    }
+
     // ---- 401 refresh-and-retry ----------------------------------------
 
     public function testUnauthorizedTriggersRefreshAndRetry(): void

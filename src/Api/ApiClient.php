@@ -668,6 +668,43 @@ final class ApiClient
             ->then(static fn (array $data): bool => true);
     }
 
+    // ---- favorites ----------------------------------------------------
+
+    /**
+     * Add a media item to the authenticated user's favorites.
+     *
+     * @return PromiseInterface<bool>
+     */
+    public function addFavorite(string $mediaId): PromiseInterface
+    {
+        return $this->authed('POST', '/api/v1/media/' . rawurlencode($mediaId) . '/favorite')
+            ->then(static fn (array $data): bool => true);
+    }
+
+    /**
+     * Remove a media item from the authenticated user's favorites.
+     *
+     * @return PromiseInterface<bool>
+     */
+    public function removeFavorite(string $mediaId): PromiseInterface
+    {
+        return $this->authed('DELETE', '/api/v1/media/' . rawurlencode($mediaId) . '/favorite')
+            ->then(static fn (array $data): bool => true);
+    }
+
+    /**
+     * The authenticated user's favorited media items, paginated.
+     *
+     * @return PromiseInterface<MediaPage>
+     */
+    public function favorites(int $limit = 100, int $offset = 0): PromiseInterface
+    {
+        $query = ['limit' => $limit, 'offset' => $offset];
+
+        return $this->authed('GET', '/api/v1/users/me/favorites', $query)
+            ->then(static fn (array $data): MediaPage => MediaPage::fromArray($data));
+    }
+
     // ---- SyncPlay ------------------------------------------------------
 
     /**
