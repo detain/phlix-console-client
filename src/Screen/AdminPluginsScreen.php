@@ -50,11 +50,8 @@ use SugarCraft\Forms\Form;
  * the App holds no AdminClient field). Stable collaborators are readonly; the
  * loaded data, selection, busy flag, the pending uninstall, and the embedded
  * install form are private mutable view state set via clone-mutate (the
- * established screen idiom).
- *
- * SCOPE: list + enable/disable/uninstall + install-from-URL only. The catalog
- * browser, the settings-schema editor, and the plugin detail page are deferred.
- */
+     * established screen idiom).
+     */
 final class AdminPluginsScreen implements Breadcrumbed, Themed
 {
     use SubscriptionCapable;

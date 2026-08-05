@@ -86,6 +86,7 @@ use Phlix\Console\Screen\AdminPluginCatalogScreen;
 use Phlix\Console\Screen\AdminPluginDetailScreen;
 use Phlix\Console\Screen\AdminUserProfilesScreen;
 use Phlix\Console\Screen\AdminPluginsScreen;
+use Phlix\Console\Screen\AdminPluginUpdateScreen;
 use Phlix\Console\Screen\AdminRemoteAccessScreen;
 use Phlix\Console\Screen\AdminServerRestartScreen;
 use Phlix\Console\Screen\AdminSettingsScreen;
@@ -1311,6 +1312,11 @@ final class App implements Model
             $screen = new AdminPluginsScreen(new AdminClient($this->api), $this->cols, $this->rows);
 
             return [$this->push(Route::AdminPlugins, $screen), $screen->init()];
+        }
+        if ($section === Route::AdminPluginUpdate) {
+            $screen = new AdminPluginUpdateScreen(new AdminClient($this->api));
+
+            return [$this->push(Route::AdminPluginUpdate, $screen), $screen->init()];
         }
         if ($section === Route::AdminLogs) {
             $screen = new AdminLogsScreen(new AdminClient($this->api), $this->cols, $this->rows);
