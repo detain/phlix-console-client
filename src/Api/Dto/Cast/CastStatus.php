@@ -23,6 +23,7 @@ final readonly class CastStatus
     public function __construct(
         public bool $active,
         public ?string $state,
+        public ?int $positionMs = null,
     ) {
     }
 
@@ -34,6 +35,7 @@ final readonly class CastStatus
         return new self(
             active: Coerce::bool($data['active'] ?? ($data['has_active_session'] ?? false)),
             state: Coerce::nstr($data['state'] ?? ($data['session_state'] ?? null)),
+            positionMs: Coerce::nint($data['position_ms'] ?? null),
         );
     }
 }

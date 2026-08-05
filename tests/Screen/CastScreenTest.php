@@ -589,6 +589,123 @@ final class CastScreenTest extends TestCase
         self::assertInstanceOf(CastStatusLoadedMsg::class, $msg);
     }
 
+    public function testLeftArrowSeeksBackwardTenSeconds(): void
+    {
+        // Chromecast can seek — ← subtracts 10 s from the last-known position.
+        $transport = $this->fullDiscovery()->json(200, ['state' => 'PLAYING']);
+        $screen = $this->picker($transport);
+        [$tp] = $screen->update(new CastStartedMsg($this->device(CastBackend::Chromecast)));
+        self::assertSame(136000, $tp->positionMs(), 'position initialised from item runtime (ms)');
+
+        [$seeked, $cmd] = $tp->update(new KeyMsg(KeyType::Left));
+        self::assertSame(126000, $seeked->positionMs(), '← seeks −10 s');
+        $this->runCmd($cmd);
+        self::assertStringContainsString('/api/v1/cast/devices/id-1/seek', $transport->requests[4]['url']);
+        $body = json_decode($transport->requests[4]['body'], true);
+        self::assertSame(126000, $body['position_ms']);
+    }
+
+    public function testRightArrowSeeksForwardTenSeconds(): void
+    {
+        $transport = $this->fullDiscovery()->json(200, ['state' => 'PLAYING']);
+        $screen = $this->picker($transport);
+        [$tp] = $screen->update(new CastStartedMsg($this->device(CastBackend::Chromecast)));
+
+        [$seeked, $cmd] = $tp->update(new KeyMsg(KeyType::Right));
+        self::assertSame(146000, $seeked->positionMs(), '→ seeks +10 s');
+        $this->runCmd($cmd);
+        $body = json_decode($transport->requests[4]['body'], true);
+        self::assertSame(146000, $body['position_ms']);
+    }
+
+    public function testShiftLeftSeeksBackwardSixtySeconds(): void
+    {
+        $transport = $this->fullDiscovery()->json(200, ['state' => 'PLAYING']);
+        $screen = $this->picker($transport);
+        [$tp] = $screen->update(new CastStartedMsg($this->device(CastBackend::Chromecast)));
+
+        [$seeked, $cmd] = $tp->update(new KeyMsg(KeyType::Left, shift: true));
+        self::assertSame(76000, $seeked->positionMs(), 'Shift+← seeks −60 s');
+        $this->runCmd($cmd);
+        $body = json_decode($transport->requests[4]['body'], true);
+        self::assertSame(76000, $body['position_ms']);
+    }
+
+    public function testShiftRightSeeksForwardSixtySeconds(): void
+    {
+        $transport = $this->fullDiscovery()->json(200, ['state' => 'PLAYING']);
+        $screen = $this->picker($transport);
+        [$tp] = $screen->update(new CastStartedMsg($this->device(CastBackend::Chromecast)));
+
+        [$seeked] = $tp->update(new KeyMsg(KeyType::Right, shift: true));
+        self::assertSame(196000, $seeked->positionMs(), 'Shift+→ seeks +60 s');
+    }
+
+    public function testSeekClampsAtZero(): void
+    {
+        $transport = $this->fullDiscovery()->json(200, ['state' => 'PLAYING']);
+        $screen = $this->picker($transport);
+        [$tp] = $screen->update(new CastStartedMsg($this->device(CastBackend::Chromecast)));
+
+        // Seek −200 s from 136 s → clamped to 0.
+        [$seeked, $cmd] = $tp->update(new KeyMsg(KeyType::Left, shift: true));
+        $seeked2 = $seeked->update(new KeyMsg(KeyType::Left, shift: true))[0];
+        $seeked3 = $seeked2->update(new KeyMsg(KeyType::Left, shift: true))[0];
+        self::assertSame(0, $seeked3->positionMs(), 'position clamps at 0');
+    }
+
+    public function testSeekIgnoredForRoku(): void
+    {
+        $screen = $this->picker($this->fullDiscovery());
+        [$tp] = $screen->update(new CastStartedMsg($this->device(CastBackend::Roku)));
+
+        [$same, $cmd] = $tp->update(new KeyMsg(KeyType::Left));
+        self::assertSame($tp, $same, '← is ignored when backend cannot seek');
+        self::assertNull($cmd);
+
+        [$same2, $cmd2] = $tp->update(new KeyMsg(KeyType::Right));
+        self::assertSame($tp, $same2, '→ is ignored when backend cannot seek');
+        self::assertNull($cmd2);
+    }
+
+    public function testSeekIgnoredForAirPlay(): void
+    {
+        $screen = $this->picker($this->fullDiscovery());
+        [$tp] = $screen->update(new CastStartedMsg($this->device(CastBackend::AirPlay)));
+
+        [$same, $cmd] = $tp->update(new KeyMsg(KeyType::Left));
+        self::assertSame($tp, $same, '← is ignored when backend cannot seek');
+        self::assertNull($cmd);
+    }
+
+    public function testSeekKeyShownInHintForChromecast(): void
+    {
+        $screen = $this->picker($this->fullDiscovery());
+        [$tp] = $screen->update(new CastStartedMsg($this->device(CastBackend::Chromecast)));
+
+        self::assertStringContainsString('±10s', $tp->view());
+        self::assertStringContainsString('±60s', $tp->view());
+    }
+
+    public function testSeekKeyAbsentFromHintForRoku(): void
+    {
+        $screen = $this->picker($this->fullDiscovery());
+        [$tp] = $screen->update(new CastStartedMsg($this->device(CastBackend::Roku)));
+
+        self::assertStringNotContainsString('±10s', $tp->view());
+    }
+
+    public function testPositionLoadedFromStatusPoll(): void
+    {
+        $transport = $this->fullDiscovery();
+        $screen = $this->picker($transport);
+        [$tp] = $screen->update(new CastStartedMsg($this->device(CastBackend::Chromecast)));
+
+        // Status poll returns position_ms → screen adopts it.
+        [$next] = $tp->update(new CastStatusLoadedMsg($tp->pollEpoch(), new CastStatus(true, 'PLAYING', 50000)));
+        self::assertSame(50000, $next->positionMs());
+    }
+
     public function testActionDoneAdoptsTheNewState(): void
     {
         $tp = $this->transport(CastBackend::Chromecast);

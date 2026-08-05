@@ -60,9 +60,7 @@ use SugarCraft\Core\SubscriptionCapable;
  * The status poll is an epoch-guarded {@see Cmd::tick}: each {@see CastStatusTickMsg}
  * whose `epoch` matches the current {@see $pollEpoch} fires {@see CastClient::status()}
  * and re-arms; the epoch is bumped on entering Transport (a fresh chain) and on
- * leaving it (so any in-flight tick is dropped). No seek key is offered this PR
- * (the status endpoints expose no uniform position, and Roku/AirPlay can't seek —
- * {@see CastClient::seek()} stays for a future PR once a position source exists).
+ * leaving it (so any in-flight tick is dropped).
  *
  * Stable collaborators are readonly; the mode, device list, selection, bound
  * device, paused flag, last state, and poll epoch are private mutable view state
@@ -96,6 +94,9 @@ final class CastScreen implements Breadcrumbed, Themed
     private ?CastDevice $active = null;
     private bool $paused = false;
     private ?string $state = null;
+
+    /** The last-known playback position in milliseconds (null until status poll provides it). */
+    private ?int $positionMs = null;
 
     /** The status-poll generation; an armed tick carries this. */
     private int $pollEpoch = 0;
@@ -215,6 +216,15 @@ final class CastScreen implements Breadcrumbed, Themed
         if ($msg->type === KeyType::Char && $msg->rune === 'x' && $device->backend->canStop()) {
             return $this->stop($device);
         }
+        // ← / → → seek −10 s / +10 s; Shift+← / Shift+→ → −60 s / +60 s.
+        if (($msg->type === KeyType::Left || $msg->type === KeyType::Right) && $device->backend->canSeek()) {
+            if ($this->positionMs === null) {
+                return [$this, null];
+            }
+            $deltaMs = ($msg->type === KeyType::Left ? -1 : 1) * ($msg->shift ? 60 : 10) * 1000;
+
+            return $this->seekBy($device, $deltaMs);
+        }
 
         return [$this, null];
     }
@@ -288,6 +298,9 @@ final class CastScreen implements Breadcrumbed, Themed
         $next->active = $device;
         $next->paused = false;
         $next->state = null;
+        // Initialize position from the item's runtime (seconds → ms); the status
+        // poll will overwrite this with the live position once available.
+        $next->positionMs = ($this->item->runtime ?? $this->item->duration) * 1000;
         // Arm a fresh poll generation for this device.
         $next->pollEpoch = $this->pollEpoch + 1;
 
@@ -322,6 +335,17 @@ final class CastScreen implements Breadcrumbed, Themed
         $promise = $this->cast->stop($device);
 
         return [$this->toPicker(), $this->actionCmd($promise)];
+    }
+
+    /** @return array{self, ?\Closure} */
+    private function seekBy(CastDevice $device, int $deltaMs): array
+    {
+        $targetMs = max(0, $this->positionMs + $deltaMs);
+        $next = clone $this;
+        $next->positionMs = $targetMs;
+        $promise = $this->cast->seek($device, $targetMs);
+
+        return [$next, $this->actionCmd($promise)];
     }
 
     /**
@@ -401,6 +425,7 @@ final class CastScreen implements Breadcrumbed, Themed
         $next->active = null;
         $next->paused = false;
         $next->state = null;
+        $next->positionMs = null;
         $next->pollEpoch = $this->pollEpoch + 1;
 
         return $next;
@@ -415,6 +440,9 @@ final class CastScreen implements Breadcrumbed, Themed
         $next = clone $this;
         $next->state = $status->state ?? ($status->active ? 'playing' : 'idle');
         $next->paused = $status->state !== null && strtolower($status->state) === 'paused';
+        if ($status->positionMs !== null) {
+            $next->positionMs = $status->positionMs;
+        }
 
         return $next;
     }
@@ -526,8 +554,11 @@ final class CastScreen implements Breadcrumbed, Themed
             ? 'Space  pause'
             : 'Space  pause/resume';
         $stop = ($device !== null && $device->backend->canStop()) ? '      x  stop' : '';
+        $seek = ($device !== null && $device->backend->canSeek())
+            ? '      ←→  ±10s      Shift+←→  ±60s'
+            : '';
 
-        return $space . $stop . '      r  refresh      Esc  back';
+        return $space . $stop . $seek . '      r  refresh      Esc  back';
     }
 
     private function viewportRows(): int
@@ -614,5 +645,10 @@ final class CastScreen implements Breadcrumbed, Themed
     public function pollEpoch(): int
     {
         return $this->pollEpoch;
+    }
+
+    public function positionMs(): ?int
+    {
+        return $this->positionMs;
     }
 }
