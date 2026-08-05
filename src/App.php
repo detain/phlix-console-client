@@ -90,6 +90,7 @@ use Phlix\Console\Screen\AdminSettingsScreen;
 use Phlix\Console\Screen\AdminUsersScreen;
 use Phlix\Console\Screen\AdminDuplicatesScreen;
 use Phlix\Console\Screen\AdminWatchHistoryScreen;
+use Phlix\Console\Screen\AdminWebhooksScreen;
 use Phlix\Console\Screen\AlbumScreen;
 use Phlix\Console\Screen\AudiobookDetailScreen;
 use Phlix\Console\Screen\AudiobooksScreen;
@@ -1354,6 +1355,25 @@ final class App implements Model
         }
         if ($section === Route::AdminWatchHistory) {
             $screen = new AdminWatchHistoryScreen(new AdminClient($this->api), $this->cols, $this->rows);
+
+            return [$this->push(Route::AdminWatchHistory, $screen), $screen->init()];
+        }
+        if ($section === Route::AdminWebhooks) {
+            $screen = new AdminWebhooksScreen(new AdminClient($this->api), $this->cols, $this->rows);
+
+            return [$this->push(Route::AdminWebhooks, $screen), $screen->init()];
+        }
+        if ($section === Route::AdminDuplicates) {
+            $screen = new AdminDuplicatesScreen(new AdminClient($this->api), '', $this->cols, $this->rows);
+
+            return [$this->push(Route::AdminDuplicates, $screen), $screen->init()];
+        }
+
+        return [$this, null];
+    }
+
+    /**
+
 
             return [$this->push(Route::AdminWatchHistory, $screen), $screen->init()];
         }

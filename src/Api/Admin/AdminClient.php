@@ -1829,6 +1829,105 @@ final class AdminClient
             });
     }
 
+    // ---- webhooks -------------------------------------------------------
+
+    /** The base path every webhooks endpoint hangs off. */
+    private const WEBHOOKS = '/api/v1/admin/webhooks';
+
+    /**
+     * List all webhook subscriptions. The controller returns an enveloped
+     * `{success, data: {subscriptions}}` response, so the list is read from
+     * `$body['data']['subscriptions']`. Secrets are write-only and never returned
+     * by the server — any `secret` key in a row is masked to `********` in the
+     * returned rows. A non-list yields an empty list.
+     *
+     * @return PromiseInterface<list<array<string,mixed>>>
+     */
+    public function webhooks(): PromiseInterface
+    {
+        return $this->api->send('GET', self::WEBHOOKS . '/subscriptions')
+            ->then(static function (array $body): array {
+                $data = $body['data'] ?? null;
+                if (!is_array($data) || !isset($data['subscriptions']) || !is_array($data['subscriptions'])) {
+                    return [];
+                }
+
+                return array_map(
+                    static fn (array $row): array => self::maskSecret($row),
+                    $data['subscriptions'],
+                );
+            });
+    }
+
+    /**
+     * Create a new webhook subscription. The POST body is `{url, events}`; on
+     * 201 the server resolves the call. Rejects with the server `error` on a
+     * 400 (validation) — the {@see \Phlix\Console\Api\ApiError} carries it as
+     * the exception message.
+     *
+     * @param string        $url    The webhook endpoint URL
+     * @param list<string>  $events The event types to subscribe to
+     * @return PromiseInterface<string>
+     */
+    public function createWebhook(string $url, array $events): PromiseInterface
+    {
+        return $this->api->send('POST', self::WEBHOOKS . '/subscriptions', [], [
+            'url' => $url,
+            'events' => $events,
+        ])->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? 'Webhook created'));
+    }
+
+    /**
+     * Delete a webhook subscription. The server returns 204 No Content, so
+     * this resolves null; rejects with the server `error` on 404.
+     *
+     * @return PromiseInterface<null>
+     */
+    public function deleteWebhook(string $id): PromiseInterface
+    {
+        return $this->api->send('DELETE', self::WEBHOOKS . '/subscriptions/' . rawurlencode($id))
+            ->then(static fn (): null => null);
+    }
+
+    /**
+     * Enable/disable a webhook subscription (PUT `{enabled}`). Resolves the
+     * refreshed list; rejects with the server `error` on 400/404.
+     *
+     * @return PromiseInterface<list<array<string,mixed>>>
+     */
+    public function setWebhookEnabled(string $id, bool $enabled): PromiseInterface
+    {
+        return $this->api->send('PUT', self::WEBHOOKS . '/subscriptions/' . rawurlencode($id), [], ['enabled' => $enabled])
+            ->then(static function (array $body): array {
+                $data = $body['data'] ?? null;
+                if (!is_array($data) || !isset($data['subscriptions']) || !is_array($data['subscriptions'])) {
+                    return [];
+                }
+
+                return array_map(
+                    static fn (array $row): array => self::maskSecret($row),
+                    $data['subscriptions'],
+                );
+            });
+    }
+
+    /**
+     * Replace any `secret` value in a webhook row with a masked placeholder.
+     * The server never returns secrets on GET, but this provides defense-in-depth
+     * for any future API change and makes the intent explicit.
+     *
+     * @param array<string, mixed> $row
+     * @return array<string, mixed>
+     */
+    private static function maskSecret(array $row): array
+    {
+        if (array_key_exists('secret', $row) && $row['secret'] !== null && $row['secret'] !== '') {
+            $row['secret'] = '********';
+        }
+
+        return $row;
+    }
+
     // ---- watch history ---------------------------------------------------
 
     /**

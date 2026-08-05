@@ -54,6 +54,7 @@ enum Route
     case AdminMetrics;
     case AdminWatchHistory;
     case AdminDuplicates;
+    case AdminWebhooks;
     case Recommendations;
     case WatchHistory;
     case Favorites;
