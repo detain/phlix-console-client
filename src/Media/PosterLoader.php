@@ -9,6 +9,8 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Media;
 
+use React\EventLoop\Loop;
+use React\Promise\Deferred;
 use React\Promise\PromiseInterface;
 use SugarCraft\Mosaic\DiskCache;
 use SugarCraft\Mosaic\ImageLayer;
@@ -52,15 +54,23 @@ final class PosterLoader
     private readonly bool $inline;
     private readonly ImageLayer $images;
 
+    /** @var Semaphore<PosterLoadResult> */
+    private readonly Semaphore $semaphore;
+
     /** @var array<string, array{marker: string, imageId: int|null}> */
     private array $placedByDigest = [];
 
+    /**
+     * @param ?Semaphore<PosterLoadResult> $semaphore
+     */
     public function __construct(
         private readonly Mosaic $mosaic,
         private readonly ?DiskCache $cache = null,
+        ?Semaphore $semaphore = null,
     ) {
         $this->inline = $mosaic->isInline();
         $this->images = new ImageLayer();
+        $this->semaphore = $semaphore ?? new Semaphore();
     }
 
     /**
@@ -69,6 +79,9 @@ final class PosterLoader
      * Inline mode resolves with the poster's cell ANSI (a cache hit resolves
      * immediately). Overlay mode resolves with a marker block of the same size
      * and stashes the rendered bytes in {@see imageLayer()} for the runtime.
+     *
+     * Concurrency is capped by the semaphore (controlled by PHLIX_POSTER_CONCURRENCY,
+     * defaults to 6).
      *
      * @return PromiseInterface<PosterLoadResult>
      */
@@ -93,12 +106,37 @@ final class PosterLoader
         $host = parse_url($url, PHP_URL_HOST);
         $allowedHosts = is_string($host) && $host !== '' ? [$host] : null;
 
-        return ImageSource::fromUrlAsync($url, allowedHosts: $allowedHosts)->then(function (ImageSource $image) use ($key, $width, $height): PosterLoadResult {
-            $bytes = $this->mosaic->withScale(Scale::Fill)->render($image, $width, $height);
-            $this->cache?->put($key, $bytes);
+        $task = fn (): PromiseInterface => ImageSource::fromUrlAsync($url, allowedHosts: $allowedHosts)->then(
+            function (ImageSource $image) use ($key, $width, $height): PosterLoadResult {
+                $bytes = $this->mosaic->withScale(Scale::Fill)->render($image, $width, $height);
+                $this->cache?->put($key, $bytes);
 
-            return $this->present($bytes, $width, $height);
+                return $this->present($bytes, $width, $height);
+            },
+        );
+
+        return $this->semaphore->wrap($task);
+    }
+
+    /**
+     * Schedule render() on Loop::futureTick() and return a promise.
+     *
+     * This yields during decode: the synchronous render work is deferred so
+     * the event loop can drain other tasks (e.g. network I/O) before the
+     * CPU-heavy pixel processing runs.
+     *
+     * @return PromiseInterface
+     */
+    public function deferRender(ImageSource $image, int $width, int $height)
+    {
+        $deferred = new Deferred();
+
+        Loop::futureTick(function () use ($image, $width, $height, $deferred): void {
+            $bytes = $this->mosaic->withScale(Scale::Fill)->render($image, $width, $height);
+            $deferred->resolve($bytes);
         });
+
+        return $deferred->promise();
     }
 
     /**
