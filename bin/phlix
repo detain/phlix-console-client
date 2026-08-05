@@ -85,7 +85,11 @@ function buildContainer(?string $mode): array
     // Cell modes tile as text; graphics modes (sixel/kitty/iterm2) tile as
     // an overlay — PosterLoader routes them by Mosaic::isInline() and keys
     // its cache by protocol(), so each mode caches separately.
-    $posters = new PosterLoader(MosaicFactory::forPosterGrid($mode), new DiskCache(Config::dir() . '/posters'));
+    $posterCacheEntries = (int) getenv('PHLIX_POSTER_CACHE_ENTRIES');
+    if ($posterCacheEntries < 1) {
+        $posterCacheEntries = 16384;
+    }
+    $posters = new PosterLoader(MosaicFactory::forPosterGrid($mode), new DiskCache(Config::dir() . '/posters', $posterCacheEntries));
 
     return [
         'config' => $config,
@@ -271,7 +275,16 @@ $intArg = static fn(int $i, int $default): int =>
 try {
     switch ($cmd) {
         case 'doctor':
+            $cacheDir = Config::dir() . '/posters';
+            $cacheEntries = (int) getenv('PHLIX_POSTER_CACHE_ENTRIES');
+            if ($cacheEntries < 1) {
+                $cacheEntries = 16384;
+            }
+            $posterCache = new DiskCache($cacheDir, $cacheEntries);
             echo (new Capabilities())->report(), "\n";
+            echo "Poster cache directory: {$cacheDir}\n";
+            echo "Poster cache entry limit: {$cacheEntries}\n";
+            echo "Poster cache current entries: " . $posterCache->count() . "\n";
             break;
 
         case 'poster':
