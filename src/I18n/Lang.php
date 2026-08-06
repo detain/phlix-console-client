@@ -38,16 +38,22 @@ final class Lang extends BaseLang
      *
      * Alias for the inherited t() method, kept for brevity at call sites.
      *
-     * @param string $key    Dot-separated key relative to namespace (e.g. 'login.title')
-     * @param array  $params Interpolation parameters for {name} placeholders
+     * @param string              $key    Dot-separated key relative to namespace (e.g. 'login.title')
+     * @param array<string,mixed> $params Interpolation parameters for {name} placeholders
      * @return string Translated string
+     */
+    /**
+     * @param array<string, mixed> $params
      */
     public static function t(string $key, array $params = []): string
     {
         // T::register() is idempotent, so calling it on every t() call is safe.
         T::register(static::NAMESPACE, static::DIR);
 
-        return T::translate(static::NAMESPACE . '.' . $key, $params);
+        /** @var array<string, float|int|string> $typedParams */
+        $typedParams = $params;
+
+        return T::translate(static::NAMESPACE . '.' . $key, $typedParams);
     }
 
     /**

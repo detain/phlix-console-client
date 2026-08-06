@@ -205,7 +205,7 @@ final class HubClient
         }
         /** @var list<array<string, mixed>> $typedList */
         $typedList = array_values($list);
-        if ($typedList === [] || !is_array($typedList[0])) {
+        if ($typedList === []) {
             return [];
         }
 

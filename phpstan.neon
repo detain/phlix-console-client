@@ -4,3 +4,7 @@ parameters:
     paths:
         - src
     tmpDir: .phpstan.cache
+    bootstrapFiles:
+        - vendor/autoload.php
+    stubFiles:
+        - phpstan.stubs.php

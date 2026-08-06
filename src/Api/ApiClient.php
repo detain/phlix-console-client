@@ -331,7 +331,7 @@ final class ApiClient
 
                 return [
                     'shuffled_ids' => $shuffledIds,
-                    'mode' => Coerce::str($data['mode'] ?? null) ?? 'shuffle',
+                    'mode' => Coerce::str($data['mode'] ?? null) ?: 'shuffle',
                 ];
             });
     }
@@ -358,7 +358,7 @@ final class ApiClient
                 foreach (Coerce::map($data['missing_episodes'] ?? null) as $row) {
                     if (is_array($row)) {
                         $missing[] = [
-                            'episode_number' => (int) ($row['episode_number'] ?? 0),
+                            'episode_number' => Coerce::int($row['episode_number'] ?? null),
                         ];
                     }
                 }
@@ -856,7 +856,7 @@ final class ApiClient
     public function downloadMedia(string $mediaId): PromiseInterface
     {
         return $this->authed('GET', '/api/v1/media/' . rawurlencode($mediaId) . '/download')
-            ->then(static fn (array $data): string => (string) ($data['url'] ?? ''));
+            ->then(static fn (array $data): string => Coerce::str($data['url'] ?? null));
     }
 
     // ---- discovery ----------------------------------------------------
@@ -1105,7 +1105,7 @@ final class ApiClient
                     throw new ApiError('Invalid response: collection.id missing', 500, $data);
                 }
 
-                return (string) $collection['id'];
+                return Coerce::str($collection['id']);
             });
     }
 
