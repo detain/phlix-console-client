@@ -6,7 +6,9 @@ namespace Phlix\Console\Tests\Screen;
 
 use Phlix\Console\Api\Dto\AuthUser;
 use Phlix\Console\Config\Config;
+use Phlix\Console\Msg\LogoutMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
+use Phlix\Console\Msg\OpenServersMsg;
 use Phlix\Console\Msg\SettingsSavedMsg;
 use Phlix\Console\Screen\SettingsScreen;
 use Phlix\Console\Screen\Themed;
@@ -235,5 +237,29 @@ final class SettingsScreenTest extends TestCase
         self::assertStringContainsString(' Phlix  ·  Settings', $screen->view(), 'the default brand carries no accent SGR');
         $midnight = $screen->withTheme(Theme::midnight());
         self::assertMatchesRegularExpression('/\e\[[0-9;]*m Phlix \e\[0m/', $midnight->view(), 'the brand is accent-wrapped under Midnight');
+    }
+
+    // ---- L / S key handlers --------------------------------------------
+
+    public function testLKeyEmitsLogoutMsg(): void
+    {
+        $screen = SettingsScreen::create($this->makeAuthStore(), $this->makeConfig('Daylight', 8));
+
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'l'));
+
+        self::assertInstanceOf(\Closure::class, $cmd);
+        $msg = $cmd();
+        self::assertInstanceOf(LogoutMsg::class, $msg);
+    }
+
+    public function testSKeyEmitsOpenServersMsg(): void
+    {
+        $screen = SettingsScreen::create($this->makeAuthStore(), $this->makeConfig('Daylight', 8));
+
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 's'));
+
+        self::assertInstanceOf(\Closure::class, $cmd);
+        $msg = $cmd();
+        self::assertInstanceOf(OpenServersMsg::class, $msg);
     }
 }
