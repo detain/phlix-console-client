@@ -673,15 +673,8 @@ final class DetailScreen implements Breadcrumbed, Themed
         $ratingsCmd = $next->fetchRatings();
         $similarCmd = $next->fetchSimilar();
 
-        // Build a batch only when needed.
-        if ($ratingsCmd === null) {
-            // poster only — return bare AsyncCmd (not BatchMsg)
-            return [$next, $posterCmd];
-        }
-        // Both poster and ratings; similar may be null (non-critical)
-        $cmd = $similarCmd !== null
-            ? Cmd::batch($posterCmd, $ratingsCmd, $similarCmd)
-            : Cmd::batch($posterCmd, $ratingsCmd);
+        // Build a batch with all commands.
+        $cmd = Cmd::batch($posterCmd, $ratingsCmd, $similarCmd);
         return [$next, $cmd];
     }
 
