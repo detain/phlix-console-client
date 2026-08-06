@@ -16,6 +16,7 @@ use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\Dto\MediaRatings;
 use Phlix\Console\Api\Dto\Rating;
 use Phlix\Console\Api\MediaQuery;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Media\PosterCardFactory;
 use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Msg\CastRequestedMsg;
@@ -43,6 +44,8 @@ use Phlix\Console\Msg\ShufflePlayMsg;
 use Phlix\Console\Msg\SimilarFailedMsg;
 use Phlix\Console\Msg\SimilarLoadedMsg;
 use Phlix\Console\Msg\ShowToastMsg;
+use Phlix\Console\Msg\SubtitleSearchFailedMsg;
+use Phlix\Console\Msg\SubtitleSearchResultMsg;
 use Phlix\Console\Msg\WatchedToggleFailedMsg;
 use Phlix\Console\Msg\WatchedToggledMsg;
 use Phlix\Console\Store\MediaRange;
@@ -100,11 +103,11 @@ final class DetailScreen implements Breadcrumbed, Themed
     private const V_SPACING = 1;
     private const PAGE_LIMIT = 50;
     private const OVERSCAN = 1;
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
-    private const PLAY_NOTICE = '▶  This title has no playable source.';
-    private const HINT = '↑↓  scroll synopsis      p  play      s  shuffle      C  cast      r  rate      F  favorite      w  watched      d  download      Esc  back';
-    private const CONTAINER_HINT = '↑↓←→  move      ⏎  open      Esc  back';
-    private const LOADING_HINT = 'Esc  back';
+    private const SESSION_EXPIRED_KEY = 'detail.session_expired';
+    private const PLAY_NOTICE_KEY = 'detail.play_notice';
+    private const HINT_KEY = 'detail.hint';
+    private const CONTAINER_HINT_KEY = 'detail.container_hint';
+    private const LOADING_HINT_KEY = 'detail.loading_hint';
 
     private ?MediaItem $item = null;
     private bool $loaded = false;
@@ -261,6 +264,23 @@ final class DetailScreen implements Breadcrumbed, Themed
         if ($msg instanceof DownloadFailedMsg) {
             return [$this, Cmd::send(ShowToastMsg::error("Download failed: {$msg->reason}"))];
         }
+        if ($msg instanceof SubtitleSearchResultMsg) {
+            // Ignore if this result is for a different DetailScreen (user navigated away).
+            if ($msg->mediaId !== $this->id) {
+                return [$this, null];
+            }
+            $count = count($msg->candidates);
+
+            return [$this, Cmd::send(ShowToastMsg::info("Found {$count} subtitle candidate(s)"))];
+        }
+        if ($msg instanceof SubtitleSearchFailedMsg) {
+            // Ignore if this result is for a different DetailScreen (user navigated away).
+            if ($msg->mediaId !== $this->id) {
+                return [$this, null];
+            }
+
+            return [$this, Cmd::send(ShowToastMsg::error("Subtitle search failed: {$msg->reason}"))];
+        }
 
         return [$this, null];
     }
@@ -268,10 +288,10 @@ final class DetailScreen implements Breadcrumbed, Themed
     public function view(): string
     {
         if ($this->error !== null) {
-            return Chrome::frame($this->headerTitle(), "\n  {$this->error}", self::LOADING_HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
+            return Chrome::frame($this->headerTitle(), "\n  {$this->error}", Lang::t(self::LOADING_HINT_KEY), $this->cols, $this->rows, $this->crumbs, $this->theme());
         }
         if (!$this->loaded || $this->item === null) {
-            return Chrome::frame($this->headerTitle(), "\n  Loading…", self::LOADING_HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
+            return Chrome::frame($this->headerTitle(), "\n  " . Lang::t('detail.loading'), self::LOADING_HINT_KEY, $this->cols, $this->rows, $this->crumbs, $this->theme());
         }
         if ($this->childGrid !== null) {
             return $this->containerView($this->item, $this->childGrid);
@@ -281,7 +301,7 @@ final class DetailScreen implements Breadcrumbed, Themed
         $column = $this->metadataColumn($this->item);
         $body = Layout::joinHorizontalWithSpacing(0.0, self::COL_GAP, $hero, $column);
 
-        return Chrome::frame($this->headerTitle(), $body, self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
+        return Chrome::frame($this->headerTitle(), $body, Lang::t(self::HINT_KEY), $this->cols, $this->rows, $this->crumbs, $this->theme());
     }
 
     // ---- input ---------------------------------------------------------
@@ -323,7 +343,7 @@ final class DetailScreen implements Breadcrumbed, Themed
             return [$this, Cmd::promise(fn () => $this->media->api()->shufflePlay($mediaId)->then(
                 static fn (array $result): Msg => new ShufflePlayMsg($mediaId, $result['shuffled_ids'], $result['mode']),
                 static fn (\Throwable $e): Msg => $e instanceof AuthError
-                    ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                    ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                     : new ShufflePlayFailedMsg($mediaId, $e->getMessage()),
             ))];
         }
@@ -365,8 +385,25 @@ final class DetailScreen implements Breadcrumbed, Themed
                     return new DownloadAvailableMsg($mediaId, $url, $filename, $size, $contentType);
                 },
                 static fn (\Throwable $e): Msg => $e instanceof AuthError
-                    ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                    ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                     : new DownloadFailedMsg($mediaId, $e->getMessage()),
+            ))];
+        }
+        // Leaf: U → search for external subtitles for this media item.
+        if ($msg->type === KeyType::Char && ($msg->rune === 'u' || $msg->rune === 'U')) {
+            if ($this->item === null) {
+                return [$this, null];
+            }
+
+            $mediaId = $this->id;
+
+            return [$this, Cmd::promise(fn () => $this->media->api()->searchSubtitles($mediaId)->then(
+                static function (array $candidates) use ($mediaId): Msg {
+                    return new SubtitleSearchResultMsg($mediaId, $candidates);
+                },
+                static fn (\Throwable $e): Msg => $e instanceof AuthError
+                    ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
+                    : new SubtitleSearchFailedMsg($mediaId, $e->getMessage()),
             ))];
         }
         if ($msg->type === KeyType::Up) {
@@ -708,7 +745,7 @@ final class DetailScreen implements Breadcrumbed, Themed
         return Cmd::promise(fn () => $this->media->item($this->id)->then(
             static fn (MediaItem $item): Msg => new DetailLoadedMsg($item),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new DetailFailedMsg('Could not load this title.'),
         ));
     }
@@ -791,7 +828,7 @@ final class DetailScreen implements Breadcrumbed, Themed
             },
             static fn (\Throwable $e): Msg => new SimilarFailedMsg(
                 $id,
-                $e instanceof AuthError ? self::SESSION_EXPIRED : 'Could not load similar titles.',
+                $e instanceof AuthError ? Lang::t(self::SESSION_EXPIRED_KEY) : 'Could not load similar titles.',
             ),
         ));
     }
@@ -811,7 +848,7 @@ final class DetailScreen implements Breadcrumbed, Themed
             },
             static fn (\Throwable $e): Msg => new MissingEpisodesFailedMsg(
                 $id,
-                $e instanceof AuthError ? self::SESSION_EXPIRED : 'Could not load missing episodes.',
+                $e instanceof AuthError ? Lang::t(self::SESSION_EXPIRED_KEY) : 'Could not load missing episodes.',
             ),
         ));
     }
@@ -840,7 +877,7 @@ final class DetailScreen implements Breadcrumbed, Themed
         return Cmd::promise(fn () => $this->media->ensureRange($query, $start, $end)->then(
             static fn (MediaRange $range): Msg => new ChildrenLoadedMsg($parentId, $range),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new ChildrenFailedMsg($parentId, 'Could not load this content.'),
         ));
     }
@@ -997,16 +1034,16 @@ final class DetailScreen implements Breadcrumbed, Themed
 
         $body = implode("\n", $lines) . "\n\n" . $grid->render(true);
 
-        return Chrome::frame($this->headerTitle(), $body, self::CONTAINER_HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
+        return Chrome::frame($this->headerTitle(), $body, Lang::t(self::CONTAINER_HINT_KEY), $this->cols, $this->rows, $this->crumbs, $this->theme());
     }
 
     /** "3 seasons" for a series, "12 episodes" for a season, else "N items". */
     private function childKindLabel(int $count): string
     {
         $noun = match ($this->item?->type) {
-            'series' => 'season',
-            'season' => 'episode',
-            default => 'item',
+            'series' => Lang::t('detail.season'),
+            'season' => Lang::t('detail.episode'),
+            default => Lang::t('detail.item'),
         };
 
         return $count . ' ' . $noun . ($count === 1 ? '' : 's');
@@ -1042,7 +1079,7 @@ final class DetailScreen implements Breadcrumbed, Themed
         $lines = $this->appendCastLines($lines, $item, $width);
 
         $header = $lines;
-        $actions = $this->playNotice ? self::PLAY_NOTICE : '▶  p  Play        Esc  Back';
+        $actions = $this->playNotice ? Lang::t(self::PLAY_NOTICE_KEY) : '▶  p  Play        Esc  Back';
 
         // Check if similar items should be rendered (non-empty).
         $hasSimilar = $this->similar !== null && $this->similar !== [];
@@ -1083,7 +1120,7 @@ final class DetailScreen implements Breadcrumbed, Themed
         $selected = Style::new()->reverse();
 
         $lines = [];
-        $lines[] = $accent->render('More Like This');
+        $lines[] = $accent->render(Lang::t('detail.more_like_this'));
 
         foreach ($this->similar as $index => $item) {
             $isSelected = $index === $this->similarSelectedIndex;
@@ -1099,7 +1136,7 @@ final class DetailScreen implements Breadcrumbed, Themed
             }
         }
 
-        $lines[] = $dim->render('←→ navigate  ⏎ open');
+        $lines[] = $dim->render(Lang::t('detail.similar_navigate_hint'));
 
         return $lines;
     }
@@ -1166,7 +1203,7 @@ final class DetailScreen implements Breadcrumbed, Themed
         // Show director first if present.
         foreach ($crew as $member) {
             if ($member->job !== null && strcasecmp($member->job, 'director') === 0) {
-                $lines[] = Width::truncate('Directed by ' . $member->name, $width);
+                $lines[] = Width::truncate(Lang::t('detail.directed_by') . $member->name, $width);
                 return $lines;
             }
         }
@@ -1187,7 +1224,7 @@ final class DetailScreen implements Breadcrumbed, Themed
         $lines[] = '';
         $accent = Style::new()->bold();
         $dim = Style::new()->faint();
-        $lines[] = $accent->render('Cast');
+        $lines[] = $accent->render(Lang::t('detail.cast_label'));
         $maxShow = min(8, count($cast));
         for ($i = 0; $i < $maxShow; $i++) {
             $member = $cast[$i];
@@ -1197,7 +1234,7 @@ final class DetailScreen implements Breadcrumbed, Themed
         }
         if (count($cast) > $maxShow) {
             $remaining = count($cast) - $maxShow;
-            $lines[] = $dim->render("  +{$remaining} more");
+            $lines[] = $dim->render(Lang::t('detail.more_cast', ['count' => $remaining]));
         }
 
         return $lines;
@@ -1263,7 +1300,7 @@ final class DetailScreen implements Breadcrumbed, Themed
     {
         $overview = $item->overview;
         if ($overview === null || trim($overview) === '') {
-            return ['No synopsis available.'];
+            return [Lang::t('detail.no_synopsis')];
         }
 
         try {

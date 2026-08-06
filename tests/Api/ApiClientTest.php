@@ -26,8 +26,10 @@ use Phlix\Console\Api\Dto\Photo;
 use Phlix\Console\Api\Dto\PhotoAlbum;
 use Phlix\Console\Api\Dto\PlaybackInfo;
 use Phlix\Console\Api\Dto\PlaybackMarkers;
+use Phlix\Console\Api\Dto\SubtitleSearchCandidate;
 use Phlix\Console\Api\Dto\SubtitleTrack;
 use Phlix\Console\Api\Dto\TranscodeJob;
+use Phlix\Console\Api\Dto\Trickplay;
 use Phlix\Console\Config\TokenBundle;
 use PHPUnit\Framework\TestCase;
 use React\EventLoop\Loop;
@@ -838,6 +840,41 @@ final class ApiClientTest extends TestCase
         self::assertStringEndsWith('/api/v1/media/m1/playback-info', $t->requestAt(0)['url']);
     }
 
+    public function testTrickplayMapsSpriteAndTimelineUrls(): void
+    {
+        $t = (new FakeTransport())->json(200, [
+            'sprite_url' => '/trickplay/m1/sprite.jpg',
+            'timeline_url' => '/trickplay/m1/timeline.json',
+        ]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $tp = $this->await($client->trickplay('m1'));
+
+        self::assertInstanceOf(Trickplay::class, $tp);
+        self::assertSame('/trickplay/m1/sprite.jpg', $tp->spriteUrl);
+        self::assertSame('/trickplay/m1/timeline.json', $tp->timelineUrl);
+        $req = $t->requestAt(0);
+        self::assertSame('GET', $req['method']);
+        self::assertStringEndsWith('/api/v1/media/m1/trickplay', $req['url']);
+    }
+
+    public function testTrickplayHandlesNullUrlsWhenUnavailable(): void
+    {
+        $t = (new FakeTransport())->json(200, [
+            'sprite_url' => null,
+            'timeline_url' => null,
+        ]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $tp = $this->await($client->trickplay('m1'));
+
+        self::assertInstanceOf(Trickplay::class, $tp);
+        self::assertNull($tp->spriteUrl);
+        self::assertNull($tp->timelineUrl);
+    }
+
     public function testMostWatchedReturnsItemsAndUsesCorrectPath(): void
     {
         $t = (new FakeTransport())->json(200, ['items' => [
@@ -1163,6 +1200,62 @@ final class ApiClientTest extends TestCase
         self::assertSame('access-2', $refreshed?->accessToken);
     }
 
+    public function testSearchSubtitlesHitsCorrectEndpoint(): void
+    {
+        $t = (new FakeTransport())->json(200, ['candidates' => [
+            [
+                'provider' => 'opensubtitles',
+                'download_id' => 'abc123',
+                'language' => 'eng',
+                'name' => 'OpenSubtitles',
+                'format' => 'srt',
+                'release_name' => 'Movie.2024.1080p.x264',
+                'hearing_impaired' => false,
+            ],
+            [
+                'provider' => 'opensubtitles',
+                'download_id' => 'def456',
+                'language' => 'eng',
+                'name' => 'OpenSubtitles HI',
+                'format' => 'srt',
+                'release_name' => 'Movie.2024.1080p.x264.HI',
+                'hearing_impaired' => true,
+            ],
+        ]]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $candidates = $this->await($client->searchSubtitles('m1', 'en'));
+
+        self::assertCount(2, $candidates);
+        self::assertInstanceOf(SubtitleSearchCandidate::class, $candidates[0]);
+        self::assertSame('opensubtitles', $candidates[0]->provider);
+        self::assertSame('abc123', $candidates[0]->downloadId);
+        self::assertSame('eng', $candidates[0]->language);
+        self::assertSame('srt', $candidates[0]->format);
+        self::assertFalse($candidates[0]->hearingImpaired);
+        self::assertTrue($candidates[1]->hearingImpaired);
+
+        $req = $t->requestAt(0);
+        self::assertSame('GET', $req['method']);
+        self::assertStringStartsWith(self::BASE . '/api/v1/media/m1/subtitles/search', $req['url']);
+        self::assertSame('lang=en', parse_url($req['url'], PHP_URL_QUERY));
+    }
+
+    public function testSearchSubtitlesWithoutLangOmitsQueryParam(): void
+    {
+        $t = (new FakeTransport())->json(200, ['candidates' => []]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $this->await($client->searchSubtitles('m1'));
+
+        $req = $t->requestAt(0);
+        self::assertSame('GET', $req['method']);
+        self::assertSame(self::BASE . '/api/v1/media/m1/subtitles/search', $req['url']);
+        self::assertStringNotContainsString('?', $req['url'], 'no query string when lang is null');
+    }
+
     // ---- favorites ----------------------------------------------------
 
     public function testAddFavoritePostsTheRouteAndReturnsTrue(): void
@@ -1216,6 +1309,40 @@ final class ApiClientTest extends TestCase
         self::assertStringContainsString('/api/v1/users/me/favorites?', $req['url']);
         self::assertStringContainsString('limit=20', $req['url']);
         self::assertStringContainsString('offset=10', $req['url']);
+    }
+
+    // ---- playlists -----------------------------------------------------
+
+    public function testGetPlaylistsSendsGetRequest(): void
+    {
+        $t = (new FakeTransport())->json(200, ['collections' => [
+            ['id' => 'c1', 'name' => 'My Playlist', 'library_id' => 'l1'],
+        ]]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $this->await($client->getPlaylists());
+
+        $req = $t->requestAt(0);
+        self::assertSame('GET', $req['method']);
+        self::assertStringContainsString('/api/v1/collections', $req['url']);
+    }
+
+    public function testCreatePlaylistSendsPostRequestWithNameAndLibraryId(): void
+    {
+        $t = (new FakeTransport())->json(201, ['collection' => ['id' => 'new-playlist-id']]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $id = $this->await($client->createPlaylist('Test Playlist', 'lib-123'));
+
+        self::assertSame('new-playlist-id', $id);
+        $req = $t->requestAt(0);
+        self::assertSame('POST', $req['method']);
+        self::assertStringContainsString('/api/v1/playlists', $req['url']);
+        $body = json_decode($req['body'], true);
+        self::assertSame('Test Playlist', $body['name']);
+        self::assertSame('lib-123', $body['library_id']);
     }
 
     // ---- watched -------------------------------------------------------

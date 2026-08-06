@@ -23,6 +23,7 @@ use Phlix\Console\Api\Dto\SubtitleTrack;
 use Phlix\Console\Api\Dto\SyncPlayUser;
 use Phlix\Console\Api\Dto\SyncPlayPlaybackCommand;
 use Phlix\Console\Api\Dto\TranscodeJob;
+use Phlix\Console\Api\Dto\Trickplay;
 use Phlix\Console\Api\MediaQuery;
 use Phlix\Console\Api\SyncPlay\SyncPlayService;
 use Phlix\Console\Config\Config;
@@ -57,6 +58,8 @@ use Phlix\Console\Msg\SyncPlayGroupStateMsg;
 use Phlix\Console\Msg\TranscodePollMsg;
 use Phlix\Console\Msg\TranscodeStartedMsg;
 use Phlix\Console\Msg\TranscodeStatusMsg;
+use Phlix\Console\Msg\TrickplayFailedMsg;
+use Phlix\Console\Msg\TrickplayLoadedMsg;
 use Phlix\Console\Msg\UpNextTickMsg;
 use Phlix\Console\Ui\AudioTrackList;
 use Phlix\Console\Ui\ChapterList;
@@ -233,6 +236,13 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     private SleepTimer $sleepTimer;
     /** The open sleep timer picker overlay, or null when closed. */
     private ?SleepTimerMenu $sleepTimerMenu = null;
+    /**
+     * The trickplay (sprite-preview) data, fetched lazily on first scrub.
+     * Null when not yet loaded or when trickplay is unavailable for this item.
+     */
+    private ?Trickplay $trickplay = null;
+    /** True once the trickplay fetch has been dispatched (prevents re-fetching). */
+    private bool $trickplayFetchAttempted = false;
 
     /**
      * @param \Closure(string $url, int $cols, int $rows): Player $playerFactory
@@ -385,6 +395,17 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
             $next->audioTracks = $msg->audioTracks;
 
             return [$next, null];
+        }
+        if ($msg instanceof TrickplayLoadedMsg) {
+            $next = clone $this;
+            $next->trickplay = $msg->trickplay;
+
+            return [$next, null];
+        }
+        if ($msg instanceof TrickplayFailedMsg) {
+            // Silently absorb — the player functions without scrub previews.
+
+            return [$this, null];
         }
         if ($msg instanceof ResumeInfoMsg) {
             return $this->onResumeInfo($msg->seconds);
@@ -640,6 +661,21 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
             static fn (\Throwable $e): ?Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(self::SESSION_EXPIRED)
                 : null,
+        ));
+    }
+
+    /**
+     * Fetch trickplay sprite-preview URLs for this item, firing only once —
+     * lazily on the first scrub (not on player init). A failure is silently
+     * absorbed so the player functions without scrub previews.
+     */
+    private function fetchTrickplay(): \Closure
+    {
+        $id = $this->item->id;
+
+        return Cmd::promise(fn (): PromiseInterface => $this->api->trickplay($id)->then(
+            static fn (Trickplay $tp): Msg => new TrickplayLoadedMsg($tp),
+            static fn (\Throwable $_): Msg => new TrickplayFailedMsg(),
         ));
     }
 
@@ -1399,6 +1435,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
 
     /**
      * Seek the inner player by $delta seconds (time domain), re-arming the tick if it had ended.
+     * On the first scrub, also fires the trickplay fetch (lazy — not on player init).
      *
      * @return array{self, ?\Closure}
      */
@@ -1418,7 +1455,17 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         $next = clone $this;
         $next->inner = $seeked;
 
-        return [$next, $wasEnded ? $this->tickCmd($seeked) : null];
+        // Lazy trickplay fetch on first scrub — not on every render or on init.
+        $cmds = [];
+        if (!$this->trickplayFetchAttempted) {
+            $next->trickplayFetchAttempted = true;
+            $cmds[] = $this->fetchTrickplay();
+        }
+        if ($wasEnded) {
+            $cmds[] = $this->tickCmd($seeked);
+        }
+
+        return $cmds === [] ? [$next, null] : [$next, Cmd::batch(...$cmds)];
     }
 
     /** @return array{self, ?\Closure} */
@@ -2572,5 +2619,17 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     public function sleepTimerMenu(): ?SleepTimerMenu
     {
         return $this->sleepTimerMenu;
+    }
+
+    public function trickplay(): ?Trickplay
+    {
+        return $this->trickplay;
+    }
+
+    public function isTrickplayAvailable(): bool
+    {
+        return $this->trickplay !== null
+            && $this->trickplay->spriteUrl !== null
+            && $this->trickplay->timelineUrl !== null;
     }
 }

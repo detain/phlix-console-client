@@ -33,6 +33,7 @@ use Phlix\Console\Api\Dto\PhotoAlbumPage;
 use Phlix\Console\Api\Dto\PlaybackInfo;
 use Phlix\Console\Api\Dto\PlaybackMarkers;
 use Phlix\Console\Api\Dto\Rating;
+use Phlix\Console\Api\Dto\SubtitleSearchCandidate;
 use Phlix\Console\Api\Dto\SubtitleTrack;
 use Phlix\Console\Api\Dto\SyncPlayGroup;
 use Phlix\Console\Api\Dto\SyncPlaySession;
@@ -700,6 +701,74 @@ final class ApiClient
         );
     }
 
+    // ---- external subtitle search ----------------------------------------
+
+    /**
+     * Search for external subtitles for a media item from enabled providers
+     * (e.g. OpenSubtitles). Returns candidate tracks that can be downloaded.
+     *
+     * @param string $mediaId The media item id
+     * @param string|null $lang ISO 639-1 language code (e.g. 'en', 'es'); multiple
+     *                          languages can be comma-separated (e.g. 'en,es')
+     *
+     * @return PromiseInterface<list<SubtitleSearchCandidate>>
+     */
+    public function searchSubtitles(string $mediaId, ?string $lang = null): PromiseInterface
+    {
+        $query = $lang !== null ? ['lang' => $lang] : [];
+
+        return $this->authed('GET', '/api/v1/media/' . rawurlencode($mediaId) . '/subtitles/search', $query)
+            ->then(static function (array $data): array {
+                $candidates = [];
+                foreach (Coerce::map($data['candidates'] ?? null) as $row) {
+                    if (is_array($row)) {
+                        $candidates[] = SubtitleSearchCandidate::fromArray($row);
+                    }
+                }
+
+                return $candidates;
+            });
+    }
+
+    /**
+     * Download and attach an external subtitle for a media item.
+     * Returns the internal URL where the downloaded subtitle can be accessed.
+     *
+     * @param string $mediaId The media item id
+     * @param string $provider The subtitle provider name (e.g. 'opensubtitles')
+     * @param string $downloadId The provider's download identifier
+     * @param string $language ISO 639-1 language code
+     * @param string|null $format Optional format hint (e.g. 'srt', 'ass')
+     *
+     * @return PromiseInterface<string> The URL to access the downloaded subtitle
+     */
+    public function downloadSubtitle(
+        string $mediaId,
+        string $provider,
+        string $downloadId,
+        string $language,
+        ?string $format = null,
+    ): PromiseInterface {
+        $body = [
+            'provider' => $provider,
+            'downloadId' => $downloadId,
+            'language' => $language,
+        ];
+        if ($format !== null) {
+            $body['format'] = $format;
+        }
+
+        return $this->authed('POST', '/api/v1/media/' . rawurlencode($mediaId) . '/subtitles/download', [], $body)
+            ->then(static function (array $data) use ($mediaId): string {
+                // The server returns the downloaded track with a stream_id.
+                // The serve URL follows the pattern: /api/v1/media/{id}/subtitles/external/{stream_id}
+                $trackData = Coerce::map($data['track'] ?? null);
+                $streamId = Coerce::str($data['stream_id'] ?? ($trackData['stream_id'] ?? ''));
+
+                return '/api/v1/media/' . rawurlencode($mediaId) . '/subtitles/external/' . rawurlencode($streamId);
+            });
+    }
+
     /** @return PromiseInterface<list<ContinueWatchingItem>> */
     public function continueWatching(): PromiseInterface
     {
@@ -764,7 +833,13 @@ final class ApiClient
     public function trickplay(string $id): PromiseInterface
     {
         return $this->authed('GET', '/api/v1/media/' . rawurlencode($id) . '/trickplay')
-            ->then(static fn (array $data): Trickplay => Trickplay::fromArray($data));
+            ->then(static function (array $data): Trickplay {
+                // The server response is {sprite_url, timeline_url}, each possibly null.
+                $spriteUrl = is_string($data['sprite_url'] ?? null) ? $data['sprite_url'] : null;
+                $timelineUrl = is_string($data['timeline_url'] ?? null) ? $data['timeline_url'] : null;
+
+                return new Trickplay($spriteUrl, $timelineUrl);
+            });
     }
 
     // ---- download -------------------------------------------------------
@@ -997,6 +1072,61 @@ final class ApiClient
     public function putUserSettings(array $settings): PromiseInterface
     {
         return $this->authed('PUT', '/api/v1/me/settings', [], $settings);
+    }
+
+    // ---- playlists ------------------------------------------------------
+
+    /**
+     * The user's playlists (collections).
+     *
+     * @return PromiseInterface<list<array{id:string,name:string,library_id:string}>>
+     */
+    public function getPlaylists(): PromiseInterface
+    {
+        return $this->authed('GET', '/api/v1/collections')->then(static function (array $data): array {
+            /** @var list<array{id:string,name:string,library_id:string}> */
+            return Coerce::map($data['collections'] ?? null);
+        });
+    }
+
+    /**
+     * Create a new playlist.
+     *
+     * @param string $name       Playlist name
+     * @param string $libraryId  Library to associate with
+     * @return PromiseInterface<string> New playlist ID
+     */
+    public function createPlaylist(string $name, string $libraryId): PromiseInterface
+    {
+        return $this->authed('POST', '/api/v1/playlists', [], ['name' => $name, 'library_id' => $libraryId])
+            ->then(static function (array $data): string {
+                $collection = $data['collection'] ?? null;
+                if (!is_array($collection) || !isset($collection['id'])) {
+                    throw new ApiError('Invalid response: collection.id missing', 500, $data);
+                }
+
+                return (string) $collection['id'];
+            });
+    }
+
+    /**
+     * A single playlist with its items.
+     *
+     * @return PromiseInterface<list<MediaItem>>
+     */
+    public function getPlaylist(string $id): PromiseInterface
+    {
+        return $this->authed('GET', '/api/v1/collections/' . rawurlencode($id))
+            ->then(static function (array $data): array {
+                $items = [];
+                foreach (Coerce::map($data['items'] ?? null) as $row) {
+                    if (is_array($row)) {
+                        $items[] = MediaItem::fromArray($row);
+                    }
+                }
+
+                return $items;
+            });
     }
 
     // ---- admin seam ----------------------------------------------------
