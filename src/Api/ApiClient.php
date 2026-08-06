@@ -126,6 +126,25 @@ final class ApiClient
     }
 
     /**
+     * Register a new user account.
+     *
+     * @return PromiseInterface<AuthResult>
+     */
+    public function register(string $username, string $email, string $password): PromiseInterface
+    {
+        return $this->exchange('POST', '/api/v1/auth/register', [], [
+            'username' => $username,
+            'email' => $email,
+            'password' => $password,
+        ], auth: false)->then(function (array $data): AuthResult {
+            $bundle = TokenBundle::fromAuthResponse($data);
+            $this->applyToken($bundle);
+
+            return new AuthResult(AuthUser::fromArray(Coerce::map($data['user'] ?? null)), $bundle);
+        });
+    }
+
+    /**
      * Fetch the authenticated user (used to validate a restored token on boot).
      *
      * @return PromiseInterface<AuthUser>

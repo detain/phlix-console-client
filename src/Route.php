@@ -19,6 +19,7 @@ enum Route
     case ServerSetup;
     case Loading;
     case Login;
+    case Register;
     case Browse;
     case Library;
     case Detail;

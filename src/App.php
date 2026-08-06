@@ -12,6 +12,7 @@ namespace Phlix\Console;
 use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\AuthError;
+use Phlix\Console\Api\AuthResult;
 use Phlix\Console\Api\Cast\CastClient;
 use Phlix\Console\Api\Hub\HubClient;
 use Phlix\Console\Api\SyncPlay\SyncPlayService;
@@ -22,6 +23,7 @@ use Phlix\Console\Api\Dto\AuthUser;
 use Phlix\Console\Api\Dto\Library;
 use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\Dto\PhotoAlbum;
+use Phlix\Console\Api\ApiError;
 use Phlix\Console\Api\NetworkError;
 use Phlix\Console\Audio\AudiobookSession;
 use Phlix\Console\Audio\MusicSession;
@@ -40,6 +42,10 @@ use Phlix\Console\Msg\OpenAdminUserProfilesMsg;
 use Phlix\Console\Msg\OpenAdminParentalControlsMsg;
 use Phlix\Console\Msg\LoginSucceededMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
+use Phlix\Console\Msg\OpenLoginMsg;
+use Phlix\Console\Msg\OpenRegisterMsg;
+use Phlix\Console\Msg\RegisterFailedMsg;
+use Phlix\Console\Msg\RegisterSucceededMsg;
 use Phlix\Console\Msg\NowPlayingTickMsg;
 use Phlix\Console\Msg\OpenAlbumMsg;
 use Phlix\Console\Msg\OpenAudiobookMsg;
@@ -72,6 +78,7 @@ use Phlix\Console\Msg\ShimmerTickMsg;
 use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Msg\StopAudioMsg;
 use Phlix\Console\Msg\SubmitLoginMsg;
+use Phlix\Console\Msg\SubmitRegisterMsg;
 use Phlix\Console\Msg\SubmitServerMsg;
 use Phlix\Console\Msg\ToastTickMsg;
 use Phlix\Console\Msg\ToggleAudioMsg;
@@ -117,6 +124,7 @@ use Phlix\Console\Screen\LibraryScreen;
 use Phlix\Console\Screen\Loadable;
 use Phlix\Console\Screen\LoginScreen;
 use Phlix\Console\Screen\MusicScreen;
+use Phlix\Console\Screen\RegisterScreen;
 use Phlix\Console\Screen\CapturesSlash;
 use Phlix\Console\Screen\PhotoAlbumScreen;
 use Phlix\Console\Screen\PhotosScreen;
@@ -349,6 +357,21 @@ final class App implements Model
         }
         if ($msg instanceof LoginFailedMsg) {
             return $this->goLogin($msg->reason);
+        }
+        if ($msg instanceof OpenRegisterMsg) {
+            return $this->goRegister(null);
+        }
+        if ($msg instanceof OpenLoginMsg) {
+            return $this->goLogin(null);
+        }
+        if ($msg instanceof SubmitRegisterMsg) {
+            return $this->onRegisterSubmitted($msg->username, $msg->email, $msg->password);
+        }
+        if ($msg instanceof RegisterSucceededMsg) {
+            return $this->goBrowse($msg->user);
+        }
+        if ($msg instanceof RegisterFailedMsg) {
+            return $this->goRegister($msg->reason);
         }
         if ($msg instanceof SessionExpiredMsg) {
             return $this->goLogin($msg->reason);
@@ -1027,6 +1050,46 @@ final class App implements Model
         $screen = LoginScreen::create($error, $this->cols, $this->rows);
 
         return [$this->replace(Route::Login, $screen), $screen->init()];
+    }
+
+    /** @return array{App, ?\Closure} */
+    private function goRegister(?string $error): array
+    {
+        $screen = RegisterScreen::create($error, $this->cols, $this->rows);
+
+        return [$this->replace(Route::Register, $screen), $screen->init()];
+    }
+
+    /** @return array{App, ?\Closure} */
+    private function onRegisterSubmitted(string $username, string $email, string $password): array
+    {
+        $cmd = Cmd::promise(fn () => $this->api->register($username, $email, $password)->then(
+            static fn (AuthResult $result): Msg => new RegisterSucceededMsg($result->user),
+            function (\Throwable $error): Msg {
+                // Security: never echo the password in any error message.
+                // Map server errors to user-friendly messages.
+                $reason = $error instanceof ApiError
+                    ? match (true) {
+                        // Username already taken (409 Conflict)
+                        $error->statusCode === 409 => 'That username is already taken. Please choose a different one.',
+                        // Account pending approval (403 with "approval" in message) or registration disabled (403)
+                        $error->statusCode === 403
+                            => stripos($error->getMessage(), 'approval') !== false
+                                ? 'Your account is pending approval. You\'ll be able to sign in once an administrator approves it.'
+                                : 'Registration is currently disabled on this server.',
+                        // Password too weak — server message contains "password" hint
+                        $error->statusCode === 400 && stripos($error->getMessage(), 'password') !== false
+                            => 'Your password is too weak. Please choose a stronger one.',
+                        default => $error->getMessage(),
+                    }
+                    : 'Registration failed. Please try again.';
+
+                return new RegisterFailedMsg($reason);
+            },
+        ));
+
+        // The RegisterScreen already shows its "creating account" state.
+        return [$this, $cmd];
     }
 
     /**

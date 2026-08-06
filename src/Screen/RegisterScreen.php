@@ -9,28 +9,26 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Screen;
 
-use Phlix\Console\Msg\OpenRegisterMsg;
-use Phlix\Console\Msg\SubmitLoginMsg;
+use Phlix\Console\Msg\OpenLoginMsg;
+use Phlix\Console\Msg\SubmitRegisterMsg;
 use Phlix\Console\Ui\Chrome;
 use SugarCraft\Core\Cmd;
-use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Model;
 use SugarCraft\Core\Msg;
-use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\SubscriptionCapable;
 use SugarCraft\Forms\Field\Input;
 use SugarCraft\Forms\Form;
 
 /**
- * Username + password login form. On submit it emits {@see SubmitLoginMsg}
- * (the App runs the async login) and shows a "signing in" state that ignores
- * further input until the result arrives. Esc quits.
+ * New account registration form. On submit it emits {@see SubmitRegisterMsg}
+ * (the App runs the async registration) and shows a "creating account" state
+ * that ignores further input until the result arrives. Esc returns to login.
  *
- * As with {@see ServerScreen}, the embedded Form's submit/abort Cmd::quit() is
+ * As with {@see LoginScreen}, the embedded Form's submit/abort Cmd::quit() is
  * intercepted and replaced with a navigation intent.
  */
-final class LoginScreen implements Model, Themed, CapturesSlash
+final class RegisterScreen implements Model, Themed, CapturesSlash
 {
     use SubscriptionCapable;
     use ThemedScreen;
@@ -53,6 +51,7 @@ final class LoginScreen implements Model, Themed, CapturesSlash
     {
         return Form::new(
             Input::new('username')->withTitle('Username')->required(),
+            Input::new('email')->withTitle('Email')->required(),
             Input::new('password')->withTitle('Password')->withPassword()->required(),
         );
     }
@@ -68,12 +67,7 @@ final class LoginScreen implements Model, Themed, CapturesSlash
             return [new self($this->form, $this->error, $this->submitting, $msg->cols, $msg->rows), null];
         }
 
-        // 's' → go to the registration screen.
-        if ($msg instanceof KeyMsg && $msg->type === KeyType::Char && $msg->rune === 's' && !$msg->ctrl) {
-            return [$this, Cmd::send(new OpenRegisterMsg())];
-        }
-
-        // Freeze input while a login request is in flight.
+        // Freeze input while a registration request is in flight.
         if ($this->submitting) {
             return [$this, null];
         }
@@ -83,11 +77,15 @@ final class LoginScreen implements Model, Themed, CapturesSlash
         [$form, $cmd] = $result;
 
         if ($form->isAborted()) {
-            return [$this, Cmd::quit()];
+            return [$this, Cmd::send(new OpenLoginMsg())];
         }
 
         if ($form->isSubmitted()) {
-            $submit = new SubmitLoginMsg($form->getString('username'), $form->getString('password'));
+            $submit = new SubmitRegisterMsg(
+                $form->getString('username'),
+                $form->getString('email'),
+                $form->getString('password'),
+            );
 
             return [new self($form, null, true, $this->cols, $this->rows), Cmd::send($submit)];
         }
@@ -97,9 +95,9 @@ final class LoginScreen implements Model, Themed, CapturesSlash
 
     public function view(): string
     {
-        $lines = ['Sign in to Phlix.', ''];
+        $lines = ['Create your Phlix account.', ''];
         if ($this->submitting) {
-            $lines[] = '  Signing in…';
+            $lines[] = '  Creating account…';
             $lines[] = '';
         } elseif ($this->error !== null) {
             $lines[] = '  ' . $this->error;
@@ -107,6 +105,6 @@ final class LoginScreen implements Model, Themed, CapturesSlash
         }
         $body = implode("\n", $lines) . $this->form->view();
 
-        return Chrome::frame('Login', $body, 'Tab  next      Enter  sign in      s  sign up      Esc  quit', $this->cols, $this->rows, theme: $this->theme());
+        return Chrome::frame('Register', $body, 'Tab  next      Enter  create account      Esc  back to login', $this->cols, $this->rows, theme: $this->theme());
     }
 }

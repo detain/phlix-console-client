@@ -121,6 +121,78 @@ final class ApiClientTest extends TestCase
         self::assertSame(403, $error->statusCode);
     }
 
+    // ---- register -------------------------------------------------------
+
+    public function testRegisterSucceedsAndStoresToken(): void
+    {
+        $t = (new FakeTransport())->json(200, $this->authResponse());
+        $client = new ApiClient(self::BASE, $t);
+
+        $result = $this->await($client->register('newuser', 'new@example.com', 'secretpassword'));
+
+        self::assertInstanceOf(AuthResult::class, $result);
+        self::assertSame('joe', $result->user->username);
+        self::assertSame('access-1', $result->tokens->accessToken);
+        self::assertSame('access-1', $client->token()?->accessToken, 'token is stored on the client');
+
+        $req = $t->requestAt(0);
+        self::assertSame('POST', $req['method']);
+        self::assertSame(self::BASE . '/api/v1/auth/register', $req['url']);
+        self::assertArrayNotHasKey('Authorization', $req['headers'], 'register is unauthenticated');
+        $body = json_decode($req['body'], true);
+        self::assertSame('newuser', $body['username']);
+        self::assertSame('new@example.com', $body['email']);
+        self::assertSame('secretpassword', $body['password']);
+    }
+
+    public function testRegisterUsernameTakenRejectsWithApiError(): void
+    {
+        $t = (new FakeTransport())->json(409, ['error' => 'Username is already taken']);
+        $client = new ApiClient(self::BASE, $t);
+
+        $error = $this->awaitError($client->register('existing', 'new@example.com', 'pw'));
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame(409, $error->statusCode);
+        self::assertSame('Username is already taken', $error->getMessage());
+    }
+
+    public function testRegisterPasswordTooWeakRejectsWithApiError(): void
+    {
+        $t = (new FakeTransport())->json(400, ['error' => 'Password is too weak: must be at least 8 characters']);
+        $client = new ApiClient(self::BASE, $t);
+
+        $error = $this->awaitError($client->register('newuser', 'new@example.com', 'weak'));
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame(400, $error->statusCode);
+        self::assertSame('Password is too weak: must be at least 8 characters', $error->getMessage());
+    }
+
+    public function testRegisterDisabledRejectsWithApiError(): void
+    {
+        $t = (new FakeTransport())->json(403, ['error' => 'Registration is disabled']);
+        $client = new ApiClient(self::BASE, $t);
+
+        $error = $this->awaitError($client->register('newuser', 'new@example.com', 'password123'));
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame(403, $error->statusCode);
+        self::assertSame('Registration is disabled', $error->getMessage());
+    }
+
+    public function testRegisterApprovalRequiredRejectsWithApiError(): void
+    {
+        $t = (new FakeTransport())->json(403, ['error' => 'Account is pending approval']);
+        $client = new ApiClient(self::BASE, $t);
+
+        $error = $this->awaitError($client->register('newuser', 'new@example.com', 'password123'));
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame(403, $error->statusCode);
+        self::assertSame('Account is pending approval', $error->getMessage());
+    }
+
     // ---- authed reads --------------------------------------------------
 
     public function testMeSendsBearerAndMapsUser(): void
