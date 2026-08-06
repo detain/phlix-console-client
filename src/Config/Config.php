@@ -112,14 +112,14 @@ final class Config
         // Migrate legacy single-server format
         if (isset($data['server_url']) && is_string($data['server_url']) && $data['server_url'] !== '') {
             $id = self::generateUuid();
-            $serverEntry = new ServerEntry(
-                id: $id,
-                label: self::extractLabelFromUrl($data['server_url']),
-                url: self::normalizeUrl($data['server_url']),
-            );
+            $data['servers'] = [[
+                'id' => $id,
+                'label' => self::extractLabelFromUrl($data['server_url']),
+                'url' => self::normalizeUrl($data['server_url']),
+                'hub_id' => null,
+            ]];
             // Atomic: overwrite servers key entirely so migration runs once
             unset($data['server_url']);
-            $data['servers'] = [$serverEntry];
             $data['active_server_id'] = $id;
         }
 
