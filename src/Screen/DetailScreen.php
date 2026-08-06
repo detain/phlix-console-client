@@ -682,6 +682,89 @@ final class DetailScreen implements Breadcrumbed, Themed
         ));
     }
 
+    /** @return array{self, ?\Closure} */
+    private function onLoaded(MediaItem $item): array
+    {
+        $next = clone $this;
+        $next->item = $item;
+        $next->loaded = true;
+        $next->isFavorited = $item->isFavorite;
+        $next->isWatched = $item->watched;
+
+        if ($item->isContainer()) {
+            $grid = PosterGrid::new(self::CARD_WIDTH, self::POSTER_HEIGHT, self::H_SPACING, self::V_SPACING)
+                ->withViewport($this->containerViewportCols($this->cols), $this->containerViewportRows($this->rows));
+            $end = $this->windowEnd($grid);
+
+            $next->childGrid = $grid;
+            $next->childQuery = new MediaQuery(parentId: $this->id, limit: self::PAGE_LIMIT);
+            $next->childRequested = [0, $end];
+
+            $childCmd = $next->fetchChildren(0, $end);
+            $missingCmd = $next->fetchMissingEpisodes();
+
+            return [$next, Cmd::batch($childCmd, $missingCmd)];
+        }
+
+        // Leaf: load the hero poster (if any), ratings, and similar items.
+        $posterCmd = ($item->posterUrl !== null && $item->posterUrl !== '') ? $next->fetchHero($item->posterUrl) : null;
+        if ($posterCmd === null) {
+            return [$next, null];
+        }
+        $ratingsCmd = $next->fetchRatings();
+        $similarCmd = $next->fetchSimilar();
+
+        // Build a batch with all commands.
+        $cmd = Cmd::batch($posterCmd, $ratingsCmd, $similarCmd);
+        return [$next, $cmd];
+    }
+
+    private function fetchHero(string $url): ?\Closure
+    {
+        // Resolve relative URLs against the server base URL; absolute/empty pass through.
+        $url = $this->resolveUrl($url);
+        if ($url === '') {
+            return null;
+        }
+        // Defensive: validate URL has a valid http/https scheme before attempting load.
+        // parse_url returns false for malformed URLs and null for URLs with no scheme.
+        $scheme = parse_url($url, PHP_URL_SCHEME);
+        if ($scheme === null || $scheme === false || !in_array($scheme, ['http', 'https'], true)) {
+            // Skip relative URLs (no scheme), malformed URLs, or non-http(s) schemes silently.
+            return null;
+        }
+
+        return Cmd::promise(fn () => $this->posters->load($url, self::HERO_WIDTH, self::HERO_HEIGHT)->then(
+            function (\Phlix\Console\Media\PosterLoadResult $result): Msg {
+                return new DetailPosterLoadedMsg($result->marker, $result->imageId);
+            },
+            static fn (\Throwable $e): ?Msg => null, // a broken poster keeps the placeholder
+        ));
+    }
+
+    private function fetchRatings(): \Closure
+    {
+        return Cmd::promise(fn () => $this->media->ratings($this->id)->then(
+            static fn (MediaRatings $ratings): Msg => new RatingsLoadedMsg($ratings),
+            static fn (\Throwable $e): ?Msg => null, // ratings failure renders nothing
+        ));
+    }
+
+    private function fetchSimilar(): \Closure
+    {
+        $id = $this->id;
+
+        return Cmd::promise(fn () => $this->media->api()->similar($id)->then(
+            static function (array $items) use ($id): Msg {
+                return new SimilarLoadedMsg($id, $items);
+            },
+            static fn (\Throwable $e): Msg => new SimilarFailedMsg(
+                $id,
+                $e instanceof AuthError ? self::SESSION_EXPIRED : 'Could not load similar titles.',
+            ),
+        ));
+    }
+
     private function fetchMissingEpisodes(): \Closure
     {
         $id = $this->id;

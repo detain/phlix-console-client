@@ -40,16 +40,19 @@ use SugarCraft\Mosaic\Mosaic;
 final class DetailScreenTest extends TestCase
 {
     private ?SocketServer $socket = null;
+    private ?FakeTransport $transport = null;
 
     protected function tearDown(): void
     {
         $this->socket?->close();
         $this->socket = null;
+        $this->transport = null;
         parent::tearDown();
     }
 
     private function screenWith(FakeTransport $transport, ?PosterLoader $posters = null, string $base = 'https://srv'): DetailScreen
     {
+        $this->transport = $transport;
         $api = new ApiClient($base, $transport);
 
         return new DetailScreen(
@@ -733,6 +736,98 @@ final class DetailScreenTest extends TestCase
         [$resized] = $screen->update(new WindowSizeMsg(60, 20));
 
         self::assertIsString($resized->view());
+    }
+
+    // ---- missing episodes (C8.3) ---------------------------------------
+
+    /**
+     * Load a series with a missing-episodes response queued, returning the
+     * screen after both children and missing-episodes have been loaded.
+     */
+    private function loadedContainerWithMissingEpisodes(array $childRows, array $missingEpisodesResponse): DetailScreen
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->detailResponse(['type' => 'series', 'name' => 'My Show']))
+            ->json(200, ['items' => $childRows, 'total' => count($childRows), 'limit' => 50, 'offset' => 0])
+            ->json(200, $missingEpisodesResponse);
+        $screen = $this->screenWith($transport);
+
+        $itemMsg = $this->runBatch($screen->init())[0];
+        self::assertInstanceOf(DetailLoadedMsg::class, $itemMsg);
+        [$screen, $batchCmd] = $screen->update($itemMsg);
+        self::assertTrue($screen->isContainer(), 'a series loads as a container');
+        self::assertInstanceOf(\Closure::class, $batchCmd, 'a container batches child fetch + missing-episodes fetch');
+
+        // The batch resolves both fetches; run until we get the MissingEpisodesLoadedMsg.
+        $msgs = $this->runBatch($batchCmd);
+        $missingMsg = null;
+        foreach ($msgs as $msg) {
+            if ($msg instanceof \Phlix\Console\Msg\MissingEpisodesLoadedMsg) {
+                $missingMsg = $msg;
+                break;
+            }
+        }
+        self::assertInstanceOf(\Phlix\Console\Msg\MissingEpisodesLoadedMsg::class, $missingMsg, 'MissingEpisodesLoadedMsg is emitted');
+
+        return $screen->update($missingMsg)[0];
+    }
+
+    public function testMissingEpisodesRequestLineIsCorrect(): void
+    {
+        $this->loadedContainerWithMissingEpisodes(
+            [['id' => 's1', 'name' => 'Season 1', 'type' => 'season']],
+            ['missing_episodes' => []],
+        );
+
+        // Assert the server GET path — the series id is 'm1' (from detailResponse default).
+        self::assertSame('GET', $this->requests()[2]['method']);
+        self::assertStringContainsString('/api/v1/media/m1/missing-episodes', $this->requests()[2]['url']);
+    }
+
+    public function testMissingEpisodesEmptyRendersNothing(): void
+    {
+        $screen = $this->loadedContainerWithMissingEpisodes(
+            [['id' => 's1', 'name' => 'Season 1', 'type' => 'season']],
+            ['missing_episodes' => []],
+        );
+
+        // Empty missing-episodes must not show the warning row.
+        self::assertStringNotContainsString('missing', $screen->view());
+    }
+
+    public function testMissingEpisodesNonEmptyRendersCount(): void
+    {
+        $screen = $this->loadedContainerWithMissingEpisodes(
+            [['id' => 's1', 'name' => 'Season 1', 'type' => 'season']],
+            ['missing_episodes' => [
+                ['episode_number' => 3],
+                ['episode_number' => 7],
+                ['episode_number' => 11],
+            ]],
+        );
+
+        // Non-empty missing-episodes shows the count and "episodes missing".
+        $view = $screen->view();
+        self::assertStringContainsString('3 episodes missing', $view);
+    }
+
+    public function testMissingEpisodesSingularRendersCorrectly(): void
+    {
+        $screen = $this->loadedContainerWithMissingEpisodes(
+            [['id' => 's1', 'name' => 'Season 1', 'type' => 'season']],
+            ['missing_episodes' => [
+                ['episode_number' => 5],
+            ]],
+        );
+
+        // One missing episode uses singular "episode".
+        self::assertStringContainsString('1 episode missing', $screen->view());
+    }
+
+    /** @return list<array{method:string,url:string,headers:array<string,string>,body:string}> */
+    private function requests(): array
+    {
+        return $this->transport?->requests ?? [];
     }
 
     // ---- harness (mirrors LibraryScreenTest) ---------------------------

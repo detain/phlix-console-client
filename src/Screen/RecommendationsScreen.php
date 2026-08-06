@@ -13,14 +13,16 @@ use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
+use Phlix\Console\Msg\RecommendationDismissFailedMsg;
+use Phlix\Console\Msg\RecommendationDismissedMsg;
 use Phlix\Console\Msg\RecommendationsLoadedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\RecommendationCard;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
-use SugarCraft\Core\Model;
 use SugarCraft\Core\Msg;
+use SugarCraft\Core\Model;
 use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\SubscriptionCapable;
@@ -36,7 +38,7 @@ final class RecommendationsScreen implements Model, Teardownable, CapturesSlash,
     use SubscriptionCapable;
     use ThemedScreen;
 
-    private const HINT = 'Q: Back  ↑↓: Navigate  Enter: Open';
+    private const HINT = 'Q: Back  ↑↓: Navigate  Enter: Open  X: Dismiss';
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
     private const LOAD_FAILED = 'Could not load recommendations.';
 
@@ -94,6 +96,13 @@ final class RecommendationsScreen implements Model, Teardownable, CapturesSlash,
         if ($msg instanceof \Phlix\Console\Msg\RecommendationsFailedMsg) {
             return [$this->withError($msg->reason), null];
         }
+        if ($msg instanceof RecommendationDismissedMsg) {
+            return [$msg->screenWith($this), null];
+        }
+        if ($msg instanceof RecommendationDismissFailedMsg) {
+            // Non-fatal: just show the error and keep the current view.
+            return [$this->withError($msg->reason), null];
+        }
 
         return [$this, null];
     }
@@ -136,6 +145,10 @@ final class RecommendationsScreen implements Model, Teardownable, CapturesSlash,
             return $this->openSelected();
         }
 
+        if ($msg->type === KeyType::Char && ($msg->rune === 'x' || $msg->rune === 'X')) {
+            return $this->dismissSelected();
+        }
+
         return [$this, null];
     }
 
@@ -172,6 +185,31 @@ final class RecommendationsScreen implements Model, Teardownable, CapturesSlash,
             Cmd::send(new NavigateBackMsg()),
             Cmd::send(new OpenDetailMsg($item->id(), $item->title())),
         )];
+    }
+
+    /** @return array{self, ?\Closure} */
+    private function dismissSelected(): array
+    {
+        if (!isset($this->items[$this->selectedIndex])) {
+            return [$this, null];
+        }
+
+        $item = $this->items[$this->selectedIndex];
+
+        return [$this, Cmd::promise(function () use ($item): \React\Promise\PromiseInterface {
+            return $this->api->dismissRecommendation($item->id())->then(
+                static function (bool $_) use ($item): \Phlix\Console\Msg\RecommendationDismissedMsg {
+                    return new RecommendationDismissedMsg($item->id());
+                },
+                static function (\Throwable $e): \Phlix\Console\Msg\RecommendationDismissFailedMsg {
+                    return new RecommendationDismissFailedMsg(
+                        $e instanceof AuthError
+                            ? 'Your session expired. Please sign in again.'
+                            : 'Could not dismiss recommendation.',
+                    );
+                },
+            );
+        })];
     }
 
     private function body(): string

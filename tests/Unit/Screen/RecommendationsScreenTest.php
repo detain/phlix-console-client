@@ -7,6 +7,7 @@ namespace Phlix\Console\Tests\Unit\Screen;
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
+use Phlix\Console\Msg\RecommendationDismissedMsg;
 use Phlix\Console\Msg\RecommendationsLoadedMsg;
 use Phlix\Console\Screen\RecommendationsScreen;
 use Phlix\Console\Tests\Api\FakeTransport;
@@ -231,6 +232,80 @@ final class RecommendationsScreenTest extends TestCase
 
         // The selected item (first) should be marked with ▶
         self::assertStringContainsString('▶', $view);
+    }
+
+    public function testXKeyDismissesSelectedAndSendsDeleteRequest(): void
+    {
+        $transport = new FakeTransport();
+        $transport->json(200, ['message' => 'Recommendation dismissed']);
+        $api = new ApiClient('https://srv', $transport);
+        $screen = new RecommendationsScreen($api, 80, 24);
+
+        // Load recommendations.
+        [$loaded] = $screen->update(new RecommendationsLoadedMsg([
+            ['id' => 'rec-1', 'title' => 'Movie One', 'year' => 2024, 'score' => 0.95],
+            ['id' => 'rec-2', 'title' => 'Movie Two', 'year' => 2023, 'score' => 0.88],
+        ]));
+
+        // Press X to dismiss the first (selected) recommendation.
+        [, $cmd] = $loaded->update(new KeyMsg(KeyType::Char, 'x'));
+
+        self::assertNotNull($cmd, 'X key should produce a command');
+
+        // Execute the command to trigger the API call.
+        $cmd();
+
+        // Assert the request line is a DELETE to the correct endpoint.
+        self::assertSame(1, $transport->requestCount(), 'One request should have been made');
+        $request = $transport->lastRequest();
+        self::assertSame('DELETE', $request['method']);
+        self::assertSame('https://srv/api/v1/me/recommendations/rec-1', $request['url']);
+    }
+
+    public function testDismissingLastItemclampsSelection(): void
+    {
+        $transport = new FakeTransport();
+        $transport->json(200, ['message' => 'Recommendation dismissed']);
+        $api = new ApiClient('https://srv', $transport);
+        $screen = new RecommendationsScreen($api, 80, 24);
+
+        // Load two recommendations.
+        [$loaded] = $screen->update(new RecommendationsLoadedMsg([
+            ['id' => 'rec-1', 'title' => 'Movie One', 'year' => 2024, 'score' => 0.95],
+            ['id' => 'rec-2', 'title' => 'Movie Two', 'year' => 2023, 'score' => 0.88],
+        ]));
+
+        // Select and dismiss the LAST item.
+        [$afterDown] = $loaded->update(new KeyMsg(KeyType::Down));
+        self::assertSame(1, $afterDown->selectedIndex());
+
+        [, $cmd] = $afterDown->update(new KeyMsg(KeyType::Char, 'x'));
+        $cmd(); // trigger API
+
+        // After dismissal, items should contain only rec-1, and selection should be clamped to 0.
+        $updated = $afterDown->update(new RecommendationDismissedMsg('rec-2'));
+        self::assertCount(1, $updated[0]->items());
+        self::assertSame(0, $updated[0]->selectedIndex());
+    }
+
+    public function testDismissUpdatesViewOptimistically(): void
+    {
+        $transport = new FakeTransport();
+        $transport->json(200, ['message' => 'Recommendation dismissed']);
+        $api = new ApiClient('https://srv', $transport);
+        $screen = new RecommendationsScreen($api, 80, 24);
+
+        [$loaded] = $screen->update(new RecommendationsLoadedMsg([
+            ['id' => 'rec-1', 'title' => 'Movie One', 'year' => 2024, 'score' => 0.95],
+            ['id' => 'rec-2', 'title' => 'Movie Two', 'year' => 2023, 'score' => 0.88],
+        ]));
+
+        // Apply the dismiss message directly to verify view update.
+        [$afterDismiss] = $loaded->update(new RecommendationDismissedMsg('rec-1'));
+
+        $view = $afterDismiss->view();
+        self::assertStringNotContainsString('Movie One', $view);
+        self::assertStringContainsString('Movie Two', $view);
     }
 
     // ---- helpers -------------------------------------------------------
