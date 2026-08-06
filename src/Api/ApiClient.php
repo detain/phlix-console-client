@@ -37,6 +37,7 @@ use Phlix\Console\Api\Dto\SubtitleTrack;
 use Phlix\Console\Api\Dto\SyncPlayGroup;
 use Phlix\Console\Api\Dto\SyncPlaySession;
 use Phlix\Console\Api\Dto\TranscodeJob;
+use Phlix\Console\Api\Dto\Trickplay;
 use Phlix\Console\Config\TokenBundle;
 use Psr\Http\Message\ResponseInterface;
 use React\Promise\Deferred;
@@ -749,6 +750,38 @@ final class ApiClient
     {
         return $this->authed('GET', '/api/v1/media/' . rawurlencode($id) . '/playback-info')
             ->then(static fn (array $data): PlaybackMarkers => PlaybackMarkers::fromArray($data));
+    }
+
+    /**
+     * Trickplay (sprite-preview) URLs for the player's scrubber thumbnail strip.
+     *
+     * Fetched lazily on first scrub — not on player init — to keep the mount
+     * path free of non-critical I/O. Both returned URLs may be null when
+     * trickplay has not been generated for the item or the feature is disabled.
+     *
+     * @return PromiseInterface<Trickplay>
+     */
+    public function trickplay(string $id): PromiseInterface
+    {
+        return $this->authed('GET', '/api/v1/media/' . rawurlencode($id) . '/trickplay')
+            ->then(static fn (array $data): Trickplay => Trickplay::fromArray($data));
+    }
+
+    // ---- download -------------------------------------------------------
+
+    /**
+     * Get a signed download URL for a media item.
+     *
+     * The returned URL is signed and time-limited; open it in a browser or
+     * download tool to fetch the file. The server validates the rating cap
+     * before minting the URL (over-cap items return 404, not a URL).
+     *
+     * @return PromiseInterface<string> The signed download URL
+     */
+    public function downloadMedia(string $mediaId): PromiseInterface
+    {
+        return $this->authed('GET', '/api/v1/media/' . rawurlencode($mediaId) . '/download')
+            ->then(static fn (array $data): string => (string) ($data['url'] ?? ''));
     }
 
     // ---- discovery ----------------------------------------------------

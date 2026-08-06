@@ -25,6 +25,8 @@ use Phlix\Console\Msg\ChildrenLoadedMsg;
 use Phlix\Console\Msg\DetailFailedMsg;
 use Phlix\Console\Msg\DetailLoadedMsg;
 use Phlix\Console\Msg\DetailPosterLoadedMsg;
+use Phlix\Console\Msg\DownloadAvailableMsg;
+use Phlix\Console\Msg\DownloadFailedMsg;
 use Phlix\Console\Msg\FavoriteToggleFailedMsg;
 use Phlix\Console\Msg\FavoriteToggledMsg;
 use Phlix\Console\Msg\MissingEpisodesFailedMsg;
@@ -100,7 +102,7 @@ final class DetailScreen implements Breadcrumbed, Themed
     private const OVERSCAN = 1;
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
     private const PLAY_NOTICE = '▶  This title has no playable source.';
-    private const HINT = '↑↓  scroll synopsis      p  play      s  shuffle      C  cast      r  rate      F  favorite      w  watched      Esc  back';
+    private const HINT = '↑↓  scroll synopsis      p  play      s  shuffle      C  cast      r  rate      F  favorite      w  watched      d  download      Esc  back';
     private const CONTAINER_HINT = '↑↓←→  move      ⏎  open      Esc  back';
     private const LOADING_HINT = 'Esc  back';
 
@@ -252,6 +254,13 @@ final class DetailScreen implements Breadcrumbed, Themed
             // Shuffle failure is non-critical; just show a toast.
             return [$this, Cmd::send(ShowToastMsg::error($msg->reason))];
         }
+        if ($msg instanceof DownloadAvailableMsg) {
+            // Show the signed download URL as a toast so the user can copy it.
+            return [$this, Cmd::send(ShowToastMsg::info("Download: {$msg->url}"))];
+        }
+        if ($msg instanceof DownloadFailedMsg) {
+            return [$this, Cmd::send(ShowToastMsg::error("Download failed: {$msg->reason}"))];
+        }
 
         return [$this, null];
     }
@@ -337,6 +346,28 @@ final class DetailScreen implements Breadcrumbed, Themed
         // Leaf: w → toggle watched (optimistic update, revert on failure).
         if ($msg->type === KeyType::Char && ($msg->rune === 'w' || $msg->rune === 'W')) {
             return $this->toggleWatched();
+        }
+        // Leaf: d → fetch a signed download URL for this media item.
+        if ($msg->type === KeyType::Char && ($msg->rune === 'd' || $msg->rune === 'D')) {
+            if ($this->item === null) {
+                return [$this, null];
+            }
+
+            $mediaId = $this->id;
+
+            return [$this, Cmd::promise(fn () => $this->media->api()->downloadMedia($mediaId)->then(
+                static function (string $url) use ($mediaId): Msg {
+                    // Extract filename and size from the URL or use defaults.
+                    $filename = 'media_download';
+                    $size = 0;
+                    $contentType = 'application/octet-stream';
+
+                    return new DownloadAvailableMsg($mediaId, $url, $filename, $size, $contentType);
+                },
+                static fn (\Throwable $e): Msg => $e instanceof AuthError
+                    ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                    : new DownloadFailedMsg($mediaId, $e->getMessage()),
+            ))];
         }
         if ($msg->type === KeyType::Up) {
             return [$this->scrollSynopsis(-1), null];
