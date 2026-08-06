@@ -124,11 +124,50 @@ compatibility.
 
 ## Install
 
+### Composer (developer)
+
 The SugarCraft libraries are normal Composer dependencies, pulled from
 Packagist (`sugarcraft/*`, currently tracking `dev-master`).
 
 ```sh
 composer install
+```
+
+### PHAR (end user)
+
+A pre-built PHAR distribution is available for end users who don't need to
+develop against the source:
+
+```sh
+# Download the latest release PHAR
+curl -fsSL https://github.com/detain/phlix-console-client/releases/latest/download/phlix.phar -o phlix.phar
+
+# Make it executable
+chmod +x phlix.phar
+
+# Run it (first run will prompt for server URL)
+./phlix.phar run
+
+# Or add it to your PATH
+sudo mv phlix.phar /usr/local/bin/phlix
+phlix run
+```
+
+**Requirements for PHAR:**
+- PHP ≥ 8.3 with `ext-gd`
+- A terminal with sixel/kitty/iTerm2 support (or use `--mode=halfblock` as fallback)
+- ffmpeg + ffprobe (for video frame grabs)
+
+To build your own PHAR from source:
+
+```sh
+# Install box PHAR builder
+composer require --dev humbug/box
+
+# Build
+./scripts/build-phar.sh
+
+# Output: build/phlix.phar
 ```
 
 ### Developing against unreleased library changes
