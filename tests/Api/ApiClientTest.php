@@ -918,6 +918,63 @@ final class ApiClientTest extends TestCase
         self::assertSame('single', $result['mode']);
     }
 
+    public function testMissingEpisodesHitsTheCorrectEndpointAndMapsTheReport(): void
+    {
+        $t = (new FakeTransport())->json(200, [
+            'total_expected' => 10,
+            'total_existing' => 8,
+            'missing_episodes' => [
+                ['episode_number' => 3],
+                ['episode_number' => 7],
+            ],
+        ]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $report = $this->await($client->missingEpisodes('series-42'));
+
+        self::assertSame(10, $report['total_expected']);
+        self::assertSame(8, $report['total_existing']);
+        self::assertCount(2, $report['missing_episodes']);
+        self::assertSame(3, $report['missing_episodes'][0]['episode_number']);
+        self::assertSame(7, $report['missing_episodes'][1]['episode_number']);
+        $req = $t->requestAt(0);
+        self::assertSame('GET', $req['method']);
+        self::assertStringEndsWith('/api/v1/media/series-42/missing-episodes', $req['url']);
+    }
+
+    public function testMissingEpisodesDegradedResponseWithoutTotals(): void
+    {
+        // When the server has no episode_count metadata it returns just missing_episodes.
+        $t = (new FakeTransport())->json(200, [
+            'missing_episodes' => [
+                ['episode_number' => 4],
+            ],
+        ]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $report = $this->await($client->missingEpisodes('series-99'));
+
+        self::assertArrayNotHasKey('total_expected', $report);
+        self::assertArrayNotHasKey('total_existing', $report);
+        self::assertCount(1, $report['missing_episodes']);
+        self::assertSame(4, $report['missing_episodes'][0]['episode_number']);
+    }
+
+    public function testMissingEpisodesEmptyReport(): void
+    {
+        $t = (new FakeTransport())->json(200, [
+            'missing_episodes' => [],
+        ]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $report = $this->await($client->missingEpisodes('series-42'));
+
+        self::assertSame([], $report['missing_episodes']);
+    }
+
     public function testCreateSessionPostsTheDeviceAndReturnsTheId(): void
     {
         $t = (new FakeTransport())->json(201, ['session_id' => 'sess-9']);
