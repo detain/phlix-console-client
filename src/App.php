@@ -41,6 +41,7 @@ use Phlix\Console\Msg\OpenAdminSectionMsg;
 use Phlix\Console\Msg\OpenAdminUserProfilesMsg;
 use Phlix\Console\Msg\OpenAdminParentalControlsMsg;
 use Phlix\Console\Msg\LoginSucceededMsg;
+use Phlix\Console\Msg\LogoutMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenLoginMsg;
 use Phlix\Console\Msg\OpenRegisterMsg;
@@ -510,6 +511,9 @@ final class App implements Model
             return $this->goHome();
         }
         if ($msg instanceof RequestLogoutMsg) {
+            return $this->requestLogout();
+        }
+        if ($msg instanceof LogoutMsg) {
             return $this->requestLogout();
         }
         if ($msg instanceof RequestQuitMsg) {
@@ -1339,8 +1343,8 @@ final class App implements Model
     private function openSettings(): array
     {
         $screen = SettingsScreen::create(
-            $this->theme->name,
-            $this->config->slideshowInterval,
+            $this->auth,
+            $this->config,
             $this->cols,
             $this->rows,
         );

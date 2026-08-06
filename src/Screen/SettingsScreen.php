@@ -9,13 +9,19 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Screen;
 
+use Phlix\Console\Config\Config;
+use Phlix\Console\Msg\LogoutMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
+use Phlix\Console\Msg\OpenServersMsg;
 use Phlix\Console\Msg\SettingsSavedMsg;
+use Phlix\Console\Store\AuthStore;
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\Theme;
 use SugarCraft\Core\Cmd;
+use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Model;
 use SugarCraft\Core\Msg;
+use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\SubscriptionCapable;
 use SugarCraft\Forms\Field\Input;
@@ -48,15 +54,26 @@ final class SettingsScreen implements Model, Themed
         public readonly Form $form,
         public readonly string $currentTheme,
         public readonly int $currentInterval,
+        public readonly ?AuthStore $authStore,
+        public readonly Config $config,
         public readonly ?string $error = null,
         public readonly int $cols = 80,
         public readonly int $rows = 24,
     ) {
     }
 
-    public static function create(string $currentTheme, int $currentInterval, int $cols = 80, int $rows = 24): self
+    public static function create(?AuthStore $authStore, Config $config, int $cols = 80, int $rows = 24): self
     {
-        return new self(self::buildForm($currentTheme, $currentInterval), $currentTheme, $currentInterval, null, $cols, $rows);
+        return new self(
+            self::buildForm($config->theme ?? Theme::nocturne()->name, $config->slideshowInterval),
+            $config->theme ?? Theme::nocturne()->name,
+            $config->slideshowInterval,
+            $authStore,
+            $config,
+            null,
+            $cols,
+            $rows,
+        );
     }
 
     private static function buildForm(string $currentTheme, int $currentInterval): Form
@@ -80,7 +97,26 @@ final class SettingsScreen implements Model, Themed
     public function update(Msg $msg): array
     {
         if ($msg instanceof WindowSizeMsg) {
-            return [new self($this->form, $this->currentTheme, $this->currentInterval, $this->error, $msg->cols, $msg->rows), null];
+            return [new self(
+                $this->form,
+                $this->currentTheme,
+                $this->currentInterval,
+                $this->authStore,
+                $this->config,
+                $this->error,
+                $msg->cols,
+                $msg->rows,
+            ), null];
+        }
+
+        // 'L' → log out (intercept before form sees it)
+        if ($msg instanceof KeyMsg && $msg->type === KeyType::Char && $msg->rune === 'l' && !$msg->ctrl) {
+            return [$this, Cmd::send(new LogoutMsg())];
+        }
+
+        // 'S' → open servers screen (intercept before form sees it)
+        if ($msg instanceof KeyMsg && $msg->type === KeyType::Char && $msg->rune === 's' && !$msg->ctrl) {
+            return [$this, Cmd::send(new OpenServersMsg())];
         }
 
         /** @var array{0: Form, 1: ?\Closure} $result candy-forms' Form::update inherits Model's loose `:array` return, so narrow it. */
@@ -101,30 +137,44 @@ final class SettingsScreen implements Model, Themed
                 $fresh = self::buildForm($themeName, $this->currentInterval);
 
                 return [
-                    new self($fresh, $themeName, $this->currentInterval, 'Enter a slideshow interval between 1 and 300 seconds.', $this->cols, $this->rows),
+                    new self($fresh, $themeName, $this->currentInterval, $this->authStore, $this->config, 'Enter a slideshow interval between 1 and 300 seconds.', $this->cols, $this->rows),
                     $fresh->init(),
                 ];
             }
 
             return [
-                new self($form, $themeName, $interval, null, $this->cols, $this->rows),
+                new self($form, $themeName, $interval, $this->authStore, $this->config, null, $this->cols, $this->rows),
                 Cmd::send(new SettingsSavedMsg($themeName, $interval)),
             ];
         }
 
-        return [new self($form, $this->currentTheme, $this->currentInterval, $this->error, $this->cols, $this->rows), $cmd];
+        return [new self($form, $this->currentTheme, $this->currentInterval, $this->authStore, $this->config, $this->error, $this->cols, $this->rows), $cmd];
     }
 
     public function view(): string
     {
         $lines = ['Settings', ''];
+
+        // Show logged-in user info
+        $currentUser = $this->authStore?->currentUser();
+        if ($currentUser !== null) {
+            $lines[] = '  Logged in as ' . $currentUser->username;
+        }
+
+        // Show current server URL
+        $activeServer = $this->config->activeServer();
+        if ($activeServer !== null) {
+            $lines[] = '  Server: ' . $activeServer->url;
+        }
+        $lines[] = '';
+
         if ($this->error !== null) {
             $lines[] = '  ' . $this->error;
             $lines[] = '';
         }
         $body = implode("\n", $lines) . $this->form->view();
 
-        return Chrome::frame('Settings', $body, 'Enter  save      Esc  cancel', $this->cols, $this->rows, theme: $this->theme());
+        return Chrome::frame('Settings', $body, 'L  logout      S  servers      Enter  save      Esc  cancel', $this->cols, $this->rows, theme: $this->theme());
     }
 
     /** A submitted theme value, validated against the presets; blank/unknown → the current theme. */

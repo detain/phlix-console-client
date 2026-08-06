@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Tests\Screen;
 
+use Phlix\Console\Api\Dto\AuthUser;
+use Phlix\Console\Config\Config;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\SettingsSavedMsg;
 use Phlix\Console\Screen\SettingsScreen;
 use Phlix\Console\Screen\Themed;
+use Phlix\Console\Store\AuthStore;
 use Phlix\Console\Ui\Theme;
 use PHPUnit\Framework\TestCase;
 use SugarCraft\Core\KeyType;
@@ -28,6 +31,20 @@ use SugarCraft\Forms\Form;
  */
 final class SettingsScreenTest extends TestCase
 {
+    // AuthStore is final and requires filesystem dependencies, so tests pass null.
+    // The form behavior (submit, validation, resize) is what these tests verify.
+    private function makeAuthStore(?AuthUser $user = null): ?AuthStore
+    {
+        return null; // User display is not tested - form behavior is the focus.
+    }
+
+    private function makeConfig(string $theme = 'Daylight', int $interval = 8): Config
+    {
+        return new Config(
+            theme: $theme,
+            slideshowInterval: $interval,
+        );
+    }
     /** Tab to the slideshow Input (the Select consumes arrows, so Tab advances focus). */
     private function toInterval(Model $model): Model
     {
@@ -58,7 +75,7 @@ final class SettingsScreenTest extends TestCase
 
     public function testCreatePreSelectsTheThemeAndPreFillsTheInterval(): void
     {
-        $screen = SettingsScreen::create('Daylight', 8);
+        $screen = SettingsScreen::create($this->makeAuthStore(), $this->makeConfig('Daylight', 8));
 
         // The Select pre-selects Daylight; the Input pre-fills "8" — both readable
         // off the form's (untouched) submitted values.
@@ -75,7 +92,7 @@ final class SettingsScreenTest extends TestCase
 
     public function testSubmitEmitsSettingsSavedWithTheCurrentValues(): void
     {
-        $screen = SettingsScreen::create('Daylight', 8);
+        $screen = SettingsScreen::create($this->makeAuthStore(), $this->makeConfig('Daylight', 8));
 
         // Tab to the interval input, then Enter submits the (pre-filled) values.
         $screen = $this->toInterval($screen);
@@ -99,7 +116,7 @@ final class SettingsScreenTest extends TestCase
             Select::new('theme')->withTitle('Theme')->withOptions('Bogus'),
             Input::new('slideshow')->withTitle('Photo slideshow interval (seconds)')->withValue('8'),
         );
-        $screen = new SettingsScreen($form, 'Midnight', 8);
+        $screen = new SettingsScreen($form, 'Midnight', 8, $this->makeAuthStore(), $this->makeConfig('Midnight', 8));
 
         $screen = $this->toInterval($screen);
         [, $cmd] = $screen->update(new KeyMsg(KeyType::Enter));
@@ -112,7 +129,7 @@ final class SettingsScreenTest extends TestCase
 
     public function testSubmitWithAnEditedIntervalSavesTheNewValue(): void
     {
-        $screen = SettingsScreen::create('Midnight', 4);
+        $screen = SettingsScreen::create($this->makeAuthStore(), $this->makeConfig('Midnight', 4));
         $screen = $this->toInterval($screen);
         // Clear the pre-filled "4" and type a new value.
         $screen = $this->backspace($screen, 1);
@@ -130,7 +147,7 @@ final class SettingsScreenTest extends TestCase
 
     public function testZeroIntervalRePromptsWithAnErrorAndNoSave(): void
     {
-        $screen = SettingsScreen::create('Nocturne', 4);
+        $screen = SettingsScreen::create($this->makeAuthStore(), $this->makeConfig('Nocturne', 4));
         $screen = $this->toInterval($screen);
         $screen = $this->backspace($screen, 1); // clear "4"
         $screen = $this->type($screen, '0');
@@ -147,7 +164,7 @@ final class SettingsScreenTest extends TestCase
 
     public function testNonNumericIntervalRePromptsWithAnErrorAndNoSave(): void
     {
-        $screen = SettingsScreen::create('Nocturne', 4);
+        $screen = SettingsScreen::create($this->makeAuthStore(), $this->makeConfig('Nocturne', 4));
         $screen = $this->toInterval($screen);
         // Append letters to the pre-filled "4" → "4abc" is non-numeric.
         $screen = $this->type($screen, 'abc');
@@ -163,7 +180,7 @@ final class SettingsScreenTest extends TestCase
 
     public function testTooHighIntervalRePromptsWithAnErrorAndNoSave(): void
     {
-        $screen = SettingsScreen::create('Nocturne', 4);
+        $screen = SettingsScreen::create($this->makeAuthStore(), $this->makeConfig('Nocturne', 4));
         $screen = $this->toInterval($screen);
         $screen = $this->backspace($screen, 1); // clear "4"
         $screen = $this->type($screen, '5000');
@@ -180,7 +197,7 @@ final class SettingsScreenTest extends TestCase
 
     public function testEscCancelsWithNavigateBackAndNoSave(): void
     {
-        $screen = SettingsScreen::create('Daylight', 8);
+        $screen = SettingsScreen::create($this->makeAuthStore(), $this->makeConfig('Daylight', 8));
 
         [, $cmd] = $screen->update(new KeyMsg(KeyType::Escape));
 
@@ -195,7 +212,7 @@ final class SettingsScreenTest extends TestCase
 
     public function testResizeUpdatesDimensionsAndKeepsValues(): void
     {
-        [$next] = SettingsScreen::create('Daylight', 8)->update(new WindowSizeMsg(120, 40));
+        [$next] = SettingsScreen::create($this->makeAuthStore(), $this->makeConfig('Daylight', 8))->update(new WindowSizeMsg(120, 40));
 
         self::assertInstanceOf(SettingsScreen::class, $next);
         self::assertSame(120, $next->cols);
@@ -208,7 +225,7 @@ final class SettingsScreenTest extends TestCase
 
     public function testIsThemedAndRendersTheAccentBrandUnderAColourTheme(): void
     {
-        $screen = SettingsScreen::create('Daylight', 8);
+        $screen = SettingsScreen::create($this->makeAuthStore(), $this->makeConfig('Daylight', 8));
 
         self::assertInstanceOf(Themed::class, $screen);
         // Under Nocturne (the default) the ` Phlix ` brand is plain (the Select's
