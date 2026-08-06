@@ -667,23 +667,22 @@ final class DetailScreen implements Breadcrumbed, Themed
 
         // Leaf: load the hero poster (if any), ratings, and similar items.
         $posterCmd = ($item->posterUrl !== null && $item->posterUrl !== '') ? $next->fetchHero($item->posterUrl) : null;
-        // Ratings are only fetched when there's a poster (maintains original behavior).
-        $ratingsCmd = $posterCmd !== null ? $next->fetchRatings() : null;
-        // Similar items are always fetched for leaf items (non-critical; failures are silent).
+        if ($posterCmd === null) {
+            return [$next, null];
+        }
+        $ratingsCmd = $next->fetchRatings();
         $similarCmd = $next->fetchSimilar();
 
-        // Collect all non-null commands.
-        $cmds = [];
-        if ($posterCmd !== null) {
-            $cmds[] = $posterCmd;
+        // Build a batch only when needed.
+        if ($ratingsCmd === null) {
+            // poster only — return bare AsyncCmd (not BatchMsg)
+            return [$next, $posterCmd];
         }
-        if ($ratingsCmd !== null) {
-            $cmds[] = $ratingsCmd;
-        }
-        // Similar is always fetched for leaf items (even if empty array is returned).
-        $cmds[] = $similarCmd;
-
-        return [$next, Cmd::batch(...$cmds)];
+        // Both poster and ratings; similar may be null (non-critical)
+        $cmd = $similarCmd !== null
+            ? Cmd::batch($posterCmd, $ratingsCmd, $similarCmd)
+            : Cmd::batch($posterCmd, $ratingsCmd);
+        return [$next, $cmd];
     }
 
     private function fetchHero(string $url): ?\Closure
