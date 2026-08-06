@@ -4,7 +4,7 @@
 [![codecov](https://codecov.io/gh/detain/phlix-console-client/graph/badge.svg)](https://codecov.io/gh/detain/phlix-console-client)
 [![Version](https://img.shields.io/github/v/tag/detain/phlix-console-client?label=version&sort=semver)](https://github.com/detain/phlix-console-client/tags)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![PHP](https://img.shields.io/badge/PHP-8.2%2B-777bb4?logo=php&logoColor=white)](https://www.php.net/)
+[![PHP](https://img.shields.io/badge/PHP-8.3%2B-777bb4?logo=php&logoColor=white)](https://www.php.net/)
 
 A full-window **terminal (TUI) client for Phlix** — browse libraries, poster
 grids, carousels, media detail, series/season/episode drill-down, search, a
