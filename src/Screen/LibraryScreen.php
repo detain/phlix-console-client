@@ -15,6 +15,8 @@ use Phlix\Console\Api\MediaQuery;
 use Phlix\Console\Media\PosterCardFactory;
 use Phlix\Console\Media\PosterLoadResult;
 use Phlix\Console\Media\PosterLoader;
+use Phlix\Console\Msg\FacetsLoadedMsg;
+use Phlix\Console\Msg\FetchFacetsMsg;
 use Phlix\Console\Msg\GridPosterLoadedMsg;
 use Phlix\Console\Msg\LetterIndexLoadedMsg;
 use Phlix\Console\Msg\LibraryFailedMsg;
@@ -150,6 +152,11 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
                 ? [$this, Cmd::send(ShowToastMsg::error(self::LOAD_MORE_FAILED))]
                 : [$this->withError($msg->reason), null];
         }
+        if ($msg instanceof FacetsLoadedMsg) {
+            return $msg->generation === $this->generation
+                ? [$this->withFacets($msg->facets), null]
+                : [$this, null];
+        }
 
         return [$this, null];
     }
@@ -220,7 +227,10 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
         // '/' opens the filter/sort bar; other letters (and # / digit) jump A–Z.
         // (Quit is Ctrl-C globally, or Esc back to Browse — so letters are free.)
         if ($msg->type === KeyType::Char && $msg->rune === '/') {
-            return [$this->enterFilter(), null];
+            $next = $this->enterFilter();
+            $cmd = $this->fetchFacets();
+
+            return [$next, $cmd];
         }
         if ($msg->type === KeyType::Char) {
             return $this->jumpToLetter($msg->rune);
@@ -386,6 +396,7 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
             topLevel: true,
             sort: $bar->sort,
             order: $bar->order,
+            genres: $bar->genres,
             limit: self::PAGE_LIMIT,
         );
     }
@@ -505,6 +516,16 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
         ));
     }
 
+    private function fetchFacets(): \Closure
+    {
+        $generation = $this->generation;
+
+        return Cmd::promise(fn () => $this->media->api()->facets($this->libraryId)->then(
+            static fn (array $facets): Msg => new FacetsLoadedMsg($facets, $generation),
+            static fn (\Throwable $e): ?Msg => null, // facets are optional; fail quietly
+        ));
+    }
+
     /** Batch poster loads for the loaded, poster-less cells in [start, end]. */
     private function loadPostersIn(PosterGrid $grid, int $start, int $end): ?\Closure
     {
@@ -582,6 +603,19 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
     {
         $next = clone $this;
         $next->error = $error;
+
+        return $next;
+    }
+
+    /**
+     * Apply the loaded facets to the filter bar.
+     *
+     * @param array<string, list<string>> $facets e.g. ['genres' => ['Action', 'Comedy']]
+     */
+    private function withFacets(array $facets): self
+    {
+        $next = clone $this;
+        $next->filterBar = $this->filterBar->withGenres($facets['genres'] ?? []);
 
         return $next;
     }

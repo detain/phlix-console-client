@@ -16,10 +16,10 @@ use SugarCraft\Sprinkles\Style;
 
 /**
  * The library filter/sort controls, shown as one row in "filter mode": a search
- * box, a sort field, and a sort order. Immutable; the owning screen reads the
- * resulting {@see search}/{@see sort}/{@see order} into a MediaQuery. Tab cycles
- * the focused control (the screen calls {@see next()}/{@see prev()}); per-control
- * editing goes through {@see handleKey()}.
+ * box, a sort field, a sort order, and facet chips. Immutable; the owning screen
+ * reads the resulting {@see search}/{@see sort}/{@see order}/{@see genres} into
+ * a MediaQuery. Tab cycles the focused control (the screen calls {@see next()}/
+ * {@see prev()}); per-control editing goes through {@see handleKey()}.
  *
  * `sort`/`order` are null until touched (the server defaults to name-ascending);
  * once edited they hold an explicit value.
@@ -34,11 +34,17 @@ final readonly class FilterBar
     private const ORDER = 2;
     private const CONTROLS = 3;
 
+    /**
+     * @param list<string> $genres          Selected genre filters
+     * @param list<string> $availableGenres Available genre facets from the server
+     */
     public function __construct(
         public string $search = '',
         public ?string $sort = null,
         public ?string $order = null,
         public int $active = self::SEARCH,
+        public array $genres = [],
+        public array $availableGenres = [],
     ) {
     }
 
@@ -47,25 +53,56 @@ final readonly class FilterBar
         return new self();
     }
 
+    /**
+     * Create a bar with available genre facets from the server.
+     *
+     * @param list<string> $availableGenres
+     */
+    public function withGenres(array $availableGenres): self
+    {
+        return new self(
+            $this->search,
+            $this->sort,
+            $this->order,
+            $this->active,
+            $this->genres,
+            $availableGenres,
+        );
+    }
+
     public function focusSearch(): self
     {
-        return new self($this->search, $this->sort, $this->order, self::SEARCH);
+        return new self($this->search, $this->sort, $this->order, self::SEARCH, $this->genres, $this->availableGenres);
     }
 
     public function next(): self
     {
-        return new self($this->search, $this->sort, $this->order, ($this->active + 1) % self::CONTROLS);
+        return new self(
+            $this->search,
+            $this->sort,
+            $this->order,
+            ($this->active + 1) % self::CONTROLS,
+            $this->genres,
+            $this->availableGenres,
+        );
     }
 
     public function prev(): self
     {
-        return new self($this->search, $this->sort, $this->order, ($this->active - 1 + self::CONTROLS) % self::CONTROLS);
+        return new self(
+            $this->search,
+            $this->sort,
+            $this->order,
+            ($this->active - 1 + self::CONTROLS) % self::CONTROLS,
+            $this->genres,
+            $this->availableGenres,
+        );
     }
 
-    /** Whether any filter/sort is set (vs the default name-ascending unfiltered view). */
+    /** Whether any filter/sort/facet is set (vs the default name-ascending unfiltered view). */
     public function isActive(): bool
     {
-        return $this->search !== '' || $this->sort !== null || $this->order !== null;
+        return $this->search !== '' || $this->sort !== null || $this->order !== null || $this->genres !== [];
     }
 
     /** Apply a key to the focused control, returning the updated bar (or self). */
@@ -79,18 +116,37 @@ final readonly class FilterBar
         };
     }
 
+    /**
+     * Toggle a genre facet by name. If already selected, remove it; otherwise add it.
+     */
+    public function toggleGenre(string $genre): self
+    {
+        $genres = in_array($genre, $this->genres, true)
+            ? array_values(array_filter($this->genres, static fn (string $g): bool => $g !== $genre))
+            : [...$this->genres, $genre];
+
+        return new self(
+            $this->search,
+            $this->sort,
+            $this->order,
+            $this->active,
+            $genres,
+            $this->availableGenres,
+        );
+    }
+
     private function editSearch(KeyMsg $msg): self
     {
         if ($msg->type === KeyType::Backspace) {
             return $this->search === ''
                 ? $this
-                : new self(mb_substr($this->search, 0, -1), $this->sort, $this->order, $this->active);
+                : new self(mb_substr($this->search, 0, -1), $this->sort, $this->order, $this->active, $this->genres, $this->availableGenres);
         }
         if ($msg->type === KeyType::Space) {
-            return new self($this->search . ' ', $this->sort, $this->order, $this->active);
+            return new self($this->search . ' ', $this->sort, $this->order, $this->active, $this->genres, $this->availableGenres);
         }
         if ($msg->type === KeyType::Char && $msg->rune !== '') {
-            return new self($this->search . $msg->rune, $this->sort, $this->order, $this->active);
+            return new self($this->search . $msg->rune, $this->sort, $this->order, $this->active, $this->genres, $this->availableGenres);
         }
 
         return $this;
@@ -110,7 +166,7 @@ final readonly class FilterBar
         $current = array_search($this->sort ?? 'name', self::SORTS, true);
         $index = (($current === false ? 0 : $current) + $delta + count(self::SORTS)) % count(self::SORTS);
 
-        return new self($this->search, self::SORTS[$index], $this->order, $this->active);
+        return new self($this->search, self::SORTS[$index], $this->order, $this->active, $this->genres, $this->availableGenres);
     }
 
     private function editOrder(KeyMsg $msg): self
@@ -121,16 +177,29 @@ final readonly class FilterBar
 
         $next = ($this->order ?? 'asc') === 'asc' ? 'desc' : 'asc';
 
-        return new self($this->search, $this->sort, $next, $this->active);
+        return new self($this->search, $this->sort, $next, $this->active, $this->genres, $this->availableGenres);
     }
 
     public function render(): string
     {
         $search = $this->search === '' ? Lang::t('filter.search_placeholder') : $this->search;
 
-        return $this->segment(self::SEARCH, Lang::t('filter.search_label') . $search)
+        $base = $this->segment(self::SEARCH, Lang::t('filter.search_label') . $search)
             . '    ' . $this->segment(self::SORT, Lang::t('filter.sort_label') . ($this->sort ?? 'name'))
             . '    ' . $this->segment(self::ORDER, Lang::t('filter.order_label') . ($this->order ?? Lang::t('filter.order_asc')));
+
+        if ($this->availableGenres === []) {
+            return $base;
+        }
+
+        $chips = [];
+        foreach ($this->availableGenres as $genre) {
+            $selected = in_array($genre, $this->genres, true);
+            $chipText = '[' . $genre . ']';
+            $chips[] = $selected ? Style::new()->reverse()->render($chipText) : $chipText;
+        }
+
+        return $base . '    ' . implode(' ', $chips);
     }
 
     private function segment(int $control, string $label): string

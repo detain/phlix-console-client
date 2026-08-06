@@ -350,6 +350,30 @@ final class ApiClientTest extends TestCase
         self::assertSame('Movies', $libs[0]->name);
     }
 
+    public function testFacetsRequestLine(): void
+    {
+        $t = (new FakeTransport())->json(200, ['genres' => ['Action', 'Comedy', 'Drama']]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $this->await($client->facets('lib-movies'));
+
+        $req = $t->requestAt(0);
+        self::assertSame('GET', $req['method']);
+        self::assertSame(self::BASE . '/api/v1/media/facets?libraryId=lib-movies', $req['url']);
+    }
+
+    public function testFacetsMapsGenresResponse(): void
+    {
+        $t = (new FakeTransport())->json(200, ['genres' => ['Action', 'Comedy', 'Drama']]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $facets = $this->await($client->facets('lib-movies'));
+
+        self::assertSame(['genres' => ['Action', 'Comedy', 'Drama']], $facets);
+    }
+
     public function testMediaBuildsQueryAndMapsPage(): void
     {
         $t = (new FakeTransport())->json(200, [
@@ -919,6 +943,25 @@ final class ApiClientTest extends TestCase
         $items = $this->await($client->mostWatched());
 
         self::assertSame([], $items);
+    }
+
+    public function testNextUpReturnsItemsAndUsesCorrectPath(): void
+    {
+        $t = (new FakeTransport())->json(200, ['items' => [
+            ['id' => 'ep1', 'name' => 'Episode 1', 'type' => 'episode', 'poster_url' => 'https://p/ep1.jpg'],
+            ['id' => 'ep2', 'name' => 'Episode 2', 'type' => 'episode', 'poster_url' => 'https://p/ep2.jpg'],
+        ]]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $items = $this->await($client->nextUp());
+
+        self::assertCount(2, $items);
+        self::assertSame('ep1', $items[0]->id);
+        self::assertSame('ep2', $items[1]->id);
+        $req = $t->requestAt(0);
+        self::assertSame('GET', $req['method']);
+        self::assertStringContainsString('/api/v1/users/me/next-up', $req['url']);
     }
 
     public function testShufflePlayPostsMediaIdAndReturnsShuffledIds(): void

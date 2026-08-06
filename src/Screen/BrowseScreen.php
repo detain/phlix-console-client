@@ -21,6 +21,8 @@ use Phlix\Console\Msg\BrowseFavoritesLoadedMsg;
 use Phlix\Console\Msg\BrowseMostWatchedLoadedMsg;
 use Phlix\Console\Msg\ContinueWatchingLoadedMsg;
 use Phlix\Console\Msg\FavoritesFailedMsg;
+use Phlix\Console\Msg\NextUpFailedMsg;
+use Phlix\Console\Msg\NextUpLoadedMsg;
 use Phlix\Console\Msg\LibrariesFailedMsg;
 use Phlix\Console\Msg\LibrariesLoadedMsg;
 use Phlix\Console\Msg\LibraryMediaLoadedMsg;
@@ -68,6 +70,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
 
     private const CONTINUE_ID = 'continue';
     private const MOST_WATCHED_ID = 'most-watched';
+    private const NEXT_UP_ID = 'up-next';
     private const SIDEBAR = 'sidebar';
     private const RAILS = 'rails';
     private const SIDEBAR_WIDTH = 22;
@@ -102,6 +105,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
     private array $libraryCounts = [];
     private ?Rail $favoritesRail = null;
     private ?Rail $mostWatchedRail = null;
+    private ?Rail $nextUpRail = null;
     private int $railCursor = 0;
     private int $railScroll = 0;
     private ?string $error = null;
@@ -128,7 +132,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
 
     public function init(): \Closure
     {
-        return Cmd::batch($this->fetchContinueWatching(), $this->fetchMostWatched(), $this->fetchLibraries());
+        return Cmd::batch($this->fetchContinueWatching(), $this->fetchMostWatched(), $this->fetchNextUp(), $this->fetchLibraries());
     }
 
     /** @return array{self, ?\Closure} */
@@ -163,6 +167,12 @@ final class BrowseScreen implements Breadcrumbed, Themed
         }
         if ($msg instanceof MostWatchedFailedMsg) {
             return [$this->withMostWatchedRail(null), null];
+        }
+        if ($msg instanceof NextUpLoadedMsg) {
+            return $this->onNextUp($msg->items);
+        }
+        if ($msg instanceof NextUpFailedMsg) {
+            return [$this->withNextUpRail(null), null];
         }
 
         return [$this, null];
@@ -240,6 +250,16 @@ final class BrowseScreen implements Breadcrumbed, Themed
             static fn (\Throwable $e): Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(self::SESSION_EXPIRED)
                 : new MostWatchedFailedMsg('Could not load most watched.'),
+        ));
+    }
+
+    private function fetchNextUp(): \Closure
+    {
+        return Cmd::promise(fn (): \React\Promise\PromiseInterface => $this->media->api()->nextUp()->then(
+            static fn (array $items): NextUpLoadedMsg => new NextUpLoadedMsg($items),
+            static fn (\Throwable $e): Msg => $e instanceof AuthError
+                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                : new NextUpFailedMsg('Could not load up next.'),
         ));
     }
 
@@ -428,6 +448,28 @@ final class BrowseScreen implements Breadcrumbed, Themed
         return [$next, $next->loadPostersFor(self::MOST_WATCHED_ID, $rail)];
     }
 
+    /**
+     * @param list<\Phlix\Console\Api\Dto\MediaItem> $items
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function onNextUp(array $items): array
+    {
+        if ($items === []) {
+            // Empty: render nothing (not an empty box).
+            return [$this, null];
+        }
+
+        $cards = [];
+        foreach ($items as $item) {
+            $cards[] = PosterCardFactory::fromMediaItem($item);
+        }
+        $rail = new Rail('Up Next', $cards);
+        $next = $this->withNextUpRail($rail);
+
+        return [$next, $next->loadPostersFor(self::NEXT_UP_ID, $rail)];
+    }
+
     /** @return array{self, ?\Closure} */
     private function onLibraryMedia(string $libraryId, MediaPage $page): array
     {
@@ -586,8 +628,21 @@ final class BrowseScreen implements Breadcrumbed, Themed
             $next = $next->withContinueRail(null);
             $next = $next->withFavoritesRail(null);
             $next = $next->withMostWatchedRail(null);
+            $next = $next->withNextUpRail(null);
 
-            return [$next, Cmd::batch($next->fetchContinueWatching(), $next->fetchMostWatched(), $next->fetchLibraries())];
+            return [$next, Cmd::batch($next->fetchContinueWatching(), $next->fetchMostWatched(), $next->fetchNextUp(), $next->fetchLibraries())];
+        }
+
+        // 'U' or 'N' → scroll to up-next rail
+        if ($msg->type === KeyType::Char && ($msg->rune === 'u' || $msg->rune === 'U' || $msg->rune === 'n' || $msg->rune === 'N')) {
+            $ids = $this->orderedRailIds();
+            $count = count($ids);
+            $nextUpIndex = array_search(self::NEXT_UP_ID, $ids, true);
+            if ($nextUpIndex !== false) {
+                return [$this->moveRail($nextUpIndex - $this->railCursor, $count), null];
+            }
+
+            return [$this, null];
         }
 
         return [$this, null];
@@ -636,6 +691,9 @@ final class BrowseScreen implements Breadcrumbed, Themed
         if ($this->continueRail !== null) {
             $ids[] = self::CONTINUE_ID;
         }
+        if ($this->nextUpRail !== null) {
+            $ids[] = self::NEXT_UP_ID;
+        }
         if ($this->mostWatchedRail !== null) {
             $ids[] = self::MOST_WATCHED_ID;
         }
@@ -665,6 +723,9 @@ final class BrowseScreen implements Breadcrumbed, Themed
         if ($railId === self::MOST_WATCHED_ID) {
             return $this->mostWatchedRail;
         }
+        if ($railId === self::NEXT_UP_ID) {
+            return $this->nextUpRail;
+        }
 
         return $railId === self::CONTINUE_ID
             ? $this->continueRail
@@ -683,6 +744,10 @@ final class BrowseScreen implements Breadcrumbed, Themed
 
         if ($railId === self::MOST_WATCHED_ID) {
             return $this->withMostWatchedRail($rail);
+        }
+
+        if ($railId === self::NEXT_UP_ID) {
+            return $this->withNextUpRail($rail);
         }
 
         $rails = $this->libraryRails;
@@ -771,6 +836,14 @@ final class BrowseScreen implements Breadcrumbed, Themed
     {
         $next = clone $this;
         $next->mostWatchedRail = $rail;
+
+        return $next;
+    }
+
+    private function withNextUpRail(?Rail $rail): self
+    {
+        $next = clone $this;
+        $next->nextUpRail = $rail;
 
         return $next;
     }

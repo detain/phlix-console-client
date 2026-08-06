@@ -242,6 +242,27 @@ final class ApiClient
         });
     }
 
+    /**
+     * The available filter facets (genres) for a library, for the faceted search bar.
+     *
+     * @return PromiseInterface<array<string, list<string>>>
+     */
+    public function facets(string $libraryId): PromiseInterface
+    {
+        return $this->authed('GET', '/api/v1/media/facets', ['libraryId' => $libraryId])
+            ->then(static function (array $data): array {
+                /** @var list<string> $genreList */
+                $genreList = [];
+                foreach (Coerce::map($data['genres'] ?? null) as $genre) {
+                    if (is_string($genre)) {
+                        $genreList[] = $genre;
+                    }
+                }
+
+                return ['genres' => $genreList];
+            });
+    }
+
     /** @return PromiseInterface<MediaPage> */
     public function media(MediaQuery $query): PromiseInterface
     {
@@ -893,6 +914,25 @@ final class ApiClient
     {
         return $this->authed('DELETE', '/api/v1/me/recommendations/' . rawurlencode($mediaItemId))
             ->then(static fn (array $data): bool => true);
+    }
+
+    /**
+     * The user's "next up" list — next unwatched episode for each series they are watching.
+     *
+     * @return PromiseInterface<list<MediaItem>>
+     */
+    public function nextUp(): PromiseInterface
+    {
+        return $this->authed('GET', '/api/v1/users/me/next-up')->then(static function (array $data): array {
+            $items = [];
+            foreach (Coerce::map($data['items'] ?? null) as $row) {
+                if (is_array($row)) {
+                    $items[] = MediaItem::fromArray($row);
+                }
+            }
+
+            return $items;
+        });
     }
 
     // ---- ratings -------------------------------------------------------
