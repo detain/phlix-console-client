@@ -66,4 +66,7 @@ enum Route
     case WatchHistory;
     case Favorites;
     case Servers;
+    case SharedWithMe;
+    case InviteLinks;
+    case FederationShares;
 }

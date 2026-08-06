@@ -13,6 +13,7 @@ use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Cast\CastClient;
+use Phlix\Console\Api\Hub\HubClient;
 use Phlix\Console\Api\SyncPlay\SyncPlayService;
 use Phlix\Console\Api\Dto\Album;
 use Phlix\Console\Api\Dto\Audiobook;
@@ -111,6 +112,7 @@ use Phlix\Console\Screen\Breadcrumbed;
 use Phlix\Console\Screen\CastScreen;
 use Phlix\Console\Screen\BrowseScreen;
 use Phlix\Console\Screen\DetailScreen;
+use Phlix\Console\Screen\InviteLinksScreen;
 use Phlix\Console\Screen\LibraryScreen;
 use Phlix\Console\Screen\Loadable;
 use Phlix\Console\Screen\LoginScreen;
@@ -125,11 +127,13 @@ use Phlix\Console\Screen\SearchScreen;
 use Phlix\Console\Screen\ServerScreen;
 use Phlix\Console\Screen\ServersScreen;
 use Phlix\Console\Screen\SettingsScreen;
+use Phlix\Console\Screen\SharedWithMeScreen;
 use Phlix\Console\Screen\Shimmering;
 use Phlix\Console\Screen\StatsScreen;
 use Phlix\Console\Screen\RecommendationsScreen;
 use Phlix\Console\Screen\WatchHistoryScreen;
 use Phlix\Console\Screen\FavoritesScreen;
+use Phlix\Console\Screen\FederationSharesScreen;
 use Phlix\Console\Screen\Teardownable;
 use Phlix\Console\Screen\Themed;
 use Phlix\Console\Store\AudiobooksStore;
@@ -1309,6 +1313,30 @@ final class App implements Model
         );
 
         return [$this->push(Route::Servers, $screen), $screen->init()];
+    }
+
+    /** @return array{App, ?\Closure} */
+    private function openSharedWithMe(): array
+    {
+        $screen = new SharedWithMeScreen(new HubClient($this->api));
+
+        return [$this->push(Route::SharedWithMe, $screen), $screen->init()];
+    }
+
+    /** @return array{App, ?\Closure} */
+    private function openInviteLinks(): array
+    {
+        $screen = new InviteLinksScreen(new HubClient($this->api));
+
+        return [$this->push(Route::InviteLinks, $screen), $screen->init()];
+    }
+
+    /** @return array{App, ?\Closure} */
+    private function openFederationShares(): array
+    {
+        $screen = new FederationSharesScreen(new HubClient($this->api));
+
+        return [$this->push(Route::FederationShares, $screen), $screen->init()];
     }
 
     /**
