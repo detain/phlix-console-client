@@ -1,16 +1,33 @@
 {
-    "$schema": "https://raw.githubusercontent.com/box-project/box/main/res/schema.json",
+    "chmod": "0755",
+    "compactors": [
+        "KevinGH\\Box\\Compactor\\PhpScoper",
+        "KevinGH\\Box\\Compactor\\Composer"
+    ],
     "main": "bin/phlix",
-    "output": "phlix.phar",
-    "compression": "GZ",
-    "banner": "Phlix Console Client — terminal media client for Phlix.",
-    "directories": ["src"],
     "finder": [
         {
-            "notName": ["*.md", "*.dist", "phpunit.xml*", "*.neon"],
-            "exclude": ["test", "tests", "Tests", "docs", "doc", "examples"],
-            "in": "vendor"
+            "name": "*.php",
+            "exclude": ["Tests", "tests", "test"],
+            "in": ["vendor"]
+        },
+        {
+            "name": ["*.php", "*.stub"],
+            "exclude": ["Tests", "tests", "test", ".phpstorm.meta.php", "phpstan.stubs.php"],
+            "in": ["src"]
         }
     ],
-    "files": ["composer.json"]
+    "gitignore": [
+        "/*.phar",
+        "/build/*.phar",
+        "/.phpunit.cache"
+    ],
+    "metadata": {
+        "name": "phlix/console-client",
+        "version": "1.0.0",
+        "description": "Terminal TUI client for Phlix"
+    },
+    "output": "build/phlix.phar",
+    "stub": true,
+    "web": false
 }
