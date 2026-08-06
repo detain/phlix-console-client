@@ -8,12 +8,15 @@ use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\Dto\AuthUser;
 use Phlix\Console\Api\Dto\ContinueWatchingItem;
 use Phlix\Console\Api\Dto\Library;
+use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\Dto\MediaPage;
 use Phlix\Console\Media\PosterLoader;
+use Phlix\Console\Msg\BrowseMostWatchedLoadedMsg;
 use Phlix\Console\Msg\ContinueWatchingLoadedMsg;
 use Phlix\Console\Msg\LibrariesFailedMsg;
 use Phlix\Console\Msg\LibrariesLoadedMsg;
 use Phlix\Console\Msg\LibraryMediaLoadedMsg;
+use Phlix\Console\Msg\MostWatchedFailedMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\OpenLibraryMsg;
 use Phlix\Console\Msg\PosterLoadedMsg;
@@ -627,6 +630,67 @@ final class BrowseScreenTest extends TestCase
         self::assertSame('cw', $msg->id);
     }
 
+    public function testEmptyMostWatchedAddsNoRail(): void
+    {
+        [$next] = $this->screen()->update(new BrowseMostWatchedLoadedMsg([]));
+
+        self::assertSame([], $next->railIds(), 'empty most-watched renders nothing');
+        self::assertNull($next->rail('most-watched'));
+    }
+
+    public function testMostWatchedWithItemsAddsRailWithCorrectTitle(): void
+    {
+        $items = [
+            MediaItem::fromArray(['id' => 'mw1', 'name' => 'Top Movie', 'type' => 'movie', 'poster_url' => 'https://p/mw1.jpg']),
+            MediaItem::fromArray(['id' => 'mw2', 'name' => 'Second Movie', 'type' => 'movie', 'poster_url' => 'https://p/mw2.jpg']),
+        ];
+        [$next] = $this->screen()->update(new BrowseMostWatchedLoadedMsg($items));
+
+        $rail = $next->rail('most-watched');
+        self::assertNotNull($rail, 'most-watched rail is present');
+        self::assertCount(2, $rail->cards);
+        self::assertSame('mw1', $rail->cards[0]->id);
+        self::assertStringContainsString('Most Watched', $rail->title);
+    }
+
+    public function testMostWatchedPositionedAfterContinueWatching(): void
+    {
+        // Most-watched appears after continue-watching, before library rails.
+        $entry = ContinueWatchingItem::fromArray(['media_item_id' => 'cw', 'name' => 'X', 'position_ticks' => 1, 'duration_ticks' => 2]);
+        $items = [
+            MediaItem::fromArray(['id' => 'mw1', 'name' => 'M', 'type' => 'movie']),
+        ];
+
+        [$withContinue] = $this->screen()
+            ->update(new LibrariesLoadedMsg([$this->library('lib-a', 'Movies')]))[0]
+            ->update(new ContinueWatchingLoadedMsg([$entry]));
+        [$withBoth] = $withContinue->update(new BrowseMostWatchedLoadedMsg($items));
+
+        self::assertSame(['continue', 'most-watched', 'lib-a'], $withBoth->railIds());
+    }
+
+    public function testMostWatchedFailedClearsTheRail(): void
+    {
+        // Start with a populated rail.
+        $items = [MediaItem::fromArray(['id' => 'mw1', 'name' => 'M', 'type' => 'movie'])];
+        $screen = $this->screen()->update(new BrowseMostWatchedLoadedMsg($items))[0];
+        self::assertNotNull($screen->rail('most-watched'));
+
+        // Failure clears it.
+        [$cleared] = $screen->update(new MostWatchedFailedMsg('Could not load most watched.'));
+
+        self::assertNull($cleared->rail('most-watched'));
+    }
+
+    public function testMostWatchedFailedIsIgnoredWhenNoRailPresent(): void
+    {
+        // A failure with no rail already must not crash or add a rail.
+        [$next] = $this->screen()->update(new MostWatchedFailedMsg('Could not load most watched.'));
+
+        self::assertNull($next->rail('most-watched'));
+        self::assertSame([], $next->railIds());
+    }
+
     public function testFailedLibrariesShowsError(): void
     {
         [$next] = $this->screen()->update(new LibrariesFailedMsg('Could not load your libraries.'));
@@ -655,6 +719,7 @@ final class BrowseScreenTest extends TestCase
     {
         $transport = (new FakeTransport())
             ->json(200, ['items' => []])                                                   // continue-watching
+            ->json(200, ['items' => []])                                                   // most-watched
             ->json(200, ['libraries' => [['id' => 'lib-a', 'name' => 'Movies', 'type' => 'movie']]]);
 
         $msgs = $this->runBatch($this->screenWith($transport)->init());
@@ -668,6 +733,7 @@ final class BrowseScreenTest extends TestCase
     {
         // No token set → each call 401s with no refresh → AuthError.
         $transport = (new FakeTransport())
+            ->json(401, ['error' => 'Unauthorized'])
             ->json(401, ['error' => 'Unauthorized'])
             ->json(401, ['error' => 'Unauthorized']);
 

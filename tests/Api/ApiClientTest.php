@@ -838,6 +838,52 @@ final class ApiClientTest extends TestCase
         self::assertStringEndsWith('/api/v1/media/m1/playback-info', $t->requestAt(0)['url']);
     }
 
+    public function testMostWatchedReturnsItemsAndUsesCorrectPath(): void
+    {
+        $t = (new FakeTransport())->json(200, ['items' => [
+            ['id' => 'm1', 'name' => 'Top Film', 'type' => 'movie', 'poster_url' => 'https://p/m1.jpg'],
+            ['id' => 'm2', 'name' => 'Second Film', 'type' => 'movie', 'poster_url' => 'https://p/m2.jpg'],
+        ], 'total' => 2, 'limit' => 20, 'offset' => 0]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $items = $this->await($client->mostWatched());
+
+        self::assertCount(2, $items);
+        self::assertSame('m1', $items[0]->id);
+        self::assertSame('m2', $items[1]->id);
+        $req = $t->requestAt(0);
+        self::assertSame('GET', $req['method']);
+        self::assertStringContainsString('/api/v1/media/most-watched', $req['url']);
+        self::assertStringContainsString('limit=20', $req['url']);
+        self::assertStringContainsString('offset=0', $req['url']);
+    }
+
+    public function testMostWatchedWithCustomPaging(): void
+    {
+        $t = (new FakeTransport())->json(200, ['items' => [], 'total' => 0, 'limit' => 10, 'offset' => 5]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $this->await($client->mostWatched(limit: 10, offset: 5));
+
+        $req = $t->requestAt(0);
+        self::assertStringContainsString('limit=10', $req['url']);
+        self::assertStringContainsString('offset=5', $req['url']);
+    }
+
+    public function testMostWatchedDefaultsToEmptyArrayOnMalformedPayload(): void
+    {
+        // Defensive: a malformed payload must not throw — must return [].
+        $t = (new FakeTransport())->json(200, ['not-items' => 'nonsense']);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $items = $this->await($client->mostWatched());
+
+        self::assertSame([], $items);
+    }
+
     public function testCreateSessionPostsTheDeviceAndReturnsTheId(): void
     {
         $t = (new FakeTransport())->json(201, ['session_id' => 'sess-9']);

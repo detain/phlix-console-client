@@ -684,6 +684,31 @@ final class ApiClient
             ->then(static fn (array $data): PlaybackMarkers => PlaybackMarkers::fromArray($data));
     }
 
+    // ---- discovery ----------------------------------------------------
+
+    /**
+     * The server-wide "most watched" trending rail — the media items most-watched
+     * across the WHOLE server (not per-user), served by `StatsCollector::getTopMedia()`.
+     *
+     * @return PromiseInterface<list<MediaItem>>
+     */
+    public function mostWatched(int $limit = 20, int $offset = 0): PromiseInterface
+    {
+        return $this->authed('GET', '/api/v1/media/most-watched', [
+            'limit' => (string) $limit,
+            'offset' => (string) $offset,
+        ])->then(static function (array $data): array {
+            $items = [];
+            foreach (Coerce::map($data['items'] ?? null) as $row) {
+                if (is_array($row)) {
+                    $items[] = MediaItem::fromArray($row);
+                }
+            }
+
+            return $items;
+        });
+    }
+
     // ---- ratings -------------------------------------------------------
 
     /**

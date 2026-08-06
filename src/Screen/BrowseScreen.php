@@ -18,11 +18,13 @@ use Phlix\Console\Api\MediaQuery;
 use Phlix\Console\Media\PosterCardFactory;
 use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Msg\BrowseFavoritesLoadedMsg;
+use Phlix\Console\Msg\BrowseMostWatchedLoadedMsg;
 use Phlix\Console\Msg\ContinueWatchingLoadedMsg;
 use Phlix\Console\Msg\FavoritesFailedMsg;
 use Phlix\Console\Msg\LibrariesFailedMsg;
 use Phlix\Console\Msg\LibrariesLoadedMsg;
 use Phlix\Console\Msg\LibraryMediaLoadedMsg;
+use Phlix\Console\Msg\MostWatchedFailedMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\OpenLibraryMsg;
 use Phlix\Console\Msg\OpenWatchHistoryMsg;
@@ -64,6 +66,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
     use ThemedScreen;
 
     private const CONTINUE_ID = 'continue';
+    private const MOST_WATCHED_ID = 'most-watched';
     private const SIDEBAR = 'sidebar';
     private const RAILS = 'rails';
     private const SIDEBAR_WIDTH = 22;
@@ -97,6 +100,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
     /** @var array<string, int> library id → item count (the grid total) */
     private array $libraryCounts = [];
     private ?Rail $favoritesRail = null;
+    private ?Rail $mostWatchedRail = null;
     private int $railCursor = 0;
     private int $railScroll = 0;
     private ?string $error = null;
@@ -123,7 +127,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
 
     public function init(): \Closure
     {
-        return Cmd::batch($this->fetchContinueWatching(), $this->fetchLibraries());
+        return Cmd::batch($this->fetchContinueWatching(), $this->fetchMostWatched(), $this->fetchLibraries());
     }
 
     /** @return array{self, ?\Closure} */
@@ -152,6 +156,12 @@ final class BrowseScreen implements Breadcrumbed, Themed
         }
         if ($msg instanceof BrowseFavoritesLoadedMsg) {
             return $this->onFavorites($msg->items);
+        }
+        if ($msg instanceof BrowseMostWatchedLoadedMsg) {
+            return $this->onMostWatched($msg->items);
+        }
+        if ($msg instanceof MostWatchedFailedMsg) {
+            return [$this->withMostWatchedRail(null), null];
         }
 
         return [$this, null];
@@ -219,6 +229,16 @@ final class BrowseScreen implements Breadcrumbed, Themed
             static fn (\Throwable $e): Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(self::SESSION_EXPIRED)
                 : new FavoritesFailedMsg('Could not load your favorites.'),
+        ));
+    }
+
+    private function fetchMostWatched(): \Closure
+    {
+        return Cmd::promise(fn (): \React\Promise\PromiseInterface => $this->media->api()->mostWatched()->then(
+            static fn (array $items): BrowseMostWatchedLoadedMsg => new BrowseMostWatchedLoadedMsg($items),
+            static fn (\Throwable $e): Msg => $e instanceof AuthError
+                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                : new MostWatchedFailedMsg('Could not load most watched.'),
         ));
     }
 
@@ -385,6 +405,28 @@ final class BrowseScreen implements Breadcrumbed, Themed
         return [$next, $next->loadPostersFor('favorites', $rail)];
     }
 
+    /**
+     * @param list<\Phlix\Console\Api\Dto\MediaItem> $items
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function onMostWatched(array $items): array
+    {
+        if ($items === []) {
+            // Empty: render nothing (not an empty box).
+            return [$this, null];
+        }
+
+        $cards = [];
+        foreach ($items as $item) {
+            $cards[] = PosterCardFactory::fromMediaItem($item);
+        }
+        $rail = new Rail('Most Watched', $cards);
+        $next = $this->withMostWatchedRail($rail);
+
+        return [$next, $next->loadPostersFor(self::MOST_WATCHED_ID, $rail)];
+    }
+
     /** @return array{self, ?\Closure} */
     private function onLibraryMedia(string $libraryId, MediaPage $page): array
     {
@@ -538,8 +580,9 @@ final class BrowseScreen implements Breadcrumbed, Themed
             $next = $this->withLibraryRails([]);
             $next = $next->withContinueRail(null);
             $next = $next->withFavoritesRail(null);
+            $next = $next->withMostWatchedRail(null);
 
-            return [$next, Cmd::batch($next->fetchContinueWatching(), $next->fetchLibraries())];
+            return [$next, Cmd::batch($next->fetchContinueWatching(), $next->fetchMostWatched(), $next->fetchLibraries())];
         }
 
         return [$this, null];
@@ -588,6 +631,9 @@ final class BrowseScreen implements Breadcrumbed, Themed
         if ($this->continueRail !== null) {
             $ids[] = self::CONTINUE_ID;
         }
+        if ($this->mostWatchedRail !== null) {
+            $ids[] = self::MOST_WATCHED_ID;
+        }
         foreach (array_keys($this->libraryRails) as $libraryId) {
             $ids[] = $libraryId;
         }
@@ -611,6 +657,9 @@ final class BrowseScreen implements Breadcrumbed, Themed
         if ($railId === 'favorites') {
             return $this->favoritesRail;
         }
+        if ($railId === self::MOST_WATCHED_ID) {
+            return $this->mostWatchedRail;
+        }
 
         return $railId === self::CONTINUE_ID
             ? $this->continueRail
@@ -625,6 +674,10 @@ final class BrowseScreen implements Breadcrumbed, Themed
 
         if ($railId === 'favorites') {
             return $this->withFavoritesRail($rail);
+        }
+
+        if ($railId === self::MOST_WATCHED_ID) {
+            return $this->withMostWatchedRail($rail);
         }
 
         $rails = $this->libraryRails;
@@ -705,6 +758,14 @@ final class BrowseScreen implements Breadcrumbed, Themed
     {
         $next = clone $this;
         $next->favoritesRail = $rail;
+
+        return $next;
+    }
+
+    private function withMostWatchedRail(?Rail $rail): self
+    {
+        $next = clone $this;
+        $next->mostWatchedRail = $rail;
 
         return $next;
     }
