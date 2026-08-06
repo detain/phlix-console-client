@@ -27,6 +27,8 @@ use Phlix\Console\Msg\DetailLoadedMsg;
 use Phlix\Console\Msg\DetailPosterLoadedMsg;
 use Phlix\Console\Msg\FavoriteToggleFailedMsg;
 use Phlix\Console\Msg\FavoriteToggledMsg;
+use Phlix\Console\Msg\MissingEpisodesFailedMsg;
+use Phlix\Console\Msg\MissingEpisodesLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\PlayRequestedMsg;
@@ -34,6 +36,8 @@ use Phlix\Console\Msg\RatingSetFailedMsg;
 use Phlix\Console\Msg\RatingSetMsg;
 use Phlix\Console\Msg\RatingsLoadedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
+use Phlix\Console\Msg\ShufflePlayFailedMsg;
+use Phlix\Console\Msg\ShufflePlayMsg;
 use Phlix\Console\Msg\SimilarFailedMsg;
 use Phlix\Console\Msg\SimilarLoadedMsg;
 use Phlix\Console\Msg\ShowToastMsg;
@@ -96,7 +100,7 @@ final class DetailScreen implements Breadcrumbed, Themed
     private const OVERSCAN = 1;
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
     private const PLAY_NOTICE = '▶  This title has no playable source.';
-    private const HINT = '↑↓  scroll synopsis      p  play      C  cast      r  rate      F  favorite      w  watched      Esc  back';
+    private const HINT = '↑↓  scroll synopsis      p  play      s  shuffle      C  cast      r  rate      F  favorite      w  watched      Esc  back';
     private const CONTAINER_HINT = '↑↓←→  move      ⏎  open      Esc  back';
     private const LOADING_HINT = 'Esc  back';
 
@@ -130,6 +134,9 @@ final class DetailScreen implements Breadcrumbed, Themed
     /** @var list<MediaItem>|null */
     private ?array $similar = null;
     private int $similarSelectedIndex = 0;
+
+    // Container mode (series/season): missing episodes report.
+    private ?MissingEpisodesLoadedMsg $missingEpisodes = null;
 
     public function __construct(
         private readonly string $id,
@@ -229,6 +236,22 @@ final class DetailScreen implements Breadcrumbed, Themed
             // Silently ignore similar failures — similar items are non-critical.
             return [$this, null];
         }
+        if ($msg instanceof MissingEpisodesLoadedMsg) {
+            return [$this->withMissingEpisodes($msg), null];
+        }
+        if ($msg instanceof MissingEpisodesFailedMsg) {
+            // Silently ignore missing-episodes failures — the row simply won't show.
+            return [$this, null];
+        }
+        if ($msg instanceof ShufflePlayMsg) {
+            $count = count($msg->shuffledIds);
+
+            return [$this, Cmd::send(ShowToastMsg::success("Shuffled {$count} tracks"))];
+        }
+        if ($msg instanceof ShufflePlayFailedMsg) {
+            // Shuffle failure is non-critical; just show a toast.
+            return [$this, Cmd::send(ShowToastMsg::error($msg->reason))];
+        }
 
         return [$this, null];
     }
@@ -279,6 +302,21 @@ final class DetailScreen implements Breadcrumbed, Themed
             $next->playNotice = true;
 
             return [$next, null];
+        }
+        // Leaf: s → shuffle-play this item's children (or the item itself if leaf).
+        if ($msg->type === KeyType::Char && ($msg->rune === 's' || $msg->rune === 'S')) {
+            if ($this->item === null) {
+                return [$this, null];
+            }
+
+            $mediaId = $this->id;
+
+            return [$this, Cmd::promise(fn () => $this->media->api()->shufflePlay($mediaId)->then(
+                static fn (array $result): Msg => new ShufflePlayMsg($mediaId, $result['shuffled_ids'], $result['mode']),
+                static fn (\Throwable $e): Msg => $e instanceof AuthError
+                    ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                    : new ShufflePlayFailedMsg($mediaId, $e->getMessage()),
+            ))];
         }
         // Leaf: Cast → send the signed stream to a discovered device (mirrors `p`).
         if ($msg->type === KeyType::Char && $msg->rune === 'C') {
@@ -644,82 +682,22 @@ final class DetailScreen implements Breadcrumbed, Themed
         ));
     }
 
-    /** @return array{self, ?\Closure} */
-    private function onLoaded(MediaItem $item): array
-    {
-        $next = clone $this;
-        $next->item = $item;
-        $next->loaded = true;
-        $next->isFavorited = $item->isFavorite;
-        $next->isWatched = $item->watched;
-
-        if ($item->isContainer()) {
-            $grid = PosterGrid::new(self::CARD_WIDTH, self::POSTER_HEIGHT, self::H_SPACING, self::V_SPACING)
-                ->withViewport($this->containerViewportCols($this->cols), $this->containerViewportRows($this->rows));
-            $end = $this->windowEnd($grid);
-
-            $next->childGrid = $grid;
-            $next->childQuery = new MediaQuery(parentId: $this->id, limit: self::PAGE_LIMIT);
-            $next->childRequested = [0, $end];
-
-            return [$next, $next->fetchChildren(0, $end)];
-        }
-
-        // Leaf: load the hero poster (if any), ratings, and similar items.
-        $posterCmd = ($item->posterUrl !== null && $item->posterUrl !== '') ? $next->fetchHero($item->posterUrl) : null;
-        if ($posterCmd === null) {
-            return [$next, null];
-        }
-        $ratingsCmd = $next->fetchRatings();
-        $similarCmd = $next->fetchSimilar();
-
-        // Build a batch with all commands.
-        $cmd = Cmd::batch($posterCmd, $ratingsCmd, $similarCmd);
-        return [$next, $cmd];
-    }
-
-    private function fetchHero(string $url): ?\Closure
-    {
-        // Resolve relative URLs against the server base URL; absolute/empty pass through.
-        $url = $this->resolveUrl($url);
-        if ($url === '') {
-            return null;
-        }
-        // Defensive: validate URL has a valid http/https scheme before attempting load.
-        // parse_url returns false for malformed URLs and null for URLs with no scheme.
-        $scheme = parse_url($url, PHP_URL_SCHEME);
-        if ($scheme === null || $scheme === false || !in_array($scheme, ['http', 'https'], true)) {
-            // Skip relative URLs (no scheme), malformed URLs, or non-http(s) schemes silently.
-            return null;
-        }
-
-        return Cmd::promise(fn () => $this->posters->load($url, self::HERO_WIDTH, self::HERO_HEIGHT)->then(
-            function (\Phlix\Console\Media\PosterLoadResult $result): Msg {
-                return new DetailPosterLoadedMsg($result->marker, $result->imageId);
-            },
-            static fn (\Throwable $e): ?Msg => null, // a broken poster keeps the placeholder
-        ));
-    }
-
-    private function fetchRatings(): \Closure
-    {
-        return Cmd::promise(fn () => $this->media->ratings($this->id)->then(
-            static fn (MediaRatings $ratings): Msg => new RatingsLoadedMsg($ratings),
-            static fn (\Throwable $e): ?Msg => null, // ratings failure renders nothing
-        ));
-    }
-
-    private function fetchSimilar(): \Closure
+    private function fetchMissingEpisodes(): \Closure
     {
         $id = $this->id;
 
-        return Cmd::promise(fn () => $this->media->api()->similar($id)->then(
-            static function (array $items) use ($id): Msg {
-                return new SimilarLoadedMsg($id, $items);
+        return Cmd::promise(fn () => $this->media->api()->missingEpisodes($id)->then(
+            static function (array $report) use ($id): Msg {
+                return new MissingEpisodesLoadedMsg(
+                    $id,
+                    $report['missing_episodes'],
+                    $report['total_expected'] ?? null,
+                    $report['total_existing'] ?? null,
+                );
             },
-            static fn (\Throwable $e): Msg => new SimilarFailedMsg(
+            static fn (\Throwable $e): Msg => new MissingEpisodesFailedMsg(
                 $id,
-                $e instanceof AuthError ? self::SESSION_EXPIRED : 'Could not load similar titles.',
+                $e instanceof AuthError ? self::SESSION_EXPIRED : 'Could not load missing episodes.',
             ),
         ));
     }
@@ -894,7 +872,16 @@ final class DetailScreen implements Breadcrumbed, Themed
         }
         $header = Width::truncate(implode('   ·   ', $parts), max(1, $this->cols - 4));
 
-        $body = $header . "\n\n" . $grid->render(true);
+        // Build the body lines: header, optional missing episodes row, blank, then grid.
+        $lines = [$header];
+
+        // "Missing Episodes" row — shown only when the report has loaded and is non-empty.
+        if ($this->missingEpisodes !== null && !$this->missingEpisodes->isEmpty()) {
+            $count = count($this->missingEpisodes->missingEpisodes);
+            $lines[] = "⚠  {$count} episode" . ($count === 1 ? '' : 's') . ' missing';
+        }
+
+        $body = implode("\n", $lines) . "\n\n" . $grid->render(true);
 
         return Chrome::frame($this->headerTitle(), $body, self::CONTAINER_HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
     }
@@ -1240,6 +1227,14 @@ final class DetailScreen implements Breadcrumbed, Themed
     {
         $next = clone $this;
         $next->ratings = $ratings;
+
+        return $next;
+    }
+
+    private function withMissingEpisodes(MissingEpisodesLoadedMsg $msg): self
+    {
+        $next = clone $this;
+        $next->missingEpisodes = $msg;
 
         return $next;
     }

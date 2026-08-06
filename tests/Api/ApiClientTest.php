@@ -884,6 +884,40 @@ final class ApiClientTest extends TestCase
         self::assertSame([], $items);
     }
 
+    public function testShufflePlayPostsMediaIdAndReturnsShuffledIds(): void
+    {
+        $t = (new FakeTransport())->json(200, [
+            'shuffled_ids' => ['track-1', 'track-3', 'track-2'],
+            'mode' => 'shuffle',
+        ]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $result = $this->await($client->shufflePlay('album-42'));
+
+        self::assertSame(['track-1', 'track-3', 'track-2'], $result['shuffled_ids']);
+        self::assertSame('shuffle', $result['mode']);
+        $req = $t->requestAt(0);
+        self::assertSame('POST', $req['method']);
+        self::assertStringEndsWith('/api/v1/shuffle', $req['url']);
+        self::assertStringContainsString('"media_id":"album-42"', $req['body']);
+    }
+
+    public function testShufflePlaySingleItemReturnsSingleMode(): void
+    {
+        $t = (new FakeTransport())->json(200, [
+            'shuffled_ids' => ['movie-99'],
+            'mode' => 'single',
+        ]);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $result = $this->await($client->shufflePlay('movie-99'));
+
+        self::assertSame(['movie-99'], $result['shuffled_ids']);
+        self::assertSame('single', $result['mode']);
+    }
+
     public function testCreateSessionPostsTheDeviceAndReturnsTheId(): void
     {
         $t = (new FakeTransport())->json(201, ['session_id' => 'sess-9']);

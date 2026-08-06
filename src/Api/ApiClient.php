@@ -306,6 +306,73 @@ final class ApiClient
             });
     }
 
+    /**
+     * Initiate shuffle-play for a media item (album, artist, series, or leaf).
+     *
+     * The server shuffles the item's children and returns the shuffled IDs
+     * plus a mode ('shuffle' for containers, 'single' for leaf items that
+     * have no children but are themselves playable).
+     *
+     * @return PromiseInterface<array{shuffled_ids: list<string>, mode: string}>
+     */
+    public function shufflePlay(string $mediaId): PromiseInterface
+    {
+        return $this->authed('POST', '/api/v1/shuffle', [], ['media_id' => $mediaId])
+            ->then(static function (array $data): array {
+                /** @var list<string> $shuffledIds */
+                $shuffledIds = [];
+                foreach (Coerce::map($data['shuffled_ids'] ?? null) as $id) {
+                    if (is_string($id)) {
+                        $shuffledIds[] = $id;
+                    }
+                }
+
+                return [
+                    'shuffled_ids' => $shuffledIds,
+                    'mode' => Coerce::str($data['mode'] ?? null) ?? 'shuffle',
+                ];
+            });
+    }
+
+    /**
+     * The missing-episode report for a series media item.
+     *
+     * The server returns an ENVELOPE (snake_case), NOT a bare array:
+     *   `{ total_expected, total_existing, missing_episodes: [{ episode_number }] }`.
+     * `total_expected`/`total_existing` are absent on degraded branches (item has
+     * no metadata_json or no positive episode_count) which still return
+     * `{ missing_episodes: [] }` — hence both totals are optional and the
+     * canonical count is always `missing_episodes.length`. Non-2xx throws
+     * {@see ApiError}.
+     *
+     * @return PromiseInterface<array{total_expected?:int,total_existing?:int,missing_episodes:list<array{episode_number:int}>}>
+     */
+    public function missingEpisodes(string $id): PromiseInterface
+    {
+        return $this->authed('GET', '/api/v1/media/' . rawurlencode($id) . '/missing-episodes')
+            ->then(static function (array $data): array {
+                /** @var list<array{episode_number:int}> */
+                $missing = [];
+                foreach (Coerce::map($data['missing_episodes'] ?? null) as $row) {
+                    if (is_array($row)) {
+                        $missing[] = [
+                            'episode_number' => (int) ($row['episode_number'] ?? 0),
+                        ];
+                    }
+                }
+
+                $result = ['missing_episodes' => $missing];
+                if (isset($data['total_expected']) && is_numeric($data['total_expected'])) {
+                    $result['total_expected'] = (int) $data['total_expected'];
+                }
+                if (isset($data['total_existing']) && is_numeric($data['total_existing'])) {
+                    $result['total_existing'] = (int) $data['total_existing'];
+                }
+
+                return $result;
+            });
+    }
+
     // ---- music ---------------------------------------------------------
 
     /**
@@ -707,6 +774,17 @@ final class ApiClient
 
             return $items;
         });
+    }
+
+    /**
+     * Dismiss a "because you watched" recommendation so it no longer appears.
+     *
+     * @return PromiseInterface<bool>
+     */
+    public function dismissRecommendation(string $mediaItemId): PromiseInterface
+    {
+        return $this->authed('DELETE', '/api/v1/me/recommendations/' . rawurlencode($mediaItemId))
+            ->then(static fn (array $data): bool => true);
     }
 
     // ---- ratings -------------------------------------------------------
