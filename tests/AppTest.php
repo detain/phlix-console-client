@@ -14,6 +14,7 @@ use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\Dto\PhotoAlbum;
 use Phlix\Console\App;
 use Phlix\Console\Config\Config;
+use Phlix\Console\Config\ServerEntry;
 use Phlix\Console\Config\TokenBundle;
 use Phlix\Console\Config\TokenStore;
 use Phlix\Console\Audio\AudiobookSession;
@@ -98,6 +99,7 @@ use Phlix\Console\Screen\SettingsScreen;
 use Phlix\Console\Screen\StatsScreen;
 use Phlix\Console\Screen\Teardownable;
 use Phlix\Console\Store\AuthStore;
+use Phlix\Console\Store\FavoritesStore;
 use Phlix\Console\Store\LibrariesStore;
 use Phlix\Console\Store\MediaRange;
 use Phlix\Console\Store\AudiobooksStore;
@@ -149,7 +151,9 @@ final class AppTest extends TestCase
     /** @return array{App, AuthStore, ApiClient} */
     private function makeApp(?string $server, FakeTransport $transport): array
     {
-        $config = new Config($server);
+        $config = $server === null
+            ? new Config(servers: [], activeServerId: null)
+            : new Config(servers: [new ServerEntry(id: 's1', label: 'Server', url: $server)], activeServerId: 's1');
         $api = new ApiClient($server ?? '', $transport);
         $auth = new AuthStore($api, TokenStore::default());
         $libraries = new LibrariesStore($api);
@@ -174,7 +178,7 @@ final class AppTest extends TestCase
         $api = new ApiClient('https://srv', new FakeTransport());
 
         return new App(
-            new Config('https://srv'),
+            new Config(servers: [new ServerEntry(id: 's1', label: 'Server', url: 'https://srv')], activeServerId: 's1'),
             $loggedIn ? $this->loggedInAuthStore() : new AuthStore($api, TokenStore::default()),
             $api,
             new LibrariesStore($api),
@@ -273,7 +277,7 @@ final class AppTest extends TestCase
 
         self::assertSame(Route::Loading, $next->route());
         self::assertSame('https://chosen.tld', $api->baseUrl());
-        self::assertSame('https://chosen.tld', Config::load()->serverUrl, 'config persisted to disk');
+        self::assertSame('https://chosen.tld', Config::load()->activeServer()?->url, 'config persisted to disk');
         // The follow-up Cmd is the restore (no token → null).
         self::assertInstanceOf(BootResolvedMsg::class, $this->runCmd($cmd));
     }
@@ -1349,7 +1353,7 @@ final class AppTest extends TestCase
 
     public function testAppBootsThemeFromConfig(): void
     {
-        $config = new Config('https://srv', 'midnight');
+        $config = new Config(servers: [new ServerEntry(id: 's1', label: 'Server', url: 'https://srv')], activeServerId: 's1', theme: 'midnight');
         $api = new ApiClient('https://srv', new FakeTransport());
         $auth = new AuthStore($api, TokenStore::default());
         $app = App::boot($config, $auth, $api, new LibrariesStore($api), new MediaStore($api), new PosterLoader(Mosaic::halfBlock()));
@@ -1359,7 +1363,7 @@ final class AppTest extends TestCase
 
     public function testUnknownConfigThemeFallsBackToNocturne(): void
     {
-        $config = new Config('https://srv', 'no-such-theme');
+        $config = new Config(servers: [new ServerEntry(id: 's1', label: 'Server', url: 'https://srv')], activeServerId: 's1', theme: 'no-such-theme');
         $api = new ApiClient('https://srv', new FakeTransport());
         $auth = new AuthStore($api, TokenStore::default());
         $app = App::boot($config, $auth, $api, new LibrariesStore($api), new MediaStore($api), new PosterLoader(Mosaic::halfBlock()));
@@ -1403,7 +1407,7 @@ final class AppTest extends TestCase
         // A Daylight App whose config carries a non-default slideshow interval.
         $browse = $this->browsing()
             ->withTheme(Theme::daylight())
-            ->withConfig((new Config('https://srv', 'Daylight', 9)));
+            ->withConfig((new Config(servers: [new ServerEntry(id: 's1', label: 'Server', url: 'https://srv')], activeServerId: 's1', theme: 'Daylight', slideshowInterval: 9)));
 
         [$settings, $cmd] = $browse->update(new OpenSettingsMsg());
 
@@ -1450,8 +1454,8 @@ final class AppTest extends TestCase
 
         [$saved] = $settings->update(new SettingsSavedMsg('Daylight', 20));
 
-        self::assertSame('https://srv', $saved->config()->serverUrl, 'saving settings keeps the server URL');
-        self::assertSame('https://srv', Config::load()->serverUrl);
+        self::assertSame('https://srv', $saved->config()->activeServer()?->url, 'saving settings keeps the server URL');
+        self::assertSame('https://srv', Config::load()->activeServer()?->url);
     }
 
     public function testSettingsSavedAppliesLiveEvenWhenPersistingFails(): void
@@ -1476,7 +1480,7 @@ final class AppTest extends TestCase
     public function testWithConfigIsImmutableAndPreservesTheStack(): void
     {
         $browse = $this->browsing();
-        $next = $browse->withConfig(new Config('https://srv', 'Midnight', 30));
+        $next = $browse->withConfig(new Config(servers: [new ServerEntry(id: 's1', label: 'Server', url: 'https://srv')], activeServerId: 's1', theme: 'Midnight', slideshowInterval: 30));
 
         self::assertNotSame($browse, $next);
         self::assertSame(4, $browse->config()->slideshowInterval, 'the original app config is unchanged');
@@ -1847,7 +1851,7 @@ final class AppTest extends TestCase
         };
 
         $app = new App(
-            new Config('https://srv'),
+            new Config(servers: [new ServerEntry(id: 's1', label: 'Server', url: 'https://srv')], activeServerId: 's1'),
             $this->loggedInAuthStore(),
             $api,
             new LibrariesStore($api),
@@ -2193,7 +2197,7 @@ final class AppTest extends TestCase
             return $this->lastAudioPlayer = new FakeAudioPlayer($url);
         };
         $app = (new App(
-            new Config('https://srv'),
+            new Config(servers: [new ServerEntry(id: 's1', label: 'Server', url: 'https://srv')], activeServerId: 's1'),
             new AuthStore($api, TokenStore::default()),
             $api,
             new LibrariesStore($api),
@@ -2383,7 +2387,7 @@ final class AppTest extends TestCase
         };
 
         $app = new App(
-            new Config('https://srv'),
+            new Config(servers: [new ServerEntry(id: 's1', label: 'Server', url: 'https://srv')], activeServerId: 's1'),
             $this->loggedInAuthStore(),
             $api,
             new LibrariesStore($api),
@@ -2655,7 +2659,7 @@ final class AppTest extends TestCase
             return $this->lastAbPlayer = new FakeAudioPlayer($url);
         };
         $app = (new App(
-            new Config('https://srv'),
+            new Config(servers: [new ServerEntry(id: 's1', label: 'Server', url: 'https://srv')], activeServerId: 's1'),
             new AuthStore($api, TokenStore::default()),
             $api,
             new LibrariesStore($api),
@@ -2754,13 +2758,14 @@ final class AppTest extends TestCase
             AuthUser::fromArray(['id' => 'u1', 'username' => 'joe']),
             new LibrariesStore($api),
             new MediaStore($api),
+            new FavoritesStore($api),
             new PosterLoader(Mosaic::halfBlock()),
             'https://srv',
             cols: 80,
             rows: 24,
         );
         $app = new App(
-            new Config('https://srv'),
+            new Config(servers: [new ServerEntry(id: 's1', label: 'Server', url: 'https://srv')], activeServerId: 's1'),
             new AuthStore($api, TokenStore::default()),
             $api,
             new LibrariesStore($api),

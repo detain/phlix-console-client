@@ -2258,7 +2258,7 @@ final class App implements Model
             [['route' => $route, 'screen' => $screen]],
             null, $this->cols, $this->rows,
             $this->toast, $this->toastTicking, $this->palette,
-            $this->theme, $this->nowPlaying, $this->audioFactory,
+            $this->theme, null, $this->audioFactory,
             $this->metricsVisible,
             $this->shimmerPhase, $this->shimmerTicking,
         );
