@@ -60,6 +60,7 @@ use Phlix\Console\Msg\OpenSettingsMsg;
 use Phlix\Console\Msg\OpenStatsMsg;
 use Phlix\Console\Msg\OpenRecommendationsMsg;
 use Phlix\Console\Msg\OpenFavoritesMsg;
+use Phlix\Console\Msg\OpenPlaylistsMsg;
 use Phlix\Console\Msg\OpenWatchHistoryMsg;
 use Phlix\Console\Msg\AddServerMsg;
 use Phlix\Console\Msg\RemoveServerMsg;
@@ -142,6 +143,7 @@ use Phlix\Console\Screen\RecommendationsScreen;
 use Phlix\Console\Screen\WatchHistoryScreen;
 use Phlix\Console\Screen\FavoritesScreen;
 use Phlix\Console\Screen\FederationSharesScreen;
+use Phlix\Console\Screen\PlaylistsScreen;
 use Phlix\Console\Screen\Teardownable;
 use Phlix\Console\Screen\Themed;
 use Phlix\Console\Store\AudiobooksStore;
@@ -160,6 +162,7 @@ use Phlix\Console\Ui\PaletteAction;
 use Phlix\Console\Ui\Theme;
 use React\Promise\PromiseInterface;
 use SugarCraft\Core\Cmd;
+use SugarCraft\Core\I18n\T;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Model;
 use SugarCraft\Core\Msg;
@@ -267,6 +270,10 @@ final class App implements Model
         PosterLoader $posters,
         ?\Closure $audioFactory = null,
     ): self {
+        // Detect and set the terminal locale from $LANG / $LC_ALL / $LC_MESSAGES.
+        // This affects all Lang::t() calls throughout the app.
+        T::setLocale(T::detect());
+
         // The persisted theme name (if any) maps to a preset; an absent / unknown
         // name falls back to Nocturne (the identity look) via Theme::byName().
         $theme = Theme::byName((string) ($config->theme ?? ''));
@@ -420,6 +427,9 @@ final class App implements Model
         }
         if ($msg instanceof OpenFavoritesMsg) {
             return $this->openFavorites();
+        }
+        if ($msg instanceof OpenPlaylistsMsg) {
+            return $this->openPlaylists();
         }
         if ($msg instanceof OpenServersMsg) {
             return $this->openServers();
@@ -897,6 +907,7 @@ final class App implements Model
             new PaletteAction('Stats', new OpenStatsMsg()),
             new PaletteAction('Watch History', new OpenWatchHistoryMsg()),
             new PaletteAction('Favorites', new OpenFavoritesMsg()),
+            new PaletteAction('Playlists', new OpenPlaylistsMsg()),
             new PaletteAction('Servers', new OpenServersMsg()),
             // The metrics / HUD overlay is toggled from the palette (no global key,
             // so no conflict); the label flips with the current visibility.
@@ -1371,6 +1382,14 @@ final class App implements Model
         $screen = new FavoritesScreen($favoritesStore, $this->cols, $this->rows);
 
         return [$this->push(Route::Favorites, $screen), $screen->init()];
+    }
+
+    /** @return array{App, ?\Closure} */
+    private function openPlaylists(): array
+    {
+        $screen = new PlaylistsScreen($this->api, $this->cols, $this->rows);
+
+        return [$this->push(Route::Playlists, $screen), $screen->init()];
     }
 
     /** @return array{App, ?\Closure} */

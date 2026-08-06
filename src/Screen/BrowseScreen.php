@@ -27,6 +27,7 @@ use Phlix\Console\Msg\LibraryMediaLoadedMsg;
 use Phlix\Console\Msg\MostWatchedFailedMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\OpenLibraryMsg;
+use Phlix\Console\Msg\OpenPlaylistsMsg;
 use Phlix\Console\Msg\OpenWatchHistoryMsg;
 use Phlix\Console\Msg\PosterLoadedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
@@ -89,7 +90,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
         self::FILTER_FAVORITES => '♥ Favorites',
     ];
 
-    private const SIDEBAR_HINT = '↑↓  library      ⏎  open      H  history      Tab  rails      q  quit';
+    private const SIDEBAR_HINT = '↑↓  library      ⏎  open      H  history      P  playlists      Tab  rails      q  quit';
 
     private int $watchFilter = self::FILTER_ALL;
     private ?Rail $continueRail = null;
@@ -506,6 +507,10 @@ final class BrowseScreen implements Breadcrumbed, Themed
         // H → open watch history
         if ($msg->type === KeyType::Char && ($msg->rune === 'h' || $msg->rune === 'H')) {
             return [$this, Cmd::send(new OpenWatchHistoryMsg())];
+        }
+        // P → open playlists
+        if ($msg->type === KeyType::Char && ($msg->rune === 'p' || $msg->rune === 'P')) {
+            return [$this, Cmd::send(new OpenPlaylistsMsg())];
         }
 
         return [$this, null];

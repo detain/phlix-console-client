@@ -70,4 +70,5 @@ enum Route
     case SharedWithMe;
     case InviteLinks;
     case FederationShares;
+    case Playlists;
 }
