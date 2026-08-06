@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Phlix\Console\Tests\Config;
 
 use Phlix\Console\Config\Config;
+use Phlix\Console\Config\ServerEntry;
 use PHPUnit\Framework\TestCase;
 
 final class ConfigTest extends TestCase
@@ -34,25 +35,25 @@ final class ConfigTest extends TestCase
     {
         $config = new Config();
 
-        self::assertNull($config->serverUrl);
+        self::assertNull($config->activeServer()?->url ?? null);
         self::assertFalse($config->hasServer());
     }
 
     public function testSaveThenLoadRoundTrips(): void
     {
         $path = $this->dir . '/config.json';
-        (new Config('https://srv.example'))->save($path);
+        (new Config(servers: [new ServerEntry(id: 's1', label: 'Server', url: 'https://srv.example')], activeServerId: 's1'))->save($path);
 
         $loaded = Config::load($path);
 
-        self::assertSame('https://srv.example', $loaded->serverUrl);
+        self::assertSame('https://srv.example', $loaded->activeServer()?->url ?? null);
         self::assertTrue($loaded->hasServer());
     }
 
     public function testSaveWritesOwnerOnlyPermissions(): void
     {
         $path = $this->dir . '/config.json';
-        (new Config('https://srv'))->save($path);
+        (new Config(servers: [new ServerEntry(id: 's1', label: 'Server', url: 'https://srv')], activeServerId: 's1'))->save($path);
 
         self::assertFileExists($path);
         self::assertSame('0600', substr(sprintf('%o', fileperms($path)), -4));
@@ -62,7 +63,7 @@ final class ConfigTest extends TestCase
     {
         $config = Config::load($this->dir . '/does-not-exist.json');
 
-        self::assertNull($config->serverUrl);
+        self::assertNull($config->activeServer()?->url ?? null);
     }
 
     public function testLoadInvalidJsonReturnsDefaults(): void
@@ -71,14 +72,14 @@ final class ConfigTest extends TestCase
         $path = $this->dir . '/config.json';
         file_put_contents($path, '{not valid json');
 
-        self::assertNull(Config::load($path)->serverUrl);
+        self::assertNull(Config::load($path)->activeServer()?->url ?? null);
     }
 
     public function testWithServerUrlNormalises(): void
     {
-        self::assertSame('https://host.tld', (new Config())->withServerUrl('  host.tld/  ')->serverUrl);
-        self::assertSame('http://host.tld', (new Config())->withServerUrl('http://host.tld')->serverUrl);
-        self::assertSame('https://h.tld:8096', (new Config())->withServerUrl('h.tld:8096/')->serverUrl);
+        self::assertSame('https://host.tld', (new Config())->withServerUrl('  host.tld/  ')->activeServer()?->url ?? null);
+        self::assertSame('http://host.tld', (new Config())->withServerUrl('http://host.tld')->activeServer()?->url ?? null);
+        self::assertSame('https://h.tld:8096', (new Config())->withServerUrl('h.tld:8096/')->activeServer()?->url ?? null);
     }
 
     // ---- theme -----------------------------------------------------------
@@ -91,12 +92,12 @@ final class ConfigTest extends TestCase
     public function testThemeRoundTripsThroughSaveAndLoad(): void
     {
         $path = $this->dir . '/config.json';
-        (new Config('https://srv', 'Midnight'))->save($path);
+        (new Config(servers: [new ServerEntry(id: 's1', label: 'Server', url: 'https://srv')], activeServerId: 's1', theme: 'Midnight'))->save($path);
 
         $loaded = Config::load($path);
 
         self::assertSame('Midnight', $loaded->theme);
-        self::assertSame('https://srv', $loaded->serverUrl);
+        self::assertSame('https://srv', $loaded->activeServer()?->url ?? null);
     }
 
     public function testAbsentThemeLoadsAsNull(): void
@@ -108,7 +109,7 @@ final class ConfigTest extends TestCase
 
         $loaded = Config::load($path);
 
-        self::assertSame('https://srv', $loaded->serverUrl);
+        self::assertSame('https://srv', $loaded->activeServer()?->url ?? null);
         self::assertNull($loaded->theme);
     }
 
@@ -123,17 +124,17 @@ final class ConfigTest extends TestCase
 
     public function testWithThemePreservesServerUrl(): void
     {
-        $config = (new Config('https://srv'))->withTheme('Daylight');
+        $config = (new Config(servers: [new ServerEntry(id: 's1', label: 'Server', url: 'https://srv')], activeServerId: 's1'))->withTheme('Daylight');
 
         self::assertSame('Daylight', $config->theme);
-        self::assertSame('https://srv', $config->serverUrl, 'switching theme keeps the server');
+        self::assertSame('https://srv', $config->activeServer()?->url ?? null, 'switching theme keeps the server');
     }
 
     public function testWithServerUrlPreservesTheme(): void
     {
-        $config = (new Config('https://old', 'Midnight'))->withServerUrl('new.tld');
+        $config = (new Config(servers: [new ServerEntry(id: 's1', label: 'Old', url: 'https://old')], activeServerId: 's1', theme: 'Midnight'))->withServerUrl('new.tld');
 
-        self::assertSame('https://new.tld', $config->serverUrl);
+        self::assertSame('https://new.tld', $config->activeServer()?->url ?? null);
         self::assertSame('Midnight', $config->theme, 'changing server keeps the theme');
     }
 
@@ -147,13 +148,13 @@ final class ConfigTest extends TestCase
     public function testSlideshowIntervalRoundTripsThroughSaveAndLoad(): void
     {
         $path = $this->dir . '/config.json';
-        (new Config('https://srv', 'Midnight', 12))->save($path);
+        (new Config(servers: [new ServerEntry(id: 's1', label: 'Server', url: 'https://srv')], activeServerId: 's1', theme: 'Midnight', slideshowInterval: 12))->save($path);
 
         $loaded = Config::load($path);
 
         self::assertSame(12, $loaded->slideshowInterval);
         self::assertSame('Midnight', $loaded->theme);
-        self::assertSame('https://srv', $loaded->serverUrl);
+        self::assertSame('https://srv', $loaded->activeServer()?->url ?? null);
     }
 
     public function testAbsentSlideshowIntervalLoadsAsDefaultFour(): void
@@ -189,11 +190,11 @@ final class ConfigTest extends TestCase
 
     public function testWithSlideshowIntervalClampsAndPreservesOtherFields(): void
     {
-        $base = new Config('https://srv', 'Midnight', 4);
+        $base = new Config(servers: [new ServerEntry(id: 's1', label: 'Server', url: 'https://srv')], activeServerId: 's1', theme: 'Midnight', slideshowInterval: 4);
 
         $set = $base->withSlideshowInterval(30);
         self::assertSame(30, $set->slideshowInterval);
-        self::assertSame('https://srv', $set->serverUrl, 'setting the interval keeps the server');
+        self::assertSame('https://srv', $set->activeServer()?->url ?? null, 'setting the interval keeps the server');
         self::assertSame('Midnight', $set->theme, 'setting the interval keeps the theme');
 
         self::assertSame(1, $base->withSlideshowInterval(0)->slideshowInterval, 'clamps too-low to 1');
@@ -202,18 +203,18 @@ final class ConfigTest extends TestCase
 
     public function testWithThemePreservesSlideshowInterval(): void
     {
-        $config = (new Config('https://srv', 'Nocturne', 17))->withTheme('Daylight');
+        $config = (new Config(servers: [new ServerEntry(id: 's1', label: 'Server', url: 'https://srv')], activeServerId: 's1', theme: 'Nocturne', slideshowInterval: 17))->withTheme('Daylight');
 
         self::assertSame('Daylight', $config->theme);
         self::assertSame(17, $config->slideshowInterval, 'switching theme keeps the interval');
-        self::assertSame('https://srv', $config->serverUrl);
+        self::assertSame('https://srv', $config->activeServer()?->url ?? null);
     }
 
     public function testWithServerUrlPreservesSlideshowInterval(): void
     {
-        $config = (new Config('https://old', 'Midnight', 17))->withServerUrl('new.tld');
+        $config = (new Config(servers: [new ServerEntry(id: 's1', label: 'Old', url: 'https://old')], activeServerId: 's1', theme: 'Midnight', slideshowInterval: 17))->withServerUrl('new.tld');
 
-        self::assertSame('https://new.tld', $config->serverUrl);
+        self::assertSame('https://new.tld', $config->activeServer()?->url ?? null);
         self::assertSame(17, $config->slideshowInterval, 'changing server keeps the interval');
         self::assertSame('Midnight', $config->theme);
     }
@@ -277,7 +278,7 @@ final class ConfigTest extends TestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Cannot create config directory');
 
-        (new Config('https://x'))->save($this->dir . '/config.json');
+        (new Config(servers: [new ServerEntry(id: 's1', label: 'Server', url: 'https://x')], activeServerId: 's1'))->save($this->dir . '/config.json');
     }
 
     public function testDeviceIdIsStableNonEmptyAndPrefixed(): void
