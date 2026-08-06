@@ -51,7 +51,8 @@ final class TokenStore
 
     public function exists(): bool
     {
-        return is_file($this->path);
+        $this->ensureLoaded();
+        return count($this->cache) > 0;
     }
 
     /**
