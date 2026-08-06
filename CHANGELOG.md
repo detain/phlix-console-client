@@ -3,12 +3,23 @@
 All notable changes to **phlix-console-client** are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased] - 2026-07-18
+## [Unreleased] - 2026-08-06
 
 ### Added
 
+- **auth**: Add user sign-up (C9.8)
+- **settings**: Sync user settings with the server (C9.7)
+- **download**: Allow downloading video files (C9.6)
+- **discovery**: Add playlists and collections (C9.5)
+- **discovery**: Add external subtitle search (C9.4)
+- **discovery**: Add missing episodes row to detail screen (C9.3)
+- **discovery**: Add dismiss recommendation (C9.2)
+- **discovery**: Add shuffle play (C9.2)
+- **discovery**: Add most-watched rail (C9.1)
+- **discovery**: Add a More Like This row on the detail screen (C9.1)
 - **cli**: Add `--version` / `-V` / `version` command printing `phlix {version}`. Unknown commands now exit `2` with error to STDERR instead of printing help. Split `help` and `default` case branches. Help text refactored to shared `HELP_TEXT` constant. (C0.5)
 - **cli**: Add `run --selftest` mode that boots the full object graph and performs config-loaded, graph-wired (including `PlayerScreen`'s `SyncPlayService` null check), http-reachable, and decode-ok checks. Exits 0 on all pass, 1 otherwise. Honours `PHLIX_SERVER_URL`. (C0.6)
+- **i18n**: Add internationalization scaffolding using SugarCraft's `T` translation system. Three screens are converted: `RecommendationsScreen`, `DetailScreen`, and `FilterBar`. Locale is auto-detected from `$LANG` / `$LC_ALL` / `$LC_MESSAGES` at boot. See `docs/i18n.md` for conversion guide. **Coverage is partial** — the remaining ~40 screens still need conversion. (C8.10)
 
 ### Changed
 - **player**: Add `completeSession()` to report playback completion. Sends `POST /api/v1/sessions/{id}/complete` when playback reaches 95% or natural end-of-stream. Guard prevents double-fire. Rejection raises `ShowToastMsg`. (C1.3)
@@ -20,7 +31,16 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   this, upstream `dev-master` changes could silently break `master` between human-driven
   PRs.
 
+- **ci**: Add PHP CodeSniffer and configure PSR-12 (C9.9)
+
 ### Fixed
+
+- **discovery**: Remove dead null checks in `DetailScreen::onLoaded` (C9.1)
+- **discovery**: Restore branching return contract for hero/ratings/similar batch (C9.1)
+- **config**: `TokenStore::exists()` checks cache not file presence (C9.7)
+- **config**: Store migration data as array so `load()` can read it back (C9.7)
+- **tests**: Update `AppTest` for multi-server Config API and `TokenStore` changes (C9.7)
+- **tests**: Update `ConfigTest` for multi-server API after C7.1 refactor (C9.7)
 
 - **A stalled server can no longer freeze the TUI on a shimmer skeleton for 60 seconds.** `BrowserTransport` now enforces a 15-second request timeout (configurable via the constructor) instead of relying on PHP's `default_socket_timeout` (~60 s) which could not be cancelled from the UI. In addition, `GET` and `HEAD` requests that fail with a genuine connection or timeout error are retried exactly once after a 250 ms delay, while `POST`/`PUT`/`PATCH`/`DELETE` requests are not retried because they are not idempotent. A `GET` that returns an HTTP 4xx or 5xx status is still attempted only once — those statuses resolve normally through `withRejectErrorResponse(false)` and are mapped to typed errors by the API client.
 
