@@ -277,7 +277,7 @@ final class App implements Model
             return new self($config, $auth, $api, $libraries, $media, $posters, [['route' => Route::ServerSetup, 'screen' => $screen]], $screen->init(), theme: $theme, audioFactory: $audioFactory);
         }
 
-        return new self($config, $auth, $api, $libraries, $media, $posters, [], self::restoreCmd($auth), theme: $theme, audioFactory: $audioFactory);
+        return new self($config, $auth, $api, $libraries, $media, $posters, [], self::restoreCmd($auth, $api, $config), theme: $theme, audioFactory: $audioFactory);
     }
 
     public function init(): ?\Closure
@@ -344,6 +344,12 @@ final class App implements Model
         }
 
         if ($msg instanceof BootResolvedMsg) {
+            // When the server-persisted settings were fetched during restore, apply
+            // them before routing so Browse renders with the correct theme/interval.
+            if ($msg->user !== null && $msg->mergedConfig !== null) {
+                return $this->withConfig($msg->mergedConfig)->goBrowse($msg->user);
+            }
+
             return $msg->user !== null ? $this->goBrowse($msg->user) : $this->goLogin(null);
         }
         if ($msg instanceof SubmitServerMsg) {
@@ -999,11 +1005,11 @@ final class App implements Model
             $toast = ShowToastMsg::warning("Could not save server URL to {$path}: " . $e->getMessage());
             $this->api->setBaseUrl($url);
 
-            return [$this->withStack([]), Cmd::batch(Cmd::send($toast), self::restoreCmd($this->auth))];
+            return [$this->withStack([]), Cmd::batch(Cmd::send($toast), self::restoreCmd($this->auth, $this->api, $this->config))];
         }
         $this->api->setBaseUrl($url);
 
-        return [$this->withStack([]), self::restoreCmd($this->auth)];
+        return [$this->withStack([]), self::restoreCmd($this->auth, $this->api, $this->config)];
     }
 
     /** @return array{App, ?\Closure} */
@@ -1027,8 +1033,9 @@ final class App implements Model
     }
 
     /** @return array{App, ?\Closure} */
-    private function goBrowse(AuthUser $user): array
+    private function goBrowse(AuthUser $user, ?Config $config = null): array
     {
+        $config ??= $this->config;
         $favoritesStore = new FavoritesStore($this->api);
         $screen = new BrowseScreen(
             $user,
@@ -1041,15 +1048,16 @@ final class App implements Model
             rows: $this->rows,
         );
 
-        return [$this->replace(Route::Browse, $screen), $screen->init()];
+        return [$this->replace(Route::Browse, $screen, $config), $screen->init()];
     }
 
     /** @return array{App, ?\Closure} */
-    private function goLogin(?string $error): array
+    private function goLogin(?string $error, ?Config $config = null): array
     {
+        $config ??= $this->config;
         $screen = LoginScreen::create($error, $this->cols, $this->rows);
 
-        return [$this->replace(Route::Login, $screen), $screen->init()];
+        return [$this->replace(Route::Login, $screen, $config), $screen->init()];
     }
 
     /** @return array{App, ?\Closure} */
@@ -1762,6 +1770,9 @@ final class App implements Model
         $newTheme = Theme::byName($themeName);
         $newConfig = $this->config->withTheme($themeName)->withSlideshowInterval($slideshowInterval);
 
+        // Always persist locally first — the user's change must not be lost even if
+        // the server is unreachable. Config::save() throws on I/O failure, which
+        // is the only recoverable error here (bad permissions are caught below).
         try {
             $newConfig->save();
         } catch (\Throwable $e) {
@@ -1772,8 +1783,25 @@ final class App implements Model
             return [$this->popScreen()->withConfig($newConfig)->withTheme($newTheme), Cmd::send($toast)];
         }
 
+        // Best-effort sync to the server: fire the PUT and toast on failure. The
+        // local write above is the source of truth; a server failure means the next
+        // boot will re-fetch and reconcile the user's most recently saved values.
+        // Capture $newConfig (not $this) so we send the exact values that were saved.
+        $api = $this->api;
+        $serverCmd = static function () use ($newConfig, $api): \Generator {
+            try {
+                yield $api->putUserSettings([
+                    'theme' => $newConfig->theme,
+                    'slideshow_interval' => $newConfig->slideshowInterval,
+                ]);
+            } catch (\Throwable $e) {
+                yield Cmd::send(ShowToastMsg::warning(
+                    'Settings saved locally, but server sync failed: ' . $e->getMessage()));
+            }
+        };
+
         // Pop the Settings frame, then apply the new config + theme to that copy.
-        return [$this->popScreen()->withConfig($newConfig)->withTheme($newTheme), null];
+        return [$this->popScreen()->withConfig($newConfig)->withTheme($newTheme), $serverCmd];
     }
 
     // ---- music audio (App-owned session) -------------------------------
@@ -2136,14 +2164,41 @@ final class App implements Model
 
     // ---- helpers -------------------------------------------------------
 
-    /** A Cmd that validates any stored token and reports the result. */
-    private static function restoreCmd(AuthStore $auth): \Closure
+    /**
+     * A Cmd that validates any stored token and, if restored, fetches and
+     * merges the server-persisted user settings over local defaults before
+     * reporting the result. Settings are best-effort (a failure falls back to
+     * the local config so the app is never blocked on the server).
+     */
+    private static function restoreCmd(AuthStore $auth, ApiClient $api, Config $config): \Closure
     {
-        return Cmd::promise(static fn () => $auth->restore()->then(
-            static fn (?AuthUser $user): Msg => new BootResolvedMsg($user),
+        return Cmd::promise(static fn (): PromiseInterface => $auth->restore()->then(
+            static function (?AuthUser $user) use ($api, $config): PromiseInterface {
+                if ($user === null) {
+                    return \React\Promise\resolve(new BootResolvedMsg(null));
+                }
+
+                // Fetch server settings and merge; best-effort — a failure uses local.
+                return $api->getUserSettings()->then(
+                    static function (array $serverSettings) use ($user, $config): BootResolvedMsg {
+                        try {
+                            $mergedConfig = $config->withServerSettings($serverSettings);
+                            $mergedConfig->save();
+                        } catch (\Throwable) {
+                            $mergedConfig = $config;
+                        }
+
+                        return new BootResolvedMsg($user, $mergedConfig);
+                    },
+                    static function (\Throwable $e) use ($user, $config): BootResolvedMsg {
+                        // Network/fetch failure → fall back to local config
+                        return new BootResolvedMsg($user, $config);
+                    },
+                );
+            },
             // restore() is contractually non-rejecting; guard anyway so an
             // unexpected throw becomes "show login", never a crashed program.
-            static fn (\Throwable $error): Msg => new BootResolvedMsg(null),
+            static fn (\Throwable $e): Msg => new BootResolvedMsg(null),
         ));
     }
 
@@ -2176,9 +2231,17 @@ final class App implements Model
         return $this->topFrame()['screen'] ?? null;
     }
 
-    /** Replace the whole stack with a single frame (auth transitions). */
-    private function replace(Route $route, Model $screen): self
+    /**
+     * Replace the whole stack with a single frame (auth transitions).
+     *
+     * @param Route  $route
+     * @param Model  $screen
+     * @param Config $config optional config for the replacement App; defaults to $this->config
+     */
+    private function replace(Route $route, Model $screen, ?Config $config = null): self
     {
+        $config ??= $this->config;
+
         // The whole current stack is discarded — release any screen's external
         // resources first (e.g. a player's ffmpeg/ffplay) AND the App-owned audio
         // session (the now-playing music/audiobook), so a SessionExpired or logout
@@ -2188,7 +2251,17 @@ final class App implements Model
         $this->tearDownFrames($this->stack);
         $this->nowPlaying?->teardown();
 
-        return $this->withNowPlaying(null)->withStack([['route' => $route, 'screen' => $screen]]);
+        // Build the replacement App directly with the given config, bypassing the
+        // chain of $this->method()->... which would always use $this->config.
+        return new self(
+            $config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
+            [['route' => $route, 'screen' => $screen]],
+            null, $this->cols, $this->rows,
+            $this->toast, $this->toastTicking, $this->palette,
+            $this->theme, $this->nowPlaying, $this->audioFactory,
+            $this->metricsVisible,
+            $this->shimmerPhase, $this->shimmerTicking,
+        );
     }
 
     /** Push a frame on top (drill-in). */

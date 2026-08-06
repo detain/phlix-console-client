@@ -15,6 +15,25 @@ namespace Phlix\Console\Config;
  * under the user's config directory.
  *
  * Honours `XDG_CONFIG_HOME`, falling back to `~/.config/phlix`.
+ *
+ * SETTING PERSISTENCE SPLIT
+ * -------------------------
+ * Device-local (never sent to server):
+ *   - terminal_render_mode  : ansi|halfblock|braille  (hardware-dependent)
+ *   - colour_palette        : 16|256|truecolor        (terminal capability)
+ *   - cell_size             : small|medium|large       (DPI scaling preference)
+ *   - server_urls + active_server_id                   (tied to this install)
+ *
+ * Server-persisted (synced via GET/PUT /api/v1/me/settings):
+ *   - theme                : Nocturne|Daylight|Midnight|Noir
+ *   - slideshow_interval   : int (seconds, 1–300)
+ *   - preferred_library_ids: list<string>
+ *   - parental_controls_pin: string (hashed)
+ *   - ...any future cross-device preference
+ *
+ * The local JSON file always holds the union of both; server values are
+ * merged over local defaults at boot so device-local keys are preserved
+ * even when the server has never been contacted.
  */
 final class Config
 {
@@ -22,6 +41,23 @@ final class Config
     private const SLIDESHOW_MIN = 1;
     private const SLIDESHOW_MAX = 300;
     private const SLIDESHOW_DEFAULT = 4;
+
+    /**
+     * Settings keys that live ONLY in the local JSON file and are NEVER sent
+     * to or received from the server. These represent hardware/OS-specific
+     * preferences that would make no sense on a different device.
+     *
+     * @var array<string, true>
+     */
+    public const DEVICE_LOCAL_KEYS = [
+        'terminal_render_mode' => true,
+        'colour_palette' => true,
+        'cell_size' => true,
+        // server_urls and active_server_id are also device-local by nature
+        // (they point to per-install server installations) but they are
+        // stored under the 'servers' array and 'active_server_id' top-level
+        // key, not as a flat settings sub-map.
+    ];
 
     /**
      * @param array<int, ServerEntry>|list<ServerEntry> $servers
@@ -169,6 +205,35 @@ final class Config
         }
 
         return null;
+    }
+
+    /**
+     * Return a new Config with server-persisted settings merged over the local
+     * values. Device-local keys (terminal_render_mode, colour_palette, cell_size)
+     * are NOT taken from $serverSettings — they stay as-is from $this so that
+     * hardware-specific preferences are never overwritten by the server.
+     *
+     * @param array<string, mixed> $serverSettings server response from GET /api/v1/me/settings
+     */
+    public function withServerSettings(array $serverSettings): self
+    {
+        // theme — server wins if present and non-empty
+        $theme = isset($serverSettings['theme']) && is_string($serverSettings['theme']) && $serverSettings['theme'] !== ''
+            ? $serverSettings['theme']
+            : $this->theme;
+
+        // slideshow_interval — server wins if numeric and in range
+        $interval = $this->slideshowInterval;
+        if (isset($serverSettings['slideshow_interval']) && is_numeric($serverSettings['slideshow_interval'])) {
+            $interval = self::clampInterval((int) $serverSettings['slideshow_interval']);
+        }
+
+        return new self(
+            servers: $this->servers,
+            activeServerId: $this->activeServerId,
+            theme: $theme,
+            slideshowInterval: $interval,
+        );
     }
 
     /** Return a copy with a different active server id, preserving everything else. */

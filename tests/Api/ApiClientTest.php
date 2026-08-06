@@ -147,14 +147,28 @@ final class ApiClientTest extends TestCase
 
     public function testRegisterUsernameTakenRejectsWithApiError(): void
     {
-        $t = (new FakeTransport())->json(409, ['error' => 'Username is already taken']);
+        // Server returns 400 Bad Request with a descriptive message for username conflicts.
+        $t = (new FakeTransport())->json(400, ['error' => 'Username already taken']);
         $client = new ApiClient(self::BASE, $t);
 
         $error = $this->awaitError($client->register('existing', 'new@example.com', 'pw'));
 
         self::assertInstanceOf(ApiError::class, $error);
-        self::assertSame(409, $error->statusCode);
-        self::assertSame('Username is already taken', $error->getMessage());
+        self::assertSame(400, $error->statusCode);
+        self::assertSame('Username already taken', $error->getMessage());
+    }
+
+    public function testRegisterEmailAlreadyRegisteredRejectsWithApiError(): void
+    {
+        // Server returns 400 Bad Request when the email address is already in use.
+        $t = (new FakeTransport())->json(400, ['error' => 'Email already registered']);
+        $client = new ApiClient(self::BASE, $t);
+
+        $error = $this->awaitError($client->register('newuser', 'existing@example.com', 'pw'));
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame(400, $error->statusCode);
+        self::assertSame('Email already registered', $error->getMessage());
     }
 
     public function testRegisterPasswordTooWeakRejectsWithApiError(): void
@@ -171,26 +185,64 @@ final class ApiClientTest extends TestCase
 
     public function testRegisterDisabledRejectsWithApiError(): void
     {
-        $t = (new FakeTransport())->json(403, ['error' => 'Registration is disabled']);
+        // Server returns 403 with the 'auth.signups_disabled' error code when
+        // self-service registration is disabled by the admin setting.
+        $t = (new FakeTransport())->json(403, ['error' => 'Signups are currently disabled.', 'code' => 'auth.signups_disabled']);
         $client = new ApiClient(self::BASE, $t);
 
         $error = $this->awaitError($client->register('newuser', 'new@example.com', 'password123'));
 
         self::assertInstanceOf(ApiError::class, $error);
         self::assertSame(403, $error->statusCode);
-        self::assertSame('Registration is disabled', $error->getMessage());
+        self::assertSame('Signups are currently disabled.', $error->getMessage());
+        self::assertSame('auth.signups_disabled', $error->body['code']);
     }
 
     public function testRegisterApprovalRequiredRejectsWithApiError(): void
     {
-        $t = (new FakeTransport())->json(403, ['error' => 'Account is pending approval']);
+        // Server returns 202 Accepted with status=pending when approval is required.
+        // The client surfaces this as an ApiError (not a success) so the caller can
+        // display the appropriate pending-approval message.
+        $t = (new FakeTransport())->json(202, ['status' => 'pending', 'message' => 'Your account is pending approval.', 'user' => null]);
         $client = new ApiClient(self::BASE, $t);
 
         $error = $this->awaitError($client->register('newuser', 'new@example.com', 'password123'));
 
         self::assertInstanceOf(ApiError::class, $error);
-        self::assertSame(403, $error->statusCode);
-        self::assertSame('Account is pending approval', $error->getMessage());
+        self::assertSame(202, $error->statusCode);
+        self::assertSame('Your account is pending approval.', $error->getMessage());
+        self::assertSame('pending', $error->body['status']);
+    }
+
+    public function testRegisterPasswordNeverAppearsInErrorMessage(): void
+    {
+        // The password must never be echoed back in any error response.
+        // This test proves it by attempting registration with every error type and
+        // verifying the password string is absent from all error messages and bodies.
+        $secretPassword = 'SuperSecret!@#123';
+
+        $cases = [
+            ['Username already taken', 400],
+            ['Email already registered', 400],
+            ['Password is too weak: must be at least 8 characters', 400],
+            ['Registration is disabled', 403],
+            ['Your account is pending approval.', 202],
+        ];
+
+        foreach ($cases as [$serverMessage, $statusCode]) {
+            $body = $statusCode === 202
+                ? ['status' => 'pending', 'message' => $serverMessage, 'user' => null]
+                : ['error' => $serverMessage];
+
+            $t = (new FakeTransport())->json($statusCode, $body);
+            $client = new ApiClient(self::BASE, $t);
+
+            $error = $this->awaitError($client->register('testuser', 'test@example.com', $secretPassword));
+
+            self::assertInstanceOf(ApiError::class, $error);
+            self::assertStringNotContainsString($secretPassword, $error->getMessage(), 'Password must not appear in error message');
+            self::assertStringNotContainsString($secretPassword, json_encode($error->body), 'Password must not appear in error body');
+        }
     }
 
     // ---- authed reads --------------------------------------------------

@@ -137,6 +137,17 @@ final class ApiClient
             'email' => $email,
             'password' => $password,
         ], auth: false)->then(function (array $data): AuthResult {
+            // 202 Accepted: the account was created but requires admin approval.
+            // No tokens are issued, so surface this as an ApiError so the caller
+            // can display the appropriate pending-approval message.
+            if (($data['status'] ?? null) === 'pending') {
+                throw new ApiError(
+                    is_string($data['message'] ?? null) ? $data['message'] : 'Your account is pending approval.',
+                    202,
+                    $data,
+                );
+            }
+
             $bundle = TokenBundle::fromAuthResponse($data);
             $this->applyToken($bundle);
 
@@ -807,6 +818,29 @@ final class ApiClient
     {
         return $this->authed('POST', '/api/v1/syncplay/groups/' . rawurlencode($roomId) . '/leave')
             ->then(static fn (array $data): bool => true);
+    }
+
+    // ---- user settings --------------------------------------------------
+
+    /**
+     * Fetch the authenticated user's persisted settings from the server.
+     *
+     * @return PromiseInterface<array<string, mixed>>
+     */
+    public function getUserSettings(): PromiseInterface
+    {
+        return $this->authed('GET', '/api/v1/me/settings');
+    }
+
+    /**
+     * Persist a full or partial settings map to the server.
+     *
+     * @param array<string, mixed> $settings
+     * @return PromiseInterface<array<string, mixed>>
+     */
+    public function putUserSettings(array $settings): PromiseInterface
+    {
+        return $this->authed('PUT', '/api/v1/me/settings', [], $settings);
     }
 
     // ---- admin seam ----------------------------------------------------
