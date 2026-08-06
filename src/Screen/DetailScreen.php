@@ -34,6 +34,8 @@ use Phlix\Console\Msg\RatingSetFailedMsg;
 use Phlix\Console\Msg\RatingSetMsg;
 use Phlix\Console\Msg\RatingsLoadedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
+use Phlix\Console\Msg\SimilarFailedMsg;
+use Phlix\Console\Msg\SimilarLoadedMsg;
 use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Msg\WatchedToggleFailedMsg;
 use Phlix\Console\Msg\WatchedToggledMsg;
@@ -123,6 +125,11 @@ final class DetailScreen implements Breadcrumbed, Themed
 
     // Cached renderer for synopsis markdown rendering (performance optimization).
     private ?Renderer $synopsisRenderer = null;
+
+    // Leaf mode: similar / More Like This.
+    /** @var list<MediaItem>|null */
+    private ?array $similar = null;
+    private int $similarSelectedIndex = 0;
 
     public function __construct(
         private readonly string $id,
@@ -215,6 +222,13 @@ final class DetailScreen implements Breadcrumbed, Themed
 
             return [$next, Cmd::send(ShowToastMsg::error($msg->reason))];
         }
+        if ($msg instanceof SimilarLoadedMsg) {
+            return $this->onSimilar($msg->mediaId, $msg->items);
+        }
+        if ($msg instanceof SimilarFailedMsg) {
+            // Silently ignore similar failures — similar items are non-critical.
+            return [$this, null];
+        }
 
         return [$this, null];
     }
@@ -291,6 +305,15 @@ final class DetailScreen implements Breadcrumbed, Themed
         }
         if ($msg->type === KeyType::Down) {
             return [$this->scrollSynopsis(1), null];
+        }
+
+        // Leaf: ←/→ navigate the similar items list.
+        if (($msg->type === KeyType::Left || $msg->type === KeyType::Right) && $this->similar !== null && $this->similar !== []) {
+            return $this->navigateSimilar($msg->type === KeyType::Left ? -1 : 1);
+        }
+        // Leaf: Enter opens the selected similar item.
+        if ($msg->type === KeyType::Enter && $this->similar !== null && $this->similar !== []) {
+            return $this->openSimilar();
         }
 
         return [$this, null];
@@ -535,6 +558,52 @@ final class DetailScreen implements Breadcrumbed, Themed
         ];
     }
 
+    /**
+     * Navigate the similar items selection by delta (-1 for left, +1 for right).
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function navigateSimilar(int $delta): array
+    {
+        if ($this->similar === null || $this->similar === []) {
+            return [$this, null];
+        }
+
+        $count = count($this->similar);
+
+        $next = clone $this;
+        $next->similarSelectedIndex = match (true) {
+            $delta < 0 => $this->similarSelectedIndex > 0 ? $this->similarSelectedIndex - 1 : $count - 1,
+            $delta > 0 => $this->similarSelectedIndex < $count - 1 ? $this->similarSelectedIndex + 1 : 0,
+            default => $this->similarSelectedIndex,
+        };
+
+        return [$next, null];
+    }
+
+    /**
+     * Open the currently selected similar item's detail.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function openSimilar(): array
+    {
+        if ($this->similar === null || $this->similar === []) {
+            return [$this, null];
+        }
+
+        $index = $this->similarSelectedIndex;
+        if (!isset($this->similar[$index])) {
+            return [$this, null];
+        }
+
+        $item = $this->similar[$index];
+
+        return [$this, Cmd::batch(
+            Cmd::send(new OpenDetailMsg($item->id, $item->name)),
+        )];
+    }
+
     private function scrollSynopsis(int $delta): self
     {
         $scroll = max(0, $this->synopsisScroll + $delta);
@@ -596,22 +665,25 @@ final class DetailScreen implements Breadcrumbed, Themed
             return [$next, $next->fetchChildren(0, $end)];
         }
 
-        // Leaf: load the hero poster (if any) and the ratings.
+        // Leaf: load the hero poster (if any), ratings, and similar items.
         $posterCmd = ($item->posterUrl !== null && $item->posterUrl !== '') ? $next->fetchHero($item->posterUrl) : null;
         // Ratings are only fetched when there's a poster (maintains original behavior).
         $ratingsCmd = $posterCmd !== null ? $next->fetchRatings() : null;
+        // Similar items are always fetched for leaf items (non-critical; failures are silent).
+        $similarCmd = $next->fetchSimilar();
 
-        // No poster means no ratings either (ratingsCmd is only set when posterCmd is set).
-        if ($posterCmd === null) {
-            return [$next, null];
+        // Collect all non-null commands.
+        $cmds = [];
+        if ($posterCmd !== null) {
+            $cmds[] = $posterCmd;
         }
-
-        // Poster present — batch with ratings if available.
         if ($ratingsCmd !== null) {
-            return [$next, Cmd::batch($posterCmd, $ratingsCmd)];
+            $cmds[] = $ratingsCmd;
         }
+        // Similar is always fetched for leaf items (even if empty array is returned).
+        $cmds[] = $similarCmd;
 
-        return [$next, $posterCmd];
+        return [$next, Cmd::batch(...$cmds)];
     }
 
     private function fetchHero(string $url): ?\Closure
@@ -642,6 +714,21 @@ final class DetailScreen implements Breadcrumbed, Themed
         return Cmd::promise(fn () => $this->media->ratings($this->id)->then(
             static fn (MediaRatings $ratings): Msg => new RatingsLoadedMsg($ratings),
             static fn (\Throwable $e): ?Msg => null, // ratings failure renders nothing
+        ));
+    }
+
+    private function fetchSimilar(): \Closure
+    {
+        $id = $this->id;
+
+        return Cmd::promise(fn () => $this->media->api()->similar($id)->then(
+            static function (array $items) use ($id): Msg {
+                return new SimilarLoadedMsg($id, $items);
+            },
+            static fn (\Throwable $e): Msg => new SimilarFailedMsg(
+                $id,
+                $e instanceof AuthError ? self::SESSION_EXPIRED : 'Could not load similar titles.',
+            ),
         ));
     }
 
@@ -864,12 +951,64 @@ final class DetailScreen implements Breadcrumbed, Themed
         $header = $lines;
         $actions = $this->playNotice ? self::PLAY_NOTICE : '▶  p  Play        Esc  Back';
 
+        // Check if similar items should be rendered (non-empty).
+        $hasSimilar = $this->similar !== null && $this->similar !== [];
+        $similarSection = $hasSimilar ? $this->renderSimilarSection($width) : [];
+        $similarLines = count($similarSection);
+
         // The synopsis fills whatever room remains, scrollable with ↑/↓.
+        // Account for similar section if present (blank above + similar lines + blank below).
         $reserved = count($header) + 3; // a blank above + a blank + the actions line below
+        if ($hasSimilar) {
+            $reserved += $similarLines + 2; // +2 for the blank lines above and below similar
+        }
         $synopsisRows = max(1, $this->bodyHeight() - $reserved);
         $synopsis = $this->synopsisWindow($item, $width, $synopsisRows);
 
-        return implode("\n", [...$header, '', ...$synopsis, '', $actions]);
+        $body = [...$header, '', ...$synopsis];
+        if ($hasSimilar) {
+            $body = [...$body, '', ...$similarSection];
+        }
+        $body = [...$body, '', $actions];
+
+        return implode("\n", $body);
+    }
+
+    /**
+     * Render the "More Like This" section for leaf items.
+     *
+     * @return list<string>
+     */
+    private function renderSimilarSection(int $width): array
+    {
+        if ($this->similar === null || $this->similar === []) {
+            return [];
+        }
+
+        $accent = Style::new()->bold();
+        $dim = Style::new()->faint();
+        $selected = Style::new()->reverse();
+
+        $lines = [];
+        $lines[] = $accent->render('More Like This');
+
+        foreach ($this->similar as $index => $item) {
+            $isSelected = $index === $this->similarSelectedIndex;
+            $prefix = $isSelected ? '▶ ' : '  ';
+            $yearStr = $item->year !== null ? (string) $item->year : '';
+            $title = Width::truncate($item->name, max(1, $width - 20));
+            $meta = $yearStr !== '' ? "  {$yearStr}" : '';
+
+            if ($isSelected) {
+                $lines[] = $selected->render($prefix . $title . $dim->render($meta));
+            } else {
+                $lines[] = $prefix . $title . $dim->render($meta);
+            }
+        }
+
+        $lines[] = $dim->render('←→ navigate  ⏎ open');
+
+        return $lines;
     }
 
     private function metaLine(MediaItem $item): string
@@ -1111,6 +1250,24 @@ final class DetailScreen implements Breadcrumbed, Themed
         $next->ratings = $ratings;
 
         return $next;
+    }
+
+    /**
+     * @return array{self, ?\Closure}
+     * @param list<MediaItem> $items
+     */
+    private function onSimilar(string $mediaId, array $items): array
+    {
+        // Ignore if this result is for a different DetailScreen (user navigated away).
+        if ($mediaId !== $this->id) {
+            return [$this, null];
+        }
+
+        $next = clone $this;
+        $next->similar = $items;
+        $next->similarSelectedIndex = 0;
+
+        return [$next, null];
     }
 
     // ---- breadcrumb ----------------------------------------------------

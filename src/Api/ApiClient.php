@@ -286,6 +286,26 @@ final class ApiClient
             });
     }
 
+    /**
+     * Similar media items to the given item (More Like This).
+     *
+     * @return PromiseInterface<list<MediaItem>>
+     */
+    public function similar(string $id): PromiseInterface
+    {
+        return $this->authed('GET', '/api/v1/media/' . rawurlencode($id) . '/similar')
+            ->then(static function (array $data): array {
+                $items = [];
+                foreach (Coerce::map($data['items'] ?? null) as $row) {
+                    if (is_array($row)) {
+                        $items[] = MediaItem::fromArray($row);
+                    }
+                }
+
+                return $items;
+            });
+    }
+
     // ---- music ---------------------------------------------------------
 
     /**
