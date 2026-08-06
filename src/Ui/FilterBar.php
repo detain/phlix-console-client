@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Ui;
 
+use Phlix\Console\I18n\Lang;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Sprinkles\Style;
@@ -125,11 +126,11 @@ final readonly class FilterBar
 
     public function render(): string
     {
-        $search = $this->search === '' ? '(type to filter)' : $this->search;
+        $search = $this->search === '' ? Lang::t('filter.search_placeholder') : $this->search;
 
-        return $this->segment(self::SEARCH, 'Search: ' . $search)
-            . '    ' . $this->segment(self::SORT, 'Sort: ' . ($this->sort ?? 'name'))
-            . '    ' . $this->segment(self::ORDER, 'Order: ' . ($this->order ?? 'asc'));
+        return $this->segment(self::SEARCH, Lang::t('filter.search_label') . $search)
+            . '    ' . $this->segment(self::SORT, Lang::t('filter.sort_label') . ($this->sort ?? 'name'))
+            . '    ' . $this->segment(self::ORDER, Lang::t('filter.order_label') . ($this->order ?? Lang::t('filter.order_asc')));
     }
 
     private function segment(int $control, string $label): string

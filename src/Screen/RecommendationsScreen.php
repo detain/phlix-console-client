@@ -11,6 +11,7 @@ namespace Phlix\Console\Screen;
 
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\AuthError;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\RecommendationDismissFailedMsg;
@@ -38,9 +39,8 @@ final class RecommendationsScreen implements Model, Teardownable, CapturesSlash,
     use SubscriptionCapable;
     use ThemedScreen;
 
-    private const HINT = 'Q: Back  ↑↓: Navigate  Enter: Open  X: Dismiss';
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
-    private const LOAD_FAILED = 'Could not load recommendations.';
+    private const SESSION_EXPIRED_KEY = 'recommendations.session_expired';
+    private const LOAD_FAILED_KEY = 'recommendations.load_failed';
 
     /** @var list<RecommendationCard> */
     private array $items = [];
@@ -75,8 +75,8 @@ final class RecommendationsScreen implements Model, Teardownable, CapturesSlash,
                     return new RecommendationsLoadedMsg($recommendations);
                 },
                 static fn (\Throwable $e): Msg => $e instanceof AuthError
-                    ? new SessionExpiredMsg(self::SESSION_EXPIRED)
-                    : new \Phlix\Console\Msg\RecommendationsFailedMsg(self::LOAD_FAILED),
+                    ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
+                    : new \Phlix\Console\Msg\RecommendationsFailedMsg(Lang::t(self::LOAD_FAILED_KEY)),
             );
         });
     }
@@ -110,9 +110,9 @@ final class RecommendationsScreen implements Model, Teardownable, CapturesSlash,
     public function view(): string
     {
         return Chrome::frame(
-            'For You',
+            Lang::t('recommendations.title'),
             $this->body(),
-            self::HINT,
+            Lang::t('recommendations.hint'),
             $this->cols,
             $this->rows,
             $this->crumbs,
@@ -204,8 +204,8 @@ final class RecommendationsScreen implements Model, Teardownable, CapturesSlash,
                 static function (\Throwable $e): \Phlix\Console\Msg\RecommendationDismissFailedMsg {
                     return new RecommendationDismissFailedMsg(
                         $e instanceof AuthError
-                            ? 'Your session expired. Please sign in again.'
-                            : 'Could not dismiss recommendation.',
+                            ? Lang::t(self::SESSION_EXPIRED_KEY)
+                            : Lang::t('recommendations.dismiss_failed'),
                     );
                 },
             );
@@ -215,13 +215,13 @@ final class RecommendationsScreen implements Model, Teardownable, CapturesSlash,
     private function body(): string
     {
         if ($this->loading) {
-            return "\n\n  Loading recommendations…";
+            return "\n\n  " . Lang::t('recommendations.loading');
         }
         if ($this->error !== null) {
             return "\n\n  {$this->error}";
         }
         if ($this->items === []) {
-            return "\n\n  No recommendations yet.\n  Start watching to get personalized suggestions!";
+            return "\n\n  " . Lang::t('recommendations.empty');
         }
 
         $cards = [];
@@ -314,6 +314,6 @@ final class RecommendationsScreen implements Model, Teardownable, CapturesSlash,
 
     public function crumbLabel(): string
     {
-        return 'For You';
+        return Lang::t('recommendations.crumb');
     }
 }
