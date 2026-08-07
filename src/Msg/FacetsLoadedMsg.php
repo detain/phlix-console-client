@@ -18,6 +18,9 @@ use SugarCraft\Core\Msg;
  */
 final readonly class FacetsLoadedMsg implements Msg
 {
+    /**
+     * @param array<string, list<string>> $facets e.g. ['genres' => ['Action', 'Comedy', ...]]
+     */
     public function __construct(
         public array $facets,
         public int $generation,

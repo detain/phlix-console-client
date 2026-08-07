@@ -1409,30 +1409,6 @@ final class App implements Model
         return [$this->push(Route::Servers, $screen), $screen->init()];
     }
 
-    /** @return array{App, ?\Closure} */
-    private function openSharedWithMe(): array
-    {
-        $screen = new SharedWithMeScreen(new HubClient($this->api));
-
-        return [$this->push(Route::SharedWithMe, $screen), $screen->init()];
-    }
-
-    /** @return array{App, ?\Closure} */
-    private function openInviteLinks(): array
-    {
-        $screen = new InviteLinksScreen(new HubClient($this->api));
-
-        return [$this->push(Route::InviteLinks, $screen), $screen->init()];
-    }
-
-    /** @return array{App, ?\Closure} */
-    private function openFederationShares(): array
-    {
-        $screen = new FederationSharesScreen(new HubClient($this->api));
-
-        return [$this->push(Route::FederationShares, $screen), $screen->init()];
-    }
-
     /**
      * Switch to a different server: update config active id, swap the ApiClient
      * token to that server's stored token, invalidate ALL caches, and return to browse.
@@ -1678,7 +1654,7 @@ final class App implements Model
             return [$this->push(Route::AdminDuplicates, $screen), $screen->init()];
         }
         if ($section === Route::AdminMetadataMatch) {
-            $screen = new AdminMetadataMatchScreen(new AdminClient($this->api), $this->cols, $this->rows);
+            $screen = new AdminMetadataMatchScreen(new AdminClient($this->api));
 
             return [$this->push(Route::AdminMetadataMatch, $screen), $screen->init()];
         }
