@@ -10,7 +10,7 @@ use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Msg\GridPosterLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenPhotoAlbumMsg;
-use Phlix\Console\Msg\PhotoAlbumsLoadedMsg;
+use Phlix\Console\Msg\PhotoRangeLoadedMsg;
 use Phlix\Console\Msg\PhotosFailedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Screen\PhotosScreen;
@@ -95,7 +95,7 @@ final class PhotosScreenTest extends TestCase
         $transport = (new FakeTransport())->json(200, $this->albumsEnvelope($count, null));
         $screen = $this->screenWith($transport);
         $msgs = $this->runBatch($screen->init());
-        self::assertInstanceOf(PhotoAlbumsLoadedMsg::class, $msgs[0]);
+        self::assertInstanceOf(PhotoRangeLoadedMsg::class, $msgs[0]);
 
         // Feed the albums; the returned cover Cmd is ignored (coverless albums →
         // no covers to load).
@@ -108,8 +108,8 @@ final class PhotosScreenTest extends TestCase
         $screen = $this->screenWith($transport);
 
         $msgs = $this->runBatch($screen->init());
-        self::assertInstanceOf(PhotoAlbumsLoadedMsg::class, $msgs[0]);
-        self::assertCount(5, $msgs[0]->albums);
+        self::assertInstanceOf(PhotoRangeLoadedMsg::class, $msgs[0]);
+        self::assertCount(5, $msgs[0]->range->albums);
         self::assertStringContainsString('/api/v1/photo/albums?', $transport->requestAt(0)['url']);
         self::assertStringContainsString('library_id=lib-photos', $transport->requestAt(0)['url']);
 
