@@ -699,9 +699,8 @@ final class PlayerScreenTest extends TestCase
             ->json(200, $this->continueWatching())  // 2: resume (init)
             ->json(200, $this->playbackResponse())  // 3: audio tracks (init)
             ->json(201, ['session_id' => 'sess-1'])  // 4: createSession
-            ->json(200, ['tracks' => [['index' => 0, 'default' => true, 'language' => 'eng', 'label' => 'English', 'codec' => 'subrip']]])  // 5: extra response (readyWithSession may need 4)
-            ->json(200, ['tracks' => [['index' => 0, 'default' => true, 'language' => 'eng', 'label' => 'English', 'codec' => 'subrip']]]) // 6: subtitle tracks (on `c`)
-            ->fail(new \RuntimeException('VTT fetch failed')); // 7: VTT body fails
+            ->json(200, ['tracks' => [['index' => 0, 'default' => true, 'language' => 'eng', 'label' => 'English', 'codec' => 'subrip']]]) // 5: subtitle tracks (on `c`)
+            ->fail(new \RuntimeException('VTT fetch failed')); // 6: VTT body fails
         [$screen] = $this->screen(transport: $transport);
         $ready = $this->readyWithSession($transport);
 
