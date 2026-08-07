@@ -16,6 +16,7 @@ final class FakePlayerDecoder extends \SugarCraft\Reel\Tests\FakeDecoder
 {
     private int $index = 0;
     private bool $closed = false;
+    private bool $ended = false;
 
     /** @param list<RgbFrame> $frames */
     public function __construct(protected array $frames)
@@ -26,6 +27,16 @@ final class FakePlayerDecoder extends \SugarCraft\Reel\Tests\FakeDecoder
     {
         $this->index = 0;
         $this->closed = false;
+        $this->ended = false;
+    }
+
+    public function reopen(string $source, int $cellsW, int $cellsH, float $fps, ?Mode $mode = null, float $startSec = 0.0): void
+    {
+        $this->index = 0;
+        $this->closed = false;
+        $this->ended = false;
+        $this->opened = true;
+        $this->everOpened = true;
     }
 
     public function next(): ?RgbFrame
@@ -57,5 +68,10 @@ final class FakePlayerDecoder extends \SugarCraft\Reel\Tests\FakeDecoder
     public function isClosed(): bool
     {
         return $this->closed;
+    }
+
+    public function isEnded(): bool
+    {
+        return $this->ended;
     }
 }
