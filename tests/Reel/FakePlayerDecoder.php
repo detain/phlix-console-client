@@ -34,7 +34,12 @@ final class FakePlayerDecoder extends \SugarCraft\Reel\Tests\FakeDecoder
             return null;
         }
 
-        return $this->frames[$this->index++] ?? null;
+        $frame = $this->frames[$this->index++] ?? null;
+        if ($frame === null) {
+            $this->closed = true;
+        }
+
+        return $frame;
     }
 
     public function close(): void
@@ -52,5 +57,14 @@ final class FakePlayerDecoder extends \SugarCraft\Reel\Tests\FakeDecoder
     public function isClosed(): bool
     {
         return $this->closed;
+    }
+
+    public function current(): ?array
+    {
+        if ($this->index >= count($this->frames)) {
+            $this->ended = true;  // Signal that playback has ended
+            return null;
+        }
+        return $this->frames[$this->index++] ?? null;
     }
 }
