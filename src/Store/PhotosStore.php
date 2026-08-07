@@ -11,6 +11,7 @@ namespace Phlix\Console\Store;
 
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\Dto\Photo;
+use Phlix\Console\Api\Dto\PhotoAlbum;
 use Phlix\Console\Api\Dto\PhotoAlbumPage;
 use React\Promise\Deferred;
 use React\Promise\PromiseInterface;
@@ -40,6 +41,12 @@ final class PhotosStore
 
     /** @var array<string, PromiseInterface<PhotoAlbumPage>>  page key → in-flight fetch */
     private array $inFlight = [];
+
+    /** @var array<string, PromiseInterface<list<PhotoAlbum>>>  libraryId → in-flight album fetch */
+    private array $albumsInFlight = [];
+
+    /** @var array<string, PromiseInterface<list<PhotoAlbum>>>  libraryId → in-flight forced album fetch */
+    private array $albumsForceInFlight = [];
 
     /** @var LruMap */
     private LruMap $photos;
@@ -106,6 +113,70 @@ final class PhotosStore
 
             return new PhotoRange($albums, $total);
         });
+    }
+
+    /**
+     * Fetch the first page of albums for a library, returning just the albums list.
+     * Concurrent calls for the same library are deduplicated.
+     *
+     * @return PromiseInterface<list<PhotoAlbum>>
+     */
+    public function albums(string $libraryId, bool $force = false): PromiseInterface
+    {
+        if ($force) {
+            return $this->albumsForce($libraryId);
+        }
+
+        if (isset($this->albumsInFlight[$libraryId])) {
+            return $this->albumsInFlight[$libraryId];
+        }
+
+        $promise = $this->page($libraryId, 0, self::DEFAULT_LIMIT)->then(
+            static fn (PhotoAlbumPage $page): array => $page->albums,
+        );
+        $this->albumsInFlight[$libraryId] = $promise;
+
+        // Clear the in-flight entry once the promise settles.
+        $promise->then(
+            function () use ($libraryId): void {
+                unset($this->albumsInFlight[$libraryId]);
+            },
+            function () use ($libraryId): void {
+                unset($this->albumsInFlight[$libraryId]);
+            },
+        );
+
+        return $promise;
+    }
+
+    /**
+     * Bypass the cache and force-fetch the first page of albums for a library.
+     * Concurrent calls for the same library are still deduplicated.
+     *
+     * @return PromiseInterface<list<PhotoAlbum>>
+     */
+    private function albumsForce(string $libraryId): PromiseInterface
+    {
+        if (isset($this->albumsForceInFlight[$libraryId])) {
+            return $this->albumsForceInFlight[$libraryId];
+        }
+
+        /** @var Deferred<list<PhotoAlbum>> $deferred */
+        $deferred = new Deferred();
+        $this->albumsForceInFlight[$libraryId] = $deferred->promise();
+
+        $this->api->photoAlbums($libraryId, self::DEFAULT_LIMIT, 0)->then(
+            function (PhotoAlbumPage $page) use ($libraryId, $deferred): void {
+                unset($this->albumsForceInFlight[$libraryId]);
+                $deferred->resolve($page->albums);
+            },
+            function (\Throwable $error) use ($libraryId, $deferred): void {
+                unset($this->albumsForceInFlight[$libraryId]);
+                $deferred->reject($error);
+            },
+        );
+
+        return $deferred->promise();
     }
 
     /**
