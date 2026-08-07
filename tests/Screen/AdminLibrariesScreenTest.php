@@ -172,13 +172,16 @@ final class AdminLibrariesScreenTest extends TestCase
      */
     private function populateLibrariesStore(LibrariesStore $store, array $data): void
     {
+        // Create an LruMap and set its internal data to the proper cache structure.
+        // The cache stores ['libraries' => ['cache' => list<Library>, 'at' => float]]
+        $lruMap = new \Phlix\Console\Store\LruMap(1);
+        $lruDataReflect = new \ReflectionProperty(\Phlix\Console\Store\LruMap::class, 'data');
+        $lruDataReflect->setAccessible(true);
+        $lruDataReflect->setValue($lruMap, ['libraries' => ['cache' => $data, 'at' => time() - 10]]);
+
         $cacheReflect = new \ReflectionProperty($store, 'cache');
         $cacheReflect->setAccessible(true);
-        $cacheReflect->setValue($store, $data);
-
-        $fetchedReflect = new \ReflectionProperty($store, 'fetchedAt');
-        $fetchedReflect->setAccessible(true);
-        $fetchedReflect->setValue($store, time() - 10);
+        $cacheReflect->setValue($store, $lruMap);
     }
 
     /**
@@ -186,9 +189,16 @@ final class AdminLibrariesScreenTest extends TestCase
      */
     private function populateMediaStore(MediaStore $store): void
     {
+        // Create an LruMap and set its internal data to the proper cache structure.
+        // The pages cache stores [$key => ['page' => MediaPage, 'at' => float]]
+        $lruMap = new \Phlix\Console\Store\LruMap(2000);
+        $lruDataReflect = new \ReflectionProperty(\Phlix\Console\Store\LruMap::class, 'data');
+        $lruDataReflect->setAccessible(true);
+        $lruDataReflect->setValue($lruMap, ['some-key' => ['page' => 'data', 'at' => time() - 10]]);
+
         $pagesReflect = new \ReflectionProperty($store, 'pages');
         $pagesReflect->setAccessible(true);
-        $pagesReflect->setValue($store, ['some-key' => ['page' => 'data', 'at' => time() - 10]]);
+        $pagesReflect->setValue($store, $lruMap);
     }
 
     public function testScanLibraryInvalidatesCachesOnSuccess(): void
