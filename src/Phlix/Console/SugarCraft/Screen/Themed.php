@@ -7,7 +7,7 @@ declare(strict_types=1);
  * @license   MIT
  */
 
-namespace SugarCraft\Screen;
+namespace Phlix\Console\SugarCraft\Screen;
 
 /**
  * Interface for screens that support theming.

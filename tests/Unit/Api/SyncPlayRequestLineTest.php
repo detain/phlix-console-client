@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Phlix\Tests\Unit\Api;
+namespace Phlix\Console\Tests\Unit\Api;
 
 use Phlix\Console\Api\ApiClient;
 use PHPUnit\Framework\TestCase;

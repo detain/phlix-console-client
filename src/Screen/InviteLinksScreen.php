@@ -18,8 +18,8 @@ use SugarCraft\Core\Msg\KeyMsg as KeyMessage;
 use SugarCraft\Core\Model;
 use SugarCraft\Core\SubscriptionCapable;
 use SugarCraft\Core\View;
-use SugarCraft\Screen\Breadcrumbed;
-use SugarCraft\Screen\Themed;
+use Phlix\Console\SugarCraft\Screen\Breadcrumbed;
+use Phlix\Console\SugarCraft\Screen\Themed;
 
 final class InviteLinksScreen implements Model, Breadcrumbed, Themed
 {
