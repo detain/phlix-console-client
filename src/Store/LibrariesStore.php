@@ -24,8 +24,8 @@ final class LibrariesStore
     /** Single-entry cache capacity. */
     private const CACHE_CAPACITY = 1;
 
-    /** @var LruMap */
-    private LruMap $cache;
+    /** @var LruMap|null */
+    private ?LruMap $cache;
 
     /** @var \Closure(): float */
     private readonly \Closure $clock;
@@ -52,6 +52,11 @@ final class LibrariesStore
         $key = 'libraries';
         $now = ($this->clock)();
 
+        // Reinitialize cache if it was invalidated (set to null).
+        if ($this->cache === null) {
+            $this->cache = new LruMap(self::CACHE_CAPACITY);
+        }
+
         $entry = $this->cache->peek($key);
         /** @var array{cache: list<Library>, at: float}|null $entry */
         if (!$force && $entry !== null && ($now - $entry['at']) < $this->ttl) {
@@ -70,6 +75,10 @@ final class LibrariesStore
     /** @return list<Library>|null */
     public function cached(): ?array
     {
+        if ($this->cache === null) {
+            return null;
+        }
+
         /** @var array{cache: list<Library>, at: float}|null $entry */
         $entry = $this->cache->peek('libraries');
 
@@ -78,6 +87,6 @@ final class LibrariesStore
 
     public function invalidate(): void
     {
-        $this->cache->clear();
+        $this->cache = null;
     }
 }

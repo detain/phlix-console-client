@@ -151,20 +151,17 @@ final class AdminLibrariesScreenTest extends TestCase
         $cacheReflect = new \ReflectionProperty($store, 'cache');
         $cacheReflect->setAccessible(true);
         self::assertNull($cacheReflect->getValue($store), $message . ': cache should be null');
-
-        $fetchedReflect = new \ReflectionProperty($store, 'fetchedAt');
-        $fetchedReflect->setAccessible(true);
-        self::assertSame(0.0, $fetchedReflect->getValue($store), $message . ': fetchedAt should be 0.0');
     }
 
     /**
-     * Check via reflection that MediaStore was invalidated (pages = []).
+     * Check via reflection that MediaStore was invalidated (pages is empty LruMap).
      */
     private function assertMediaStoreInvalidated(MediaStore $store, string $message): void
     {
         $pagesReflect = new \ReflectionProperty($store, 'pages');
         $pagesReflect->setAccessible(true);
-        self::assertSame([], $pagesReflect->getValue($store), $message . ': pages should be empty');
+        $pages = $pagesReflect->getValue($store);
+        self::assertSame(0, count($pages), $message . ': pages should be empty');
     }
 
     /**
