@@ -940,7 +940,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
 
                 return $this->api->subtitleVtt($id, $track->index)
                     ->then(static fn (string $vttBody) => new SubtitleVttLoadedMsg(\SugarCraft\Reel\Subtitle\WebVtt::parse($vttBody)))
-                    ->catch(static fn (): Msg => new SubtitleVttLoadedMsg(ShowToastMsg::error('Subtitles failed to load')));
+                    ->catch(static fn (): Msg => ShowToastMsg::error('Subtitles failed to load'));
             },
             static fn (): Msg => new SubtitleVttLoadedMsg(null),
         ));
