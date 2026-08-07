@@ -187,7 +187,7 @@ final class AdminRemoteAccessScreenTest extends TestCase
 
         $view = $screen->view();
         self::assertStringContainsString('Not paired', $view);
-        self::assertStringContainsString('Pair from the web admin', $view, 'the pairing wizard is deferred');
+        self::assertStringContainsString('Press p to pair with a hub', $view, 'the pairing wizard is in the console');
         self::assertStringContainsString('No subdomain claimed', $view);
         self::assertStringContainsString('Disconnected', $view);
         self::assertStringContainsString('Port forwarding disabled', $view);
@@ -244,7 +244,7 @@ final class AdminRemoteAccessScreenTest extends TestCase
         $screen = $this->loaded($this->statusTransport($this->inactivePayloads()));
 
         // Hub panel selected, unpaired → no unenroll, points at the web admin.
-        self::assertStringContainsString('pair from web admin', $screen->view());
+        self::assertStringContainsString('Press p to pair with a hub', $screen->view());
         self::assertStringNotContainsString('u unenroll', $screen->view());
 
         // Subdomain (unclaimed) → claim.
