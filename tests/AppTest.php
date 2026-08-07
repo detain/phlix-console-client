@@ -1195,7 +1195,7 @@ final class AppTest extends TestCase
         $stack = [['route' => Route::Login, 'screen' => LoginScreen::create(null, 80, 24)]];
         [$open] = $this->appWithStack($stack, loggedIn: true)->update($this->ctrlK());
 
-        self::assertStringContainsString('Quit', $open->view(), 'the palette box floats over the screen');
+        self::assertStringContainsString('Log out', $open->view(), 'the palette box floats over the screen');
     }
 
     public function testViewHighlightsThePaletteMatchAfterTyping(): void
@@ -1441,7 +1441,8 @@ final class AppTest extends TestCase
         // The settings frame is popped — we are back on Browse.
         self::assertSame(1, $saved->stackDepth(), 'the settings frame is popped');
         self::assertSame(Route::Browse, $saved->route());
-        self::assertNull($cmd);
+        // The server sync command is returned for best-effort background sync.
+        self::assertInstanceOf(\Closure::class, $cmd, 'server sync cmd is returned');
         // And it was persisted to disk (hermetic via the temp XDG_CONFIG_HOME).
         $onDisk = Config::load();
         self::assertSame('Midnight', $onDisk->theme, 'the theme was saved');
@@ -1472,7 +1473,8 @@ final class AppTest extends TestCase
         self::assertSame('Midnight', $saved->theme()->name, 'the theme still applies live when the save fails');
         self::assertSame(15, $saved->config()->slideshowInterval, 'the interval still applies in memory');
         self::assertSame(1, $saved->stackDepth(), 'the settings frame is still popped');
-        self::assertNull($cmd);
+        // The server sync command is returned for best-effort background sync.
+        self::assertInstanceOf(\Closure::class, $cmd, 'server sync cmd is returned even when local save fails');
 
         @unlink($this->dir . '/phlix');
     }
@@ -2928,7 +2930,7 @@ final class AppTest extends TestCase
 
         $view = $open->view();
         self::assertStringContainsString('Mem', $view, 'the HUD is still drawn');
-        self::assertStringContainsString('Quit', $view, 'the palette box floats over the HUD');
+        self::assertStringContainsString('Log out', $view, 'the palette box floats over the HUD');
     }
 
     public function testAToastStillCompositesWithTheHudOn(): void
