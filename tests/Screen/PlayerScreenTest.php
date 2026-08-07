@@ -690,15 +690,28 @@ final class PlayerScreenTest extends TestCase
     /**
      * @see https://github.com/phlix-detail/phlix-console-client/issues/TEST-FAILS
      *
-     * PRE-EXISTING ARCHITECTURAL ISSUE: Production code does not produce ShowToastMsg
-     * when VTT load fails. The test expects ShowToastMsg but receives null.
-     *
-     * This is a production code issue in the VTT/subtitle handling logic where
-     * a failed VTT fetch should produce ShowToastMsg but currently returns null.
+     * VTT load failure should produce ShowToastMsg.
      */
     public function testFailedVttLoadProducesShowToastMsg(): void
     {
-        $this->markTestSkipped('PRE-EXISTING PRODUCTION CODE ISSUE: Failed VTT load does not produce ShowToastMsg - returns null instead. Production code needs fix in VTT/subtitle handling.');
+        $transport = (new FakeTransport())
+            ->json(200, $this->markersResponse())  // 1: markers (init)
+            ->json(200, $this->continueWatching())  // 2: resume (init)
+            ->json(200, $this->playbackResponse())  // 3: audio tracks (init)
+            ->json(201, ['session_id' => 'sess-1'])  // 4: createSession
+            ->json(200, ['tracks' => [['index' => 0, 'default' => true, 'language' => 'eng', 'label' => 'English', 'codec' => 'subrip']]])  // 5: extra response (readyWithSession may need 4)
+            ->json(200, ['tracks' => [['index' => 0, 'default' => true, 'language' => 'eng', 'label' => 'English', 'codec' => 'subrip']]]) // 6: subtitle tracks (on `c`)
+            ->fail(new \RuntimeException('VTT fetch failed')); // 7: VTT body fails
+        [$screen] = $this->screen(transport: $transport);
+        $ready = $this->readyWithSession($transport);
+
+        // Toggle captions on - this triggers VTT fetch which will fail
+        [$on, $cmd] = $ready->update(new KeyMsg(KeyType::Char, 'c'));
+        $msgs = $this->runBatch($cmd);
+
+        // The failed VTT fetch produces ShowToastMsg directly (no SubtitleVttLoadedMsg wrapper)
+        $toast = $this->firstOfType($msgs, ShowToastMsg::class);
+        self::assertNotNull($toast, 'VTT load failure should produce ShowToastMsg');
     }
 
     // ---- audio tracks (P3B) --------------------------------------------
@@ -1218,19 +1231,39 @@ final class PlayerScreenTest extends TestCase
     /**
      * @see https://github.com/phlix-detail/phlix-console-client/issues/TEST-FAILS
      *
-     * PRE-EXISTING PRODUCTION CODE ISSUE: completeSession is not being called.
-     *
-     * The test expects completeSession to fire when the player transitions to ended state
-     * via Right key (seekBy). However, the condition $nextInner->ended && !$inner->ended
-     * is not being met, so completeSession is never triggered (0 calls instead of 1).
-     *
-     * This appears to be a production code issue in PlayerScreen's update logic where
-     * the ended transition condition is not properly evaluating, or seekBy is not
-     * correctly setting the ended state on the new inner player.
+     * completeSession should fire when the player transitions to ended state.
+     * This test uses an empty decoder that ends on first tick (natural end).
      */
     public function testCompleteSessionFiresOnNaturalEnd(): void
     {
-        $this->markTestSkipped('PRE-EXISTING PRODUCTION CODE ISSUE: completeSession not called when player becomes ended. Condition $nextInner->ended && !$inner->ended not met - production code needs investigation.');
+        $transport = (new FakeTransport())
+            ->json(200, $this->markersResponse())
+            ->json(200, $this->continueWatching())
+            ->json(200, $this->playbackResponse())
+            ->json(201, ['session_id' => 'sess-1'])
+            ->json(200, ['message' => 'ok']); // completeSession
+        $ready = $this->readyWithSession($transport);
+
+        // Get initial complete count
+        $before = count(array_filter(
+            $transport->requests,
+            static fn (array $r): bool => str_contains($r['url'] ?? '', '/complete'),
+        ));
+
+        // The player should not have ended yet
+        self::assertFalse($ready->player()?->ended ?? true, 'player should not be ended yet');
+
+        // Trigger a tick - but this player is at position 0 with 2400 frames, not ended yet
+        // Use seek to end to trigger completion
+        [$seeked] = $ready->update(new KeyMsg(KeyType::Right));
+
+        $after = count(array_filter(
+            $transport->requests,
+            static fn (array $r): bool => str_contains($r['url'] ?? '', '/complete'),
+        ));
+
+        // completeSession should have been called
+        self::assertSame($before + 1, $after, 'completeSession should fire when player ends');
     }
 
     public function testCompleteSessionFiresExactlyOnce(): void
@@ -1278,7 +1311,36 @@ final class PlayerScreenTest extends TestCase
      */
     public function testSeekingBackwardThenForwardAfterCompletionDoesNotFireSecondComplete(): void
     {
-        $this->markTestSkipped('PRE-EXISTING PRODUCTION CODE ISSUE: Same root cause as testCompleteSessionFiresOnNaturalEnd - completeSession not called. See that issue for details.');
+        $transport = (new FakeTransport())
+            ->json(200, $this->markersResponse())
+            ->json(200, $this->continueWatching())
+            ->json(200, $this->playbackResponse())
+            ->json(201, ['session_id' => 'sess-1'])
+            ->json(200, ['message' => 'ok'])          // completeSession
+            ->json(200, ['message' => 'ended']);
+        $ready = $this->readyWithSession($transport);
+
+        // First Right key: triggers completion
+        [$ended] = $ready->update(new KeyMsg(KeyType::Right));
+
+        $before = count(array_filter(
+            $transport->requests,
+            static fn (array $r): bool => str_contains($r['url'] ?? '', '/complete'),
+        ));
+        self::assertSame(1, $before, 'First Right key should trigger completeSession');
+
+        // Left key: restarts ticking (seeking backward clears ended state)
+        [$scrubbedBack] = $ended->update(new KeyMsg(KeyType::Left));
+        self::assertFalse($scrubbedBack->player()?->ended ?? true, 'Left key should clear ended state');
+
+        // Second Right key: should NOT fire another completeSession (guarded by $completeSent)
+        [$forwardAgain] = $scrubbedBack->update(new KeyMsg(KeyType::Right));
+
+        $after = count(array_filter(
+            $transport->requests,
+            static fn (array $r): bool => str_contains($r['url'] ?? '', '/complete'),
+        ));
+        self::assertSame($before, $after, 'completeSession should not fire again after seeking backward and forward');
     }
 
     /**
@@ -1297,7 +1359,23 @@ final class PlayerScreenTest extends TestCase
      */
     public function testCompleteSessionRejectionProducesShowToastMsg(): void
     {
-        $this->markTestSkipped('PRE-EXISTING PRODUCTION CODE ISSUE: Same root cause as testCompleteSessionFiresOnNaturalEnd - completeSession not called. See that issue for details.');
+        $transport = (new FakeTransport())
+            ->json(200, $this->markersResponse())
+            ->json(200, $this->continueWatching())
+            ->json(200, $this->playbackResponse())
+            ->json(201, ['session_id' => 'sess-1'])
+            ->json(500, ['error' => 'Internal server error']); // completeSession fails
+        $ready = $this->readyWithSession($transport);
+
+        // Right key triggers completion attempt
+        [$ended, $cmd] = $ready->update(new KeyMsg(KeyType::Right));
+
+        // The command batch includes the completeSession call which will fail
+        $msgs = $this->runBatch($cmd);
+
+        // When completeSession returns 500, ShowToastMsg should be produced
+        $toast = $this->firstOfType($msgs, ShowToastMsg::class);
+        self::assertNotNull($toast, 'completeSession rejection should produce ShowToastMsg');
     }
 
     // ---- before-ready guards + ended-seek edge -------------------------
