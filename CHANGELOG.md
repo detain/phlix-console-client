@@ -35,6 +35,7 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **player**: `PlayerScreen::fetchSiblings()` now pages through episodes in 100-item chunks (server maximum) when locating the current episode for next/previous navigation. Previously it requested up to 500 items which exceeded the server clamp and silently failed for series beyond the first page. Shows a toast error if the episode cannot be found after exhausting all pages (up to 10,000 episodes). (C1.5)
 - **api**: `{success:false}` responses now throw `ApiError` instead of silently returning an empty DTO. The `decode()` method now centralises envelope handling for all 2xx responses, unwrapping `{success:true,data:...}` responses and surfacing `{success:false}` with the `message` or `error` field as the exception message. Previously, individual call sites had to check for `success===false` independently; any missed check would result in a confusing empty result instead of a proper error. (C1.4)
 - **discovery**: Remove dead null checks in `DetailScreen::onLoaded` (C9.1)
 - **discovery**: Restore branching return contract for hero/ratings/similar batch (C9.1)
