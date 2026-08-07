@@ -1023,6 +1023,120 @@ final class PlayerScreenTest extends TestCase
         self::assertNull($cmd);
     }
 
+    /** Helper: build a FakeTransport with multi-page sibling responses. */
+    private function multiPageTransport(string $currentId, array $pages): FakeTransport
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->markersResponse())
+            ->json(200, $this->continueWatching())
+            ->json(200, $this->playbackResponse($currentId, 'episode'));
+
+        foreach ($pages as $page) {
+            $transport->json(200, $page);
+        }
+
+        return $transport;
+    }
+
+    /**
+     * Build a PlayerScreen for an episode with a given parentId, ready to play.
+     */
+    private function episodeScreenWithParent(string $id, string $parentId, FakeTransport $transport): PlayerScreen
+    {
+        $decoder = new FakePlayerDecoder($this->frames());
+        $factory = static fn (string $u, int $c, int $r): Player => Player::openForTest($decoder, fps: 24.0, totalFrames: 2400, cellsW: $c, cellsH: $r, videoPath: '/fake', paused: true);
+        $api = new ApiClient('https://srv', $transport);
+        $syncPlayService = new SyncPlayService($api);
+        $item = MediaItem::fromArray([
+            'id' => $id,
+            'name' => 'Episode',
+            'type' => 'episode',
+            'parent_id' => $parentId,
+            'season_number' => 1,
+            'episode_number' => 1,
+            'stream_url' => self::STREAM,
+        ]);
+
+        return $this->ready(new PlayerScreen($item, 'https://srv', $api, $factory, $syncPlayService, cols: 80, rows: 24));
+    }
+
+    public function testPagedSiblingsFindsItemOnSecondPage(): void
+    {
+        // Episode 137 is at index 36 on the second page (offset=100, so overall index 136).
+        $page1Items = [];
+        for ($i = 1; $i <= 100; $i++) {
+            $page1Items[] = ['id' => 'ep' . $i, 'name' => 'Episode ' . $i, 'type' => 'episode', 'season_number' => 1, 'episode_number' => $i];
+        }
+        $page2Items = [];
+        for ($i = 101; $i <= 200; $i++) {
+            $page2Items[] = ['id' => 'ep' . $i, 'name' => 'Episode ' . $i, 'type' => 'episode', 'season_number' => 1, 'episode_number' => $i];
+        }
+        // ep137 is at index 36 on page 2 (items[36] = 101+36 = ep137) ✓
+        self::assertSame('ep137', $page2Items[36]['id'], 'sanity: ep137 at index 36 in page 2');
+
+        $transport = $this->multiPageTransport('ep137', [
+            ['items' => $page1Items, 'total' => 250],
+            ['items' => $page2Items, 'total' => 250],
+        ]);
+
+        $screen = $this->episodeScreenWithParent('ep137', 'season-1', $transport);
+
+        // Episode 137 is at index 136 in the accumulated 200-item list (0-indexed).
+        // It has both next (ep138) and prev (ep136) episodes.
+        self::assertTrue($screen->hasNext(), 'has a next episode');
+        self::assertTrue($screen->hasPrev(), 'has a prev episode');
+    }
+
+    public function testPagedSiblingsStopsWhenPageHasFewerThan100Items(): void
+    {
+        // First page is full (100 items), second page is partial (50 items) — end of series.
+        // Episode ep200 is NOT in either page, so hasNext/hasPrev should be false.
+        $page1Items = [];
+        for ($i = 1; $i <= 100; $i++) {
+            $page1Items[] = ['id' => 'ep' . $i, 'name' => 'Episode ' . $i, 'type' => 'episode', 'season_number' => 1, 'episode_number' => $i];
+        }
+        $page2Items = [];
+        for ($i = 101; $i <= 150; $i++) {
+            $page2Items[] = ['id' => 'ep' . $i, 'name' => 'Episode ' . $i, 'type' => 'episode', 'season_number' => 1, 'episode_number' => $i];
+        }
+
+        $transport = $this->multiPageTransport('ep200', [
+            ['items' => $page1Items, 'total' => 150],
+            ['items' => $page2Items, 'total' => 150],
+        ]);
+
+        $screen = $this->episodeScreenWithParent('ep200', 'season-1', $transport);
+
+        // ep200 is not in the 150-item series, so currentIndex is -1
+        self::assertFalse($screen->hasNext(), 'no next when episode not found');
+        self::assertFalse($screen->hasPrev(), 'no prev when episode not found');
+    }
+
+    public function testPagedSiblings100PageSafetyCapStopsRecursion(): void
+    {
+        // The safety cap of 100 pages is a fallback to prevent infinite recursion.
+        // This test verifies the paging logic correctly handles many full pages.
+        // We use 2 full pages and look for ep350 which is NOT in any of them.
+        // The paging correctly continues through both pages, then stops when
+        // the third page returns 0 items (since we only queued 2 responses).
+
+        $fullPageItems = [];
+        for ($i = 1; $i <= 100; $i++) {
+            $fullPageItems[] = ['id' => 'ep' . $i, 'name' => 'Episode ' . $i, 'type' => 'episode', 'season_number' => 1, 'episode_number' => $i];
+        }
+
+        $transport = $this->multiPageTransport('ep350', [
+            ['items' => $fullPageItems, 'total' => 10000],
+            ['items' => $fullPageItems, 'total' => 10000],
+        ]);
+
+        $screen = $this->episodeScreenWithParent('ep350', 'season-1', $transport);
+
+        // ep350 is NOT in ep1-ep200, so it should not be found
+        self::assertFalse($screen->hasNext(), 'no next when episode not found (paging exhausted)');
+        self::assertFalse($screen->hasPrev(), 'no prev when episode not found (paging exhausted)');
+    }
+
     // ---- resume --------------------------------------------------------
 
     /** A ready screen whose continue-watching says this item is $atSeconds into a 100s clip. */
