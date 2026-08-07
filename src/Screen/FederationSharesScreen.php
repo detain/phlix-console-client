@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Screen;
 
-use Phlix\Console\Api\Hub\HubClient;
 use Phlix\Console\Ui\Chrome;
 use SugarCraft\Core\Msg;
 use SugarCraft\Core\SubscriptionCapable;
@@ -17,16 +16,12 @@ final class FederationSharesScreen implements Breadcrumbed, Themed
     use SubscriptionCapable;
     use ThemedScreen;
 
-    /** @var list<array<string, mixed>> */
-    private array $items = [];
     /** @var list<string> */
     private array $crumbs = [];
     private int $cols = 80;
     private int $rows = 24;
 
-    public function __construct(
-        private readonly HubClient $hub,
-    ) {}
+    public function __construct() {}
 
     public function init(): ?\Closure
     {
