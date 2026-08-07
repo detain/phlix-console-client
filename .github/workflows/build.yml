@@ -37,13 +37,13 @@ jobs:
         run: box compile
 
       - name: Smoke-test the phar
-        run: php phlix.phar help
+        run: php build/phlix.phar help
 
       - name: Upload phar artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: phlix-phar
-          path: phlix.phar
+          path: build/phlix.phar
           if-no-files-found: error
 
   release-latest:
