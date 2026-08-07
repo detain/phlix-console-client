@@ -35,12 +35,8 @@ final class AdminMetadataMatchScreen implements Breadcrumbed, Themed
     private bool $showPosterPicker = false;
     /** @var array<int, array{url:string,thumb:string,width:int,height:int}> */
     private array $posterCandidates = [];
-    /** @var list<string> */
-    private array $crumbs = [];
-
     public function __construct(
         private readonly AdminClient $adminClient,
-        private int $cols = 80,
     ) {
     }
 
@@ -243,10 +239,7 @@ final class AdminMetadataMatchScreen implements Breadcrumbed, Themed
     /** @param list<string> $trail */
     public function withCrumbs(array $trail): static
     {
-        $next = clone $this;
-        $next->crumbs = $trail;
-
-        return $next;
+        return clone $this;
     }
 
     public function view(): string
