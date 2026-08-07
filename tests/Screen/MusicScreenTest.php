@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace Phlix\Console\Tests\Screen;
 
 use Phlix\Console\Api\ApiClient;
-use Phlix\Console\Msg\AlbumsLoadedMsg;
 use Phlix\Console\Msg\MusicFailedMsg;
+use Phlix\Console\Msg\MusicRangeLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenAlbumMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Screen\MusicScreen;
+use Phlix\Console\Store\MusicRange;
 use Phlix\Console\Store\MusicStore;
 use Phlix\Console\Tests\Api\FakeTransport;
 use PHPUnit\Framework\TestCase;
@@ -53,12 +54,12 @@ final class MusicScreenTest extends TestCase
         ]];
     }
 
-    /** Load albums into the screen (init → AlbumsLoadedMsg → update). */
+    /** Load albums into the screen (init → MusicRangeLoadedMsg → update). */
     private function loaded(): MusicScreen
     {
         $screen = $this->screenWith((new FakeTransport())->json(200, $this->albumsResponse()));
         $msg = $this->runCmd($screen->init());
-        self::assertInstanceOf(AlbumsLoadedMsg::class, $msg);
+        self::assertInstanceOf(MusicRangeLoadedMsg::class, $msg);
 
         return $screen->update($msg)[0];
     }
@@ -70,9 +71,9 @@ final class MusicScreenTest extends TestCase
 
         $msg = $this->runCmd($screen->init());
 
-        self::assertInstanceOf(AlbumsLoadedMsg::class, $msg);
-        self::assertCount(2, $msg->albums);
-        self::assertSame('Abbey Road', $msg->albums[0]->name);
+        self::assertInstanceOf(MusicRangeLoadedMsg::class, $msg);
+        self::assertCount(2, $msg->range->albums);
+        self::assertSame('Abbey Road', $msg->range->albums[0]->name);
         self::assertStringContainsString('/api/v1/music/albums', $transport->requestAt(0)['url']);
     }
 
@@ -280,7 +281,7 @@ final class MusicScreenTest extends TestCase
         [$down] = $loaded->update(new KeyMsg(KeyType::Down));
         self::assertSame(1, $down->selectedIndex());
 
-        [$reloaded] = $down->update(new AlbumsLoadedMsg([$loaded->selectedAlbum()]));
+        [$reloaded] = $down->update(new MusicRangeLoadedMsg(new MusicRange([0 => $loaded->selectedAlbum()], 1), 0));
 
         self::assertSame(0, $reloaded->selectedIndex(), 'the cursor is clamped into the smaller list');
     }
