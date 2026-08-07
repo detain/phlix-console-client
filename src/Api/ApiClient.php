@@ -1275,8 +1275,18 @@ final class ApiClient
     }
 
     /**
+     * Decodes an HTTP response and unwraps the standard API envelope.
+     *
+     * For 2xx responses: if the body contains {success:false}, throws ApiError with
+     * the message from the "message" or "error" key. If {success:true,data:...} is
+     * present, returns only the "data" key. Bare objects and arrays pass through unchanged.
+     *
+     * For 4xx/5xx responses: throws ApiError (or AuthError on 401) using the "error"
+     * key as message, or a generic fallback.
+     *
      * @return array<string,mixed>
      * @throws ApiError
+     * @throws AuthError
      */
     private static function decode(ResponseInterface $response): array
     {
