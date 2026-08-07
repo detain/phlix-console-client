@@ -41,7 +41,6 @@ final class AdminMetadataMatchScreen implements Breadcrumbed, Themed
     public function __construct(
         private readonly AdminClient $adminClient,
         private int $cols = 80,
-        private int $rows = 24,
     ) {
     }
 
