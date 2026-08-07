@@ -66,7 +66,9 @@ final class LibrariesStore
         }
 
         return $this->api->libraries()->then(function (array $libraries) use ($key, $now): array {
-            $this->cache->set($key, ['cache' => $libraries, 'at' => $now]);
+            if ($this->cache !== null) {
+                $this->cache->set($key, ['cache' => $libraries, 'at' => $now]);
+            }
 
             return $libraries;
         });
