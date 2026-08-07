@@ -735,6 +735,7 @@ final class BrowseScreenTest extends TestCase
         $transport = (new FakeTransport())
             ->json(401, ['error' => 'Unauthorized'])
             ->json(401, ['error' => 'Unauthorized'])
+            ->json(401, ['error' => 'Unauthorized'])
             ->json(401, ['error' => 'Unauthorized']);
 
         $msgs = $this->runBatch($this->screenWith($transport)->init());
