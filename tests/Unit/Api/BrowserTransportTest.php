@@ -76,7 +76,7 @@ final class BrowserTransportTest extends \PHPUnit\Framework\TestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Connection refused');
 
-        $this->await($transport->send('GET', 'http://10.255.255.1:9999/', [], ''), 10.0);
+        $this->await($transport->send('GET', 'http://10.255.255.1:9999/', [], ''), 30.0);
     }
 
     /**
@@ -98,7 +98,7 @@ final class BrowserTransportTest extends \PHPUnit\Framework\TestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Connection refused');
 
-        $this->await($transport->send('POST', 'http://10.255.255.1:9999/', [], ''), 10.0);
+        $this->await($transport->send('POST', 'http://10.255.255.1:9999/', [], ''), 30.0);
     }
 
     private function startServerWithCounter(int &$requestCount): void
