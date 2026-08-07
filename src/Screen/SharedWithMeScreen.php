@@ -24,17 +24,15 @@ final class SharedWithMeScreen implements Model, Breadcrumbed, Themed
 {
     use SubscriptionCapable;
 
-    /** @var list<array{id:string,title:string,from:string,date:string}> */
+    /** @var list<array<string, mixed>> */
     private array $items = [];
     private int $selectedIndex = 0;
-    private bool $loading = true;
-    private ?string $error = null;
 
     public function __construct(
         private readonly HubClient $hub,
     ) {}
 
-    public function init(): ?\Closure
+    public function init(): \Closure
     {
         return $this->fetchCmd();
     }
@@ -44,15 +42,33 @@ final class SharedWithMeScreen implements Model, Breadcrumbed, Themed
      */
     private function fetchCmd(): \Closure
     {
-        $this->loading = true;
-        $this->error = null;
         $promise = $this->hub->sharedWithMe()->then(
             /** @param list<array<string, mixed>> $items */
             fn (array $items): array => $this->fetchSucceeded($items),
             fn (\Throwable $e): array => $this->fetchFailed($e->getMessage()),
         );
 
-        return fn () => $promise->wait();
+        return function () use ($promise): array {
+            $loop = \React\EventLoop\Loop::get();
+            $result = null;
+            $exception = null;
+            $promise->then(
+                static function ($v) use (&$result, $loop): void {
+                    $result = $v;
+                    $loop->stop();
+                },
+                static function (\Throwable $e) use (&$exception, $loop): void {
+                    $exception = $e;
+                    $loop->stop();
+                }
+            );
+            $loop->run();
+            if ($exception !== null) {
+                throw $exception;
+            }
+            /** @var array{0: self, 1: \Closure|null} */
+            return $result;
+        };
     }
 
     /**
@@ -61,7 +77,6 @@ final class SharedWithMeScreen implements Model, Breadcrumbed, Themed
      */
     private function fetchSucceeded(array $items): array
     {
-        $this->loading = false;
         $this->items = $items;
         return [$this, null];
     }
@@ -71,8 +86,6 @@ final class SharedWithMeScreen implements Model, Breadcrumbed, Themed
      */
     private function fetchFailed(string $error): array
     {
-        $this->loading = false;
-        $this->error = $error;
         return [$this, null];
     }
 
@@ -112,12 +125,34 @@ final class SharedWithMeScreen implements Model, Breadcrumbed, Themed
             return [$this, null];
         }
         $item = $this->items[$this->selectedIndex];
-        $promise = $this->hub->acceptShare($item['id'])->then(
+        /** @var string $id */
+        $id = $item['id'];
+        $promise = $this->hub->acceptShare($id)->then(
             fn (): SharedWithMeActionDoneMsg => new SharedWithMeActionDoneMsg('accepted'),
             fn (\Throwable $e): SharedWithMeFailedMsg => new SharedWithMeFailedMsg($e->getMessage()),
         );
 
-        return [$this, fn () => $promise->wait()];
+        return [$this, function () use ($promise): SharedWithMeActionDoneMsg|SharedWithMeFailedMsg {
+            $loop = \React\EventLoop\Loop::get();
+            $result = null;
+            $exception = null;
+            $promise->then(
+                static function ($v) use (&$result, $loop): void {
+                    $result = $v;
+                    $loop->stop();
+                },
+                static function (\Throwable $e) use (&$exception, $loop): void {
+                    $exception = $e;
+                    $loop->stop();
+                }
+            );
+            $loop->run();
+            if ($exception !== null) {
+                throw $exception;
+            }
+            /** @var SharedWithMeActionDoneMsg|SharedWithMeFailedMsg */
+            return $result;
+        }];
     }
 
     /**
@@ -129,12 +164,34 @@ final class SharedWithMeScreen implements Model, Breadcrumbed, Themed
             return [$this, null];
         }
         $item = $this->items[$this->selectedIndex];
-        $promise = $this->hub->rejectShare($item['id'])->then(
+        /** @var string $id */
+        $id = $item['id'];
+        $promise = $this->hub->rejectShare($id)->then(
             fn (): SharedWithMeActionDoneMsg => new SharedWithMeActionDoneMsg('rejected'),
             fn (\Throwable $e): SharedWithMeFailedMsg => new SharedWithMeFailedMsg($e->getMessage()),
         );
 
-        return [$this, fn () => $promise->wait()];
+        return [$this, function () use ($promise): SharedWithMeActionDoneMsg|SharedWithMeFailedMsg {
+            $loop = \React\EventLoop\Loop::get();
+            $result = null;
+            $exception = null;
+            $promise->then(
+                static function ($v) use (&$result, $loop): void {
+                    $result = $v;
+                    $loop->stop();
+                },
+                static function (\Throwable $e) use (&$exception, $loop): void {
+                    $exception = $e;
+                    $loop->stop();
+                }
+            );
+            $loop->run();
+            if ($exception !== null) {
+                throw $exception;
+            }
+            /** @var SharedWithMeActionDoneMsg|SharedWithMeFailedMsg */
+            return $result;
+        }];
     }
 
     /**
