@@ -1,14 +1,11 @@
 {
     "chmod": "0755",
-    "compactors": [
-        "KevinGH\\Box\\Compactor\\PhpScoper",
-        "KevinGH\\Box\\Compactor\\Composer"
-    ],
+    "compactors": [],
     "main": "bin/phlix",
     "finder": [
         {
             "name": "*.php",
-            "exclude": ["Tests", "tests", "test"],
+            "exclude": ["Tests", "tests", "test", "humbug"],
             "in": ["vendor"]
         },
         {
@@ -17,17 +14,11 @@
             "in": ["src"]
         }
     ],
-    "gitignore": [
-        "/*.phar",
-        "/build/*.phar",
-        "/.phpunit.cache"
-    ],
     "metadata": {
         "name": "phlix/console-client",
         "version": "1.0.0",
         "description": "Terminal TUI client for Phlix"
     },
     "output": "build/phlix.phar",
-    "stub": true,
-    "web": false
+    "stub": true
 }

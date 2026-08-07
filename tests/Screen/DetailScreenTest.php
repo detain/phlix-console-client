@@ -314,8 +314,6 @@ final class DetailScreenTest extends TestCase
         self::assertInstanceOf(\Closure::class, $heroCmd, 'a poster URL kicks off a hero fetch');
 
         $posterMsg = $this->runCmd($heroCmd);
-        // runCmd() does not unwrap BatchMsg — the hero fetch returns Cmd::batch($posterCmd, $ratingsCmd, $similarCmd)
-        $this->markTestSkipped('runCmd() does not unwrap BatchMsg — test helper limitation');
         self::assertInstanceOf(DetailPosterLoadedMsg::class, $posterMsg);
 
         [$withHero] = $loaded->update($posterMsg);
@@ -867,8 +865,29 @@ final class DetailScreenTest extends TestCase
     private function runCmd(\Closure $cmd): ?Msg
     {
         $result = $cmd();
+        if ($result instanceof BatchMsg) {
+            foreach ($result->cmds as $child) {
+                $msg = $this->runCmd($child);
+                if ($msg !== null) {
+                    return $msg;
+                }
+            }
+
+            return null;
+        }
         if ($result instanceof AsyncCmd) {
-            return $this->await($result->promise);
+            $msg = $this->await($result->promise);
+            if ($msg instanceof BatchMsg) {
+                foreach ($msg->cmds as $child) {
+                    $innerMsg = $this->runCmd($child);
+                    if ($innerMsg !== null) {
+                        return $innerMsg;
+                    }
+                }
+
+                return null;
+            }
+            return $msg;
         }
 
         return $result instanceof Msg ? $result : null;
