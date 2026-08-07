@@ -478,10 +478,10 @@ final class AdminUsersScreenTest extends TestCase
 
         // When pending is set (armed confirm), both Escape and 'q' are captured
         // by handleConfirmKey and return null instead of NavigateBackMsg
-        [, $escCmd] = $screen->update(new KeyMsg(KeyType::Escape));
+        [$screen, $escCmd] = $screen->update(new KeyMsg(KeyType::Escape));
         self::assertNull($this->runCmd($escCmd));
 
-        [, $qCmd] = $screen->update(new KeyMsg(KeyType::Char, 'q'));
+        [$screen, $qCmd] = $screen->update(new KeyMsg(KeyType::Char, 'q'));
         self::assertNull($this->runCmd($qCmd));
     }
 
