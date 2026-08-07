@@ -76,11 +76,11 @@ jobs:
 
       - name: Start stub HTTP server
         run: php -S 127.0.0.1:8099 tests/stub/router.php &
-        working-directory: /home/sites/phlix/phlix-console-client
+        working-directory: ${{ github.workspace }}
 
       - name: Wait for port 8099
         run: bash -c 'until nc -z 127.0.0.1 8099; do sleep 0.2; done' || bash -c 'timeout 20 bash -c "until nc -z 127.0.0.1 8099; do sleep 0.2; done" || exit 1"'
 
       - name: Run selftest
         run: PHLIX_SERVER_URL=http://127.0.0.1:8099 php bin/phlix run --selftest
-        working-directory: /home/sites/phlix/phlix-console-client
+        working-directory: ${{ github.workspace }}
