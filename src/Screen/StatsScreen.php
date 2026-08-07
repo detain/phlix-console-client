@@ -3,11 +3,15 @@ declare(strict_types=1);
 namespace Phlix\Console\Screen;
 
 use Phlix\Console\Api\Admin\AdminClient;
+use Phlix\Console\Api\AuthError;
 use Phlix\Console\Msg\InitMsg;
+use Phlix\Console\Msg\NavigateBackMsg;
+use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Msg\StatsLoadedMsg;
 use React\Promise\PromiseInterface;
 use SugarCraft\Core\Cmd;
+use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Model;
@@ -54,7 +58,7 @@ final class StatsScreen implements Model
         $out = "\n\n  Server Statistics\n";
         $out .= "  ─────────────────\n\n";
 
-        $playback = $this->stats['playback'];
+        $playback = $this->stats['playback'] ?? [];
         if (is_array($playback)) {
             $out .= "  Playback:\n";
             /** @var int $activeSessions */
@@ -62,7 +66,7 @@ final class StatsScreen implements Model
             $out .= "    Active: {$activeSessions}\n";
         }
 
-        $storage = $this->stats['storage'];
+        $storage = $this->stats['storage'] ?? [];
         if (is_array($storage)) {
             $out .= "  Storage:\n";
             /** @var int $usedBytes */
@@ -82,13 +86,17 @@ final class StatsScreen implements Model
         return Cmd::promise(fn (): PromiseInterface => $this->doFetchCmd());
     }
 
+    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+
     /** @return PromiseInterface<\SugarCraft\Core\Msg> */
     private function doFetchCmd(): PromiseInterface
     {
         $this->loading = true;
         return $this->adminClient->statsOverview()
             ->then(fn ($stats) => new StatsLoadedMsg($stats))
-            ->catch(fn ($e) => ShowToastMsg::error('Failed: ' . $e->getMessage()));
+            ->catch(fn (\Throwable $e): Msg => $e instanceof AuthError
+                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                : ShowToastMsg::error('Failed: ' . $e->getMessage()));
     }
 
     /** @return array{self, null} */
@@ -102,6 +110,9 @@ final class StatsScreen implements Model
     /** @return array{self, ?\Closure} */
     private function handleKey(KeyMsg $msg): array
     {
+        if ($msg->type === KeyType::Escape) {
+            return [$this, Cmd::send(new NavigateBackMsg())];
+        }
         $key = $msg->rune;
         if ($key === 'r') {
             return [$this, $this->fetchCmd()];
