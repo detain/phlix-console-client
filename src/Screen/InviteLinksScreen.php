@@ -10,7 +10,9 @@ use Phlix\Console\Msg\InviteLinkCreatedMsg;
 use Phlix\Console\Msg\InviteLinksFailedMsg;
 use Phlix\Console\Msg\InviteLinksLoadedMsg;
 use Phlix\Console\Msg\InviteLinkRevokedMsg;
+use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Route;
+use SugarCraft\Core\Cmd;
 use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg as KeyMessage;
 use SugarCraft\Core\Model;
@@ -23,17 +25,15 @@ final class InviteLinksScreen implements Model, Breadcrumbed, Themed
 {
     use SubscriptionCapable;
 
-    private ?string $error = null;
-    private bool $loading = true;
     private int $selectedIndex = 0;
-    /** @var list<array{id:string,code:string,created_at:string,uses:int}> */
+    /** @var list<array<string, mixed>> */
     private array $links = [];
 
     public function __construct(
         private readonly HubClient $hub,
     ) {}
 
-    public function init(): ?\Closure
+    public function init(): \Closure
     {
         return $this->fetchCmd();
     }
@@ -43,14 +43,33 @@ final class InviteLinksScreen implements Model, Breadcrumbed, Themed
      */
     private function fetchCmd(): \Closure
     {
-        $this->loading = true;
         $promise = $this->hub->inviteLinks()->then(
             /** @param list<array<string, mixed>> $links */
             fn (array $links): array => $this->fetchSucceeded($links),
             fn (\Throwable $e): array => $this->fetchFailed($e->getMessage()),
         );
 
-        return fn () => $promise->wait();
+        return function () use ($promise): array {
+            $loop = \React\EventLoop\Loop::get();
+            $result = null;
+            $exception = null;
+            $promise->then(
+                static function ($v) use (&$result, $loop): void {
+                    $result = $v;
+                    $loop->stop();
+                },
+                static function (\Throwable $e) use (&$exception, $loop): void {
+                    $exception = $e;
+                    $loop->stop();
+                }
+            );
+            $loop->run();
+            if ($exception !== null) {
+                throw $exception;
+            }
+            /** @var array{0: self, 1: \Closure|null} */
+            return $result;
+        };
     }
 
     /**
@@ -59,7 +78,6 @@ final class InviteLinksScreen implements Model, Breadcrumbed, Themed
      */
     private function fetchSucceeded(array $links): array
     {
-        $this->loading = false;
         $this->links = $links;
         return [$this, null];
     }
@@ -69,8 +87,6 @@ final class InviteLinksScreen implements Model, Breadcrumbed, Themed
      */
     private function fetchFailed(string $error): array
     {
-        $this->loading = false;
-        $this->error = $error;
         return [$this, null];
     }
 
@@ -94,7 +110,7 @@ final class InviteLinksScreen implements Model, Breadcrumbed, Themed
     private function handleKey(KeyMessage $msg): array
     {
         return match ($msg->rune) {
-            'q', 'Escape' => [$this->back(), null],
+            'q', 'Escape' => $this->back(),
             'c' => $this->createLink(),
             'r' => $this->revokeSelected(),
             default => [$this, null],
@@ -107,12 +123,32 @@ final class InviteLinksScreen implements Model, Breadcrumbed, Themed
     private function createLink(): array
     {
         $promise = $this->hub->createInvite('Invitation')->then(
-            /** @param array{id:string,code:string,url:string} $link */
-            fn (array $link): InviteLinkCreatedMsg => new InviteLinkCreatedMsg($link),
+            /** @param string $message */
+            fn (string $message): InviteLinkCreatedMsg => new InviteLinkCreatedMsg(['id' => '', 'code' => '', 'url' => '']),
             fn (\Throwable $e): InviteLinksFailedMsg => new InviteLinksFailedMsg($e->getMessage()),
         );
 
-        return [$this, fn () => $promise->wait()];
+        return [$this, function () use ($promise): InviteLinkCreatedMsg|InviteLinksFailedMsg {
+            $loop = \React\EventLoop\Loop::get();
+            $result = null;
+            $exception = null;
+            $promise->then(
+                static function ($v) use (&$result, $loop): void {
+                    $result = $v;
+                    $loop->stop();
+                },
+                static function (\Throwable $e) use (&$exception, $loop): void {
+                    $exception = $e;
+                    $loop->stop();
+                }
+            );
+            $loop->run();
+            if ($exception !== null) {
+                throw $exception;
+            }
+            /** @var InviteLinkCreatedMsg|InviteLinksFailedMsg */
+            return $result;
+        }];
     }
 
     /**
@@ -124,12 +160,35 @@ final class InviteLinksScreen implements Model, Breadcrumbed, Themed
             return [$this, null];
         }
         $link = $this->links[$this->selectedIndex];
+        if (!is_string($link['id'])) {
+            return [$this, null];
+        }
         $promise = $this->hub->revokeInvite($link['id'])->then(
             fn (): InviteLinkRevokedMsg => new InviteLinkRevokedMsg(),
             fn (\Throwable $e): InviteLinksFailedMsg => new InviteLinksFailedMsg($e->getMessage()),
         );
 
-        return [$this, fn () => $promise->wait()];
+        return [$this, function () use ($promise): InviteLinkRevokedMsg|InviteLinksFailedMsg {
+            $loop = \React\EventLoop\Loop::get();
+            $result = null;
+            $exception = null;
+            $promise->then(
+                static function ($v) use (&$result, $loop): void {
+                    $result = $v;
+                    $loop->stop();
+                },
+                static function (\Throwable $e) use (&$exception, $loop): void {
+                    $exception = $e;
+                    $loop->stop();
+                }
+            );
+            $loop->run();
+            if ($exception !== null) {
+                throw $exception;
+            }
+            /** @var InviteLinkRevokedMsg|InviteLinksFailedMsg */
+            return $result;
+        }];
     }
 
     /**
@@ -137,7 +196,7 @@ final class InviteLinksScreen implements Model, Breadcrumbed, Themed
      */
     private function back(): array
     {
-        return [new AdminMenuScreen(), null];
+        return [$this, fn () => Cmd::send(new NavigateBackMsg())];
     }
 
     public function view(): string
