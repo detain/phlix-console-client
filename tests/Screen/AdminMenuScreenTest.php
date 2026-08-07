@@ -43,9 +43,12 @@ final class AdminMenuScreenTest extends TestCase
 
         $labels = array_map(static fn (array $s): string => $s['label'], $sections);
         self::assertSame([
-            'Dashboard', 'Users', 'Server Settings', 'Plugins', 'Libraries', 'Logs',
-            'Backup', 'DLNA', 'Remote Access', 'Live TV',
-        ], $labels, 'Cast is no longer an admin section — it ships as a DetailScreen action');
+            'Dashboard', 'Users', 'Server Settings', 'Transcoding', 'Plugins', 'Plugin Updates',
+            'Libraries', 'Logs', 'Backup', 'DLNA', 'Remote Access', 'Live TV',
+            'Parental Controls', 'Metrics', 'Watch History', 'Duplicates',
+            'Metadata Match', 'Webhooks', 'Auth Providers', 'Server Restart',
+            'Filesystem', 'Services',
+        ], $labels, 'Full admin section set');
         self::assertNotContains('Cast', $labels, 'the stale Cast section row is removed');
 
         // EVERY section is now wired and available — Live TV was the last.
@@ -121,9 +124,9 @@ final class AdminMenuScreenTest extends TestCase
 
     public function testEnterOnPluginsEmitsOpenAdminSectionForPlugins(): void
     {
-        // Move to "Plugins" (index 3), now a wired surface.
+        // Move to "Plugins" (index 4), now a wired surface.
         $screen = $this->screen();
-        for ($i = 0; $i < 3; $i++) {
+        for ($i = 0; $i < 4; $i++) {
             [$screen] = $screen->update(new KeyMsg(KeyType::Down));
         }
         self::assertSame('Plugins', $screen->selectedLabel());
@@ -153,9 +156,9 @@ final class AdminMenuScreenTest extends TestCase
 
     public function testEnterOnLibrariesEmitsOpenAdminSectionForLibraries(): void
     {
-        // Move to "Libraries" (index 4), now a wired surface.
+        // Move to "Libraries" (index 6), now a wired surface.
         $screen = $this->screen();
-        for ($i = 0; $i < 4; $i++) {
+        for ($i = 0; $i < 6; $i++) {
             [$screen] = $screen->update(new KeyMsg(KeyType::Down));
         }
         self::assertSame('Libraries', $screen->selectedLabel());
@@ -169,9 +172,9 @@ final class AdminMenuScreenTest extends TestCase
 
     public function testEnterOnDlnaEmitsOpenAdminSectionForDlna(): void
     {
-        // Move to "DLNA" (index 7), now a wired surface.
+        // Move to "DLNA" (index 9), now a wired surface.
         $screen = $this->screen();
-        for ($i = 0; $i < 7; $i++) {
+        for ($i = 0; $i < 9; $i++) {
             [$screen] = $screen->update(new KeyMsg(KeyType::Down));
         }
         self::assertSame('DLNA', $screen->selectedLabel());
@@ -185,9 +188,9 @@ final class AdminMenuScreenTest extends TestCase
 
     public function testEnterOnRemoteAccessEmitsOpenAdminSectionForRemote(): void
     {
-        // Move to "Remote Access" (index 8), now a wired surface.
+        // Move to "Remote Access" (index 10), now a wired surface.
         $screen = $this->screen();
-        for ($i = 0; $i < 8; $i++) {
+        for ($i = 0; $i < 10; $i++) {
             [$screen] = $screen->update(new KeyMsg(KeyType::Down));
         }
         self::assertSame('Remote Access', $screen->selectedLabel());
@@ -201,9 +204,9 @@ final class AdminMenuScreenTest extends TestCase
 
     public function testEnterOnLiveTvEmitsOpenAdminSectionForLiveTv(): void
     {
-        // Move to "Live TV" (index 9), now the last wired surface.
+        // Move to "Live TV" (index 11), now the last wired surface.
         $screen = $this->screen();
-        for ($i = 0; $i < 9; $i++) {
+        for ($i = 0; $i < 11; $i++) {
             [$screen] = $screen->update(new KeyMsg(KeyType::Down));
         }
         self::assertSame('Live TV', $screen->selectedLabel());
