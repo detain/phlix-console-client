@@ -1286,6 +1286,22 @@ final class ApiClient
         $data = is_array($decoded) ? $decoded : [];
 
         if ($status >= 200 && $status < 300) {
+            // Centralised envelope handling: {success:false} is an error,
+            // {success:true,data:{...}} is unwrapped, bare objects pass through.
+            if (array_key_exists('success', $data)) {
+                if ($data['success'] === false) {
+                    $message = isset($data['message']) && is_string($data['message'])
+                        ? $data['message']
+                        : (isset($data['error']) && is_string($data['error'])
+                            ? $data['error']
+                            : 'Request failed');
+                    throw new ApiError($message, $status, $data);
+                }
+                if ($data['success'] === true && array_key_exists('data', $data)) {
+                    return $data['data'];
+                }
+            }
+
             return $data;
         }
 

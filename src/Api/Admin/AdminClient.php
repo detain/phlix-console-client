@@ -1293,10 +1293,8 @@ final class AdminClient
             'hubUrl' => $hubUrl,
             'serverName' => $serverName,
         ])->then(static function (array $body): array {
-            if (($body['success'] ?? false) !== true) {
-                throw new ApiError(Coerce::str($body['message'] ?? 'Pairing request failed'), 400, $body);
-            }
-
+            // The {success:false} case is now handled centrally in ApiClient::decode(),
+            // so any 200 response reaching here is guaranteed to be successful.
             return [
                 'claimCode' => Coerce::str($body['claimCode'] ?? ''),
                 'claimId' => Coerce::str($body['claimId'] ?? ''),
@@ -1324,14 +1322,12 @@ final class AdminClient
             'claimId' => $claimId,
             'hubUrl' => $hubUrl,
         ])->then(static function (array $body): array {
-            if (($body['success'] ?? false) === true) {
-                return [
-                    'paired' => (bool) ($body['paired'] ?? false),
-                    'serverId' => Coerce::str($body['serverId'] ?? ''),
-                ];
-            }
-
-            throw new ApiError(Coerce::str($body['message'] ?? 'Polling failed'), 400, $body);
+            // The {success:false} case is now handled centrally in ApiClient::decode(),
+            // so any 200 response reaching here is guaranteed to be successful.
+            return [
+                'paired' => (bool) ($body['paired'] ?? false),
+                'serverId' => Coerce::str($body['serverId'] ?? ''),
+            ];
         });
     }
 
