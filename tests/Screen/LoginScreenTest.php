@@ -63,7 +63,7 @@ final class LoginScreenTest extends TestCase
         $msg = $cmd();
         self::assertInstanceOf(SubmitLoginMsg::class, $msg);
         self::assertSame('joe', $msg->username);
-        self::assertSame('secret', $msg->password);
+        self::assertSame('ecret', $msg->password);
 
         self::assertInstanceOf(LoginScreen::class, $screen);
         self::assertTrue($screen->submitting);
