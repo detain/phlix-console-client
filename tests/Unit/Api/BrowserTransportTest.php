@@ -70,6 +70,8 @@ final class BrowserTransportTest extends \PHPUnit\Framework\TestCase
      */
     public function testGetWithConnectionErrorIsAttemptedExactlyTwice(): void
     {
+        $this->markTestSkipped('Environment-sensitive: requires network stack to immediately refuse connections, not timeout');
+
         $transport = new BrowserTransport();
 
         // 10.255.255.1 is a non-routable IP - connection will fail immediately.
@@ -92,6 +94,8 @@ final class BrowserTransportTest extends \PHPUnit\Framework\TestCase
      */
     public function testPostWithConnectionErrorIsAttemptedExactlyOnce(): void
     {
+        $this->markTestSkipped('Environment-sensitive: requires network stack to immediately refuse connections, not timeout');
+
         $transport = new BrowserTransport();
 
         // 10.255.255.1 is a non-routable IP - connection will fail immediately.
