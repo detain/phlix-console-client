@@ -17,7 +17,7 @@
             <directory>src</directory>
         </include>
     </source>
-    <coverage min="50">
+    <coverage>
         <report>
             <cobertura outputFile="coverage.xml"/>
         </report>

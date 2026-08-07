@@ -461,19 +461,19 @@ final class ApiClientTest extends TestCase
         $client = new ApiClient(self::BASE, $t);
         $client->setToken(new TokenBundle('t', 'r'));
 
-        $albums = $this->await($client->musicAlbums());
+        $page = $this->await($client->musicAlbums());
 
-        self::assertContainsOnlyInstancesOf(Album::class, $albums);
-        self::assertCount(2, $albums, 'non-array rows are skipped');
-        self::assertSame('Abbey Road', $albums[0]->name);
-        self::assertCount(2, $albums[0]->tracks);
-        self::assertSame('Come Together', $albums[0]->tracks[0]->title);
-        self::assertSame('Revolver', $albums[1]->name);
-        self::assertSame('Taxman', $albums[1]->tracks[0]->title);
+        self::assertContainsOnlyInstancesOf(Album::class, $page->albums);
+        self::assertCount(2, $page->albums, 'non-array rows are skipped');
+        self::assertSame('Abbey Road', $page->albums[0]->name);
+        self::assertCount(2, $page->albums[0]->tracks);
+        self::assertSame('Come Together', $page->albums[0]->tracks[0]->title);
+        self::assertSame('Revolver', $page->albums[1]->name);
+        self::assertSame('Taxman', $page->albums[1]->tracks[0]->title);
 
         $req = $t->requestAt(0);
         self::assertSame('GET', $req['method']);
-        self::assertSame(self::BASE . '/api/v1/music/albums', $req['url']);
+        self::assertStringContainsString('/api/v1/music/albums?', $req['url']);
     }
 
     public function testMusicAlbumHitsEndpointWithRawUrlEncodedNameAndMapsOne(): void
@@ -600,18 +600,18 @@ final class ApiClientTest extends TestCase
         $client = new ApiClient(self::BASE, $t);
         $client->setToken(new TokenBundle('t', 'r'));
 
-        $albums = $this->await($client->photoAlbums('lib-1'));
+        $page = $this->await($client->photoAlbums('lib-1'));
 
-        self::assertContainsOnlyInstancesOf(PhotoAlbum::class, $albums);
-        self::assertCount(1, $albums, 'non-array rows are skipped');
-        self::assertSame('a1', $albums[0]->id);
-        self::assertSame('2023-11-14', $albums[0]->date);
-        self::assertSame(2, $albums[0]->photoCount);
-        self::assertInstanceOf(Photo::class, $albums[0]->coverPhoto);
-        self::assertSame('/api/v1/photo/photos/p1/thumbnail?sig=cover', $albums[0]->coverPhoto->thumbnailUrl);
-        self::assertCount(2, $albums[0]->photos);
-        self::assertSame('p2', $albums[0]->photos[1]->id);
-        self::assertSame('/f/p2', $albums[0]->photos[1]->fullUrl);
+        self::assertContainsOnlyInstancesOf(PhotoAlbum::class, $page->albums);
+        self::assertCount(1, $page->albums, 'non-array rows are skipped');
+        self::assertSame('a1', $page->albums[0]->id);
+        self::assertSame('2023-11-14', $page->albums[0]->date);
+        self::assertSame(2, $page->albums[0]->photoCount);
+        self::assertInstanceOf(Photo::class, $page->albums[0]->coverPhoto);
+        self::assertSame('/api/v1/photo/photos/p1/thumbnail?sig=cover', $page->albums[0]->coverPhoto->thumbnailUrl);
+        self::assertCount(2, $page->albums[0]->photos);
+        self::assertSame('p2', $page->albums[0]->photos[1]->id);
+        self::assertSame('/f/p2', $page->albums[0]->photos[1]->fullUrl);
 
         $req = $t->requestAt(0);
         self::assertSame('GET', $req['method']);
