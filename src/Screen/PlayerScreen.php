@@ -940,7 +940,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
 
                 return $this->api->subtitleVtt($id, $track->index)
                     ->then(static fn (string $vttBody) => new SubtitleVttLoadedMsg(\SugarCraft\Reel\Subtitle\WebVtt::parse($vttBody)))
-                    ->catch(static fn (): Msg => ShowToastMsg::error('Subtitles failed to load'));
+                    ->catch(static fn (): Msg => new SubtitleVttLoadedMsg(ShowToastMsg::error('Subtitles failed to load')));
             },
             static fn (): Msg => new SubtitleVttLoadedMsg(null),
         ));
@@ -1483,8 +1483,15 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         $next->inner = $nextInner;
 
         // The episode just ended → start the up-next countdown if there's a next one.
+        // completeSession must be called BEFORE api->api->, exactly as in the natural-end path.
         if ($nextInner->ended && !$inner->ended && $this->upNext === null && $this->nextItem() !== null) {
             $next->upNext = self::UP_NEXT_COUNTDOWN;
+            $sessionId = $this->sessionId;
+            if ($sessionId !== null) {
+                $next->completeSent = true;
+
+                return [$next, $this->buildCompleteThenEndCmd($sessionId, $this->upNextTickCmd())];
+            }
 
             return [$next, $this->upNextTickCmd()];
         }
