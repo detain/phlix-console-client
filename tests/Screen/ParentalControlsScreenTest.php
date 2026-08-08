@@ -215,4 +215,136 @@ final class ParentalControlsScreenTest extends TestCase
         $s3 = $s2->update(new KeyMsg(KeyType::Char, 'r'))[0];
         self::assertStringContainsString('/api/v1/profiles/42/stream-limits', $transport->requestAt(2)['url']);
     }
+
+    // ---- mutation admin call tests -----------------------------------------
+
+    public function testCreateProfileSchedulePostsToCorrectEndpoint(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, ['schedules' => []])
+            ->json(200, ['message' => 'Schedule created']);
+        $screen = $this->screenWith($transport);
+
+        $msg = $this->runCmd($screen->init());
+        self::assertInstanceOf(\Phlix\Console\Screen\ParentalSchedulesLoadedMsg::class, $msg);
+
+        // 'c' opens the create form; Tab×4 moves focus through fields to isActive (the last
+        // non-skippable field) where Enter submits the filled-in defaults.
+        $formScreen = $screen->update($msg)[0];
+        $formScreen = $formScreen->update(new KeyMsg(KeyType::Char, 'c'))[0];
+        $formScreen = $formScreen->update(new KeyMsg(KeyType::Char, 'W'))[0];
+        $formScreen = $formScreen->update(new KeyMsg(KeyType::Tab))[0];
+        $formScreen = $formScreen->update(new KeyMsg(KeyType::Tab))[0];
+        $formScreen = $formScreen->update(new KeyMsg(KeyType::Tab))[0];
+        $formScreen = $formScreen->update(new KeyMsg(KeyType::Tab))[0];
+        $formScreen = $formScreen->update(new KeyMsg(KeyType::Enter))[0];
+
+        self::assertSame('POST', $transport->requestAt(1)['method']);
+        self::assertStringContainsString('/api/v1/profiles/42/schedules', $transport->requestAt(1)['url']);
+    }
+
+    public function testDeleteProfileScheduleDeletesToCorrectEndpoint(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, [
+                'schedules' => [
+                    ['id' => 1, 'profile_id' => 42, 'name' => 'Weekday Evenings', 'start_time' => '18:00:00', 'end_time' => '22:00:00', 'days_of_week' => ['mon', 'tue', 'wed', 'thu', 'fri'], 'is_active' => true],
+                ],
+            ])
+            ->json(200, ['message' => 'Schedule deleted']);
+        $screen = $this->screenWith($transport);
+
+        $msg = $this->runCmd($screen->init());
+        self::assertInstanceOf(\Phlix\Console\Screen\ParentalSchedulesLoadedMsg::class, $msg);
+
+        // Schedules are already loaded via init(). 'x' arms the inline delete confirm; 'y' confirms it.
+        $next = $screen->update($msg)[0];
+        $armed = $next->update(new KeyMsg(KeyType::Char, 'x'))[0];
+        $armed->update(new KeyMsg(KeyType::Char, 'y'));
+
+        self::assertSame('DELETE', $transport->requestAt(1)['method']);
+        self::assertStringContainsString('/api/v1/profiles/42/schedules/1', $transport->requestAt(1)['url']);
+    }
+
+    public function testAddProfileTagPostsToCorrectEndpoint(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, ['schedules' => []])
+            ->json(200, ['tags' => []])
+            ->json(200, ['message' => 'Tag added']);
+        $screen = $this->screenWith($transport);
+
+        $msg = $this->runCmd($screen->init());
+        self::assertInstanceOf(\Phlix\Console\Screen\ParentalSchedulesLoadedMsg::class, $msg);
+
+        // Navigate to tags section (Right arrow)
+        $s1 = $screen->update($msg)[0]->update(new KeyMsg(KeyType::Right))[0];
+        // 'c' opens the create form; Tab×2 moves focus through fields to tagType (the last
+        // non-skippable field) where Enter submits the filled-in defaults.
+        $formScreen = $s1->update(new KeyMsg(KeyType::Char, 'c'))[0];
+        $formScreen = $formScreen->update(new KeyMsg(KeyType::Char, 'W'))[0];
+        $formScreen = $formScreen->update(new KeyMsg(KeyType::Tab))[0];
+        $formScreen = $formScreen->update(new KeyMsg(KeyType::Tab))[0];
+        $formScreen = $formScreen->update(new KeyMsg(KeyType::Enter))[0];
+
+        self::assertSame('POST', $transport->requestAt(2)['method']);
+        self::assertStringContainsString('/api/v1/profiles/42/tags', $transport->requestAt(2)['url']);
+    }
+
+    public function testDeleteProfileTagDeletesToCorrectEndpoint(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, ['schedules' => []])
+            ->json(200, ['tags' => [['id' => 1, 'profile_id' => 42, 'tag' => 'restricted', 'type' => 'blocked']]])
+            ->json(200, ['message' => 'Tag removed']);
+        $screen = $this->screenWith($transport);
+
+        $msg = $this->runCmd($screen->init());
+        self::assertInstanceOf(\Phlix\Console\Screen\ParentalSchedulesLoadedMsg::class, $msg);
+
+        // Navigate to tags section
+        $s1 = $screen->update($msg)[0]->update(new KeyMsg(KeyType::Right))[0];
+        // Manually load tags into screen state so selectedItem() works
+        $tagMsg = new \Phlix\Console\Screen\ParentalTagsLoadedMsg([
+            \Phlix\Console\Api\Dto\Admin\Parental\ProfileTag::fromArray([
+                'id' => 1,
+                'profile_id' => 42,
+                'tag' => 'restricted',
+                'tag_type' => 'blocked',
+            ]),
+        ]);
+        $s1 = $s1->update($tagMsg)[0];
+        // 'x' arms the inline delete confirm; 'y' confirms it.
+        $armed = $s1->update(new KeyMsg(KeyType::Char, 'x'))[0];
+        $armed->update(new KeyMsg(KeyType::Char, 'y'));
+
+        self::assertSame('DELETE', $transport->requestAt(2)['method']);
+        self::assertStringContainsString('/api/v1/profiles/42/tags/1', $transport->requestAt(2)['url']);
+    }
+
+    public function testUpdateProfileStreamLimitsPutsToCorrectEndpoint(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, ['schedules' => []])
+            ->json(200, ['tags' => []])
+            ->json(200, ['stream_limits' => ['max_concurrent_streams' => 3, 'max_total_bandwidth_kbps' => 1000]])
+            ->json(200, ['message' => 'Stream limits updated']);
+        $screen = $this->screenWith($transport);
+
+        $msg = $this->runCmd($screen->init());
+        self::assertInstanceOf(\Phlix\Console\Screen\ParentalSchedulesLoadedMsg::class, $msg);
+
+        // Navigate to stream limits section (Right arrow twice)
+        $s1 = $screen->update($msg)[0]->update(new KeyMsg(KeyType::Right))[0];
+        $s2 = $s1->update(new KeyMsg(KeyType::Right))[0];
+        // 'u' opens the update form; Tab×2 moves focus through fields to maxTotalBandwidthKbps
+        // (the last field) where Enter submits the filled-in defaults.
+        $formScreen = $s2->update(new KeyMsg(KeyType::Char, 'u'))[0];
+        $formScreen = $formScreen->update(new KeyMsg(KeyType::Tab))[0];
+        $formScreen = $formScreen->update(new KeyMsg(KeyType::Tab))[0];
+        $formScreen = $formScreen->update(new KeyMsg(KeyType::Enter))[0];
+
+        self::assertSame('PUT', $transport->requestAt(3)['method']);
+        self::assertStringContainsString('/api/v1/profiles/42/stream-limits', $transport->requestAt(3)['url']);
+    }
 }
