@@ -159,8 +159,8 @@ final class PlaylistsScreen implements Model, Teardownable, Breadcrumbed, Themed
             return [$this, Cmd::send(ShowToastMsg::info(self::ADD_ITEM_NOT_IMPLEMENTED))];
         }
 
-        // 'd' - Arm delete confirmation
-        if ($msg->type === KeyType::Char && $msg->rune === 'd') {
+        // 'd' or 'D' - Arm delete confirmation
+        if ($msg->type === KeyType::Char && ($msg->rune === 'd' || $msg->rune === 'D')) {
             return $this->armDelete();
         }
 
