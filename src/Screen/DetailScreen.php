@@ -69,7 +69,6 @@ use SugarCraft\Shine\Renderer;
 use SugarCraft\Sprinkles\Layout;
 use SugarCraft\Sprinkles\Style;
 
-
 /**
  * A single item's detail, in one of two modes decided by the loaded item:
  *
@@ -128,6 +127,8 @@ final class DetailScreen implements Breadcrumbed, Themed
     private ?int $likeLevel = null;
     /** @var ?MediaItem The item before the last optimistic favorite toggle (for revert). */
     private ?MediaItem $previousItem = null;
+    /** @var ?MediaRatings The ratings before the last optimistic rating set (for revert). */
+    private ?MediaRatings $previousRatings = null;
     // Container mode (null until a loaded item proves to be a series/season).
     private ?PosterGrid $childGrid = null;
     private ?MediaQuery $childQuery = null;
@@ -258,6 +259,27 @@ final class DetailScreen implements Breadcrumbed, Themed
             }
 
             return [$next, Cmd::send(ShowToastMsg::error($msg->reason))];
+        }
+        if ($msg instanceof RatingSetMsg) {
+            // Optimistic update already applied; clear the revert snapshot.
+            if ($this->previousRatings !== null) {
+                $next = clone $this;
+                $next->previousRatings = null;
+
+                return [$next, null];
+            }
+
+            return [$this, null];
+        }
+        if ($msg instanceof RatingSetFailedMsg) {
+            // Revert the optimistic update and show a toast.
+            $next = clone $this;
+            if ($this->previousRatings !== null) {
+                $next->ratings = $this->previousRatings;
+                $next->previousRatings = null;
+            }
+
+            return [$next, Cmd::send(ShowToastMsg::error('Rating failed to save: ' . $msg->reason))];
         }
         if ($msg instanceof SimilarLoadedMsg) {
             return $this->onSimilar($msg->mediaId, $msg->items);
@@ -566,6 +588,7 @@ final class DetailScreen implements Breadcrumbed, Themed
 
         // Capture the previous ratings for potential revert
         $previousRatings = $this->ratings;
+        $next->previousRatings = $previousRatings;
 
         // Optimistically update the model
         if ($isClearing) {
