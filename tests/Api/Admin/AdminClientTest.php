@@ -980,8 +980,7 @@ final class AdminClientTest extends TestCase
     {
         $transport = (new FakeTransport())->json(200, [
             'success' => true,
-            'message' => 'Backup created successfully',
-            'data' => ['backup_id' => 'b-9'],
+            'data' => ['message' => 'Backup created successfully', 'backup_id' => 'b-9'],
         ]);
 
         $message = $this->await($this->clientWith($transport)->createBackup('pre-upgrade'));
@@ -1184,20 +1183,23 @@ final class AdminClientTest extends TestCase
         self::assertSame([], $settings->settings);
     }
 
-    public function testServerSettingsIgnoresATopLevelSettingsWithNoDataWrapper(): void
+    public function testServerSettingsReadsFromProperlyEnvelopedData(): void
     {
-        // Inverse envelope-regression guard: this controller IS enveloped, so a
-        // top-level {settings} (no `data`) must yield EMPTY — a wrong un-enveloped
-        // read would surface the settings here and fail.
+        // C1.4 FIX VERIFICATION: properly enveloped {success:true,data:{settings}}
+        // response is correctly read after envelope unwrapping.
         $transport = (new FakeTransport())->json(200, [
             'success' => true,
-            'settings' => ['theme' => 'dark'],
-            'types' => ['theme' => 'string'],
+            'data' => [
+                'settings' => ['theme' => 'dark'],
+                'types' => ['theme' => 'string'],
+                'overridden' => [],
+            ],
         ]);
 
         $settings = $this->await($this->clientWith($transport)->serverSettings());
 
-        self::assertSame([], $settings->settings);
+        self::assertNotEmpty($settings->settings, 'settings are read from unwrapped data');
+        self::assertSame('theme', $settings->settings[0]->key);
     }
 
     public function testServerSettingsAttachesTheBearerToken(): void
@@ -1313,10 +1315,10 @@ final class AdminClientTest extends TestCase
         self::assertStringContainsString('/api/v1/admin/dlna/status', $transport->requestAt(0)['url']);
     }
 
-    public function testDlnaStatusIgnoresAnEnvelopeDataKey(): void
+    public function testDlnaStatusReadsFromUnwrappedData(): void
     {
-        // REGRESSION GUARD: the read is top-level, so a `{data:{enabled:…}}`
-        // wrapper must NOT be unwrapped — it yields the not-configured default.
+        // C1.4 FIX VERIFICATION: the client correctly reads from the unwrapped
+        // {success:true,data:{enabled:…}} envelope, yielding the configured values.
         $transport = (new FakeTransport())->json(200, $this->envelope([
             'enabled' => true,
             'running' => true,
@@ -1326,10 +1328,10 @@ final class AdminClientTest extends TestCase
         $status = $this->await($this->clientWith($transport)->dlnaStatus());
 
         self::assertInstanceOf(DlnaServerStatus::class, $status);
-        self::assertFalse($status->enabled, 'an enveloped {data} wrapper must not be read');
-        self::assertFalse($status->running);
-        self::assertNull($status->port);
-        self::assertSame('Not configured', $status->stateLabel());
+        self::assertTrue($status->enabled, 'an enveloped {data} wrapper must be read');
+        self::assertTrue($status->running);
+        self::assertSame(1900, $status->port);
+        self::assertSame('Running', $status->stateLabel());
     }
 
     public function testDlnaStatusAttachesTheBearerToken(): void
@@ -1504,11 +1506,10 @@ final class AdminClientTest extends TestCase
         self::assertFalse($status->portForward->enabled);
     }
 
-    public function testRemoteStatusIgnoresAnEnvelopeDataKey(): void
+    public function testRemoteStatusReadsFromUnwrappedData(): void
     {
-        // REGRESSION GUARD: the reads are TOP-LEVEL, so a `{data:{…}}` wrapper must
-        // NOT be unwrapped — each leg falls back to its unpaired / unclaimed /
-        // disconnected / disabled default.
+        // C1.4 FIX VERIFICATION: the client correctly reads from each unwrapped
+        // {success:true,data:{…}} envelope, yielding the configured values.
         $transport = (new FakeTransport())
             ->json(200, $this->envelope(['paired' => true]))
             ->json(200, $this->envelope(['claimed' => true]))
@@ -1517,10 +1518,10 @@ final class AdminClientTest extends TestCase
 
         $status = $this->await($this->clientWith($transport)->remoteStatus());
 
-        self::assertFalse($status->hub->paired, 'an enveloped {data} wrapper must not be read');
-        self::assertFalse($status->subdomain->claimed);
-        self::assertFalse($status->relay->connected);
-        self::assertFalse($status->portForward->enabled);
+        self::assertTrue($status->hub->paired, 'an enveloped {data} wrapper must be read');
+        self::assertTrue($status->subdomain->claimed);
+        self::assertTrue($status->relay->connected);
+        self::assertTrue($status->portForward->enabled);
     }
 
     public function testRemoteStatusAttachesTheBearerToken(): void
@@ -1748,17 +1749,18 @@ final class AdminClientTest extends TestCase
         self::assertStringContainsString('/api/v1/admin/remote/portforward/candidates', $transport->requestAt(0)['url']);
     }
 
-    public function testPortForwardCandidatesIgnoresAnEnvelopeDataKey(): void
+    public function testPortForwardCandidatesReadsFromUnwrappedData(): void
     {
-        // REGRESSION GUARD: the list is read TOP-LEVEL, so a `{data:{candidates}}`
-        // wrapper must NOT be unwrapped — it yields an empty list.
+        // C1.4 FIX VERIFICATION: the client correctly reads the candidates list
+        // from the unwrapped {success:true,data:{candidates}} envelope.
         $transport = (new FakeTransport())->json(200, $this->envelope([
             'candidates' => [['hostname' => 'http://ghost:1', 'externalIp' => 'x', 'port' => 1]],
         ]));
 
         $candidates = $this->await($this->clientWith($transport)->portForwardCandidates());
 
-        self::assertSame([], $candidates, 'candidates are read top-level, not from data');
+        self::assertCount(1, $candidates, 'candidates are read from unwrapped data');
+        self::assertSame('http://ghost:1', $candidates[0]->hostname);
     }
 
     public function testPortForwardCandidatesToleratesAMissingKeyAndSkipsNonArrayRows(): void
@@ -2032,10 +2034,10 @@ final class AdminClientTest extends TestCase
         self::assertStringContainsString('/api/v1/admin/livetv/tuners', $transport->requestAt(0)['url']);
     }
 
-    public function testLiveTvTunersIgnoresAnEnvelopeDataKey(): void
+    public function testLiveTvTunersReadsFromUnwrappedData(): void
     {
-        // Regression guard: the list rides the top-level `tuners` key, NOT a
-        // dashboard-style `{success, data:{tuners}}` wrapper.
+        // C1.4 FIX VERIFICATION: the client correctly reads the tuners list
+        // from the unwrapped {success:true,data:{tuners}} envelope.
         $transport = (new FakeTransport())->json(200, [
             'success' => true,
             'data' => ['tuners' => [['id' => 't-9', 'name' => 'ghost']]],
@@ -2043,7 +2045,8 @@ final class AdminClientTest extends TestCase
 
         $tuners = $this->await($this->clientWith($transport)->liveTvTuners());
 
-        self::assertSame([], $tuners, 'tuners are read top-level, not from data');
+        self::assertCount(1, $tuners, 'tuners are read from unwrapped data');
+        self::assertSame('t-9', $tuners[0]->id);
     }
 
     public function testLiveTvTunersToleratesAMissingTunersKey(): void
