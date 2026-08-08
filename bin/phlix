@@ -70,7 +70,7 @@ function buildContainer(?string $mode): array
 {
     $config = Config::load();
     // Honour PHLIX_SERVER_URL from the environment for CI / stub server use.
-    $serverUrl = getenv('PHLIX_SERVER_URL') ?: $config->serverUrl;
+    $serverUrl = getenv('PHLIX_SERVER_URL') ?: $config->activeServer()?->url;
     $api = new ApiClient($serverUrl ?? '');
     $auth = new AuthStore($api, TokenStore::default());
     $libraries = new LibrariesStore($api);
@@ -106,7 +106,7 @@ function runSelftest(?string $mode): bool
 
     // 1. config-loaded
     $config = Config::load();
-    $serverUrl = getenv('PHLIX_SERVER_URL') ?: $config->serverUrl;
+    $serverUrl = getenv('PHLIX_SERVER_URL') ?: $config->activeServer()?->url;
     if ($config !== null && $serverUrl !== null && $serverUrl !== '') {
         $checks[] = 'OK config-loaded';
     } else {
