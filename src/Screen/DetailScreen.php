@@ -30,6 +30,8 @@ use Phlix\Console\Msg\DownloadAvailableMsg;
 use Phlix\Console\Msg\DownloadFailedMsg;
 use Phlix\Console\Msg\FavoriteToggleFailedMsg;
 use Phlix\Console\Msg\FavoriteToggledMsg;
+use Phlix\Console\Msg\LikeToggleFailedMsg;
+use Phlix\Console\Msg\LikeToggledMsg;
 use Phlix\Console\Msg\MissingEpisodesFailedMsg;
 use Phlix\Console\Msg\MissingEpisodesLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
@@ -123,6 +125,7 @@ final class DetailScreen implements Breadcrumbed, Themed
     private ?UserRatingPicker $ratingPicker = null;
     private ?bool $isFavorited = null;
     private ?bool $isWatched = null;
+    private ?int $likeLevel = null;
     /** @var ?MediaItem The item before the last optimistic favorite toggle (for revert). */
     private ?MediaItem $previousItem = null;
     // Container mode (null until a loaded item proves to be a series/season).
@@ -229,6 +232,28 @@ final class DetailScreen implements Breadcrumbed, Themed
             if ($this->previousItem !== null) {
                 $next->item = $this->previousItem;
                 $next->isWatched = $this->previousItem->watched;
+                $next->previousItem = null;
+            }
+
+            return [$next, Cmd::send(ShowToastMsg::error($msg->reason))];
+        }
+        if ($msg instanceof LikeToggledMsg) {
+            // Optimistic update already applied; clear the revert snapshot.
+            if ($this->previousItem !== null) {
+                $next = clone $this;
+                $next->previousItem = null;
+
+                return [$next, null];
+            }
+
+            return [$this, null];
+        }
+        if ($msg instanceof LikeToggleFailedMsg) {
+            // Revert the optimistic update and show a toast.
+            $next = clone $this;
+            if ($this->previousItem !== null) {
+                $next->item = $this->previousItem;
+                $next->likeLevel = $this->previousItem->likeLevel;
                 $next->previousItem = null;
             }
 
@@ -366,6 +391,16 @@ final class DetailScreen implements Breadcrumbed, Themed
         // Leaf: w → toggle watched (optimistic update, revert on failure).
         if ($msg->type === KeyType::Char && ($msg->rune === 'w' || $msg->rune === 'W')) {
             return $this->toggleWatched();
+        }
+        // Leaf: l → thumbs up (optimistic update, revert on failure).
+        // Pressing when already at +2 toggles back to 0.
+        if ($msg->type === KeyType::Char && ($msg->rune === 'l' || $msg->rune === 'L')) {
+            return $this->toggleLike(2);
+        }
+        // Leaf: j → thumbs down (optimistic update, revert on failure).
+        // Pressing when already at -2 toggles back to 0.
+        if ($msg->type === KeyType::Char && ($msg->rune === 'j' || $msg->rune === 'J')) {
+            return $this->toggleLike(-2);
         }
         // Leaf: d → fetch a signed download URL for this media item.
         if ($msg->type === KeyType::Char && ($msg->rune === 'd' || $msg->rune === 'D')) {
@@ -665,6 +700,45 @@ final class DetailScreen implements Breadcrumbed, Themed
     }
 
     /**
+     * Toggle the like state of the current item (optimistic update).
+     *
+     * When $target is 2 (thumbs up) and the current level is already 2,
+     * the toggle sets it back to 0. Same for -2 (thumbs down).
+     * Otherwise, sets the like level to $target.
+     *
+     * @param int $target The target like level, either 2 (thumbs up) or -2 (thumbs down)
+     * @return array{self, ?\Closure}
+     */
+    private function toggleLike(int $target): array
+    {
+        if ($this->item === null) {
+            return [$this, null];
+        }
+
+        $currentLevel = $this->likeLevel ?? 0;
+
+        // Toggle to 0 if already at the target level, otherwise set to target.
+        $newLevel = $currentLevel === $target ? 0 : $target;
+
+        $next = clone $this;
+        $next->likeLevel = $newLevel;
+        // Capture for revert-on-failure: we store the current item so the
+        // failure handler can restore it if the API call rejects.
+        $next->previousItem = $this->item;
+
+        $id = $this->id;
+        $apiPromise = $this->media->api()->setLike($id, $newLevel);
+
+        return [
+            $next,
+            Cmd::promise(fn () => $apiPromise->then(
+                static fn (bool $_): Msg => new LikeToggledMsg($id, $newLevel),
+                static fn (\Throwable $e): Msg => new LikeToggleFailedMsg($e->getMessage()),
+            )),
+        ];
+    }
+
+    /**
      * Navigate the similar items selection by delta (-1 for left, +1 for right).
      *
      * @return array{self, ?\Closure}
@@ -758,6 +832,7 @@ final class DetailScreen implements Breadcrumbed, Themed
         $next->loaded = true;
         $next->isFavorited = $item->isFavorite;
         $next->isWatched = $item->watched;
+        $next->likeLevel = $item->likeLevel;
 
         if ($item->isContainer()) {
             $grid = PosterGrid::new(self::CARD_WIDTH, self::POSTER_HEIGHT, self::H_SPACING, self::V_SPACING)
@@ -1185,6 +1260,14 @@ final class DetailScreen implements Breadcrumbed, Themed
         // Append watched marker if this item has been watched.
         if ($this->isWatched === true) {
             $parts[] = '✓';
+        }
+
+        // Append like marker if this item has a like level set.
+        $likeLevel = $this->likeLevel ?? 0;
+        if ($likeLevel > 0) {
+            $parts[] = '👍';
+        } elseif ($likeLevel < 0) {
+            $parts[] = '👎';
         }
 
         return Width::truncate(implode('  ·  ', $parts), $this->columnWidth());

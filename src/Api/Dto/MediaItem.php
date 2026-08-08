@@ -48,6 +48,7 @@ final readonly class MediaItem
         public ?string $updatedAt,
         public bool $isFavorite = false,
         public bool $watched = false,
+        public int $likeLevel = 0,
     ) {
     }
 
@@ -83,7 +84,27 @@ final readonly class MediaItem
             updatedAt: Coerce::nstr($data['updated_at'] ?? null),
             isFavorite: (bool) ($data['is_favorite'] ?? false),
             watched: (bool) ($data['watched'] ?? false),
+            likeLevel: self::coerceLikeLevel($data['like_level'] ?? null),
         );
+    }
+
+    /**
+     * Coerce a like_level value to the valid [-2, 2] integer range.
+     *
+     * @param mixed $value
+     */
+    private static function coerceLikeLevel(mixed $value): int
+    {
+        if (!is_int($value) && !is_float($value) && !is_string($value)) {
+            return 0;
+        }
+        $int = (int) $value;
+
+        return match (true) {
+            $int < -2 => -2,
+            $int > 2 => 2,
+            default => $int,
+        };
     }
 
     /**
@@ -126,6 +147,7 @@ final readonly class MediaItem
             updatedAt: Coerce::nstr($row['updated_at'] ?? null),
             isFavorite: (bool) ($row['is_favorite'] ?? false),
             watched: (bool) ($row['watched'] ?? false),
+            likeLevel: self::coerceLikeLevel($row['like_level'] ?? null),
         );
     }
 

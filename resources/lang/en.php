@@ -27,7 +27,7 @@ return [
     // ---- DetailScreen -------------------------------------------------
     'detail.session_expired' => 'Your session expired. Please sign in again.',
     'detail.play_notice' => '▶  This title has no playable source.',
-    'detail.hint' => '↑↓  scroll synopsis      p  play      s  shuffle      C  cast      r  rate      F  favorite      w  watched      d  download      Esc  back',
+    'detail.hint' => '↑↓  scroll synopsis      p  play      s  shuffle      C  cast      r  rate      F  favorite      w  watched      l  thumbs up      j  thumbs down      d  download      Esc  back',
     'detail.container_hint' => '↑↓←→  move      ⏎  open      Esc  back',
     'detail.loading_hint' => 'Esc  back',
     'detail.loading' => 'Loading…',

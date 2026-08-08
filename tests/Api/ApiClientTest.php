@@ -1418,6 +1418,62 @@ final class ApiClientTest extends TestCase
         self::assertStringEndsWith('/api/v1/media/m1/unwatched', $req['url']);
     }
 
+    // ---- likes ---------------------------------------------------------
+
+    public function testSetLikeSendsPutRequestWithLevel(): void
+    {
+        $t = (new FakeTransport())->json(200, ['message' => 'liked']);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $result = $this->await($client->setLike('m1', 2));
+
+        self::assertTrue($result);
+        $req = $t->requestAt(0);
+        self::assertSame('PUT', $req['method']);
+        self::assertStringEndsWith('/api/v1/media/m1/like', $req['url']);
+        $body = json_decode($req['body'], true);
+        self::assertSame(2, $body['level']);
+    }
+
+    public function testSetLikeAcceptsAllValidValues(): void
+    {
+        $t = (new FakeTransport())->json(200, ['message' => 'ok']);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        foreach ([-2, -1, 0, 1, 2] as $value) {
+            $this->await($client->setLike('m1', $value));
+            $req = $t->requestAt($t->requestCount() - 1);
+            $body = json_decode($req['body'], true);
+            self::assertSame($value, $body['level'], "Value {$value} should be accepted");
+        }
+    }
+
+    public function testSetLikeRejectsValuesBelowMinusTwo(): void
+    {
+        $t = new FakeTransport();
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Like level must be between -2 and 2, got -3.');
+
+        $this->await($client->setLike('m1', -3));
+    }
+
+    public function testSetLikeRejectsValuesAboveTwo(): void
+    {
+        $t = new FakeTransport();
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Like level must be between -2 and 2, got 3.');
+
+        $this->await($client->setLike('m1', 3));
+    }
+
     // ---- 401 refresh-and-retry ----------------------------------------
 
     public function testUnauthorizedTriggersRefreshAndRetry(): void

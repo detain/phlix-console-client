@@ -1033,6 +1033,38 @@ final class ApiClient
             ->then(static fn (array $data): bool => true);
     }
 
+    // ---- likes ---------------------------------------------------------
+
+    /**
+     * Set the authenticated user's like level for a media item.
+     *
+     * The like level is a signed integer on the thumbs axis:
+     *   -2 = strongly dislike
+     *   -1 = dislike
+     *    0 = no opinion / unset
+     *    1 = like
+     *    2 = love
+     *
+     * Passing the current value when already at that level toggles back to 0.
+     *
+     * @param string $mediaId The media item id
+     * @param int $value The like level, must be in the range [-2, 2]
+     * @return PromiseInterface<bool>
+     * @throws \InvalidArgumentException if $value is outside the range [-2, 2]
+     */
+    public function setLike(string $mediaId, int $value): PromiseInterface
+    {
+        if ($value < -2 || $value > 2) {
+            throw new \InvalidArgumentException(
+                sprintf('Like level must be between -2 and 2, got %d.', $value),
+            );
+        }
+
+        return $this->authed('PUT', '/api/v1/media/' . rawurlencode($mediaId) . '/like', [], [
+            'level' => $value,
+        ])->then(static fn (array $data): bool => true);
+    }
+
     // ---- SyncPlay ------------------------------------------------------
 
     /**
