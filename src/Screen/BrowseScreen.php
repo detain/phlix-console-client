@@ -113,6 +113,8 @@ final class BrowseScreen implements Breadcrumbed, Themed
     private Sidebar $sidebar;
     /** @var list<string> */
     private array $crumbs = [];
+    /** @var array<string, string> digest by card id (railId:cardId), for releaseAllExcept */
+    private array $digestByCardId = [];
 
     public function __construct(
         private readonly AuthUser $user,
@@ -154,7 +156,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
             return $this->onLibraryMedia($msg->libraryId, $msg->page);
         }
         if ($msg instanceof PosterLoadedMsg) {
-            return [$this->onPoster($msg->railId, $msg->cardId, $msg->ansi, $msg->imageId), null];
+            return [$this->onPoster($msg->railId, $msg->cardId, $msg->ansi, $msg->imageId, $msg->digest), null];
         }
         if ($msg instanceof LibrariesFailedMsg) {
             return [$this->withError($msg->reason), null];
@@ -297,7 +299,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
             }
             $cardId = $card->id;
             $cmds[] = Cmd::promise(fn () => $this->posters->load($url, self::POSTER_WIDTH, self::POSTER_HEIGHT)->then(
-                static fn (\Phlix\Console\Media\PosterLoadResult $result): Msg => new PosterLoadedMsg($railId, $cardId, $result->marker, $result->imageId),
+                static fn (\Phlix\Console\Media\PosterLoadResult $result): Msg => new PosterLoadedMsg($railId, $cardId, $result->marker, $result->imageId, $result->digest),
                 static fn (\Throwable $e): ?Msg => null, // a broken poster keeps its placeholder
             ));
         }
@@ -491,11 +493,16 @@ final class BrowseScreen implements Breadcrumbed, Themed
         return [$next, $next->loadPostersFor($libraryId, $rail)];
     }
 
-    private function onPoster(string $railId, string $cardId, string $marker, ?int $imageId): self
+    private function onPoster(string $railId, string $cardId, string $marker, ?int $imageId, ?string $digest = null): self
     {
         $rail = $this->railById($railId);
         if ($rail === null) {
             return $this;
+        }
+
+        $next = clone $this;
+        if ($digest !== null) {
+            $next->digestByCardId[$railId . ':' . $cardId] = $digest;
         }
 
         foreach ($rail->cards as $card) {
@@ -507,11 +514,11 @@ final class BrowseScreen implements Breadcrumbed, Themed
                 } else {
                     $newCard = $card->withPoster($marker);
                 }
-                return $this->replaceRail($railId, $rail->withCard($newCard));
+                return $next->replaceRail($railId, $rail->withCard($newCard));
             }
         }
 
-        return $this;
+        return $next;
     }
 
     // ---- navigation ----------------------------------------------------
@@ -675,7 +682,51 @@ final class BrowseScreen implements Breadcrumbed, Themed
             $scroll = $cursor - $perScreen + 1;
         }
 
-        return $this->withCursor($cursor, $scroll);
+        $next = $this->withCursor($cursor, $scroll);
+
+        return $this->afterRailScrollChange($next);
+    }
+
+    /**
+     * After the rail cursor/viewport moved: release image layer entries that
+     * are no longer in the visible window (visible rails + one screen overscan).
+     */
+    private function afterRailScrollChange(self $next): self
+    {
+        $ids = $next->orderedRailIds();
+        $visibleCount = $next->visibleRailCount();
+        $scroll = $next->railScroll;
+
+        // Compute the visible range with overscan (one screen above and below).
+        $start = max(0, $scroll - $visibleCount);
+        $end = min(count($ids) - 1, $scroll + $visibleCount + ($visibleCount - 1));
+
+        if ($start > $end) {
+            return $next;
+        }
+
+        // Collect digests for cards in the visible rail window.
+        $digestsToKeep = [];
+        for ($i = $start; $i <= $end; $i++) {
+            $railId = $ids[$i] ?? null;
+            if ($railId === null) {
+                continue;
+            }
+            $rail = $next->railById($railId);
+            if ($rail === null) {
+                continue;
+            }
+            foreach ($rail->cards as $card) {
+                $key = $railId . ':' . $card->id;
+                if (isset($next->digestByCardId[$key])) {
+                    $digestsToKeep[] = $next->digestByCardId[$key];
+                }
+            }
+        }
+
+        $this->posters->releaseAllExcept($digestsToKeep);
+
+        return $next;
     }
 
     // ---- rail bookkeeping ----------------------------------------------

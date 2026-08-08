@@ -11,7 +11,10 @@ namespace Phlix\Console\Msg;
 
 use SugarCraft\Core\Msg;
 
-/** A poster finished rendering; carries the ANSI marker and overlay imageId. */
+/**
+ * A poster finished rendering; carries the ANSI marker, overlay imageId, and
+ * the digest used to track the image in the ImageLayer for releaseAllExcept.
+ */
 final readonly class PosterLoadedMsg implements Msg
 {
     public function __construct(
@@ -19,6 +22,7 @@ final readonly class PosterLoadedMsg implements Msg
         public string $cardId,
         public string $ansi,
         public ?int $imageId = null,
+        public ?string $digest = null,
     ) {
     }
 }
