@@ -52,6 +52,7 @@ use Phlix\Console\Msg\NowPlayingTickMsg;
 use Phlix\Console\Msg\OpenAlbumMsg;
 use Phlix\Console\Msg\OpenAudiobookMsg;
 use Phlix\Console\Msg\OpenBookMsg;
+use Phlix\Console\Msg\OpenMusicArtistsMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\OpenLibraryMsg;
 use Phlix\Console\Msg\OpenPhotoAlbumMsg;
@@ -131,6 +132,7 @@ use Phlix\Console\Screen\LibraryScreen;
 use Phlix\Console\Screen\Loadable;
 use Phlix\Console\Screen\LoginScreen;
 use Phlix\Console\Screen\MusicScreen;
+use Phlix\Console\Screen\MusicArtistsScreen;
 use Phlix\Console\Screen\RegisterScreen;
 use Phlix\Console\Screen\CapturesSlash;
 use Phlix\Console\Screen\PhotoAlbumScreen;
@@ -159,6 +161,7 @@ use Phlix\Console\Store\FacetsStore;
 use Phlix\Console\Store\LibrariesStore;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Store\MusicStore;
+use Phlix\Console\Store\MusicArtistsStore;
 use Phlix\Console\Store\PhotosStore;
 use Phlix\Console\Store\FavoritesStore;
 use Phlix\Console\Ui\Chrome;
@@ -409,6 +412,9 @@ final class App implements Model
         }
         if ($msg instanceof OpenAlbumMsg) {
             return $this->openAlbum($msg->album);
+        }
+        if ($msg instanceof OpenMusicArtistsMsg) {
+            return $this->openMusicArtists();
         }
         if ($msg instanceof OpenBookMsg) {
             return $this->openBook($msg->id, $msg->title);
@@ -954,6 +960,7 @@ final class App implements Model
             new PaletteAction('Watch History', new OpenWatchHistoryMsg()),
             new PaletteAction('Favorites', new OpenFavoritesMsg()),
             new PaletteAction('Photos', new OpenPhotosMsg()),
+            new PaletteAction('Music Artists', new OpenMusicArtistsMsg()),
             new PaletteAction('Playlists', new OpenPlaylistsMsg()),
             new PaletteAction('Servers', new OpenServersMsg()),
             new PaletteAction('Shared With Me', new OpenSharedWithMeMsg()),
@@ -1281,6 +1288,18 @@ final class App implements Model
         $screen = new AlbumScreen($album, cols: $this->cols, rows: $this->rows);
 
         return [$this->push(Route::Album, $screen), $screen->init()];
+    }
+
+    /** @return array{App, ?\Closure} */
+    private function openMusicArtists(): array
+    {
+        $screen = new MusicArtistsScreen(
+            new MusicArtistsStore($this->api),
+            cols: $this->cols,
+            rows: $this->rows,
+        );
+
+        return [$this->push(Route::MusicArtists, $screen), $screen->init()];
     }
 
     /** @return array{App, ?\Closure} */
