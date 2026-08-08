@@ -55,6 +55,7 @@ use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\OpenLibraryMsg;
 use Phlix\Console\Msg\OpenPhotoAlbumMsg;
 use Phlix\Console\Msg\OpenPhotoMsg;
+use Phlix\Console\Msg\OpenPhotosMsg;
 use Phlix\Console\Msg\OpenSearchMsg;
 use Phlix\Console\Msg\OpenServersMsg;
 use Phlix\Console\Msg\OpenSettingsMsg;
@@ -355,10 +356,18 @@ final class App implements Model
             // When the server-persisted settings were fetched during restore, apply
             // them before routing so Browse renders with the correct theme/interval.
             if ($msg->user !== null && $msg->mergedConfig !== null) {
-                return $this->withConfig($msg->mergedConfig)->goBrowse($msg->user);
+                $next = $this->withConfig($msg->mergedConfig)->goBrowse($msg->user);
+            } else {
+                $next = $msg->user !== null ? $this->goBrowse($msg->user) : $this->goLogin(null);
             }
 
-            return $msg->user !== null ? $this->goBrowse($msg->user) : $this->goLogin(null);
+            // Surface any toast accumulated during the boot sequence (e.g., a
+            // merge or fetch failure that was silently degraded to local config).
+            if ($msg->toast !== null) {
+                return [$next[0], Cmd::batch($next[1], Cmd::send($msg->toast))];
+            }
+
+            return $next;
         }
         if ($msg instanceof SubmitServerMsg) {
             return $this->onServerSubmitted($msg->url);
@@ -407,6 +416,9 @@ final class App implements Model
         }
         if ($msg instanceof OpenPhotoMsg) {
             return $this->openPhoto($msg->album, $msg->index);
+        }
+        if ($msg instanceof OpenPhotosMsg) {
+            return $this->openPhotos();
         }
         if ($msg instanceof OpenDetailMsg) {
             return $this->openDetail($msg->id, $msg->name);
@@ -911,6 +923,7 @@ final class App implements Model
             new PaletteAction('Stats', new OpenStatsMsg()),
             new PaletteAction('Watch History', new OpenWatchHistoryMsg()),
             new PaletteAction('Favorites', new OpenFavoritesMsg()),
+            new PaletteAction('Photos', new OpenPhotosMsg()),
             new PaletteAction('Playlists', new OpenPlaylistsMsg()),
             new PaletteAction('Servers', new OpenServersMsg()),
             // The metrics / HUD overlay is toggled from the palette (no global key,
@@ -1307,6 +1320,39 @@ final class App implements Model
         );
 
         return [$this->push(Route::PhotoViewer, $screen), $screen->init()];
+    }
+
+    /** @return array{App, ?\Closure} */
+    private function openPhotos(): array
+    {
+        // Look for a cached photo library to get its id and name. The
+        // LibrariesStore is pre-loaded by the browse home, so cached()
+        // returns immediately without a new fetch.
+        $libraryId = '';
+        $name = 'Photos';
+        $libraries = $this->libraries->cached();
+        if ($libraries !== null) {
+            foreach ($libraries as $library) {
+                if ($library->type === 'photo') {
+                    $libraryId = $library->id;
+                    $name = $library->name;
+
+                    break;
+                }
+            }
+        }
+
+        $screen = new PhotosScreen(
+            new PhotosStore($this->api),
+            $this->posters,
+            $this->api->baseUrl(),
+            $libraryId,
+            $name,
+            cols: $this->cols,
+            rows: $this->rows,
+        );
+
+        return [$this->push(Route::Photos, $screen), $screen->init()];
     }
 
     /** @return array{App, ?\Closure} */
@@ -1757,10 +1803,12 @@ final class App implements Model
 
     /**
      * Apply a settings change: persist the new theme + slideshow interval
-     * (best-effort), switch the live theme, and pop the Settings frame so the
-     * user returns to the screen they opened it from. The theme applies LIVE
-     * because {@see baseView()} re-applies $this->theme each render; the new
-     * interval flows into future {@see openPhoto()} pushes via $this->config.
+     * locally (throws on I/O failure), then sync to the server (a failure is
+     * reported via toast and the local write is the source of truth). Switch
+     * the live theme and pop the Settings frame so the user returns to the
+     * screen they opened it from. The theme applies LIVE because {@see baseView()}
+     * re-applies $this->theme each render; the new interval flows into future
+     * {@see openPhoto()} pushes via $this->config.
      *
      * @return array{App, ?\Closure}
      */
@@ -2166,8 +2214,9 @@ final class App implements Model
     /**
      * A Cmd that validates any stored token and, if restored, fetches and
      * merges the server-persisted user settings over local defaults before
-     * reporting the result. Settings are best-effort (a failure falls back to
-     * the local config so the app is never blocked on the server).
+     * reporting the result. If merging fails (unavailable config path or
+     * corrupted data), the local config is used and a toast is shown so the
+     * app is never blocked on the server.
      */
     private static function restoreCmd(AuthStore $auth, ApiClient $api, Config $config): \Closure
     {
@@ -2177,21 +2226,33 @@ final class App implements Model
                     return \React\Promise\resolve(new BootResolvedMsg(null));
                 }
 
-                // Fetch server settings and merge; best-effort — a failure uses local.
+                // Fetch server settings and merge; a failure falls back to local config
+                // and a toast is shown so the user knows the server values were ignored.
                 return $api->getUserSettings()->then(
                     static function (array $serverSettings) use ($user, $config): BootResolvedMsg {
                         try {
                             $mergedConfig = $config->withServerSettings($serverSettings);
                             $mergedConfig->save();
-                        } catch (\Throwable) {
-                            $mergedConfig = $config;
-                        }
 
-                        return new BootResolvedMsg($user, $mergedConfig);
+                            return new BootResolvedMsg($user, $mergedConfig);
+                        } catch (\Throwable $e) {
+                            // Config path is unavailable or corrupted; keep local defaults
+                            // and surface a toast so the user understands why server values
+                            // were ignored.
+                            $toast = ShowToastMsg::warning(
+                                'Could not merge server settings, using local config: ' . $e->getMessage(),
+                            );
+
+                            return new BootResolvedMsg($user, $config, $toast);
+                        }
                     },
                     static function (\Throwable $e) use ($user, $config): BootResolvedMsg {
-                        // Network/fetch failure → fall back to local config
-                        return new BootResolvedMsg($user, $config);
+                        // Network/fetch failure → fall back to local config and warn.
+                        $toast = ShowToastMsg::warning(
+                            'Could not fetch server settings, using local config: ' . $e->getMessage(),
+                        );
+
+                        return new BootResolvedMsg($user, $config, $toast);
                     },
                 );
             },
