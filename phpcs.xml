@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<ruleset name="Phlix-Console-PSR12">
+    <description>
+        PSR-12 for phlix-console-client src/. Exactly the same ruleset as
+        phlix-server's PSR12 gate — maintained in parallel.
+    </description>
+
+    <file>src</file>
+
+    <rule ref="PSR12"/>
+</ruleset>

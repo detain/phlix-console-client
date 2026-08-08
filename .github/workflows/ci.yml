@@ -8,13 +8,17 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php-version: ['8.3', '8.4', '8.5']
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: ${{ matrix.php-version }}
           extensions: gd, pcntl, posix
           coverage: pcov
 
@@ -27,28 +31,19 @@ jobs:
       - name: Run tests
         run: vendor/bin/phpunit
 
-      # phpunit.xml.dist declares <report><cobertura outputFile="coverage.xml"/>,
-      # and setup-php provides pcov above, so ./coverage.xml is written by the
-      # run itself - no extra --coverage flag is needed. This job has no PHP
-      # matrix, so there is exactly one upload per run and no `if:` gate.
-      - name: Upload coverage to Codacy
-        uses: codacy/codacy-coverage-reporter-action@89d6c85cfafaec52c72b6c5e8b2878d33104c699
-        # Never allowed to fail the build: a missing/expired token or a Codacy
-        # outage must not turn CI red.
-        continue-on-error: true
-        with:
-          api-token: ${{ secrets.CODACY_API_TOKEN }}
-          coverage-reports: ./coverage.xml
-
   phpstan:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php-version: ['8.3', '8.4', '8.5']
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: ${{ matrix.php-version }}
           extensions: gd, pcntl, posix
           coverage: none
 
@@ -58,16 +53,91 @@ jobs:
       - name: Run PHPStan
         run: vendor/bin/phpstan analyse --no-progress
 
-  smoke:
-    needs: test
+  phpcs:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php-version: ['8.3', '8.4', '8.5']
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: ${{ matrix.php-version }}
+          extensions: json
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Assert PHPCS is actually installed
+        run: |
+          if [ ! -f vendor/bin/phpcs ]; then
+            echo "::error::vendor/bin/phpcs is missing. squizlabs/php_codesniffer must stay in composer.json require-dev."
+            exit 1
+          fi
+          ./vendor/bin/phpcs --version
+
+      - name: Run PHPCS on src/
+        run: |
+          # Capture output and exit code
+          output=$(./vendor/bin/phpcs --standard=PSR12 --colors src/ 2>&1) || true
+          echo "$output"
+          # Parse A TOTAL OF n ERRORS
+          if echo "$output" | grep -qE "A TOTAL OF [0-9]+ ERROR"; then
+            error_line=$(echo "$output" | grep -E "A TOTAL OF [0-9]+ ERROR" | head -1)
+            echo "::error::$error_line"
+            exit 1
+          fi
+
+      - name: Run PHPCS on tests/
+        run: |
+          output=$(./vendor/bin/phpcs --standard=PSR12 --colors tests/ 2>&1) || true
+          echo "$output"
+          if echo "$output" | grep -qE "A TOTAL OF [0-9]+ ERROR"; then
+            error_line=$(echo "$output" | grep -E "A TOTAL OF [0-9]+ ERROR" | head -1)
+            echo "::error::$error_line"
+            exit 1
+          fi
+
+  vendor-patches:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Check for hand-patched vendor files
+        run: |
+          # Fail if any vendor PHP file contains patterns indicating hand-patching.
+          # These patterns should never appear in a clean composer install.
+          PATCHED=$(grep -rEl '(ORIGINAL|FIXED-BY|PATCH{|// PATCH|/\* PATCH|\x1b\[1;31mPATCH)' vendor/ --include='*.php' 2>/dev/null || true)
+          if [ -n "$PATCHED" ]; then
+            echo "::error::Found hand-patched vendor files:"
+            echo "$PATCHED"
+            echo ""
+            echo "Do not hand-patch vendor files. Fork the package and use composer repositories."
+            exit 1
+          fi
+          echo "No hand-patched vendor files found."
+
+  smoke:
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php-version: ['8.3', '8.4', '8.5']
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
           extensions: gd, pcntl, posix
           coverage: none
 
