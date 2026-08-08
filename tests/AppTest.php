@@ -985,7 +985,7 @@ final class AppTest extends TestCase
         self::assertNotNull($next->palette());
         self::assertInstanceOf(\Closure::class, $cmd, 'opening fires the libraries fetch');
         $labels = array_map(static fn ($a): string => $a->label, $next->palette()->actions());
-        self::assertSame(['Search', 'Home', 'Settings', 'Stats', 'Watch History', 'Favorites', 'Playlists', 'Servers', 'Show metrics', 'Log out', 'Quit'], $labels);
+        self::assertSame(['Search', 'Home', 'Settings', 'Stats', 'Watch History', 'Favorites', 'Photos', 'Playlists', 'Servers', 'Show metrics', 'Log out', 'Quit'], $labels);
     }
 
     public function testCtrlKTogglesThePaletteClosed(): void
@@ -1195,7 +1195,7 @@ final class AppTest extends TestCase
         $stack = [['route' => Route::Login, 'screen' => LoginScreen::create(null, 80, 24)]];
         [$open] = $this->appWithStack($stack, loggedIn: true)->update($this->ctrlK());
 
-        self::assertStringContainsString('Log out', $open->view(), 'the palette box floats over the screen');
+        self::assertStringContainsString('Photos', $open->view(), 'the palette box floats over the screen');
     }
 
     public function testViewHighlightsThePaletteMatchAfterTyping(): void
@@ -2930,7 +2930,7 @@ final class AppTest extends TestCase
 
         $view = $open->view();
         self::assertStringContainsString('Mem', $view, 'the HUD is still drawn');
-        self::assertStringContainsString('Log out', $view, 'the palette box floats over the HUD');
+        self::assertStringContainsString('Photos', $view, 'the palette box floats over the HUD');
     }
 
     public function testAToastStillCompositesWithTheHudOn(): void
