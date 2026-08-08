@@ -27,7 +27,7 @@ use SugarCraft\Sprinkles\Style;
 final readonly class FilterBar
 {
     /** @var list<string> */
-    public const SORTS = ['name', 'year', 'rating', 'date_added', 'runtime'];
+    public const SORTS = ['name', 'year', 'rating', 'date_added', 'runtime', 'genre', 'artist'];
 
     private const SEARCH = 0;
     private const SORT = 1;

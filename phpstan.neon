@@ -3,6 +3,8 @@ parameters:
     phpVersion: 80300
     paths:
         - src
+    # NOTE: tests/ has 1000+ level-9 PHPStan errors and is analyzed via
+    # phpstan-tests.neon (level 2). See that file for test-level analysis.
     tmpDir: .phpstan.cache
     bootstrapFiles:
         - vendor/autoload.php
