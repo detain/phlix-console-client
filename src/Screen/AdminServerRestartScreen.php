@@ -119,8 +119,9 @@ final class AdminServerRestartScreen implements Breadcrumbed, Themed
 
                 // Server still down — wait and retry
                 $deferred = new \React\Promise\Deferred();
-                \React\EventLoop\Loop::addTimer(2.0, function () use ($deferred, $attempts): void {
-                    $deferred->resolve($this->pollUntilUp($attempts - 1));
+                $pollPromise = $this->pollUntilUp($attempts - 1);
+                \React\EventLoop\Loop::addTimer(2.0, function () use ($deferred, $pollPromise): void {
+                    $deferred->resolve($pollPromise);
                 });
 
                 return $deferred->promise();

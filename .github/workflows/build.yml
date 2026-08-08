@@ -37,7 +37,10 @@ jobs:
         run: box compile
 
       - name: Smoke-test the phar
-        run: php build/phlix.phar help
+        run: |
+          php build/phlix.phar --version
+          php build/phlix.phar bogus || test $? -eq 2
+          PHLIX_SERVER_URL=http://127.0.0.1:8099 php build/phlix.phar run --selftest
 
       - name: Generate SHA256SUMS
         run: |

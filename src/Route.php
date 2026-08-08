@@ -72,4 +72,5 @@ enum Route
     case InviteLinks;
     case FederationShares;
     case Playlists;
+    case Collections;
 }

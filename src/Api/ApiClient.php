@@ -39,6 +39,7 @@ use Phlix\Console\Api\Dto\SubtitleSearchCandidate;
 use Phlix\Console\Api\Dto\SubtitleTrack;
 use Phlix\Console\Api\Dto\SyncPlayGroup;
 use Phlix\Console\Api\Dto\SyncPlaySession;
+use Phlix\Console\Api\Dto\Track;
 use Phlix\Console\Api\Dto\TranscodeJob;
 use Phlix\Console\Api\Dto\Trickplay;
 use Phlix\Console\Config\TokenBundle;
@@ -438,6 +439,26 @@ final class ApiClient
     {
         return $this->authed('GET', '/api/v1/music/artists', ['limit' => (string) $limit, 'offset' => (string) $offset])
             ->then(static fn (array $data): MusicArtistPage => MusicArtistPage::fromArray($data));
+    }
+
+    /**
+     * A page of the music library's track list, paged by limit/offset.
+     *
+     * @return PromiseInterface<list<Track>>
+     */
+    public function musicTracks(int $limit = 100, int $offset = 0): PromiseInterface
+    {
+        return $this->authed('GET', '/api/v1/music/tracks', ['limit' => (string) $limit, 'offset' => (string) $offset])
+            ->then(static function (array $data): array {
+                $tracks = [];
+                foreach (Coerce::map($data['tracks'] ?? null) as $row) {
+                    if (is_array($row)) {
+                        $tracks[] = Track::fromArray($row);
+                    }
+                }
+
+                return $tracks;
+            });
     }
 
     // ---- books ---------------------------------------------------------

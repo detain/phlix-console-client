@@ -29,6 +29,9 @@ final class TrickplayCache
     /** @var array<string, Trickplay> */
     private array $memory = [];
 
+    /**
+     * @param Semaphore<Trickplay>|null $semaphore
+     */
     public function __construct(
         private readonly ApiClient $api,
         private readonly ?DiskCache $cache = null,
@@ -61,7 +64,7 @@ final class TrickplayCache
                     && array_key_exists('sprite_url', $data)
                     && array_key_exists('timeline_url', $data)
                 ) {
-                    /** @var array{sprite_url: mixed, timeline_url: mixed} $data */
+                    /** @var array{sprite_url: ?string, timeline_url: ?string} $data */
                     $tp = Trickplay::fromArray($data);
                     $this->memory[$mediaId] = $tp;
 
@@ -78,6 +81,7 @@ final class TrickplayCache
             ? $this->semaphore->wrap($task)
             : $task();
 
+        /** @return PromiseInterface<Trickplay> */
         return $promise->then(function (Trickplay $tp) use ($mediaId, $key): Trickplay {
             // Store in memory cache.
             $this->memory[$mediaId] = $tp;

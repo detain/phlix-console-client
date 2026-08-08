@@ -68,6 +68,7 @@ use Phlix\Console\Msg\OpenStatsMsg;
 use Phlix\Console\Msg\OpenRecommendationsMsg;
 use Phlix\Console\Msg\OpenFavoritesMsg;
 use Phlix\Console\Msg\OpenPlaylistsMsg;
+use Phlix\Console\Msg\OpenCollectionsMsg;
 use Phlix\Console\Msg\OpenWatchHistoryMsg;
 use Phlix\Console\Msg\AddServerMsg;
 use Phlix\Console\Msg\RemoveServerMsg;
@@ -152,6 +153,7 @@ use Phlix\Console\Screen\WatchHistoryScreen;
 use Phlix\Console\Screen\FavoritesScreen;
 use Phlix\Console\Screen\FederationSharesScreen;
 use Phlix\Console\Screen\PlaylistsScreen;
+use Phlix\Console\Screen\CollectionsScreen;
 use Phlix\Console\Screen\Teardownable;
 use Phlix\Console\Screen\Themed;
 use Phlix\Console\Store\AudiobooksStore;
@@ -454,6 +456,9 @@ final class App implements Model
         }
         if ($msg instanceof OpenPlaylistsMsg) {
             return $this->openPlaylists();
+        }
+        if ($msg instanceof OpenCollectionsMsg) {
+            return $this->openCollections();
         }
         if ($msg instanceof OpenServersMsg) {
             return $this->openServers();
@@ -962,6 +967,7 @@ final class App implements Model
             new PaletteAction('Photos', new OpenPhotosMsg()),
             new PaletteAction('Music Artists', new OpenMusicArtistsMsg()),
             new PaletteAction('Playlists', new OpenPlaylistsMsg()),
+            new PaletteAction('Collections', new OpenCollectionsMsg()),
             new PaletteAction('Servers', new OpenServersMsg()),
             new PaletteAction('Shared With Me', new OpenSharedWithMeMsg()),
             new PaletteAction('Invite Links', new OpenInviteLinksMsg()),
@@ -1494,6 +1500,14 @@ final class App implements Model
         $screen = new PlaylistsScreen($this->api, $this->cols, $this->rows);
 
         return [$this->push(Route::Playlists, $screen), $screen->init()];
+    }
+
+    /** @return array{App, ?\Closure} */
+    private function openCollections(): array
+    {
+        $screen = new CollectionsScreen($this->api, $this->cols, $this->rows);
+
+        return [$this->push(Route::Collections, $screen), $screen->init()];
     }
 
     /** @return array{App, ?\Closure} */
