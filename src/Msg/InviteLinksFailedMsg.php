@@ -15,5 +15,6 @@ final readonly class InviteLinksFailedMsg implements Msg
 {
     public function __construct(
         public string $message,
-    ) {}
+    ) {
+    }
 }

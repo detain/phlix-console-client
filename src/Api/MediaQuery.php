@@ -51,18 +51,40 @@ final readonly class MediaQuery
     public function withOffset(int $offset): self
     {
         return new self(
-            $this->libraryId, $this->search, $this->parentId, $this->topLevel,
-            $this->sort, $this->order, $this->genres, $this->yearFrom, $this->yearTo,
-            $this->ratings, $this->actors, $this->match, $this->limit, $offset,
+            $this->libraryId,
+            $this->search,
+            $this->parentId,
+            $this->topLevel,
+            $this->sort,
+            $this->order,
+            $this->genres,
+            $this->yearFrom,
+            $this->yearTo,
+            $this->ratings,
+            $this->actors,
+            $this->match,
+            $this->limit,
+            $offset,
         );
     }
 
     public function withLimit(int $limit): self
     {
         return new self(
-            $this->libraryId, $this->search, $this->parentId, $this->topLevel,
-            $this->sort, $this->order, $this->genres, $this->yearFrom, $this->yearTo,
-            $this->ratings, $this->actors, $this->match, $limit, $this->offset,
+            $this->libraryId,
+            $this->search,
+            $this->parentId,
+            $this->topLevel,
+            $this->sort,
+            $this->order,
+            $this->genres,
+            $this->yearFrom,
+            $this->yearTo,
+            $this->ratings,
+            $this->actors,
+            $this->match,
+            $limit,
+            $this->offset,
         );
     }
 

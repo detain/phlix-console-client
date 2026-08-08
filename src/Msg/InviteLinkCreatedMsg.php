@@ -18,5 +18,6 @@ final readonly class InviteLinkCreatedMsg implements Msg
      */
     public function __construct(
         public array $link,
-    ) {}
+    ) {
+    }
 }

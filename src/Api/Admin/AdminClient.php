@@ -2240,20 +2240,21 @@ final class AdminClient
              * @param array{data?: array{subscriptions?: list<array<string, mixed>>}} $body
              * @return list<array<string, mixed>>
              */
-            static function (array $body): array {
-                $data = $body['data'] ?? null;
-                if (!is_array($data) || !isset($data['subscriptions']) || !is_array($data['subscriptions'])) {
-                    return [];
-                }
+                static function (array $body): array {
+                    $data = $body['data'] ?? null;
+                    if (!is_array($data) || !isset($data['subscriptions']) || !is_array($data['subscriptions'])) {
+                        return [];
+                    }
 
                 /** @var list<array<string, mixed>> $subscriptions */
-                $subscriptions = $data['subscriptions'];
+                    $subscriptions = $data['subscriptions'];
 
-                return array_map(
-                    static fn (array $row): array => self::maskSecret($row),
-                    $subscriptions,
-                );
-            });
+                    return array_map(
+                        static fn (array $row): array => self::maskSecret($row),
+                        $subscriptions,
+                    );
+                }
+            );
     }
 
     /**
@@ -2299,20 +2300,21 @@ final class AdminClient
              * @param array{data?: array{subscriptions?: list<array<string, mixed>>}} $body
              * @return list<array<string, mixed>>
              */
-            static function (array $body): array {
-                $data = $body['data'] ?? null;
-                if (!is_array($data) || !isset($data['subscriptions']) || !is_array($data['subscriptions'])) {
-                    return [];
-                }
+                static function (array $body): array {
+                    $data = $body['data'] ?? null;
+                    if (!is_array($data) || !isset($data['subscriptions']) || !is_array($data['subscriptions'])) {
+                        return [];
+                    }
 
                 /** @var list<array<string, mixed>> $subscriptions */
-                $subscriptions = $data['subscriptions'];
+                    $subscriptions = $data['subscriptions'];
 
-                return array_map(
-                    static fn (array $row): array => self::maskSecret($row),
-                    $subscriptions,
-                );
-            });
+                    return array_map(
+                        static fn (array $row): array => self::maskSecret($row),
+                        $subscriptions,
+                    );
+                }
+            );
     }
 
     /**
@@ -2350,17 +2352,18 @@ final class AdminClient
              * @param array{data?: array{providers?: list<array{name:string,enabled:bool,configured:bool}>}} $body
              * @return list<array{name:string,enabled:bool,configured:bool}>
              */
-            static function (array $body): array {
-                $data = $body['data'] ?? null;
-                if (!is_array($data) || !isset($data['providers']) || !is_array($data['providers'])) {
-                    return [];
-                }
+                static function (array $body): array {
+                    $data = $body['data'] ?? null;
+                    if (!is_array($data) || !isset($data['providers']) || !is_array($data['providers'])) {
+                        return [];
+                    }
 
                 /** @var list<array{name:string,enabled:bool,configured:bool}> $providers */
-                $providers = $data['providers'];
+                    $providers = $data['providers'];
 
-                return $providers;
-            });
+                    return $providers;
+                }
+            );
     }
 
     /**
@@ -2647,23 +2650,24 @@ final class AdminClient
          * @param array{entries?: list<array{name:string,path:string,type:string,size:int,modified:string}>} $body
          * @return list<array{name:string,path:string,type:string,size:int,modified:string}>
          */
-        static function (array $body): array {
-            $entries = $body['entries'] ?? null;
-            if (!is_array($entries)) {
-                return [];
-            }
+            static function (array $body): array {
+                $entries = $body['entries'] ?? null;
+                if (!is_array($entries)) {
+                    return [];
+                }
 
-            return self::mapList(
-                $entries,
-                static fn (array $row): array => [
+                return self::mapList(
+                    $entries,
+                    static fn (array $row): array => [
                     'name' => Coerce::str($row['name'] ?? ''),
                     'path' => Coerce::str($row['path'] ?? ''),
                     'type' => Coerce::str($row['type'] ?? ''),
                     'size' => Coerce::int($row['size'] ?? 0),
                     'modified' => Coerce::str($row['modified'] ?? ''),
-                ],
-            );
-        });
+                    ],
+                );
+            }
+        );
     }
 
     // ---- services (Trakt / Last.fm) -------------------------------------
@@ -2683,12 +2687,12 @@ final class AdminClient
          * @param array<string,mixed> $body
          * @return array{trakt: array{connected:bool, username:string|null, configured:bool}, lastfm: array{connected:bool, username:string|null, api_key_set:bool}}
          */
-        static function (array $body): array {
+            static function (array $body): array {
             /** @var array{connected:bool, username:string|null, configured:bool} $trakt */
-            $trakt = $body['trakt'] ?? [];
+                $trakt = $body['trakt'] ?? [];
             /** @var array{connected:bool, username:string|null, api_key_set:bool} $lastfm */
-            $lastfm = $body['lastfm'] ?? [];
-            return [
+                $lastfm = $body['lastfm'] ?? [];
+                return [
                 'trakt' => [
                     'connected' => (bool) $trakt['connected'],
                     'username' => is_string($trakt['username']) ? $trakt['username'] : null,
@@ -2699,8 +2703,9 @@ final class AdminClient
                     'username' => is_string($lastfm['username']) ? $lastfm['username'] : null,
                     'api_key_set' => (bool) $lastfm['api_key_set'],
                 ],
-            ];
-        });
+                ];
+            }
+        );
     }
 
     /**
