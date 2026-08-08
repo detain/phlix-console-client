@@ -7,6 +7,7 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **admin**: Add missing mutation tests for ParentalControlsScreen (createProfileSchedule, deleteProfileSchedule, addProfileTag, deleteProfileTag, updateProfileStreamLimits) (C2.1)
 - **auth**: Add user sign-up (C9.8)
 - **settings**: Sync user settings with the server (C9.7)
 - **download**: Allow downloading video files (C9.6)
