@@ -607,7 +607,8 @@ final class AdminSettingsScreenTest extends TestCase
     {
         $screen = $this->loaded($this->loadTransport());
 
-        [$next, $cmd] = $screen->update(new class implements Msg {});
+        [$next, $cmd] = $screen->update(new class implements Msg {
+        });
 
         self::assertSame($screen, $next);
         self::assertNull($cmd);

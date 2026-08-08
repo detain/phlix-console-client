@@ -524,7 +524,8 @@ final class AdminUsersScreenTest extends TestCase
     {
         $screen = $this->screenWith((new FakeTransport())->json(200, $this->usersPayload()));
 
-        [$next, $cmd] = $screen->update(new class implements Msg {});
+        [$next, $cmd] = $screen->update(new class implements Msg {
+        });
 
         self::assertSame($screen, $next);
         self::assertNull($cmd);

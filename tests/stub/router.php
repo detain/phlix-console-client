@@ -1,4 +1,5 @@
 <?php
+
 // Stub HTTP server for CI smoke test
 $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 if ($uri === '/api/v1/libraries' && $_SERVER['REQUEST_METHOD'] === 'GET') {

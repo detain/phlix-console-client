@@ -11,6 +11,7 @@ use Phlix\Console\Msg\MediaRangeLoadedMsg;
 use Phlix\Console\Msg\SearchDebouncedMsg;
 use Phlix\Console\Screen\LibraryScreen;
 use Phlix\Console\Screen\SearchScreen;
+use Phlix\Console\Store\FacetsStore;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Tests\Api\FakeTransport;
 use PHPUnit\Framework\TestCase;
@@ -81,11 +82,15 @@ final class PosterCardCallSiteTest extends TestCase
     private function libraryScreenWith(FakeTransport $transport, PosterLoader $posters): LibraryScreen
     {
         $api = new ApiClient('https://srv', $transport);
+        // Use a separate transport for FacetsStore so it doesn't interfere with
+        // MediaStore's response sequence.
+        $facetsApi = new ApiClient('https://srv', new FakeTransport());
 
         return new LibraryScreen(
             'lib-a',
             'Movies',
             new MediaStore($api),
+            new FacetsStore($facetsApi),
             $posters,
             'https://srv',
             cols: 120,

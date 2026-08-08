@@ -69,7 +69,7 @@ final class FilterBarTest extends TestCase
         self::assertSame('year', $right->sort, 'name → year');
 
         $left = $bar->handleKey(new KeyMsg(KeyType::Left));
-        self::assertSame('runtime', $left->sort, 'name → (wrap) runtime');
+        self::assertSame('artist', $left->sort, 'name → (wrap) artist');
     }
 
     public function testOrderControlToggles(): void

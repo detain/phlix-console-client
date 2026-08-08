@@ -6,6 +6,7 @@ namespace Phlix\Console\Tests\Screen;
 
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Media\PosterLoader;
+use Phlix\Console\Store\FacetsStore;
 use Phlix\Console\Msg\GridPosterLoadedMsg;
 use Phlix\Console\Msg\LibraryFailedMsg;
 use Phlix\Console\Msg\MediaRangeLoadedMsg;
@@ -49,11 +50,16 @@ final class LibraryScreenTest extends TestCase
     private function screenWith(FakeTransport $transport, ?PosterLoader $posters = null, string $baseUrl = 'https://srv'): LibraryScreen
     {
         $api = new ApiClient($baseUrl, $transport);
+        // Use a separate transport for FacetsStore so it doesn't interfere with
+        // MediaStore's response sequence. The FacetsStore is only used when the
+        // user enters filter mode (pressing '/'), which most tests don't exercise.
+        $facetsApi = new ApiClient($baseUrl, new FakeTransport());
 
         return new LibraryScreen(
             'lib-a',
             'Movies',
             new MediaStore($api),
+            new FacetsStore($facetsApi),
             $posters ?? new PosterLoader(Mosaic::halfBlock()),
             $baseUrl,
             cols: 120,

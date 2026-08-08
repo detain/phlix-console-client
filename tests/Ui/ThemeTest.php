@@ -96,7 +96,7 @@ final class ThemeTest extends TestCase
         yield 'lowercase'       => ['midnight', 'Midnight'];
         yield 'uppercase'       => ['DAYLIGHT', 'Daylight'];
         yield 'mixed + spaces'  => ['  NoCtUrNe  ', 'Nocturne'];
-        yield 'unknown→nocturne'=> ['does-not-exist', 'Nocturne'];
+        yield 'unknown→nocturne' => ['does-not-exist', 'Nocturne'];
         yield 'empty→nocturne'  => ['', 'Nocturne'];
     }
 

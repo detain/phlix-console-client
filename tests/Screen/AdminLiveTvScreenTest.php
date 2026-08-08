@@ -1283,7 +1283,8 @@ final class AdminLiveTvScreenTest extends TestCase
         self::assertNull($keyCmd);
         self::assertSame($screen, $key);
 
-        [$msg, $msgCmd] = $screen->update(new class implements Msg {});
+        [$msg, $msgCmd] = $screen->update(new class implements Msg {
+        });
         self::assertNull($msgCmd);
         self::assertSame($screen, $msg);
     }

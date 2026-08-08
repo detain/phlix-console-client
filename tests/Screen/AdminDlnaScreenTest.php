@@ -413,7 +413,8 @@ final class AdminDlnaScreenTest extends TestCase
     {
         $screen = $this->loaded((new FakeTransport())->json(200, $this->runningPayload()));
 
-        [$next, $cmd] = $screen->update(new class implements Msg {});
+        [$next, $cmd] = $screen->update(new class implements Msg {
+        });
 
         self::assertSame($screen, $next);
         self::assertNull($cmd);

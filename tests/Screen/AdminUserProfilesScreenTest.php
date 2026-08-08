@@ -694,7 +694,8 @@ final class AdminUserProfilesScreenTest extends TestCase
         self::assertSame($screen, $k);
         self::assertNull($kc);
 
-        [$m, $mc] = $screen->update(new class implements Msg {});
+        [$m, $mc] = $screen->update(new class implements Msg {
+        });
         self::assertSame($screen, $m);
         self::assertNull($mc);
     }

@@ -892,7 +892,8 @@ final class AdminLibrariesScreenTest extends TestCase
         self::assertSame($screen, $sameEnter);
         self::assertNull($enterCmd);
 
-        [$sameMsg, $msgCmd] = $screen->update(new class implements Msg {});
+        [$sameMsg, $msgCmd] = $screen->update(new class implements Msg {
+        });
         self::assertSame($screen, $sameMsg);
         self::assertNull($msgCmd);
     }

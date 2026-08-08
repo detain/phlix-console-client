@@ -268,7 +268,8 @@ final class AdminMenuScreenTest extends TestCase
     {
         $screen = $this->screen();
 
-        [$next, $cmd] = $screen->update(new class implements Msg {});
+        [$next, $cmd] = $screen->update(new class implements Msg {
+        });
 
         self::assertSame($screen, $next);
         self::assertNull($cmd);

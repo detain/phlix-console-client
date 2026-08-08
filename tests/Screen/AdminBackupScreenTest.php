@@ -700,7 +700,8 @@ final class AdminBackupScreenTest extends TestCase
     {
         $screen = $this->screenWith($this->loadTransport());
 
-        [$next, $cmd] = $screen->update(new class implements Msg {});
+        [$next, $cmd] = $screen->update(new class implements Msg {
+        });
 
         self::assertSame($screen, $next);
         self::assertNull($cmd);

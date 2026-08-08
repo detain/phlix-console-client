@@ -245,7 +245,8 @@ final class AdminDashboardScreenTest extends TestCase
     {
         $screen = $this->screenWith($this->populatedTransport());
 
-        [$next, $cmd] = $screen->update(new class implements Msg {});
+        [$next, $cmd] = $screen->update(new class implements Msg {
+        });
 
         self::assertSame($screen, $next);
         self::assertNull($cmd);

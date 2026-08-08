@@ -856,7 +856,8 @@ final class AdminRemoteAccessScreenTest extends TestCase
     {
         $screen = $this->loaded($this->statusTransport($this->activePayloads()));
 
-        [$next, $cmd] = $screen->update(new class implements Msg {});
+        [$next, $cmd] = $screen->update(new class implements Msg {
+        });
         self::assertSame($screen, $next);
         self::assertNull($cmd);
     }
