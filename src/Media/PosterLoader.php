@@ -107,11 +107,14 @@ final class PosterLoader
         $allowedHosts = is_string($host) && $host !== '' ? [$host] : null;
 
         $task = fn (): PromiseInterface => ImageSource::fromUrlAsync($url, allowedHosts: $allowedHosts)->then(
-            function (ImageSource $image) use ($key, $width, $height): PosterLoadResult {
-                $bytes = $this->mosaic->withScale(Scale::Fill)->render($image, $width, $height);
-                $this->cache?->put($key, $bytes);
+            function (ImageSource $image) use ($key, $width, $height): PromiseInterface {
+                return $this->deferRender($image, $width, $height)->then(
+                    function (string $bytes) use ($key, $width, $height): PosterLoadResult {
+                        $this->cache?->put($key, $bytes);
 
-                return $this->present($bytes, $width, $height);
+                        return $this->present($bytes, $width, $height);
+                    },
+                );
             },
         );
 
