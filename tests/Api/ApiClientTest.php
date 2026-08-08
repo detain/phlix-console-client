@@ -295,7 +295,7 @@ final class ApiClientTest extends TestCase
 
         $body = $this->await($client->send('GET', '/api/v1/admin/dashboard/storage'));
 
-        self::assertSame(['success' => true, 'data' => ['x' => 1], 'count' => 1], $body);
+        self::assertSame(['x' => 1], $body);
         $req = $t->requestAt(0);
         self::assertSame('GET', $req['method']);
         self::assertSame(self::BASE . '/api/v1/admin/dashboard/storage', $req['url']);
@@ -328,7 +328,7 @@ final class ApiClientTest extends TestCase
 
         $body = $this->await($client->send('GET', '/api/v1/admin/dashboard/now-playing'));
 
-        self::assertSame(['success' => true, 'data' => ['ok' => true]], $body);
+        self::assertSame(['ok' => true], $body);
         self::assertSame(3, $t->requestCount(), '401 → refresh → retry');
         self::assertSame('Bearer access-2', $t->requestAt(2)['headers']['Authorization'], 'the retry uses the refreshed token');
     }

@@ -135,11 +135,12 @@ final class AdminClient
 
         return all($legs)->then(static function (array $results): AdminDashboard {
             return AdminDashboard::fromParts(
-                Coerce::map($results['nowPlaying']['data'] ?? null),
-                Coerce::map($results['topUsers']['data'] ?? null),
-                Coerce::map($results['topMedia']['data'] ?? null),
-                Coerce::map($results['storage']['data'] ?? null),
-                Coerce::map($results['activity']['data'] ?? null),
+                // C1.4: decode() returns unwrapped data directly
+                Coerce::map($results['nowPlaying'] ?? null),
+                Coerce::map($results['topUsers'] ?? null),
+                Coerce::map($results['topMedia'] ?? null),
+                Coerce::map($results['storage'] ?? null),
+                Coerce::map($results['activity'] ?? null),
             );
         });
     }
@@ -931,7 +932,7 @@ final class AdminClient
     {
         return $this->api->send('GET', self::BACKUP . '/list')->then(static function (array $body): array {
             return self::mapList(
-                $body['data'] ?? null,
+                $body,  // C1.4: decode() now returns unwrapped data directly
                 static fn (array $row): Backup => Backup::fromArray($row),
             );
         });
@@ -994,7 +995,7 @@ final class AdminClient
     public function backupSchedule(): PromiseInterface
     {
         return $this->api->send('GET', self::BACKUP . '/schedule')
-            ->then(static fn (array $body): BackupSchedule => BackupSchedule::fromArray(Coerce::map($body['data'] ?? null)));
+            ->then(static fn (array $body): BackupSchedule => BackupSchedule::fromArray(Coerce::map($body)));  // C1.4: decode() returns unwrapped data
     }
 
     /**
@@ -1010,7 +1011,7 @@ final class AdminClient
         return $this->api->send('PUT', self::BACKUP . '/schedule', [], [
             'auto_backup_interval_days' => $intervalDays,
             'retention_count' => $retentionCount,
-        ])->then(static fn (array $body): BackupSchedule => BackupSchedule::fromArray(Coerce::map($body['data'] ?? null)));
+        ])->then(static fn (array $body): BackupSchedule => BackupSchedule::fromArray(Coerce::map($body)));  // C1.4: decode() returns unwrapped data
     }
 
     /**
@@ -1042,7 +1043,7 @@ final class AdminClient
     public function serverSettings(): PromiseInterface
     {
         return $this->api->send('GET', self::SETTINGS)
-            ->then(static fn (array $body): ServerSettings => ServerSettings::fromArray(Coerce::map($body['data'] ?? null)));
+            ->then(static fn (array $body): ServerSettings => ServerSettings::fromArray(Coerce::map($body)));  // C1.4: decode() returns unwrapped data
     }
 
     /**
