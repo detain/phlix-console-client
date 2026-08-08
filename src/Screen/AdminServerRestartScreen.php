@@ -43,14 +43,17 @@ final class AdminServerRestartScreen implements Breadcrumbed, Themed
 
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
     private const RESTART_FAILED = 'Server restart failed.';
-    private const RESTART_CONFIRM = 'Press r again to confirm restart…';
+    private const RESTART_CONFIRM = 'Type "restart" and press Enter to confirm';
     private const RESTARTING = 'Server is restarting, waiting for it to come back up…';
+    private const RECONNECTED = 'Server reconnected.';
     private const HINT = 'r  restart server      Esc  back';
 
     private bool $loaded = false;
     private ?string $error = null;
     private bool $confirming = false;
     private bool $restarting = false;
+    /** The characters typed during restart confirmation. */
+    private string $typed = '';
     /** @var list<string> */
     private array $crumbs = [];
 
@@ -78,12 +81,51 @@ final class AdminServerRestartScreen implements Breadcrumbed, Themed
 
     private function restartCmd(): \Closure
     {
-        return Cmd::promise(fn () => $this->admin->restartServer()->then(
-            static fn (string $message): Msg => new AdminServerRestartDoneMsg($message),
-            static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
-                : new AdminServerRestartFailedMsg(self::RESTART_FAILED . ' ' . $e->getMessage()),
-        ));
+        return function (): \React\Promise\PromiseInterface {
+            return $this->admin->restartServer()->then(
+                function (string $message): \React\Promise\PromiseInterface {
+                    return $this->pollUntilUp(10);
+                },
+                static function (\Throwable $e): \React\Promise\PromiseInterface {
+                    return \React\Promise\resolve(
+                        $e instanceof AuthError
+                            ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                            : new AdminServerRestartFailedMsg(self::RESTART_FAILED . ' ' . $e->getMessage()),
+                    );
+                },
+            );
+        };
+    }
+
+    /**
+     * Poll serverStatus() until the server responds or we run out of attempts.
+     *
+     * @return \React\Promise\PromiseInterface<Msg>
+     */
+    private function pollUntilUp(int $attempts): \React\Promise\PromiseInterface
+    {
+        if ($attempts <= 0) {
+            return \React\Promise\resolve(new AdminServerRestartFailedMsg('Server did not respond in time.'));
+        }
+
+        return $this->admin->serverStatus()->then(
+            function (int $uptime): Msg {
+                return new AdminServerRestartDoneMsg(self::RECONNECTED . ' Uptime: ' . self::formatUptime($uptime) . 's');
+            },
+            function (\Throwable $e) use ($attempts): \React\Promise\PromiseInterface {
+                if ($e instanceof AuthError) {
+                    return \React\Promise\resolve(new SessionExpiredMsg(self::SESSION_EXPIRED));
+                }
+
+                // Server still down — wait and retry
+                $deferred = new \React\Promise\Deferred();
+                \React\EventLoop\Loop::addTimer(2.0, function () use ($deferred, $attempts): void {
+                    $deferred->resolve($this->pollUntilUp($attempts - 1));
+                });
+
+                return $deferred->promise();
+            },
+        );
     }
 
     /** @return array{self, ?\Closure} */
@@ -118,6 +160,12 @@ final class AdminServerRestartScreen implements Breadcrumbed, Themed
         if ($msg->type === KeyType::Escape || ($msg->type === KeyType::Char && $msg->rune === 'q')) {
             return [$this, Cmd::send(new NavigateBackMsg())];
         }
+
+        // During confirmation, handle all keys via typed-confirm handler
+        if ($this->confirming) {
+            return $this->handleConfirmKey($msg);
+        }
+
         if ($msg->type === KeyType::Char && $msg->rune === 'r') {
             return $this->handleRestart();
         }
@@ -131,17 +179,39 @@ final class AdminServerRestartScreen implements Breadcrumbed, Themed
         if ($this->restarting) {
             return [$this, null];
         }
-        if (!$this->confirming) {
-            return [$this->withConfirming(), null];
+
+        // First 'r' press - enter confirmation mode
+        return [$this->withConfirming(), null];
+    }
+
+    /** @return array{self, ?\Closure} */
+    private function handleConfirmKey(KeyMsg $msg): array
+    {
+        // Escape cancels confirmation
+        if ($msg->type === KeyType::Escape) {
+            return [$this->withConfirming(false)->withTyped(''), null];
         }
 
-        // Second 'r' press - actually trigger the restart
-        $next = clone $this;
-        $next->confirming = false;
-        $next->restarting = true;
-        $next->error = null;
+        // Enter submits the typed confirmation
+        if ($msg->type === KeyType::Enter) {
+            if ($this->typed === 'restart') {
+                $next = clone $this;
+                $next->confirming = false;
+                $next->restarting = true;
+                $next->error = null;
 
-        return [$next, $this->restartCmd()];
+                return [$next, $this->restartCmd()];
+            }
+
+            return [$this->withTyped(''), Cmd::send(ShowToastMsg::error('Type "restart" to confirm'))];
+        }
+
+        // Accumulate character input (up to 10 chars)
+        if ($msg->type === KeyType::Char && strlen($this->typed) < 10) {
+            return [$this->withTyped($this->typed . $msg->rune), null];
+        }
+
+        return [$this, null];
     }
 
     // ---- rendering -----------------------------------------------------
@@ -152,7 +222,7 @@ final class AdminServerRestartScreen implements Breadcrumbed, Themed
             return "\n  " . self::RESTARTING . "\n\n  Press Esc to close this screen.";
         }
         if ($this->confirming) {
-            return "\n  " . self::RESTART_CONFIRM . "\n\n  This will interrupt all active streams.";
+            return "\n  " . self::RESTART_CONFIRM . " {$this->typed}\n\n  This will interrupt all active streams.";
         }
         if ($this->error !== null) {
             return "\n  {$this->error}\n\n  Press r to retry.";
@@ -214,10 +284,18 @@ final class AdminServerRestartScreen implements Breadcrumbed, Themed
         return $next;
     }
 
-    private function withConfirming(): self
+    private function withConfirming(bool $confirming = true): self
     {
         $next = clone $this;
-        $next->confirming = true;
+        $next->confirming = $confirming;
+
+        return $next;
+    }
+
+    private function withTyped(string $typed): self
+    {
+        $next = clone $this;
+        $next->typed = $typed;
 
         return $next;
     }

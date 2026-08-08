@@ -29,6 +29,7 @@ use Phlix\Console\Audio\AudiobookSession;
 use Phlix\Console\Audio\MusicSession;
 use Phlix\Console\Audio\NowPlayingSession;
 use Phlix\Console\Config\Config;
+use Phlix\Console\Media\TrickplayCache;
 use Phlix\Console\Msg\AudiobookTickMsg;
 use Phlix\Console\Msg\AudioSkipMsg;
 use Phlix\Console\Msg\BootResolvedMsg;
@@ -1758,7 +1759,7 @@ final class App implements Model
             return [$this->push(Route::AdminDuplicates, $screen), $screen->init()];
         }
         if ($section === Route::AdminMetadataMatch) {
-            $screen = new AdminMetadataMatchScreen(new AdminClient($this->api), $this->posters);
+            $screen = new AdminMetadataMatchScreen(new AdminClient($this->api));
 
             return [$this->push(Route::AdminMetadataMatch, $screen), $screen->init()];
         }
@@ -2231,6 +2232,7 @@ final class App implements Model
     private function openPlayer(MediaItem $item): array
     {
         $syncPlayService = new SyncPlayService($this->api);
+        $trickplayCache = new TrickplayCache($this->api);
 
         $screen = new PlayerScreen(
             $item,
@@ -2243,6 +2245,7 @@ final class App implements Model
             $syncPlayService,
             cols: $this->cols,
             rows: $this->rows,
+            trickplayCache: $trickplayCache,
         );
 
         return [$this->push(Route::Player, $screen), $screen->init()];

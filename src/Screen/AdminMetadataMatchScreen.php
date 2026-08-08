@@ -1,5 +1,7 @@
 <?php
+
 declare(strict_types=1);
+
 namespace Phlix\Console\Screen;
 
 use Phlix\Console\Api\Admin\AdminClient;
@@ -203,30 +205,29 @@ final class AdminMetadataMatchScreen implements Breadcrumbed, Themed
 
     private function loadPosterCandidatesCmd(string $itemId): \Closure
     {
-        return Cmd::promise(
-            fn (): PromiseInterface => $this->adminClient->alternatePosters($itemId)
-                ->then(
-                    static function (array $result): AdminMetadataMatchPostersLoadedMsg {
-                        // Extract posters from the structured response
-                        $posters = [];
-                        $providers = $result['providers'];
-                        foreach ($providers as $provider) {
-                            $providerPosters = $provider['posters'];
-                            foreach ($providerPosters as $poster) {
-                                $posters[] = [
-                                    'url' => $poster['url'],
-                                    'thumb' => $poster['url'],
-                                    'width' => $poster['width'],
-                                    'height' => $poster['height'],
-                                ];
-                            }
+        return function () use ($itemId): PromiseInterface {
+            return $this->adminClient->alternatePosters($itemId)->then(
+                static function (array $result): AdminMetadataMatchPostersLoadedMsg {
+                    // Extract posters from the structured response
+                    $posters = [];
+                    $providers = $result['providers'];
+                    foreach ($providers as $provider) {
+                        $providerPosters = $provider['posters'];
+                        foreach ($providerPosters as $poster) {
+                            $posters[] = [
+                                'url' => $poster['url'],
+                                'thumb' => $poster['url'],
+                                'width' => $poster['width'],
+                                'height' => $poster['height'],
+                            ];
                         }
+                    }
 
-                        return new AdminMetadataMatchPostersLoadedMsg($posters);
-                    },
-                    static fn (\Throwable $e): Msg => ShowToastMsg::error('Failed: ' . $e->getMessage()),
-                ),
-        );
+                    return new AdminMetadataMatchPostersLoadedMsg($posters);
+                },
+                static fn (\Throwable $e): Msg => ShowToastMsg::error('Failed: ' . $e->getMessage()),
+            );
+        };
     }
 
     // ---- breadcrumb ----------------------------------------------------

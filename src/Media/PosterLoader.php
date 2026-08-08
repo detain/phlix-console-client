@@ -74,6 +74,16 @@ final class PosterLoader
     }
 
     /**
+     * The semaphore used to bound concurrent poster operations.
+     *
+     * @return Semaphore<PosterLoadResult>
+     */
+    public function semaphore(): Semaphore
+    {
+        return $this->semaphore;
+    }
+
+    /**
      * Resolve with the rendered ANSI for $url at $width × $height cells.
      *
      * Inline mode resolves with the poster's cell ANSI (a cache hit resolves
