@@ -50,6 +50,7 @@ use Phlix\Console\Msg\SubtitleSearchFailedMsg;
 use Phlix\Console\Msg\SubtitleSearchResultMsg;
 use Phlix\Console\Msg\WatchedToggleFailedMsg;
 use Phlix\Console\Msg\WatchedToggledMsg;
+use Phlix\Console\Store\FavoritesStore;
 use Phlix\Console\Store\MediaRange;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Ui\Chrome;
@@ -151,6 +152,7 @@ final class DetailScreen implements Breadcrumbed, Themed
         private readonly string $id,
         private readonly string $name,
         private readonly MediaStore $media,
+        private readonly FavoritesStore $favorites,
         private readonly PosterLoader $posters,
         private readonly string $baseUrl,
         private int $cols = 80,
@@ -217,6 +219,10 @@ final class DetailScreen implements Breadcrumbed, Themed
             return [$next, Cmd::send(ShowToastMsg::error($msg->reason))];
         }
         if ($msg instanceof WatchedToggledMsg) {
+            // Invalidate caches so lists show fresh watched status.
+            $this->media->invalidate();
+            $this->favorites->invalidate();
+
             // Optimistic update already applied; clear the revert snapshot.
             if ($this->previousItem !== null) {
                 $next = clone $this;
@@ -491,6 +497,22 @@ final class DetailScreen implements Breadcrumbed, Themed
             return $card !== null
                 ? [$this, Cmd::send(new OpenDetailMsg($card->id, $card->title))]
                 : [$this, null];
+        }
+
+        // Container: s → shuffle-play this container's children.
+        if ($msg->type === KeyType::Char && ($msg->rune === 's' || $msg->rune === 'S')) {
+            if ($this->item === null) {
+                return [$this, null];
+            }
+
+            $mediaId = $this->id;
+
+            return [$this, Cmd::promise(fn () => $this->media->api()->shufflePlay($mediaId)->then(
+                static fn (array $result): Msg => new ShufflePlayMsg($mediaId, $result['shuffled_ids'], $result['mode']),
+                static fn (\Throwable $e): Msg => $e instanceof AuthError
+                    ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
+                    : new ShufflePlayFailedMsg($mediaId, $e->getMessage()),
+            ))];
         }
 
         $moved = match ($msg->type) {

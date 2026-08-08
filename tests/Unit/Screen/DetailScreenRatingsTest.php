@@ -11,6 +11,7 @@ use Phlix\Console\Api\Dto\Rating;
 use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Msg\RatingsLoadedMsg;
 use Phlix\Console\Screen\DetailScreen;
+use Phlix\Console\Store\FavoritesStore;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Tests\Api\FakeTransport;
 use PHPUnit\Framework\TestCase;
@@ -35,6 +36,7 @@ final class DetailScreenRatingsTest extends TestCase
             'm1',
             'The Matrix',
             new MediaStore($api),
+            new FavoritesStore($api),
             new PosterLoader(Mosaic::halfBlock()),
             'https://srv',
             cols: 120,
@@ -254,6 +256,7 @@ final class DetailScreenRatingsTest extends TestCase
             'm1',
             'The Matrix',
             new MediaStore($api),
+            new FavoritesStore($api),
             new PosterLoader(Mosaic::halfBlock()),
             'https://srv',
             cols: 120,

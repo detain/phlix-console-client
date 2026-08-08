@@ -19,6 +19,7 @@ use Phlix\Console\Msg\PlayRequestedMsg;
 use Phlix\Console\Msg\RatingsLoadedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Screen\DetailScreen;
+use Phlix\Console\Store\FavoritesStore;
 use Phlix\Console\Store\MediaRange;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Tests\Api\FakeTransport;
@@ -59,6 +60,7 @@ final class DetailScreenTest extends TestCase
             'm1',
             'The Matrix',
             new MediaStore($api),
+            new FavoritesStore($api),
             $posters ?? new PosterLoader(Mosaic::halfBlock()),
             $api->baseUrl(),
             cols: 120,

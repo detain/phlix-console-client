@@ -59,6 +59,9 @@ use Phlix\Console\Msg\OpenPhotosMsg;
 use Phlix\Console\Msg\OpenSearchMsg;
 use Phlix\Console\Msg\OpenServersMsg;
 use Phlix\Console\Msg\OpenSettingsMsg;
+use Phlix\Console\Msg\OpenSharedWithMeMsg;
+use Phlix\Console\Msg\OpenInviteLinksMsg;
+use Phlix\Console\Msg\OpenFederationSharesMsg;
 use Phlix\Console\Msg\OpenStatsMsg;
 use Phlix\Console\Msg\OpenRecommendationsMsg;
 use Phlix\Console\Msg\OpenFavoritesMsg;
@@ -151,6 +154,7 @@ use Phlix\Console\Screen\Themed;
 use Phlix\Console\Store\AudiobooksStore;
 use Phlix\Console\Store\AuthStore;
 use Phlix\Console\Store\BooksStore;
+use Phlix\Console\Store\FacetsStore;
 use Phlix\Console\Store\LibrariesStore;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Store\MusicStore;
@@ -446,6 +450,15 @@ final class App implements Model
         }
         if ($msg instanceof OpenServersMsg) {
             return $this->openServers();
+        }
+        if ($msg instanceof OpenSharedWithMeMsg) {
+            return $this->openSharedWithMe();
+        }
+        if ($msg instanceof OpenInviteLinksMsg) {
+            return $this->openInviteLinks();
+        }
+        if ($msg instanceof OpenFederationSharesMsg) {
+            return $this->openFederationShares();
         }
         if ($msg instanceof SwitchServerMsg) {
             return $this->onServerSwitch($msg->serverId);
@@ -837,9 +850,25 @@ final class App implements Model
     private function withShimmer(int $phase, bool $ticking): self
     {
         return new self(
-            $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
-            $this->stack, null, $this->cols, $this->rows, $this->toast, $this->toastTicking, $this->palette, $this->theme,
-            $this->nowPlaying, $this->audioFactory, $this->metricsVisible, $phase, $ticking,
+            $this->config,
+            $this->auth,
+            $this->api,
+            $this->libraries,
+            $this->media,
+            $this->posters,
+            $this->stack,
+            null,
+            $this->cols,
+            $this->rows,
+            $this->toast,
+            $this->toastTicking,
+            $this->palette,
+            $this->theme,
+            $this->nowPlaying,
+            $this->audioFactory,
+            $this->metricsVisible,
+            $phase,
+            $ticking,
         );
     }
 
@@ -926,6 +955,9 @@ final class App implements Model
             new PaletteAction('Photos', new OpenPhotosMsg()),
             new PaletteAction('Playlists', new OpenPlaylistsMsg()),
             new PaletteAction('Servers', new OpenServersMsg()),
+            new PaletteAction('Shared With Me', new OpenSharedWithMeMsg()),
+            new PaletteAction('Invite Links', new OpenInviteLinksMsg()),
+            new PaletteAction('Federation Shares', new OpenFederationSharesMsg()),
             // The metrics / HUD overlay is toggled from the palette (no global key,
             // so no conflict); the label flips with the current visibility.
             new PaletteAction($this->metricsVisible ? 'Hide metrics' : 'Show metrics', new ToggleMetricsMsg()),
@@ -1229,6 +1261,7 @@ final class App implements Model
             $libraryId,
             $name,
             $this->media,
+            new FacetsStore($this->api),
             $this->posters,
             $this->api->baseUrl(),
             cols: $this->cols,
@@ -1362,6 +1395,7 @@ final class App implements Model
             $id,
             $name,
             $this->media,
+            new FavoritesStore($this->api),
             $this->posters,
             $this->api->baseUrl(),
             cols: $this->cols,
@@ -1453,6 +1487,30 @@ final class App implements Model
         );
 
         return [$this->push(Route::Servers, $screen), $screen->init()];
+    }
+
+    /** @return array{App, ?\Closure} */
+    private function openSharedWithMe(): array
+    {
+        $screen = new SharedWithMeScreen(new HubClient($this->api));
+
+        return [$this->push(Route::SharedWithMe, $screen), $screen->init()];
+    }
+
+    /** @return array{App, ?\Closure} */
+    private function openInviteLinks(): array
+    {
+        $screen = new InviteLinksScreen(new HubClient($this->api));
+
+        return [$this->push(Route::InviteLinks, $screen), $screen->init()];
+    }
+
+    /** @return array{App, ?\Closure} */
+    private function openFederationShares(): array
+    {
+        $screen = new FederationSharesScreen();
+
+        return [$this->push(Route::FederationShares, $screen), $screen->init()];
     }
 
     /**
@@ -1700,7 +1758,7 @@ final class App implements Model
             return [$this->push(Route::AdminDuplicates, $screen), $screen->init()];
         }
         if ($section === Route::AdminMetadataMatch) {
-            $screen = new AdminMetadataMatchScreen(new AdminClient($this->api));
+            $screen = new AdminMetadataMatchScreen(new AdminClient($this->api), $this->posters);
 
             return [$this->push(Route::AdminMetadataMatch, $screen), $screen->init()];
         }
@@ -1843,7 +1901,8 @@ final class App implements Model
                 ]);
             } catch (\Throwable $e) {
                 yield Cmd::send(ShowToastMsg::warning(
-                    'Settings saved locally, but server sync failed: ' . $e->getMessage()));
+                    'Settings saved locally, but server sync failed: ' . $e->getMessage()
+                ));
             }
         };
 
@@ -2314,13 +2373,25 @@ final class App implements Model
         // Build the replacement App directly with the given config, bypassing the
         // chain of $this->method()->... which would always use $this->config.
         return new self(
-            $config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
+            $config,
+            $this->auth,
+            $this->api,
+            $this->libraries,
+            $this->media,
+            $this->posters,
             [['route' => $route, 'screen' => $screen]],
-            null, $this->cols, $this->rows,
-            $this->toast, $this->toastTicking, $this->palette,
-            $this->theme, null, $this->audioFactory,
+            null,
+            $this->cols,
+            $this->rows,
+            $this->toast,
+            $this->toastTicking,
+            $this->palette,
+            $this->theme,
+            null,
+            $this->audioFactory,
             $this->metricsVisible,
-            $this->shimmerPhase, $this->shimmerTicking,
+            $this->shimmerPhase,
+            $this->shimmerTicking,
         );
     }
 
@@ -2385,9 +2456,25 @@ final class App implements Model
     private function withStack(array $stack): self
     {
         return new self(
-            $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
-            $stack, null, $this->cols, $this->rows, $this->toast, $this->toastTicking, $this->palette, $this->theme,
-            $this->nowPlaying, $this->audioFactory, $this->metricsVisible, $this->shimmerPhase, $this->shimmerTicking,
+            $this->config,
+            $this->auth,
+            $this->api,
+            $this->libraries,
+            $this->media,
+            $this->posters,
+            $stack,
+            null,
+            $this->cols,
+            $this->rows,
+            $this->toast,
+            $this->toastTicking,
+            $this->palette,
+            $this->theme,
+            $this->nowPlaying,
+            $this->audioFactory,
+            $this->metricsVisible,
+            $this->shimmerPhase,
+            $this->shimmerTicking,
         );
     }
 
@@ -2417,9 +2504,25 @@ final class App implements Model
         // one-shot boot Cmd (token-restore) — else init() returns null, the
         // restore never runs, and the app hangs forever on "Connecting…".
         $app = new self(
-            $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
-            $stack, $this->bootCmd, $cols, $rows, $this->toast, $this->toastTicking, $this->palette?->resizedTo($cols, $rows), $this->theme,
-            $this->nowPlaying, $this->audioFactory, $this->metricsVisible, $this->shimmerPhase, $this->shimmerTicking,
+            $this->config,
+            $this->auth,
+            $this->api,
+            $this->libraries,
+            $this->media,
+            $this->posters,
+            $stack,
+            $this->bootCmd,
+            $cols,
+            $rows,
+            $this->toast,
+            $this->toastTicking,
+            $this->palette?->resizedTo($cols, $rows),
+            $this->theme,
+            $this->nowPlaying,
+            $this->audioFactory,
+            $this->metricsVisible,
+            $this->shimmerPhase,
+            $this->shimmerTicking,
         );
 
         return [$app, $cmds === [] ? null : Cmd::batch(...$cmds)];
@@ -2490,9 +2593,25 @@ final class App implements Model
     public function withTheme(Theme $theme): self
     {
         return new self(
-            $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
-            $this->stack, null, $this->cols, $this->rows, $this->toast, $this->toastTicking, $this->palette, $theme,
-            $this->nowPlaying, $this->audioFactory, $this->metricsVisible, $this->shimmerPhase, $this->shimmerTicking,
+            $this->config,
+            $this->auth,
+            $this->api,
+            $this->libraries,
+            $this->media,
+            $this->posters,
+            $this->stack,
+            null,
+            $this->cols,
+            $this->rows,
+            $this->toast,
+            $this->toastTicking,
+            $this->palette,
+            $theme,
+            $this->nowPlaying,
+            $this->audioFactory,
+            $this->metricsVisible,
+            $this->shimmerPhase,
+            $this->shimmerTicking,
         );
     }
 
@@ -2504,9 +2623,25 @@ final class App implements Model
     public function withConfig(Config $config): self
     {
         return new self(
-            $config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
-            $this->stack, null, $this->cols, $this->rows, $this->toast, $this->toastTicking, $this->palette, $this->theme,
-            $this->nowPlaying, $this->audioFactory, $this->metricsVisible, $this->shimmerPhase, $this->shimmerTicking,
+            $config,
+            $this->auth,
+            $this->api,
+            $this->libraries,
+            $this->media,
+            $this->posters,
+            $this->stack,
+            null,
+            $this->cols,
+            $this->rows,
+            $this->toast,
+            $this->toastTicking,
+            $this->palette,
+            $this->theme,
+            $this->nowPlaying,
+            $this->audioFactory,
+            $this->metricsVisible,
+            $this->shimmerPhase,
+            $this->shimmerTicking,
         );
     }
 
@@ -2519,9 +2654,25 @@ final class App implements Model
     private function withNowPlaying(?NowPlayingSession $nowPlaying): self
     {
         return new self(
-            $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
-            $this->stack, null, $this->cols, $this->rows, $this->toast, $this->toastTicking, $this->palette, $this->theme,
-            $nowPlaying, $this->audioFactory, $this->metricsVisible, $this->shimmerPhase, $this->shimmerTicking,
+            $this->config,
+            $this->auth,
+            $this->api,
+            $this->libraries,
+            $this->media,
+            $this->posters,
+            $this->stack,
+            null,
+            $this->cols,
+            $this->rows,
+            $this->toast,
+            $this->toastTicking,
+            $this->palette,
+            $this->theme,
+            $nowPlaying,
+            $this->audioFactory,
+            $this->metricsVisible,
+            $this->shimmerPhase,
+            $this->shimmerTicking,
         );
     }
 
@@ -2535,9 +2686,25 @@ final class App implements Model
     public function withAudioFactory(\Closure $audioFactory): self
     {
         return new self(
-            $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
-            $this->stack, null, $this->cols, $this->rows, $this->toast, $this->toastTicking, $this->palette, $this->theme,
-            $this->nowPlaying, $audioFactory, $this->metricsVisible, $this->shimmerPhase, $this->shimmerTicking,
+            $this->config,
+            $this->auth,
+            $this->api,
+            $this->libraries,
+            $this->media,
+            $this->posters,
+            $this->stack,
+            null,
+            $this->cols,
+            $this->rows,
+            $this->toast,
+            $this->toastTicking,
+            $this->palette,
+            $this->theme,
+            $this->nowPlaying,
+            $audioFactory,
+            $this->metricsVisible,
+            $this->shimmerPhase,
+            $this->shimmerTicking,
         );
     }
 
@@ -2549,9 +2716,25 @@ final class App implements Model
     private function withMetricsVisible(bool $metricsVisible): self
     {
         return new self(
-            $this->config, $this->auth, $this->api, $this->libraries, $this->media, $this->posters,
-            $this->stack, null, $this->cols, $this->rows, $this->toast, $this->toastTicking, $this->palette, $this->theme,
-            $this->nowPlaying, $this->audioFactory, $metricsVisible, $this->shimmerPhase, $this->shimmerTicking,
+            $this->config,
+            $this->auth,
+            $this->api,
+            $this->libraries,
+            $this->media,
+            $this->posters,
+            $this->stack,
+            null,
+            $this->cols,
+            $this->rows,
+            $this->toast,
+            $this->toastTicking,
+            $this->palette,
+            $this->theme,
+            $this->nowPlaying,
+            $this->audioFactory,
+            $metricsVisible,
+            $this->shimmerPhase,
+            $this->shimmerTicking,
         );
     }
 }
