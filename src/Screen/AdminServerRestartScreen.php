@@ -124,6 +124,7 @@ final class AdminServerRestartScreen implements Breadcrumbed, Themed
                     $deferred->resolve($pollPromise);
                 });
 
+                /** @phpstan-ignore-next-line */
                 return $deferred->promise();
             },
         );

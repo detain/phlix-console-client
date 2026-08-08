@@ -183,10 +183,10 @@ final class CollectionsScreen implements Model, Teardownable, Breadcrumbed, Them
         // Accumulate typed characters for typed "delete" confirmation
         if ($msg->type === KeyType::Char && $msg->rune !== '') {
             $next = $pending->withTyped($msg->rune);
-                if ($next->isConfirmed()) {
-                    // Confirmed! Execute delete
-                    return $this->executeDelete($pending->getCollection());
-                }
+            if ($next->isConfirmed()) {
+                // Confirmed! Execute delete
+                return $this->executeDelete($pending->getCollection());
+            }
 
             return [$this->withPendingDelete($next), null];
         }
