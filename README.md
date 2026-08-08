@@ -39,8 +39,7 @@ compatibility.
 > `kitty` is also supported (graphics, kitty protocol) but renders identically to
 > the other graphics modes in a capable terminal.
 
-> **Status: Phases 0–8 complete.** The build plan is
-> [`../phlix_console_client.md`](../phlix_console_client.md). Working today: log
+> **Status: Phases 0–10 complete.** Working today: log
 > in, browse your libraries as poster rails beside a sidebar, open a library into
 > a virtualized poster grid (scroll, filter, sort, A–Z jump), open any poster
 > into a **detail screen** (hero poster, metadata, synopsis, and a **Cast** list
@@ -151,6 +150,16 @@ chmod +x phlix.phar
 # Or add it to your PATH
 sudo mv phlix.phar /usr/local/bin/phlix
 phlix run
+```
+
+**Verify the download** (recommended):
+```sh
+# Fetch the checksums file
+curl -fsSL https://github.com/detain/phlix-console-client/releases/latest/download/SHA256SUMS.txt
+
+# Verify (on Linux/macOS)
+sha256sum phlix.phar
+# Compare the output against SHA256SUMS.txt
 ```
 
 **Requirements for PHAR:**

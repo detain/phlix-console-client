@@ -10,32 +10,25 @@ declare(strict_types=1);
  * Exits 2 on unknown commands or usage errors; 1 on caught exceptions.
  */
 
-const PHLIX_VERSION = '1.0.0-dev';
+const PHLIX_VERSION = '1.0.0';
 
 const HELP_TEXT = <<<TXT
 phlix — Phlix console client
 
 usage:
-  phlix doctor                              report terminal graphics capabilities
+  phlix doctor                              report terminal + server diagnostics
   phlix poster <image> [w] [h]              render an image at a cell size
   phlix frame  <video|gif> [n] [cols] [rows]  decode N frames to ANSI
   phlix run [--mode=…]                      launch the full-window app (needs a TTY)
   phlix version                             print version information
   phlix help                                show this help message
 
-flags:
-  --mode=<mode>   force a render mode (posters are cached per mode)
-
 render modes:
-  cell modes (tile in the poster grid):
-    halfblock     24-bit colour half-block (▀) — the default / "ansi" mode
-    quarterblock  denser colour blocks (▘▝▖▗)
-    ascii         monochrome character ramp
-    ansi256       256-colour character ramp
-    truecolor     24-bit-colour character ramp
-  graphics modes (real images; tiled in the grid as an overlay):
-    sixel | kitty | iterm2
-  auto            inline half-block (default; pass --mode=sixel for graphics)
+  halfblock | quarterblock | ascii | ansi256 | truecolor (cell modes)
+  sixel | kitty | iterm2 (graphics modes)   auto = halfblock default
+
+In-app keys: ↑↓←→ navigate · / search · Ctrl-K / : command palette
+ · Enter open · p play · A–Z jump · Esc back · Ctrl-C quit
 
 TXT;
 
@@ -275,16 +268,52 @@ $intArg = static fn(int $i, int $default): int =>
 try {
     switch ($cmd) {
         case 'doctor':
+            $config = Config::load();
+            $serverUrl = getenv('PHLIX_SERVER_URL') ?: $config->activeServer()?->url;
+            $tokenPath = TokenStore::default()->path();
             $cacheDir = Config::dir() . '/posters';
             $cacheEntries = (int) getenv('PHLIX_POSTER_CACHE_ENTRIES');
             if ($cacheEntries < 1) {
                 $cacheEntries = 16384;
             }
             $posterCache = new DiskCache($cacheDir, $cacheEntries);
+
+            echo "PHP version: " . PHP_VERSION . "\n";
+            echo "Config path: " . Config::path() . "\n";
+            echo "Token path: " . $tokenPath . "\n";
+            echo "Server URL: " . ($serverUrl ?? '(none)') . "\n";
+            echo "\n";
             echo (new Capabilities())->report(), "\n";
+            echo "\n";
             echo "Poster cache directory: {$cacheDir}\n";
             echo "Poster cache entry limit: {$cacheEntries}\n";
             echo "Poster cache current entries: " . $posterCache->count() . "\n";
+
+            if ($serverUrl !== null && $serverUrl !== '') {
+                echo "\nServer reachability:\n";
+                $ch = curl_init();
+                curl_setopt($ch, CURLOPT_URL, rtrim($serverUrl, '/') . '/api/v1/libraries');
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+                curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+                $response = @curl_exec($ch);
+                $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                $curlError = curl_error($ch);
+                curl_close($ch);
+
+                if ($response === false || $curlError !== '') {
+                    echo "  FAIL: " . ($curlError ?: 'Connection failed') . "\n";
+                } elseif ($httpCode === 0) {
+                    echo "  FAIL: Connection failed (HTTP 0)\n";
+                } elseif ($httpCode >= 200 && $httpCode < 300) {
+                    echo "  OK: Server is reachable\n";
+                } elseif ($httpCode === 401) {
+                    echo "  OK: Server is reachable (401 unauthenticated)\n";
+                } else {
+                    echo "  WARN: Unexpected HTTP $httpCode\n";
+                }
+            }
             break;
 
         case 'poster':
