@@ -1048,21 +1048,29 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
 final readonly class ParentalSchedulesLoadedMsg implements Msg
 {
     /** @param list<AccessSchedule> $schedules */
-    public function __construct(public array $schedules) {}
+    public function __construct(public array $schedules)
+    {
+    }
 }
 
 final readonly class ParentalTagsLoadedMsg implements Msg
 {
     /** @param list<ProfileTag> $tags */
-    public function __construct(public array $tags) {}
+    public function __construct(public array $tags)
+    {
+    }
 }
 
 final readonly class ParentalStreamLimitsLoadedMsg implements Msg
 {
-    public function __construct(public ProfileStreamLimit $limit) {}
+    public function __construct(public ProfileStreamLimit $limit)
+    {
+    }
 }
 
 final readonly class ParentalActionDoneMsg implements Msg
 {
-    public function __construct(public string $message) {}
+    public function __construct(public string $message)
+    {
+    }
 }

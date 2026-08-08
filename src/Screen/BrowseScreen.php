@@ -106,6 +106,8 @@ final class BrowseScreen implements Breadcrumbed, Themed
     private ?Rail $favoritesRail = null;
     private ?Rail $mostWatchedRail = null;
     private ?Rail $nextUpRail = null;
+    /** Current offset for Most Watched paging. */
+    private int $mostWatchedOffset = 0;
     private int $railCursor = 0;
     private int $railScroll = 0;
     private ?string $error = null;
@@ -245,9 +247,9 @@ final class BrowseScreen implements Breadcrumbed, Themed
         ));
     }
 
-    private function fetchMostWatched(): \Closure
+    private function fetchMostWatched(int $offset = 0): \Closure
     {
-        return Cmd::promise(fn (): \React\Promise\PromiseInterface => $this->media->api()->mostWatched()->then(
+        return Cmd::promise(fn (): \React\Promise\PromiseInterface => $this->media->api()->mostWatched(offset: $offset)->then(
             static fn (array $items): BrowseMostWatchedLoadedMsg => new BrowseMostWatchedLoadedMsg($items),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(self::SESSION_EXPIRED)
@@ -652,6 +654,27 @@ final class BrowseScreen implements Breadcrumbed, Themed
             return [$this, null];
         }
 
+        // '[' / ']' → page through Most Watched rail (when focused).
+        if ($msg->type === KeyType::Char && ($msg->rune === '[' || $msg->rune === ']')) {
+            $ids = $this->orderedRailIds();
+            $railId = $ids[$this->railCursor] ?? null;
+            if ($railId !== self::MOST_WATCHED_ID) {
+                return [$this, null];
+            }
+
+            $newOffset = $msg->rune === '['
+                ? max(0, $this->mostWatchedOffset - 20)
+                : $this->mostWatchedOffset + 20;
+
+            if ($newOffset === $this->mostWatchedOffset) {
+                return [$this, null];
+            }
+
+            $next = $this->withMostWatchedOffset($newOffset);
+
+            return [$next, $next->fetchMostWatched($newOffset)];
+        }
+
         return [$this, null];
     }
 
@@ -887,6 +910,14 @@ final class BrowseScreen implements Breadcrumbed, Themed
     {
         $next = clone $this;
         $next->mostWatchedRail = $rail;
+
+        return $next;
+    }
+
+    private function withMostWatchedOffset(int $offset): self
+    {
+        $next = clone $this;
+        $next->mostWatchedOffset = $offset;
 
         return $next;
     }

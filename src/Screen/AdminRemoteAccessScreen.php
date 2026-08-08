@@ -1093,5 +1093,4 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
     {
         return $this->candidatesSelected;
     }
-
 }

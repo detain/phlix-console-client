@@ -31,7 +31,8 @@ final class InviteLinksScreen implements Model, Breadcrumbed, Themed
 
     public function __construct(
         private readonly HubClient $hub,
-    ) {}
+    ) {
+    }
 
     public function init(): \Closure
     {

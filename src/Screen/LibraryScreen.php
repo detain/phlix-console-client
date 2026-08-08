@@ -25,7 +25,10 @@ use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\SearchDebouncedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
+use Phlix\Console\Msg\ShufflePlayFailedMsg;
+use Phlix\Console\Msg\ShufflePlayMsg;
 use Phlix\Console\Msg\ShowToastMsg;
+use Phlix\Console\Store\FacetsStore;
 use Phlix\Console\Store\MediaRange;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Ui\Chrome;
@@ -68,8 +71,8 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
     private const SEARCH_DEBOUNCE = 0.3;
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
     private const LOAD_MORE_FAILED = "Couldn't load more items.";
-    private const HINT = '↑↓←→  move      A–Z  jump      /  filter      R  refresh      Esc  back';
-    private const FILTER_HINT = 'type to search      Tab  field      ←→  change      Esc  done';
+    private const HINT = '↑↓←→  move      A–Z  jump      /  filter      c  clear      s  shuffle      R  refresh      Esc  back';
+    private const FILTER_HINT = 'type to search      Tab  field      ←→  change      c  clear      Esc  done';
 
     private MediaQuery $query;
     private PosterGrid $grid;
@@ -91,6 +94,7 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
         private readonly string $libraryId,
         private readonly string $name,
         private readonly MediaStore $media,
+        private readonly FacetsStore $facets,
         private readonly PosterLoader $posters,
         private readonly string $baseUrl,
         private int $cols = 80,
@@ -224,6 +228,22 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
         if ($msg->type === KeyType::Char && ($msg->rune === 'r' || $msg->rune === 'R')) {
             return $this->refresh();
         }
+        // 's' → shuffle-play the currently focused item.
+        if ($msg->type === KeyType::Char && ($msg->rune === 's' || $msg->rune === 'S')) {
+            $card = $this->grid->cursorCard();
+            if ($card === null) {
+                return [$this, null];
+            }
+
+            $mediaId = $card->id;
+
+            return [$this, Cmd::promise(fn () => $this->media->api()->shufflePlay($mediaId)->then(
+                static fn (array $result): Msg => new ShufflePlayMsg($mediaId, $result['shuffled_ids'], $result['mode']),
+                static fn (\Throwable $e): Msg => $e instanceof AuthError
+                    ? new SessionExpiredMsg('Your session expired. Please sign in again.')
+                    : new ShufflePlayFailedMsg($mediaId, $e->getMessage()),
+            ))];
+        }
         // '/' opens the filter/sort bar; other letters (and # / digit) jump A–Z.
         // (Quit is Ctrl-C globally, or Esc back to Browse — so letters are free.)
         if ($msg->type === KeyType::Char && $msg->rune === '/') {
@@ -231,6 +251,13 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
             $cmd = $this->fetchFacets();
 
             return [$next, $cmd];
+        }
+        // 'c' clears all filters if any are active; otherwise jumps to the C bucket.
+        if ($msg->type === KeyType::Char && ($msg->rune === 'c' || $msg->rune === 'C')) {
+            if ($this->hasActiveFilters()) {
+                return $this->applyFilters(FilterBar::new());
+            }
+            // No active filters — fall through to letter jump for 'C'.
         }
         if ($msg->type === KeyType::Char) {
             return $this->jumpToLetter($msg->rune);
@@ -319,6 +346,10 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
             $next->filterBar = $msg->shift ? $this->filterBar->prev() : $this->filterBar->next();
 
             return [$next, null];
+        }
+        // 'c' clears all filters and restores defaults
+        if ($msg->type === KeyType::Char && ($msg->rune === 'c' || $msg->rune === 'C')) {
+            return $this->applyFilters(FilterBar::new());
         }
 
         $bar = $this->filterBar->handleKey($msg);
@@ -523,7 +554,7 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
     {
         $generation = $this->generation;
 
-        return Cmd::promise(fn () => $this->media->api()->facets($this->libraryId)->then(
+        return Cmd::promise(fn () => $this->facets->facets($this->libraryId)->then(
             static fn (array $facets): Msg => new FacetsLoadedMsg($facets, $generation),
             static fn (\Throwable $e): ?Msg => null, // facets are optional; fail quietly
         ));

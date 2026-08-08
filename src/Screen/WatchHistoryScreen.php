@@ -123,8 +123,10 @@ final class WatchHistoryScreen implements Model, Teardownable, Breadcrumbed, The
     /** @return array{self, ?\Closure} */
     private function handleKey(KeyMsg $msg): array
     {
-        if ($msg->type === KeyType::Escape
-            || ($msg->type === KeyType::Char && ($msg->rune === 'q' || $msg->rune === 'Q'))) {
+        if (
+            $msg->type === KeyType::Escape
+            || ($msg->type === KeyType::Char && ($msg->rune === 'q' || $msg->rune === 'Q'))
+        ) {
             return [$this, Cmd::send(new NavigateBackMsg())];
         }
 

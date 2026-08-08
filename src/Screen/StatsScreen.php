@@ -1,5 +1,7 @@
 <?php
+
 declare(strict_types=1);
+
 namespace Phlix\Console\Screen;
 
 use Phlix\Console\Api\Admin\AdminClient;
@@ -31,7 +33,8 @@ final class StatsScreen implements Model
 
     public function __construct(
         private AdminClient $adminClient,
-    ) {}
+    ) {
+    }
 
     public function init(): \Closure
     {

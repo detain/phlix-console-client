@@ -21,7 +21,9 @@ final class FederationSharesScreen implements Breadcrumbed, Themed
     private int $cols = 80;
     private int $rows = 24;
 
-    public function __construct() {}
+    public function __construct()
+    {
+    }
 
     public function init(): ?\Closure
     {

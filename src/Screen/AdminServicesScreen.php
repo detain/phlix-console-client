@@ -34,6 +34,7 @@ final class AdminServicesScreen implements Breadcrumbed, Themed
 {
     use SubscriptionCapable;
     use ThemedScreen;
+
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
     private const LOAD_FAILED = 'Could not load services.';
     private const HINT = 't  disconnect Trakt     l  disconnect Last.fm     r  refresh     Esc  back';

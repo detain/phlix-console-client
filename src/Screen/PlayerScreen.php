@@ -27,6 +27,7 @@ use Phlix\Console\Api\Dto\Trickplay;
 use Phlix\Console\Api\MediaQuery;
 use Phlix\Console\Api\SyncPlay\SyncPlayService;
 use Phlix\Console\Config\Config;
+use Phlix\Console\Media\TrickplayCache;
 use Phlix\Console\Msg\AccessScheduleDeniedMsg;
 use Phlix\Console\Msg\AudioTracksLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
@@ -44,6 +45,7 @@ use Phlix\Console\Msg\SessionStartedMsg;
 use Phlix\Console\Msg\StreamLimitExceededMsg;
 use Phlix\Console\Msg\SiblingsLoadedMsg;
 use Phlix\Console\Msg\ShowToastMsg;
+use Phlix\Console\Msg\SubtitleDownloadedMsg;
 use Phlix\Console\Msg\SubtitleVttLoadedMsg;
 use Phlix\Console\Msg\SyncPlayDisconnectedMsg;
 use Phlix\Console\Msg\SyncPlayFailedMsg;
@@ -257,6 +259,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         SyncPlayService $syncPlayService,
         private int $cols = 80,
         private int $rows = 24,
+        private readonly ?TrickplayCache $trickplayCache = null,
     ) {
         $this->syncPlayService = $syncPlayService;
         $this->sleepTimer = new SleepTimer();
@@ -494,6 +497,20 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
             // The frame pump: drive the inner player's wall-clock frame advance.
             return $this->forwardToInner($msg);
         }
+        if ($msg instanceof SubtitleDownloadedMsg) {
+            // A new external subtitle was downloaded — invalidate the cached track
+            // list so the next toggleCaptions() call re-fetches the fresh list.
+            if ($msg->mediaId === $this->item->id) {
+                $next = clone $this;
+                $next->captionsFetched = false;
+                // Clear the parsed captions so the new track will be picked fresh.
+                $next->captions = null;
+
+                return [$next, null];
+            }
+
+            return [$this, null];
+        }
 
         return [$this, null];
     }
@@ -672,8 +689,9 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     private function fetchTrickplay(): \Closure
     {
         $id = $this->item->id;
+        $cache = $this->trickplayCache ?? new TrickplayCache($this->api);
 
-        return Cmd::promise(fn (): PromiseInterface => $this->api->trickplay($id)->then(
+        return Cmd::promise(fn (): PromiseInterface => $cache->load($id)->then(
             static fn (Trickplay $tp): Msg => new TrickplayLoadedMsg($tp),
             static fn (\Throwable $_): Msg => new TrickplayFailedMsg(),
         ));
@@ -1296,8 +1314,10 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
      */
     private function applyResumeInPlace(): void
     {
-        if ($this->inner === null || $this->resumeApplied
-            || $this->resumeSeconds === null || $this->resumeSeconds < self::RESUME_FLOOR) {
+        if (
+            $this->inner === null || $this->resumeApplied
+            || $this->resumeSeconds === null || $this->resumeSeconds < self::RESUME_FLOOR
+        ) {
             return;
         }
         $this->inner = $this->inner->seekToSeconds($this->resumeSeconds);
@@ -1354,8 +1374,10 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         // forwarding so the inner player's own quit — which would Cmd::quit the
         // whole app — never fires.) The exit Cmds are captured from the live
         // player before teardown stops it.
-        if ($msg->type === KeyType::Escape
-            || ($msg->type === KeyType::Char && ($msg->rune === 'q' || $msg->rune === 'Q'))) {
+        if (
+            $msg->type === KeyType::Escape
+            || ($msg->type === KeyType::Char && ($msg->rune === 'q' || $msg->rune === 'Q'))
+        ) {
             $exit = $this->exitReportCmds();
             $this->teardown();
             if ($exit === []) {
@@ -1560,8 +1582,10 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
      */
     private function handleQualityKey(QualityMenu $menu, KeyMsg $msg): array
     {
-        if ($msg->type === KeyType::Escape
-            || ($msg->type === KeyType::Char && ($msg->rune === 'q' || $msg->rune === 'Q'))) {
+        if (
+            $msg->type === KeyType::Escape
+            || ($msg->type === KeyType::Char && ($msg->rune === 'q' || $msg->rune === 'Q'))
+        ) {
             $next = clone $this;
             $next->qualityMenu = null;
 
@@ -1647,8 +1671,10 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
      */
     private function handleAudioTrackKey(AudioTrackList $menu, KeyMsg $msg): array
     {
-        if ($msg->type === KeyType::Escape
-            || ($msg->type === KeyType::Char && ($msg->rune === 'q' || $msg->rune === 'Q'))) {
+        if (
+            $msg->type === KeyType::Escape
+            || ($msg->type === KeyType::Char && ($msg->rune === 'q' || $msg->rune === 'Q'))
+        ) {
             $next = clone $this;
             $next->audioTrackMenu = null;
 
@@ -1709,8 +1735,10 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
      */
     private function handleSleepTimerKey(SleepTimerMenu $menu, KeyMsg $msg): array
     {
-        if ($msg->type === KeyType::Escape
-            || ($msg->type === KeyType::Char && ($msg->rune === 'q' || $msg->rune === 'Q'))) {
+        if (
+            $msg->type === KeyType::Escape
+            || ($msg->type === KeyType::Char && ($msg->rune === 'q' || $msg->rune === 'Q'))
+        ) {
             $next = clone $this;
             $next->sleepTimerMenu = null;
 
@@ -1817,8 +1845,10 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
      */
     private function handleSubtitleTrackKey(SubtitleTrackList $menu, KeyMsg $msg): array
     {
-        if ($msg->type === KeyType::Escape
-            || ($msg->type === KeyType::Char && ($msg->rune === 'q' || $msg->rune === 'Q'))) {
+        if (
+            $msg->type === KeyType::Escape
+            || ($msg->type === KeyType::Char && ($msg->rune === 'q' || $msg->rune === 'Q'))
+        ) {
             $next = clone $this;
             $next->subtitleTrackMenu = null;
 
@@ -1888,8 +1918,10 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
      */
     private function handleChapterMenuKey(ChapterList $menu, KeyMsg $msg): array
     {
-        if ($msg->type === KeyType::Escape
-            || ($msg->type === KeyType::Char && ($msg->rune === 'q' || $msg->rune === 'Q'))) {
+        if (
+            $msg->type === KeyType::Escape
+            || ($msg->type === KeyType::Char && ($msg->rune === 'q' || $msg->rune === 'Q'))
+        ) {
             $next = clone $this;
             $next->chapterMenu = null;
 
@@ -1968,8 +2000,10 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     private function handleSyncPlayKey(SyncPlayModal $menu, KeyMsg $msg): array
     {
         // Escape or q → close the modal
-        if ($msg->type === KeyType::Escape
-            || ($msg->type === KeyType::Char && ($msg->rune === 'q' || $msg->rune === 'Q'))) {
+        if (
+            $msg->type === KeyType::Escape
+            || ($msg->type === KeyType::Char && ($msg->rune === 'q' || $msg->rune === 'Q'))
+        ) {
             // If in creation state (state=1), go back to list; otherwise close
             if ($menu->state() === 1) {
                 $next = clone $this;
@@ -1984,8 +2018,10 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         }
 
         // ← → in creation state: toggle public/private
-        if (($msg->type === KeyType::Char && ($msg->rune === 'p' || $msg->rune === 'P'))
-            && $menu->state() === 1) {
+        if (
+            ($msg->type === KeyType::Char && ($msg->rune === 'p' || $msg->rune === 'P'))
+            && $menu->state() === 1
+        ) {
             $next = clone $this;
             $next->syncPlayModal = $menu->togglePublic();
 

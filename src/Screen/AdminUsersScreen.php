@@ -67,7 +67,7 @@ use SugarCraft\Forms\Form;
  * AdminUserProfilesScreen, pushed at App level via OpenAdminUserProfilesMsg).
  *
  * SCOPE: list + filter + per-row actions + create / edit forms + the profiles
- * jump-off. Parental-controls beyond profiles are deferred to a later PR.
+ * jump-off.
  */
 final class AdminUsersScreen implements Breadcrumbed, Themed
 {

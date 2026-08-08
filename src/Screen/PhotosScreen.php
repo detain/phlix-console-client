@@ -260,7 +260,10 @@ final class PhotosScreen implements Breadcrumbed, Loadable, Shimmering, Themed
         $generation = $this->generation;
 
         return Cmd::promise(fn () => $this->store->ensureRange(
-            $this->libraryId, $start, $end, self::PAGE_LIMIT,
+            $this->libraryId,
+            $start,
+            $end,
+            self::PAGE_LIMIT,
         )->then(
             static fn (PhotoRange $range): Msg => new PhotoRangeLoadedMsg($range, $generation),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
