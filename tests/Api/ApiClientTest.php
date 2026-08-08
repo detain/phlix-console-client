@@ -1388,6 +1388,48 @@ final class ApiClientTest extends TestCase
         self::assertSame('lib-123', $body['library_id']);
     }
 
+    public function testAddPlaylistItemSendsPostRequest(): void
+    {
+        $t = (new FakeTransport())->json(200, ['message' => 'item added']);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $result = $this->await($client->addPlaylistItem('playlist-42', 'media-99'));
+
+        self::assertTrue($result);
+        $req = $t->requestAt(0);
+        self::assertSame('POST', $req['method']);
+        self::assertStringContainsString('/api/v1/collections/playlist-42/items/media-99', $req['url']);
+    }
+
+    public function testRemovePlaylistItemSendsDeleteRequest(): void
+    {
+        $t = (new FakeTransport())->json(200, ['message' => 'item removed']);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $result = $this->await($client->removePlaylistItem('playlist-42', 'media-99'));
+
+        self::assertTrue($result);
+        $req = $t->requestAt(0);
+        self::assertSame('DELETE', $req['method']);
+        self::assertStringContainsString('/api/v1/collections/playlist-42/items/media-99', $req['url']);
+    }
+
+    public function testDeletePlaylistSendsDeleteRequest(): void
+    {
+        $t = (new FakeTransport())->json(200, ['message' => 'playlist deleted']);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $result = $this->await($client->deletePlaylist('playlist-42'));
+
+        self::assertTrue($result);
+        $req = $t->requestAt(0);
+        self::assertSame('DELETE', $req['method']);
+        self::assertStringContainsString('/api/v1/collections/playlist-42', $req['url']);
+    }
+
     // ---- watched -------------------------------------------------------
 
     public function testMarkWatchedPostsTheRouteAndReturnsTrue(): void

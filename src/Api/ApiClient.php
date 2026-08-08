@@ -27,6 +27,8 @@ use Phlix\Console\Api\Dto\Library;
 use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\Dto\MediaPage;
 use Phlix\Console\Api\Dto\MediaRatings;
+use Phlix\Console\Api\Dto\MusicArtist;
+use Phlix\Console\Api\Dto\MusicArtistPage;
 use Phlix\Console\Api\Dto\Photo;
 use Phlix\Console\Api\Dto\PhotoAlbum;
 use Phlix\Console\Api\Dto\PhotoAlbumPage;
@@ -400,12 +402,19 @@ final class ApiClient
 
     /**
      * A page of the music library's album list, paged by limit/offset.
+     * When `$artist` is given the server filters to that artist's albums only
+     * (case-insensitive exact match), so the client does not need to fetch-all.
      *
      * @return PromiseInterface<AlbumPage>
      */
-    public function musicAlbums(int $limit = 100, int $offset = 0): PromiseInterface
+    public function musicAlbums(int $limit = 100, int $offset = 0, ?string $artist = null): PromiseInterface
     {
-        return $this->authed('GET', '/api/v1/music/albums', ['limit' => (string) $limit, 'offset' => (string) $offset])
+        $query = ['limit' => (string) $limit, 'offset' => (string) $offset];
+        if ($artist !== null) {
+            $query['artist'] = $artist;
+        }
+
+        return $this->authed('GET', '/api/v1/music/albums', $query)
             ->then(static fn (array $data): AlbumPage => AlbumPage::fromArray($data));
     }
 
@@ -418,6 +427,17 @@ final class ApiClient
     {
         return $this->authed('GET', '/api/v1/music/albums/' . rawurlencode($name))
             ->then(static fn (array $data): Album => Album::fromArray(Coerce::map($data['album'] ?? null)));
+    }
+
+    /**
+     * A page of the music library's artist list, paged by limit/offset.
+     *
+     * @return PromiseInterface<MusicArtistPage>
+     */
+    public function musicArtists(int $limit = 100, int $offset = 0): PromiseInterface
+    {
+        return $this->authed('GET', '/api/v1/music/artists', ['limit' => (string) $limit, 'offset' => (string) $offset])
+            ->then(static fn (array $data): MusicArtistPage => MusicArtistPage::fromArray($data));
     }
 
     // ---- books ---------------------------------------------------------
@@ -1201,6 +1221,44 @@ final class ApiClient
             });
     }
 
+    /**
+     * Add a media item to a playlist.
+     *
+     * @param string $playlistId  The playlist/collection id
+     * @param string $mediaId     The media item id to add
+     * @return PromiseInterface<bool>
+     */
+    public function addPlaylistItem(string $playlistId, string $mediaId): PromiseInterface
+    {
+        return $this->authed('POST', '/api/v1/collections/' . rawurlencode($playlistId) . '/items/' . rawurlencode($mediaId))
+            ->then(static fn (array $data): bool => true);
+    }
+
+    /**
+     * Remove a media item from a playlist.
+     *
+     * @param string $playlistId  The playlist/collection id
+     * @param string $mediaId     The media item id to remove
+     * @return PromiseInterface<bool>
+     */
+    public function removePlaylistItem(string $playlistId, string $mediaId): PromiseInterface
+    {
+        return $this->authed('DELETE', '/api/v1/collections/' . rawurlencode($playlistId) . '/items/' . rawurlencode($mediaId))
+            ->then(static fn (array $data): bool => true);
+    }
+
+    /**
+     * Delete a playlist (collection).
+     *
+     * @param string $playlistId  The playlist/collection id to delete
+     * @return PromiseInterface<bool>
+     */
+    public function deletePlaylist(string $playlistId): PromiseInterface
+    {
+        return $this->authed('DELETE', '/api/v1/collections/' . rawurlencode($playlistId))
+            ->then(static fn (array $data): bool => true);
+    }
+
     // ---- admin seam ----------------------------------------------------
 
     /**
@@ -1244,9 +1302,9 @@ final class ApiClient
                     );
                 }
 
-            throw $error;
-        },
-    );
+                throw $error;
+            },
+        );
     }
 
     /**

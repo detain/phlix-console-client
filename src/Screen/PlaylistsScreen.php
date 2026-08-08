@@ -16,6 +16,7 @@ use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\PlaylistsFailedMsg;
 use Phlix\Console\Msg\PlaylistsLoadedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
+use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Api\ApiClient;
 use SugarCraft\Core\Cmd;
@@ -38,9 +39,11 @@ final class PlaylistsScreen implements Model, Teardownable, Breadcrumbed, Themed
     use SubscriptionCapable;
     use ThemedScreen;
 
-    private const HINT = 'Q: Back  ↑↓: Navigate  Enter: Open';
+    private const HINT = 'Q: Back  ↑↓: Navigate  Enter: Open  A: Add item  R: Remove item  D: Delete';
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
     private const LOAD_FAILED = 'Could not load playlists.';
+    private const ADD_ITEM_NOT_IMPLEMENTED = 'Add/remove items from the playlist detail screen.';
+    private const DELETE_CONFIRM_CANCELLED = 'Delete cancelled.';
 
     /** @var list<MediaItem> */
     private array $items = [];
@@ -49,6 +52,7 @@ final class PlaylistsScreen implements Model, Teardownable, Breadcrumbed, Themed
     private ?string $error = null;
     /** @var list<string> */
     private array $crumbs = [];
+    private ?PlaylistPendingAction $pendingDelete = null;
 
     public function __construct(
         private readonly ApiClient $api,
@@ -121,8 +125,15 @@ final class PlaylistsScreen implements Model, Teardownable, Breadcrumbed, Themed
     /** @return array{self, ?\Closure} */
     private function handleKey(KeyMsg $msg): array
     {
-        if ($msg->type === KeyType::Escape
-            || ($msg->type === KeyType::Char && ($msg->rune === 'q' || $msg->rune === 'Q'))) {
+        // Handle delete confirmation first if pending
+        if ($this->pendingDelete !== null) {
+            return $this->handleDeleteConfirmKey($msg);
+        }
+
+        if (
+            $msg->type === KeyType::Escape
+            || ($msg->type === KeyType::Char && ($msg->rune === 'q' || $msg->rune === 'Q'))
+        ) {
             return [$this, Cmd::send(new NavigateBackMsg())];
         }
 
@@ -138,7 +149,102 @@ final class PlaylistsScreen implements Model, Teardownable, Breadcrumbed, Themed
             return $this->openSelected();
         }
 
+        // 'a' - Add item to playlist (not available from list view)
+        if ($msg->type === KeyType::Char && $msg->rune === 'a') {
+            return [$this, Cmd::send(ShowToastMsg::info(self::ADD_ITEM_NOT_IMPLEMENTED))];
+        }
+
+        // 'r' - Remove item from playlist (not available from list view)
+        if ($msg->type === KeyType::Char && $msg->rune === 'r') {
+            return [$this, Cmd::send(ShowToastMsg::info(self::ADD_ITEM_NOT_IMPLEMENTED))];
+        }
+
+        // 'd' - Arm delete confirmation
+        if ($msg->type === KeyType::Char && $msg->rune === 'd') {
+            return $this->armDelete();
+        }
+
         return [$this, null];
+    }
+
+    /** @return array{self, ?\Closure} */
+    private function handleDeleteConfirmKey(KeyMsg $msg): array
+    {
+        $pending = $this->pendingDelete;
+        if ($pending === null) {
+            return [$this, null];
+        }
+
+        // Escape cancels the pending delete
+        if ($msg->type === KeyType::Escape) {
+            return [$this->withPendingDelete(null), Cmd::send(ShowToastMsg::info(self::DELETE_CONFIRM_CANCELLED))];
+        }
+
+        // Accumulate typed characters for typed "delete" confirmation
+        if ($msg->type === KeyType::Char && $msg->rune !== '') {
+            $next = $pending->withTyped($msg->rune);
+            if ($next->isConfirmed()) {
+                // Confirmed! Execute delete
+                return $this->executeDelete($pending->playlist);
+            }
+
+            return [$this->withPendingDelete($next), null];
+        }
+
+        return [$this, null];
+    }
+
+    /** @return array{self, ?\Closure} */
+    private function armDelete(): array
+    {
+        if (!isset($this->items[$this->selectedIndex])) {
+            return [$this, null];
+        }
+
+        $playlist = $this->items[$this->selectedIndex];
+        $pending = new PlaylistPendingAction('delete', $playlist);
+
+        return [$this->withPendingDelete($pending), null];
+    }
+
+    /** @return array{self, ?\Closure} */
+    private function executeDelete(MediaItem $playlist): array
+    {
+        $next = $this->working();
+        $promise = $this->api->deletePlaylist($playlist->id)->then(
+            static function (): PlaylistsLoadedMsg {
+                return new PlaylistsLoadedMsg([]);
+            },
+            static function (\Throwable $e): PlaylistsFailedMsg|SessionExpiredMsg {
+                return $e instanceof AuthError
+                    ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                    : new PlaylistsFailedMsg('Delete failed: ' . $e->getMessage());
+            },
+        );
+
+        return [
+            $next,
+            static function () use ($promise): \React\Promise\PromiseInterface {
+                return $promise;
+            },
+        ];
+    }
+
+    private function working(): self
+    {
+        $next = clone $this;
+        $next->loading = true;
+        $next->pendingDelete = null;
+
+        return $next;
+    }
+
+    private function withPendingDelete(?PlaylistPendingAction $pending): self
+    {
+        $next = clone $this;
+        $next->pendingDelete = $pending;
+
+        return $next;
     }
 
     /** @return array{self, ?\Closure} */
@@ -183,6 +289,20 @@ final class PlaylistsScreen implements Model, Teardownable, Breadcrumbed, Themed
         }
         if ($this->items === []) {
             return "\n\n  No playlists yet.";
+        }
+
+        // Show delete confirmation prompt if pending
+        if ($this->pendingDelete !== null) {
+            $lines = [];
+            foreach ($this->items as $i => $item) {
+                $prefix = $i === $this->selectedIndex ? '▶ ' : '  ';
+                $lines[] = $prefix . $this->renderItem($item);
+            }
+
+            $prompt = "\n\n  ⚠️  {$this->pendingDelete->prompt()}";
+            $cancelHint = "\n  Esc: Cancel";
+
+            return $prompt . implode("\n", $lines) . $cancelHint;
         }
 
         $lines = [];

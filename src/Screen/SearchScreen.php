@@ -318,8 +318,11 @@ final class SearchScreen implements Breadcrumbed, CapturesSlash, Loadable, Shimm
         }
 
         // Use withImage() for overlay modes (sixel/kitty/iterm2), withPoster() for inline modes
+        $bytes = $imageId !== null && !$this->posters->isInline()
+            ? $this->posters->imageLayer()[$imageId]->bytes ?? $ansi
+            : $ansi;
         $newCard = ($imageId !== null && !$this->posters->isInline())
-            ? $card->withImage($ansi, $imageId)
+            ? $card->withImage($bytes, $imageId)
             : $card->withPoster($ansi);
 
         $next = clone $this;
