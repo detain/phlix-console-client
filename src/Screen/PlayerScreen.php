@@ -83,6 +83,7 @@ use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\SubscriptionCapable;
 use SugarCraft\Core\Util\Ansi;
 use SugarCraft\Core\Util\Width;
+use SugarCraft\Reel\Decode\RgbFrame;
 use SugarCraft\Reel\Msg\TickMsg as ReelTickMsg;
 use SugarCraft\Reel\Player;
 use SugarCraft\Reel\Subtitle\WebVtt;
@@ -245,6 +246,11 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     private ?Trickplay $trickplay = null;
     /** True once the trickplay fetch has been dispatched (prevents re-fetching). */
     private bool $trickplayFetchAttempted = false;
+    /**
+     * The last preview frame captured during scrubbing via Player::frameAt().
+     * Used to render trickplay thumbnails during scrub. Null when no preview is available.
+     */
+    private ?RgbFrame $scrubPreviewFrame = null;
 
     /**
      * @param \Closure(string $url, int $cols, int $rows): Player $playerFactory
@@ -1477,6 +1483,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     /**
      * Seek the inner player by $delta seconds (time domain), re-arming the tick if it had ended.
      * On the first scrub, also fires the trickplay fetch (lazy — not on player init).
+     * Captures a preview frame using Player::frameAt() for thumbnail display during scrub.
      *
      * @return array{self, ?\Closure}
      */
@@ -1491,10 +1498,19 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         // already in flight (so seeking needs no new Cmd), and a paused one stays
         // paused (no tick). Only the ended→seek case must re-arm the chain.
         $wasEnded = $inner->ended;
-        $seeked = $inner->seekToSeconds($inner->position() + $delta);
+        $newPosition = $inner->position() + $delta;
+        $seeked = $inner->seekToSeconds($newPosition);
 
         $next = clone $this;
         $next->inner = $seeked;
+
+        // Capture preview frame using Player::frameAt() for scrubber thumbnail.
+        // frameAt() spawns a throwaway decoder with -ss for fast seek, reads one
+        // frame, and closes it — does not disturb live playback.
+        $previewFrame = $inner->frameAt($newPosition);
+        if ($previewFrame !== null) {
+            $next->scrubPreviewFrame = $previewFrame;
+        }
 
         // Lazy trickplay fetch on first scrub — not on every render or on init.
         $cmds = [];
@@ -2693,5 +2709,17 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         return $this->trickplay !== null
             && $this->trickplay->spriteUrl !== null
             && $this->trickplay->timelineUrl !== null;
+    }
+
+    /**
+     * Returns the last preview frame captured during scrubbing via Player::frameAt().
+     * This frame can be rendered to display a thumbnail preview during scrub.
+     *
+     * @return RgbFrame|null The preview frame, or null if no scrub has occurred yet
+     *                       or if the source is synthetic/fake
+     */
+    public function scrubPreviewFrame(): ?RgbFrame
+    {
+        return $this->scrubPreviewFrame;
     }
 }
