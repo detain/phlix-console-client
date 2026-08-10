@@ -56,7 +56,7 @@
     "scripts": {
         "test": "phpunit",
         "phpstan": "phpstan analyse",
-        "cs": "phpcs --standard=phpcs.xml --colors src/",
+        "cs": "phpcs --standard=phpcs.xml --colors src/ tests/",
         "cs:fix": "phpcbf --standard=phpcs.xml src/ tests/"
     }
 }
