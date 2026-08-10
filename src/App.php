@@ -1840,20 +1840,6 @@ final class App implements Model
     }
 
     /**
-
-
-            return [$this->push(Route::AdminWatchHistory, $screen), $screen->init()];
-        }
-        if ($section === Route::AdminDuplicates) {
-            $screen = new AdminDuplicatesScreen(new AdminClient($this->api), '', $this->cols, $this->rows);
-
-            return [$this->push(Route::AdminDuplicates, $screen), $screen->init()];
-        }
-
-        return [$this, null];
-    }
-
-    /**
      * Open a plugin's detail + settings editor (emitted by the AdminPluginsScreen
      * `D` key). The AdminClient is built locally from the shared ApiClient (the App
      * holds no AdminClient field — the BooksStore-built-locally pattern), so no
