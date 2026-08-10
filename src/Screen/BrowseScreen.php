@@ -33,6 +33,9 @@ use Phlix\Console\Msg\OpenPlaylistsMsg;
 use Phlix\Console\Msg\OpenWatchHistoryMsg;
 use Phlix\Console\Msg\PosterLoadedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
+use Phlix\Console\Msg\ShowToastMsg;
+use Phlix\Console\Msg\ShufflePlayFailedMsg;
+use Phlix\Console\Msg\ShufflePlayMsg;
 use Phlix\Console\Store\FavoritesStore;
 use Phlix\Console\Store\LibrariesStore;
 use Phlix\Console\Store\MediaStore;
@@ -177,6 +180,14 @@ final class BrowseScreen implements Breadcrumbed, Themed
         }
         if ($msg instanceof NextUpFailedMsg) {
             return [$this->withNextUpRail(null), null];
+        }
+        if ($msg instanceof ShufflePlayMsg) {
+            $count = count($msg->shuffledIds);
+
+            return [$this, Cmd::send(ShowToastMsg::success("Shuffled {$count} items"))];
+        }
+        if ($msg instanceof ShufflePlayFailedMsg) {
+            return [$this, Cmd::send(ShowToastMsg::error($msg->reason))];
         }
 
         return [$this, null];
@@ -675,6 +686,27 @@ final class BrowseScreen implements Breadcrumbed, Themed
             return [$next, $next->fetchMostWatched($newOffset)];
         }
 
+        // 's' → shuffle-play the focused card in the current rail.
+        if ($msg->type === KeyType::Char && ($msg->rune === 's' || $msg->rune === 'S')) {
+            $ids = $this->orderedRailIds();
+            $railId = $ids[$this->railCursor] ?? null;
+            $rail = $railId !== null ? $this->railById($railId) : null;
+            $card = $rail?->focusedCard();
+
+            if ($card === null) {
+                return [$this, null];
+            }
+
+            $mediaId = $card->id;
+
+            return [$this, Cmd::promise(fn () => $this->media->api()->shufflePlay($mediaId)->then(
+                static fn (array $result): Msg => new ShufflePlayMsg($mediaId, $result['shuffled_ids'], $result['mode']),
+                static fn (\Throwable $e): Msg => $e instanceof AuthError
+                    ? new SessionExpiredMsg('Your session expired. Please sign in again.')
+                    : new ShufflePlayFailedMsg($mediaId, $e->getMessage()),
+            ))];
+        }
+
         return [$this, null];
     }
 
@@ -859,7 +891,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
     {
         $filter = self::FILTER_LABELS[$this->watchFilter] ?? 'All';
 
-        return "↑↓  rails      ←→  items      ⏎  open      Tab  menu      a  filter({$filter})      R  refresh      q  quit";
+        return "↑↓  rails      ←→  items      ⏎  open      Tab  menu      a  filter({$filter})      R  refresh      s  shuffle      q  quit";
     }
 
     /**
