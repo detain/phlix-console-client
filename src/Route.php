@@ -30,6 +30,7 @@ enum Route
     case Stats;
     case Music;
     case MusicArtists;
+    case MusicArtistAlbums;
     case Album;
     case Books;
     case BookDetail;

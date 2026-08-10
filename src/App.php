@@ -53,6 +53,7 @@ use Phlix\Console\Msg\OpenAlbumMsg;
 use Phlix\Console\Msg\OpenAudiobookMsg;
 use Phlix\Console\Msg\OpenBookMsg;
 use Phlix\Console\Msg\OpenMusicArtistsMsg;
+use Phlix\Console\Msg\OpenMusicForArtistMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\OpenLibraryMsg;
 use Phlix\Console\Msg\OpenPhotoAlbumMsg;
@@ -134,6 +135,7 @@ use Phlix\Console\Screen\Loadable;
 use Phlix\Console\Screen\LoginScreen;
 use Phlix\Console\Screen\MusicScreen;
 use Phlix\Console\Screen\MusicArtistsScreen;
+use Phlix\Console\Screen\ArtistAlbumsScreen;
 use Phlix\Console\Screen\RegisterScreen;
 use Phlix\Console\Screen\CapturesSlash;
 use Phlix\Console\Screen\PhotoAlbumScreen;
@@ -164,6 +166,7 @@ use Phlix\Console\Store\LibrariesStore;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Store\MusicStore;
 use Phlix\Console\Store\MusicArtistsStore;
+use Phlix\Console\Store\ArtistAlbumsStore;
 use Phlix\Console\Store\PhotosStore;
 use Phlix\Console\Store\FavoritesStore;
 use Phlix\Console\Ui\Chrome;
@@ -417,6 +420,9 @@ final class App implements Model
         }
         if ($msg instanceof OpenMusicArtistsMsg) {
             return $this->openMusicArtists();
+        }
+        if ($msg instanceof OpenMusicForArtistMsg) {
+            return $this->openMusicForArtist($msg->artistName);
         }
         if ($msg instanceof OpenBookMsg) {
             return $this->openBook($msg->id, $msg->title);
@@ -1306,6 +1312,19 @@ final class App implements Model
         );
 
         return [$this->push(Route::MusicArtists, $screen), $screen->init()];
+    }
+
+    /** @return array{App, ?\Closure} */
+    private function openMusicForArtist(string $artistName): array
+    {
+        $screen = new ArtistAlbumsScreen(
+            new ArtistAlbumsStore($this->api, $artistName),
+            $artistName,
+            cols: $this->cols,
+            rows: $this->rows,
+        );
+
+        return [$this->push(Route::MusicArtistAlbums, $screen), $screen->init()];
     }
 
     /** @return array{App, ?\Closure} */
