@@ -280,6 +280,52 @@ final class MediaStoreTest extends TestCase
         self::assertSame(2, $transport->requestCount(), 'invalidate forces a refetch');
     }
 
+    public function testConcurrentLetterIndexFetchesAreDeduplicated(): void
+    {
+        $transport = (new FakeTransport())->pending();
+        $store = new MediaStore(new ApiClient('https://srv', $transport), 60.0, static fn (): float => 1000.0);
+        $query = MediaQuery::forLibrary('lib');
+
+        $first = $store->letterIndex($query);
+        $second = $store->letterIndex($query);
+
+        self::assertSame($first, $second, 'a concurrent fetch of the same letter index shares the in-flight promise');
+        self::assertSame(1, $transport->requestCount(), 'only one underlying request');
+    }
+
+    public function testLetterIndexFetchesUseNewRequestAfterRejection(): void
+    {
+        $transport = (new FakeTransport())
+            ->fail(new \RuntimeException('boom'))
+            ->json(200, ['letters' => [['letter' => 'A', 'offset' => 0, 'count' => 3]], 'total' => 3]);
+        $store = new MediaStore(new ApiClient('https://srv', $transport), 60.0, static fn (): float => 1000.0);
+        $query = MediaQuery::forLibrary('lib');
+
+        $error = null;
+        try {
+            $this->await($store->letterIndex($query));
+        } catch (\Throwable $e) {
+            $error = $e;
+        }
+        self::assertNotNull($error, 'first fetch rejects');
+
+        $result = $this->await($store->letterIndex($query));
+        self::assertNotNull($result, 'retry succeeds because in-flight was cleared');
+        self::assertSame(2, $transport->requestCount());
+    }
+
+    public function testConcurrentContinueWatchingFetchesAreDeduplicated(): void
+    {
+        $transport = (new FakeTransport())->pending();
+        $store = new MediaStore(new ApiClient('https://srv', $transport), 60.0, static fn (): float => 1000.0);
+
+        $first = $store->continueWatching();
+        $second = $store->continueWatching();
+
+        self::assertSame($first, $second, 'a concurrent fetch of continue watching shares the in-flight promise');
+        self::assertSame(1, $transport->requestCount(), 'only one underlying request');
+    }
+
     /** The single-item detail envelope: `{ "item": { … } }`. */
     private function itemResponse(string $id, string $type = 'movie'): array
     {
