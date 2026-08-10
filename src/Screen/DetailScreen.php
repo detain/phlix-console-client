@@ -16,6 +16,8 @@ use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\Dto\MediaRatings;
 use Phlix\Console\Api\Dto\Rating;
 use Phlix\Console\Api\MediaQuery;
+use Phlix\Console\Download\DownloadException;
+use Phlix\Console\Download\DownloadService;
 use Phlix\Console\I18n\Lang;
 use Phlix\Console\Media\PosterCardFactory;
 use Phlix\Console\Media\PosterLoader;
@@ -27,7 +29,10 @@ use Phlix\Console\Msg\DetailFailedMsg;
 use Phlix\Console\Msg\DetailLoadedMsg;
 use Phlix\Console\Msg\DetailPosterLoadedMsg;
 use Phlix\Console\Msg\DownloadAvailableMsg;
+use Phlix\Console\Msg\DownloadCompleteMsg;
 use Phlix\Console\Msg\DownloadFailedMsg;
+use Phlix\Console\Msg\DownloadProgressMsg;
+use Phlix\Console\Msg\DownloadStartedMsg;
 use Phlix\Console\Msg\FavoriteToggleFailedMsg;
 use Phlix\Console\Msg\FavoriteToggledMsg;
 use Phlix\Console\Msg\LikeToggleFailedMsg;
@@ -148,6 +153,9 @@ final class DetailScreen implements Breadcrumbed, Themed
     // Container mode (series/season): missing episodes report.
     private ?MissingEpisodesLoadedMsg $missingEpisodes = null;
 
+    // Download service for media downloads.
+    private ?DownloadService $downloadService = null;
+
     public function __construct(
         private readonly string $id,
         private readonly string $name,
@@ -158,6 +166,18 @@ final class DetailScreen implements Breadcrumbed, Themed
         private int $cols = 80,
         private int $rows = 24,
     ) {
+    }
+
+    /**
+     * Get the download service, creating it lazily.
+     */
+    private function downloadService(): DownloadService
+    {
+        if ($this->downloadService === null) {
+            $this->downloadService = new DownloadService();
+        }
+
+        return $this->downloadService;
     }
 
     public function init(): \Closure
@@ -312,7 +332,31 @@ final class DetailScreen implements Breadcrumbed, Themed
         }
         if ($msg instanceof DownloadAvailableMsg) {
             // Show the signed download URL as a toast so the user can copy it.
-            return [$this, Cmd::send(ShowToastMsg::info("Download: {$msg->url}"))];
+            // Include the download directory if set.
+            $downloadDir = $this->downloadService()->downloadDir();
+            $message = "Download: {$msg->url}";
+            if ($downloadDir !== '') {
+                $message .= " (saving to: {$downloadDir})";
+            }
+
+            return [$this, Cmd::send(ShowToastMsg::info($message))];
+        }
+        if ($msg instanceof DownloadStartedMsg) {
+            // Show download has started with directory info.
+            return [$this, Cmd::send(ShowToastMsg::info("Downloading {$msg->filename} to {$msg->downloadDir}..."))];
+        }
+        if ($msg instanceof DownloadProgressMsg) {
+            // Show download progress.
+            // Ignore if this result is for a different DetailScreen (user navigated away).
+            if ($msg->mediaId !== $this->id) {
+                return [$this, null];
+            }
+
+            return [$this, Cmd::send(ShowToastMsg::info("Download: {$msg->progressString()} ({$msg->percent()}%)"))];
+        }
+        if ($msg instanceof DownloadCompleteMsg) {
+            // Show download completed successfully.
+            return [$this, Cmd::send(ShowToastMsg::success("Download complete: {$msg->filename} ({$msg->sizeFormatted()}) saved to {$msg->filepath}"))];
         }
         if ($msg instanceof DownloadFailedMsg) {
             return [$this, Cmd::send(ShowToastMsg::error("Download failed: {$msg->reason}"))];
@@ -430,28 +474,51 @@ final class DetailScreen implements Breadcrumbed, Themed
         if ($msg->type === KeyType::Char && ($msg->rune === 'j' || $msg->rune === 'J')) {
             return $this->toggleLike(-2);
         }
-        // Leaf: d → fetch a signed download URL for this media item.
+        // Leaf: d → fetch a signed download URL and download the media item.
         if ($msg->type === KeyType::Char && ($msg->rune === 'd' || $msg->rune === 'D')) {
             if ($this->item === null) {
                 return [$this, null];
             }
 
             $mediaId = $this->id;
+            $downloadService = $this->downloadService();
 
-            return [$this, Cmd::promise(fn () => $this->media->api()->downloadMedia($mediaId)->then(
-                static function (string $url) use ($mediaId): Msg {
-                    // Extract filename and size from the URL or use defaults.
-                    $filename = 'media_download';
-                    $size = 0;
-                    $contentType = 'application/octet-stream';
+            // Get signed URL, then download the file with progress.
+            return [$this, Cmd::promise(fn () => $this->media->api()->downloadMedia($mediaId)
+                ->then(function (string $url) use ($mediaId, $downloadService): \React\Promise\PromiseInterface {
+                    // Start the actual download. The DownloadService handles filename
+                    // extraction, progress callbacks, and cleanup on failure.
+                    return $downloadService->download(
+                        $url,
+                        $mediaId,
+                        // Progress callback - could be used to send progress messages
+                        // but requires proper React event loop integration
+                        null,
+                    )->then(
+                        function (\Phlix\Console\Download\DownloadResult $result) use ($mediaId): Msg {
+                            return new DownloadCompleteMsg(
+                                $mediaId,
+                                $result->url,
+                                $result->filename,
+                                $result->size,
+                            );
+                        },
+                        function (\Throwable $e) use ($mediaId): Msg {
+                            if ($e instanceof AuthError) {
+                                return new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY));
+                            }
 
-                    return new DownloadAvailableMsg($mediaId, $url, $filename, $size, $contentType);
-                },
-                static fn (\Throwable $e): Msg => $e instanceof AuthError
-                    ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
-                    : new DownloadFailedMsg($mediaId, $e->getMessage()),
-            ))];
+                            $reason = $e instanceof DownloadException
+                                ? $e->getMessage()
+                                : "Download failed: {$e->getMessage()}";
+
+                            return new DownloadFailedMsg($mediaId, $reason);
+                        },
+                    );
+                })
+            )];
         }
+
         // Leaf: U → search for external subtitles for this media item.
         if ($msg->type === KeyType::Char && ($msg->rune === 'u' || $msg->rune === 'U')) {
             if ($this->item === null) {
