@@ -1,0 +1,34 @@
+# PHPStan configuration for tests/ directory
+#
+# Level 9 is not achievable due to fundamental PHPUnit testing patterns:
+# 1. missingType.iterableValue: Test factory methods (e.g., detailResponse(),
+#    albumsResponse()) return `array` without `@template` annotations.
+# 2. missingType.generics: Async test helpers use PromiseInterface without T.
+# 3. staticMethod.alreadyNarrowedType: PHPUnit assertions on already-narrowed types.
+#
+# Level 2 is used as baseline. Even at level 2, there are 8 remaining errors:
+# - 4 property.notFound: Model/Msg @property stubs don't merge with vendor interface
+#   (PHPStan stub merging limitation - stub class != vendor interface)
+# - 2 phpDoc issues: Invalid `list<\array{...}>` syntax and incompatible param types
+# - 2 additional property.notFound: Unstubbed properties
+#
+# These require either PHPDoc syntax changes in tests or vendor stub enhancements.
+
+parameters:
+    level: 2
+    phpVersion: 80300
+    paths:
+        - tests
+    tmpDir: .phpstan.cache
+    bootstrapFiles:
+        - vendor/autoload.php
+    stubFiles:
+        - phpstan.stubs.php
+    excludePaths:
+        # Exclude test stub/fixture files that aren't under test
+        - tests/stub
+        - tests/Reel/FakePlayerDecoder.php
+        - tests/Reel/FakeAudioPlayer.php
+        - tests/Graphics/KittyDecoder.php
+        - tests/Graphics/Iterm2Decoder.php
+        - tests/Graphics/SixelDecoder.php
