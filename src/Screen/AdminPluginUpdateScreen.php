@@ -333,6 +333,7 @@ final class AdminPluginUpdateScreen implements Breadcrumbed, Themed
         $out .= "  {$status}\n";
 
         if ($this->pendingApply !== null) {
+            $out .= "  ⚠️  Warning: Plugin updates can destroy settings including OAuth tokens (Trakt, Last.fm, etc.)\n\n";
             $out .= '  Type "update" to confirm: ' . $this->typed . "\n";
         }
 
