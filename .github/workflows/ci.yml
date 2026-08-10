@@ -22,8 +22,11 @@ jobs:
           extensions: gd, pcntl, posix
           coverage: pcov
 
-      - name: Install ffmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install ffmpeg and libsixel-bin
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg libsixel-bin
+        # libsixel-bin provides sixel2png which is required by sugar-reel's
+        # GraphicsRenderer for SIXEL protocol encoding in tests. Without it
+        # the GraphicsRenderer output is empty and tests skip gracefully.
 
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
