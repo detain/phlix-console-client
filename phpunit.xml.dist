@@ -17,9 +17,4 @@
             <directory>src</directory>
         </include>
     </source>
-    <coverage>
-        <report>
-            <cobertura outputFile="coverage.xml"/>
-        </report>
-    </coverage>
 </phpunit>
