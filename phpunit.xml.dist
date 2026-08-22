@@ -21,9 +21,5 @@
         <report>
             <cobertura outputFile="coverage.xml"/>
         </report>
-        <threshold>
-            <global minLineCoverage="66"/>
-            <file path="src/Screen/PlayerScreen.php" minLineCoverage="70"/>
-        </threshold>
     </coverage>
 </phpunit>

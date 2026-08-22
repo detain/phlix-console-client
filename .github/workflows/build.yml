@@ -40,6 +40,16 @@ jobs:
         run: |
           php build/phlix.phar --version
           php build/phlix.phar bogus || test $? -eq 2
+          # The selftest requires a reachable server on 127.0.0.1:8099.
+          # Start the stub server in this same step — background processes are
+          # terminated when a GitHub Actions step ends.
+          php -S 127.0.0.1:8099 tests/stub/router.php &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
+          for i in $(seq 1 100); do
+            if nc -z 127.0.0.1 8099; then break; fi
+            sleep 0.2
+          done
           PHLIX_SERVER_URL=http://127.0.0.1:8099 php build/phlix.phar run --selftest
 
       - name: Generate SHA256SUMS

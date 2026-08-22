@@ -117,7 +117,9 @@ jobs:
         run: |
           # Fail if any vendor PHP file contains patterns indicating hand-patching.
           # These patterns should never appear in a clean composer install.
-          PATCHED=$(grep -rEl '(ORIGINAL|FIXED-BY|PATCH{|// PATCH|/\* PATCH|\x1b\[1;31mPATCH)' vendor/ --include='*.php' 2>/dev/null || true)
+          # Note: do NOT match bare "ORIGINAL" — packages legitimately contain
+          # constants/comments such as COMPOSER_ORIGINAL_INIS or ORIGINAL_NODE.
+          PATCHED=$(grep -rEl '(FIXED-BY|PATCH{|// PATCH|/\* PATCH|\x1b\[1;31mPATCH)' vendor/ --include='*.php' 2>/dev/null || true)
           if [ -n "$PATCHED" ]; then
             echo "::error::Found hand-patched vendor files:"
             echo "$PATCHED"
@@ -147,13 +149,17 @@ jobs:
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
 
-      - name: Start stub HTTP server
-        run: php -S 127.0.0.1:8099 tests/stub/router.php &
-        working-directory: ${{ github.workspace }}
-
-      - name: Wait for port 8099
-        run: bash -c 'until nc -z 127.0.0.1 8099; do sleep 0.2; done' || bash -c 'timeout 20 bash -c "until nc -z 127.0.0.1 8099; do sleep 0.2; done" || exit 1"'
-
       - name: Run selftest
-        run: PHLIX_SERVER_URL=http://127.0.0.1:8099 php bin/phlix run --selftest
+        run: |
+          # The selftest requires a reachable server on 127.0.0.1:8099.
+          # Start the stub server in this same step — background processes are
+          # terminated when a GitHub Actions step ends.
+          php -S 127.0.0.1:8099 tests/stub/router.php &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
+          for i in $(seq 1 100); do
+            if nc -z 127.0.0.1 8099; then break; fi
+            sleep 0.2
+          done
+          PHLIX_SERVER_URL=http://127.0.0.1:8099 php bin/phlix run --selftest
         working-directory: ${{ github.workspace }}
