@@ -12,6 +12,7 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **cli**: Complete `bin/phlix help` output with all commands, flags, and usage examples; `bin/phlix doctor` now checks PHP version, required extensions, server connectivity, and config validity (C10.4)
 - **docs**: Reconstructed server contracts for books, audiobooks, and photos endpoints in `docs/dev/client-console.md`, clarifying request/response shapes and pagination behavior (C10.6)
 - **docs**: Cross-repo documentation sweep across both `phlix` and `phlix-console-client` clarifying setup instructions, architecture docs, and user guides (C10.7)
+- **cli**: Add `phlix watch`, a long-running consumer of the hub's SyncPlay relay `pending_command` surface. Connects to `ws(s)://<hub>:8804/syncplay/{server_id}` with the relay token in the `Authorization: Bearer` upgrade header (S237 — never the query string), minted via `POST /api/v1/me/servers/{id}/relay-token` or `--relay-token` and re-read per (re)connect. A capped exponential-backoff ladder keeps the socket open; each `pending_command`/`play_media` frame goes to a named, tested dispatch point that prints the play request. `--once` waits for one frame (or `--timeout`) then exits. New `HubRelayConsumer` + `PendingPlayMediaCommand` DTO; 16 + 6 tests; phar rebuilt. (S298)
 
 ### Fixed
 

@@ -109,6 +109,48 @@ final class BinPhlixTest extends TestCase
         $this->assertMatchesRegularExpression('/^phlix .+$/', $output['stdout']);
     }
 
+    public function testWatchWithoutHubAndServerIdExitsTwo(): void
+    {
+        $output = $this->runPhlix(['watch']);
+        $this->assertSame(2, $output['exitCode'], 'watch without --hub/--server-id should exit with code 2');
+        $this->assertStringContainsString('watch needs --hub and --server-id', $output['stderr']);
+    }
+
+    public function testWatchWithoutTokenExitsTwo(): void
+    {
+        $output = $this->runPhlix(['watch', '--hub', 'http://hub.example.com', '--server-id', 'srv-123']);
+        $this->assertSame(2, $output['exitCode'], 'watch without a token source should exit with code 2');
+        $this->assertStringContainsString('watch needs --relay-token or --hub-token', $output['stderr']);
+    }
+
+    public function testWatchUnknownOptionExitsTwo(): void
+    {
+        $output = $this->runPhlix(['watch', '--bogus']);
+        $this->assertSame(2, $output['exitCode'], 'watch with an unknown option should exit with code 2');
+        $this->assertStringContainsString('Unknown option: --bogus', $output['stderr']);
+    }
+
+    public function testWatchValueOptionWithoutValueExitsTwo(): void
+    {
+        $output = $this->runPhlix(['watch', '--timeout']);
+        $this->assertSame(2, $output['exitCode'], 'value option without value should exit 2');
+        $this->assertStringContainsString('Option --timeout needs a value', $output['stderr']);
+    }
+
+    public function testWatchMalformedTimeoutExitsTwo(): void
+    {
+        $output = $this->runPhlix(['watch', '--timeout', 'abc']);
+        $this->assertSame(2, $output['exitCode'], 'watch with a non-numeric --timeout should exit with code 2');
+        $this->assertStringContainsString('--timeout needs a positive integer', $output['stderr']);
+    }
+
+    public function testWatchFlagWithValueExitsTwo(): void
+    {
+        $output = $this->runPhlix(['watch', '--once=false']);
+        $this->assertSame(2, $output['exitCode'], 'watch with a value on a flag should exit with code 2');
+        $this->assertStringContainsString('Option --once does not take a value', $output['stderr']);
+    }
+
     /**
      * Run the phlix binary with given arguments and capture output.
      *

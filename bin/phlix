@@ -6,7 +6,7 @@ declare(strict_types=1);
 /**
  * phlix-console-client CLI entrypoint.
  *
- * Handles: doctor, poster, frame, run, version, and help commands.
+ * Handles: doctor, poster, frame, watch, run, version, and help commands.
  * Exits 2 on unknown commands or usage errors; 1 on caught exceptions.
  */
 
@@ -19,6 +19,8 @@ usage:
   phlix doctor                              report terminal + server diagnostics
   phlix poster <image> [w] [h]              render an image at a cell size
   phlix frame  <video|gif> [n] [cols] [rows]  decode N frames to ANSI
+  phlix watch [--hub URL] [--server-id ID] [--hub-token JWT] [--relay-token TOKEN]
+                   [--once] [--timeout SECS]   consume hub-relay "play X" commands
   phlix run [--mode=…]                      launch the full-window app (needs a TTY)
   phlix version                             print version information
   phlix help                                show this help message
@@ -30,9 +32,19 @@ render modes:
 In-app keys: ↑↓←→ navigate · / search · Ctrl-K / : command palette
  · Enter open · p play · A–Z jump · Esc back · Ctrl-C quit
 
+watch options:
+  --hub URL        hub base URL (env PHLIX_HUB_URL)
+  --server-id ID   hub-side server id (env PHLIX_HUB_SERVER_ID)
+  --hub-token JWT  hub user access token, used to mint relay tokens (env PHLIX_HUB_TOKEN)
+  --relay-token T  a ready-made relay token; skips minting (env PHLIX_RELAY_TOKEN)
+  --once           connect, wait for ONE play_media command, then exit
+  --timeout SECS   with --once: give up after SECS (default 30)
+
 TXT;
 
 use Phlix\Console\Api\ApiClient;
+use Phlix\Console\Api\SyncPlay\HubRelayConsumer;
+use Phlix\Console\Api\SyncPlay\PendingPlayMediaCommand;
 use Phlix\Console\App;
 use Phlix\Console\Capabilities;
 use Phlix\Console\Config\Config;
@@ -47,6 +59,9 @@ use Phlix\Console\Store\LibrariesStore;
 use Phlix\Console\Store\MediaStore;
 use SugarCraft\Core\Program;
 use SugarCraft\Mosaic\DiskCache;
+use Workerman\Events\Select;
+use Workerman\Timer;
+use Workerman\Worker;
 
 // Locate the Composer autoloader whether we run from the repo or as an
 // installed dependency in someone else's vendor/.
@@ -246,6 +261,245 @@ function runSelftest(?string $mode): bool
 
 $cmd = $argv[1] ?? 'help';
 
+/**
+ * Normalise the `watch` command's arguments.
+ *
+ * Every option falls back to its environment variable so a headless watch
+ * process can be configured without CLI flags. Unknown options, value-taking
+ * options without a value, and malformed values (e.g. a non-numeric
+ * `--timeout`) are usage errors (exit 2).
+ *
+ * @param list<string> $argv Full argv (index 0 = script, 1 = "watch").
+ *
+ * @return array{hub: ?string, serverId: ?string, hubToken: ?string, relayToken: ?string, once: bool, timeout: int}
+ */
+function parseWatchArgs(array $argv): array
+{
+    $args = [
+        'hub' => getenv('PHLIX_HUB_URL') ?: null,
+        'serverId' => getenv('PHLIX_HUB_SERVER_ID') ?: null,
+        'hubToken' => getenv('PHLIX_HUB_TOKEN') ?: null,
+        'relayToken' => getenv('PHLIX_RELAY_TOKEN') ?: null,
+        'once' => false,
+        'timeout' => 30,
+    ];
+
+    /** Value-taking option names (must be followed by a non-option value). */
+    $valueOptions = ['hub', 'server-id', 'hub-token', 'relay-token', 'timeout'];
+
+    $rest = array_slice($argv, 2);
+    for ($i = 0, $n = count($rest); $i < $n; $i++) {
+        $arg = $rest[$i];
+        if (!is_string($arg)) {
+            continue;
+        }
+        if (str_starts_with($arg, '--')) {
+            $name = substr($arg, 2);
+            $value = null;
+            if (str_contains($name, '=')) {
+                [$name, $value] = explode('=', $name, 2);
+            } elseif (in_array($name, $valueOptions, true)) {
+                if (!isset($rest[$i + 1]) || !is_string($rest[$i + 1]) || str_starts_with($rest[$i + 1], '-')) {
+                    throw new \InvalidArgumentException("Option --{$name} needs a value");
+                }
+                $value = $rest[++$i];
+            }
+            switch ($name) {
+                case 'hub':
+                    $args['hub'] = $value;
+                    break;
+                case 'server-id':
+                    $args['serverId'] = $value;
+                    break;
+                case 'hub-token':
+                    $args['hubToken'] = $value;
+                    break;
+                case 'relay-token':
+                    $args['relayToken'] = $value;
+                    break;
+                case 'once':
+                    if ($value !== null) {
+                        throw new \InvalidArgumentException('Option --once does not take a value');
+                    }
+                    $args['once'] = true;
+                    break;
+                case 'timeout':
+                    if ($value === null || !ctype_digit($value) || (int) $value < 1) {
+                        throw new \InvalidArgumentException('Option --timeout needs a positive integer value');
+                    }
+                    $args['timeout'] = (int) $value;
+                    break;
+                default:
+                    throw new \InvalidArgumentException("Unknown option: --{$name}");
+            }
+        } else {
+            throw new \InvalidArgumentException("Unexpected argument: {$arg}");
+        }
+    }
+
+    return $args;
+}
+
+/**
+ * Mint a fresh client relay token from the hub.
+ *
+ * `POST /api/v1/me/servers/{id}/relay-token` with the hub user's access token
+ * returns `{token, expires_at, server_id}`. Relay tokens are short-lived (1h
+ * default), so the watch loop re-mints on every (re)connect via its token
+ * provider. Returns null on any failure — the socket then stays closed.
+ */
+function mintRelayToken(string $hubUrl, string $serverId, string $hubToken): ?string
+{
+    // ext-curl is not a declared dependency; without it the mint fails closed
+    // (null → the watch ladder retries with the next token read).
+    if (!function_exists('curl_init')) {
+        return null;
+    }
+
+    $ch = curl_init();
+    $mintUrl = rtrim($hubUrl, '/') . '/api/v1/me/servers/'
+        . rawurlencode($serverId) . '/relay-token';
+    curl_setopt($ch, CURLOPT_URL, $mintUrl);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: Bearer ' . $hubToken,
+        'Accept: application/json',
+    ]);
+    $body = @curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($body === false || $httpCode < 200 || $httpCode >= 300) {
+        return null;
+    }
+
+    $data = json_decode($body, true);
+    if (!is_array($data)) {
+        return null;
+    }
+    $token = $data['token'] ?? null;
+
+    return is_string($token) && $token !== '' ? $token : null;
+}
+
+/**
+ * Run the hub-relay `watch` command (S298 — console half).
+ *
+ * Long-running by default: connects to the hub's SyncPlay relay (:8804,
+ * `/syncplay/{server_id}`) with an `Authorization: Bearer` relay token and
+ * dispatches every delivered `pending_command` / `play_media` frame to the
+ * load-a-new-title path. The token provider re-reads on every (re)connect:
+ * a ready-made `--relay-token` is used as-is, otherwise one is minted from
+ * the hub with `--hub-token`. `--once` connects, waits for ONE frame (or
+ * `--timeout` seconds) and exits.
+ *
+ * Exit codes: 0 = a play_media frame was received and dispatched (with
+ * `--once`, also on a clean run); 2 = usage error; 1 = watch failed (no
+ * frame within the `--once` timeout, or the reconnect ladder gave up).
+ */
+function runWatch(array $argv): int
+{
+    try {
+        $args = parseWatchArgs($argv);
+    } catch (\InvalidArgumentException $e) {
+        fwrite(STDERR, "Error: " . $e->getMessage() . "\n");
+        fwrite(STDERR, "usage: phlix watch [--hub URL] [--server-id ID] [--hub-token JWT]\n");
+        fwrite(STDERR, "                  [--relay-token TOKEN] [--once] [--timeout SECS]\n");
+        return 2;
+    }
+
+    $hub = $args['hub'];
+    $serverId = $args['serverId'];
+    if ($hub === null || $hub === '' || $serverId === null || $serverId === '') {
+        fwrite(STDERR, "Error: watch needs --hub and --server-id (env PHLIX_HUB_URL / PHLIX_HUB_SERVER_ID)\n");
+        return 2;
+    }
+    $relayToken = $args['relayToken'];
+    $hubToken = $args['hubToken'];
+    if (($relayToken === null || $relayToken === '') && ($hubToken === null || $hubToken === '')) {
+        fwrite(STDERR, "Error: watch needs --relay-token or --hub-token (env PHLIX_RELAY_TOKEN / PHLIX_HUB_TOKEN)\n");
+        return 2;
+    }
+
+    $received = false;
+    $once = $args['once'];
+
+    $tokenProvider = static function () use ($relayToken, $hub, $serverId, $hubToken): ?string {
+        if ($relayToken !== null && $relayToken !== '') {
+            return $relayToken;
+        }
+        if ($hubToken === null || $hubToken === '') {
+            return null;
+        }
+
+        return mintRelayToken($hub, $serverId, $hubToken);
+    };
+
+    $consumer = new HubRelayConsumer(
+        hubBaseUrl: $hub,
+        serverId: $serverId,
+        tokenProvider: $tokenProvider,
+        onPendingCommand: static function (PendingPlayMediaCommand $command) use (&$received, $once): void {
+            // The load-a-new-title dispatch point: a delivered play_media
+            // frame reaches here with the carried media_id. The console's
+            // playback surface is the interactive TUI (`phlix run`); the
+            // watch command prints the play request it would hand the player.
+            fwrite(STDOUT, sprintf(
+                "Now playing: %s (media_id=%s server_id=%s source=%s)\n",
+                $command->title,
+                $command->mediaId,
+                $command->serverId,
+                $command->source,
+            ));
+            $received = true;
+            if ($once) {
+                Worker::$globalEvent->stop();
+            }
+        },
+        onStatusChange: static function (string $status) use (&$received): void {
+            fwrite(STDERR, "hub relay: {$status}\n");
+            if ($status === 'exhausted') {
+                // The reconnect ladder gave up. Stop the loop: the exit code
+                // ($received ? 0 : 1) already says "delivery proven, ladder
+                // dead, shutting down" — a silent idle would be worse than
+                // either outcome.
+                Worker::$globalEvent->stop();
+            }
+        },
+    );
+
+    // The Workerman client socket needs a global event loop; a watch process
+    // is a client only, so spin up the plain Select loop (no Worker::runAll).
+    // Mirror Worker's own convention and install an error handler so an
+    // exception inside a Workerman-internal callback logs and stops cleanly
+    // instead of escaping run() with a raw trace.
+    Worker::$globalEvent = new Select();
+    Worker::$globalEvent->setErrorHandler(static function (\Throwable $e): void {
+        fwrite(STDERR, 'hub relay: event loop error: ' . $e->getMessage() . "\n");
+        Worker::$globalEvent->stop();
+    });
+    Timer::init(Worker::$globalEvent);
+
+    $consumer->open();
+
+    if ($once) {
+        $timeout = $args['timeout'];
+        Timer::add($timeout, static function () use (&$received, $timeout): void {
+            if (!$received) {
+                fwrite(STDERR, "hub relay: no pending_command received within {$timeout}s\n");
+                Worker::$globalEvent->stop();
+            }
+        }, [], false);
+    }
+
+    Worker::$globalEvent->run();
+
+    return $received ? 0 : 1;
+}
+
 /** Pull a render mode out of argv: --mode=sixel, --mode sixel, or a bare `sixel`. */
 $KNOWN_MODES = ['auto', 'halfblock', 'half', 'ansi', 'quarterblock', 'quarter',
     'ascii', 'ansi256', 'truecolor', 'sixel', 'kitty', 'iterm2'];
@@ -353,6 +607,9 @@ try {
                 $container['posters'],
             )))->run();
             break;
+
+        case 'watch':
+            exit(runWatch($argv));
 
         case '--version':
         case '-V':
