@@ -172,6 +172,9 @@ final class HubRelayConsumer
         }
 
         if ($this->socket !== null) {
+            // Detach the callback first, mirroring open(): a replaced socket's
+            // deferred onClose must not clobber the new connection's state.
+            $this->socket->onClose = null;
             $this->socket->close();
             $this->socket = null;
         }
