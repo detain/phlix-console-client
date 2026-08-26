@@ -256,6 +256,7 @@ final class HubRelayConsumerTest extends TestCase
             'server_id' => 'srv-123',
             'media_id' => 'm',
             'title' => 'T',
+            'issued_at' => 1750000000,
         ], JSON_THROW_ON_ERROR);
 
         // Must not throw — the socket's message handler survives consumer errors.

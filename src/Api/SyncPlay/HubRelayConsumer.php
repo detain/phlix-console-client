@@ -136,6 +136,14 @@ final class HubRelayConsumer
         $this->opened = true;
         $this->closing = false;
         $this->reconnectAttempts = 0;
+
+        // A restart must not race a pending backoff timer from the previous
+        // ladder (two connect()s would otherwise run concurrently).
+        if ($this->reconnectTimerId !== null) {
+            Timer::del($this->reconnectTimerId);
+            $this->reconnectTimerId = null;
+        }
+
         $this->connect();
     }
 

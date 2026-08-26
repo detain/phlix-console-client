@@ -318,6 +318,9 @@ function parseWatchArgs(array $argv): array
                     $args['relayToken'] = $value;
                     break;
                 case 'once':
+                    if ($value !== null) {
+                        throw new \InvalidArgumentException('Option --once does not take a value');
+                    }
                     $args['once'] = true;
                     break;
                 case 'timeout':
@@ -458,10 +461,11 @@ function runWatch(array $argv): int
         },
         onStatusChange: static function (string $status) use (&$received): void {
             fwrite(STDERR, "hub relay: {$status}\n");
-            if ($status === 'exhausted' && !$received) {
-                // The reconnect ladder gave up before any frame arrived (bad
-                // token, unreachable hub, persistent mint failure) — stop the
-                // loop and report failure.
+            if ($status === 'exhausted') {
+                // The reconnect ladder gave up. Stop the loop: the exit code
+                // ($received ? 0 : 1) already says "delivery proven, ladder
+                // dead, shutting down" — a silent idle would be worse than
+                // either outcome.
                 Worker::$globalEvent->stop();
             }
         },
