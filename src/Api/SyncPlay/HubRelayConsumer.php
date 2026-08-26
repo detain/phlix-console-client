@@ -133,7 +133,6 @@ final class HubRelayConsumer
      */
     public function open(): void
     {
-        $this->opened = true;
         $this->closing = false;
         $this->reconnectAttempts = 0;
 
@@ -144,6 +143,17 @@ final class HubRelayConsumer
             $this->reconnectTimerId = null;
         }
 
+        // A second open() while a socket is still live must not create a
+        // duplicate connection. Detach the old socket's onClose first so its
+        // (async) close event cannot arm the ladder against the new socket.
+        if ($this->socket !== null) {
+            $this->socket->onClose = null;
+            $this->socket->close();
+            $this->socket = null;
+            $this->wsOpen = false;
+        }
+
+        $this->opened = true;
         $this->connect();
     }
 
@@ -341,6 +351,12 @@ final class HubRelayConsumer
     private function scheduleReconnect(): void
     {
         if (!$this->opened || $this->closing) {
+            return;
+        }
+
+        // Never arm a ladder while a socket is still live: a stale onClose
+        // from a replaced socket must not create a duplicate connection.
+        if ($this->socket !== null) {
             return;
         }
 
