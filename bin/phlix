@@ -6,7 +6,7 @@ declare(strict_types=1);
 /**
  * phlix-console-client CLI entrypoint.
  *
- * Handles: doctor, poster, frame, run, version, and help commands.
+ * Handles: doctor, poster, frame, watch, run, version, and help commands.
  * Exits 2 on unknown commands or usage errors; 1 on caught exceptions.
  */
 
@@ -265,8 +265,9 @@ $cmd = $argv[1] ?? 'help';
  * Normalise the `watch` command's arguments.
  *
  * Every option falls back to its environment variable so a headless watch
- * process can be configured without CLI flags. Unknown options are usage
- * errors (exit 2).
+ * process can be configured without CLI flags. Unknown options, value-taking
+ * options without a value, and malformed values (e.g. a non-numeric
+ * `--timeout`) are usage errors (exit 2).
  *
  * @param list<string> $argv Full argv (index 0 = script, 1 = "watch").
  *
@@ -283,6 +284,9 @@ function parseWatchArgs(array $argv): array
         'timeout' => 30,
     ];
 
+    /** Value-taking option names (must be followed by a non-option value). */
+    $valueOptions = ['hub', 'server-id', 'hub-token', 'relay-token', 'timeout'];
+
     $rest = array_slice($argv, 2);
     for ($i = 0, $n = count($rest); $i < $n; $i++) {
         $arg = $rest[$i];
@@ -294,7 +298,10 @@ function parseWatchArgs(array $argv): array
             $value = null;
             if (str_contains($name, '=')) {
                 [$name, $value] = explode('=', $name, 2);
-            } elseif (isset($rest[$i + 1]) && is_string($rest[$i + 1]) && !str_starts_with($rest[$i + 1], '--')) {
+            } elseif (in_array($name, $valueOptions, true)) {
+                if (!isset($rest[$i + 1]) || !is_string($rest[$i + 1]) || str_starts_with($rest[$i + 1], '-')) {
+                    throw new \InvalidArgumentException("Option --{$name} needs a value");
+                }
                 $value = $rest[++$i];
             }
             switch ($name) {
@@ -314,7 +321,10 @@ function parseWatchArgs(array $argv): array
                     $args['once'] = true;
                     break;
                 case 'timeout':
-                    $args['timeout'] = $value !== null && ctype_digit($value) ? max(1, (int) $value) : 30;
+                    if ($value === null || !ctype_digit($value) || (int) $value < 1) {
+                        throw new \InvalidArgumentException('Option --timeout needs a positive integer value');
+                    }
+                    $args['timeout'] = (int) $value;
                     break;
                 default:
                     throw new \InvalidArgumentException("Unknown option: --{$name}");
@@ -337,6 +347,12 @@ function parseWatchArgs(array $argv): array
  */
 function mintRelayToken(string $hubUrl, string $serverId, string $hubToken): ?string
 {
+    // ext-curl is not a declared dependency; without it the mint fails closed
+    // (null → the watch ladder retries with the next token read).
+    if (!function_exists('curl_init')) {
+        return null;
+    }
+
     $ch = curl_init();
     $mintUrl = rtrim($hubUrl, '/') . '/api/v1/me/servers/'
         . rawurlencode($serverId) . '/relay-token';
@@ -440,11 +456,12 @@ function runWatch(array $argv): int
                 Worker::$globalEvent->stop();
             }
         },
-        onStatusChange: static function (string $status) use (&$received, $once): void {
+        onStatusChange: static function (string $status) use (&$received): void {
             fwrite(STDERR, "hub relay: {$status}\n");
-            if ($once && $status === 'closed' && !$received) {
-                // The ladder gave up before any frame arrived (e.g. bad
-                // token, unreachable hub) — stop the loop and report failure.
+            if ($status === 'exhausted' && !$received) {
+                // The reconnect ladder gave up before any frame arrived (bad
+                // token, unreachable hub, persistent mint failure) — stop the
+                // loop and report failure.
                 Worker::$globalEvent->stop();
             }
         },
@@ -452,7 +469,14 @@ function runWatch(array $argv): int
 
     // The Workerman client socket needs a global event loop; a watch process
     // is a client only, so spin up the plain Select loop (no Worker::runAll).
+    // Mirror Worker's own convention and install an error handler so an
+    // exception inside a Workerman-internal callback logs and stops cleanly
+    // instead of escaping run() with a raw trace.
     Worker::$globalEvent = new Select();
+    Worker::$globalEvent->setErrorHandler(static function (\Throwable $e): void {
+        fwrite(STDERR, 'hub relay: event loop error: ' . $e->getMessage() . "\n");
+        Worker::$globalEvent->stop();
+    });
     Timer::init(Worker::$globalEvent);
 
     $consumer->open();

@@ -38,7 +38,9 @@ use Workerman\Timer;
  * - **Lifecycle** — open-whenever: `open()` connects immediately and keeps the
  *   socket up with a capped, self-terminating reconnect ladder until `close()`.
  *   The token is re-read on EVERY (re)connect attempt because relay tokens
- *   expire (1h default); the provider returning `null` keeps the socket closed.
+ *   expire (1h default); a provider that returns `null` (or throws) is a
+ *   reconnectable failure — the ladder retries on the same capped backoff and
+ *   emits `exhausted` once the budget is spent.
  *
  * The class owns no event loop (mirrors {@see SyncPlayService}): the caller
  * must run one. The `bin/phlix watch` command wires the loop, the token
@@ -68,6 +70,12 @@ final class HubRelayConsumer
     private bool $opened = false;
     private bool $closing = false;
 
+    /**
+     * Whether the WebSocket HANDSHAKE is open (set on the 101, cleared on
+     * close) — distinct from the TCP socket state.
+     */
+    private bool $wsOpen = false;
+
     /** @var \Closure(): ?string */
     private \Closure $tokenProvider;
 
@@ -89,16 +97,16 @@ final class HubRelayConsumer
      *                                Returns the hub relay token to present on this
      *                                (re)connect attempt. Re-read on EVERY attempt
      *                                because relay tokens are short-lived (1h
-     *                                default); returning `null` keeps the socket
-     *                                closed.
+     *                                default); returning `null` (or throwing)
+     *                                schedules a capped retry instead of stalling.
      * @param \Closure(PendingPlayMediaCommand): void $onPendingCommand
      *                                Called once per delivered `pending_command` /
      *                                `play_media` frame — the dispatch point the
      *                                watch command wires its load-a-new-title path
      *                                to.
      * @param \Closure(string): void|null $onStatusChange
-     *                                Optional lifecycle visibility, e.g. the
-     *                                watch command's status lines.
+     *                                Optional lifecycle visibility: `connecting`,
+     *                                `reconnecting`, `open`, `closed`, `exhausted`.
      */
     public function __construct(
         private readonly string $hubBaseUrl,
@@ -120,12 +128,14 @@ final class HubRelayConsumer
      * NOT gated on a SyncPlay room join — the hub delivers `pending_command`
      * to an authenticated (user, server) socket regardless of room membership,
      * and the primary "Alexa, play X" case has no room at all. The socket stays
-     * up with a capped reconnect ladder until {@see close()}.
+     * up with a capped reconnect ladder until {@see close()}; calling `open()`
+     * again restarts the ladder from a fresh budget.
      */
     public function open(): void
     {
         $this->opened = true;
         $this->closing = false;
+        $this->reconnectAttempts = 0;
         $this->connect();
     }
 
@@ -136,6 +146,7 @@ final class HubRelayConsumer
     {
         $this->closing = true;
         $this->opened = false;
+        $this->wsOpen = false;
 
         if ($this->reconnectTimerId !== null) {
             Timer::del($this->reconnectTimerId);
@@ -152,12 +163,12 @@ final class HubRelayConsumer
     }
 
     /**
-     * Whether the WebSocket handshake is currently open.
+     * Whether the WebSocket handshake is currently open (the 101 has been
+     * accepted and verified).
      */
     public function isOpen(): bool
     {
-        return $this->socket !== null
-            && $this->socket->getStatus() === AsyncTcpConnection::STATUS_ESTABLISHED;
+        return $this->wsOpen;
     }
 
     // ---- parsing ---------------------------------------------------------
@@ -168,9 +179,9 @@ final class HubRelayConsumer
      * The parse boundary: the hub's `PendingCommandDispatcher` emits
      * `{type:'pending_command', command:'play_media', server_id, media_id,
      * title, issued_at, source}` — this validates that shape; anything else
-     * (unknown frame types, malformed bodies) returns `null` and is dropped.
-     * Exported for tests and for consumers that want to parse a frame without
-     * opening a socket.
+     * (unknown frame types, malformed bodies, a missing/non-int `issued_at`)
+     * returns `null` and is dropped. Exported for tests and for consumers
+     * that want to parse a frame without opening a socket.
      */
     public static function parsePendingCommandFrame(string $raw): ?PendingPlayMediaCommand
     {
@@ -204,14 +215,21 @@ final class HubRelayConsumer
             return null;
         }
 
+        // `issued_at` is always present on the hub's frame (the dispatcher
+        // stamps `time()`); a missing or non-int value marks a malformed
+        // frame, not a reason to fabricate a timestamp (parse-don't-validate).
         $issuedAt = $frame['issued_at'] ?? null;
+        if (!is_int($issuedAt)) {
+            return null;
+        }
+
         $source = $frame['source'] ?? null;
 
         return new PendingPlayMediaCommand(
             serverId: $serverId,
             mediaId: $mediaId,
             title: $title,
-            issuedAt: is_int($issuedAt) ? $issuedAt : time(),
+            issuedAt: $issuedAt,
             source: is_string($source) && $source !== '' ? $source : 'unknown',
         );
     }
@@ -248,9 +266,18 @@ final class HubRelayConsumer
             return;
         }
 
-        $token = ($this->tokenProvider)();
+        try {
+            $token = ($this->tokenProvider)();
+        } catch (\Throwable) {
+            // A throwing provider (e.g. a mint failure) is a null token.
+            $token = null;
+        }
+
         if ($token === null || $token === '') {
-            $this->setStatus('closed');
+            // No token is a RECONNECTABLE failure: re-read (re-mint) on the
+            // capped backoff ladder instead of stalling the watch forever.
+            // The ladder emits `exhausted` once the budget is spent.
+            $this->scheduleReconnect();
             return;
         }
 
@@ -266,32 +293,30 @@ final class HubRelayConsumer
         // design.
         $socket->headers = ['Authorization' => 'Bearer ' . $token];
 
-        $socket->onWebSocketConnect = function () use ($socket): void {
+        $socket->onWebSocketConnect = function (): void {
             // Measured OPEN: Workerman's client Ws protocol fired this only
             // after the 101 response arrived AND its Sec-WebSocket-Accept
             // hash matched the key we sent.
+            $this->wsOpen = true;
             $this->reconnectAttempts = 0;
             $this->setStatus('open');
-            unset($socket);
         };
 
         $socket->onMessage = function (AsyncTcpConnection $connection, string $data): void {
             $this->handleFrame($data);
-            unset($connection);
         };
 
         $socket->onError = function (AsyncTcpConnection $connection, int $code, string $msg): void {
             // `onClose` follows `onError` for a failed socket; the ladder lives there.
-            unset($connection, $code, $msg);
         };
 
         $socket->onClose = function () use ($socket): void {
             if ($this->socket === $socket) {
                 $this->socket = null;
             }
+            $this->wsOpen = false;
             $this->setStatus('closed');
             $this->scheduleReconnect();
-            unset($socket);
         };
 
         $this->socket = $socket;
@@ -302,8 +327,8 @@ final class HubRelayConsumer
      * Schedule the next reconnect attempt with exponential backoff.
      *
      * Capped and self-terminating: after {@see MAX_RECONNECT_ATTEMPTS} the
-     * ladder gives up and the status is `closed` — the caller re-invokes
-     * {@see open()} to restart it.
+     * ladder gives up and emits the terminal `exhausted` status — the caller
+     * re-invokes {@see open()} to restart it with a fresh budget.
      */
     private function scheduleReconnect(): void
     {
@@ -312,8 +337,7 @@ final class HubRelayConsumer
         }
 
         if ($this->reconnectAttempts >= self::MAX_RECONNECT_ATTEMPTS) {
-            $this->reconnectAttempts = 0;
-            $this->setStatus('closed');
+            $this->setStatus('exhausted');
             return;
         }
 

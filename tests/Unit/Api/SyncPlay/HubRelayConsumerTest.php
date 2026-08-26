@@ -106,7 +106,37 @@ final class HubRelayConsumerTest extends TestCase
         }
     }
 
-    public function testParseDefaultsIssuedAtAndSource(): void
+    public function testParseRejectsMissingOrNonIntIssuedAt(): void
+    {
+        $base = [
+            'type' => 'pending_command',
+            'command' => 'play_media',
+            'server_id' => 'srv',
+            'media_id' => 'm',
+            'title' => 'T',
+        ];
+
+        $without = [
+            'type' => 'pending_command',
+            'command' => 'play_media',
+            'server_id' => 'srv',
+            'media_id' => 'm',
+            'title' => 'T',
+        ];
+        $this->assertNull(
+            HubRelayConsumer::parsePendingCommandFrame(json_encode($without, JSON_THROW_ON_ERROR)),
+            'frame without issued_at must be rejected',
+        );
+
+        $nonInt = $base;
+        $nonInt['issued_at'] = 'yesterday';
+        $this->assertNull(
+            HubRelayConsumer::parsePendingCommandFrame(json_encode($nonInt, JSON_THROW_ON_ERROR)),
+            'frame with non-int issued_at must be rejected',
+        );
+    }
+
+    public function testParseDefaultsMissingSourceToUnknown(): void
     {
         $raw = json_encode([
             'type' => 'pending_command',
@@ -114,15 +144,12 @@ final class HubRelayConsumerTest extends TestCase
             'server_id' => 'srv',
             'media_id' => 'm',
             'title' => 'T',
+            'issued_at' => 1750000000,
         ], JSON_THROW_ON_ERROR);
 
-        $before = time();
         $command = HubRelayConsumer::parsePendingCommandFrame($raw);
-        $after = time();
 
         $this->assertInstanceOf(PendingPlayMediaCommand::class, $command);
-        $this->assertGreaterThanOrEqual($before, $command->issuedAt);
-        $this->assertLessThanOrEqual($after, $command->issuedAt);
         $this->assertSame('unknown', $command->source);
     }
 
