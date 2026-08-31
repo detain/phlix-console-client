@@ -41,7 +41,11 @@ use SugarCraft\Sprinkles\Style;
  * Up-navigation (←) walks the LOCAL pathHistory, not the wire's `parent`: the
  * response does carry a `parent` (null when the directory IS a root), but it
  * is deliberately not plumbed through — the history stack already mirrors the
- * operator's own navigation.
+ * operator's own navigation. The local '/' the roots view shows is a screen-side
+ * SENTINEL, never a wire path: re-fetching the roots view (via `r`, or ← back
+ * onto it) goes out as the same no-param request the screen opened with, since
+ * the server jails a literal '/' against its configured roots (403) unless '/'
+ * is itself an allowed root.
  *
  * `r` refetches the current directory; Esc/q goes back.
  *
@@ -83,11 +87,21 @@ final class AdminFilesystemScreen implements Breadcrumbed, Themed
     }
 
     /**
-     * @param string|null $path The path to browse, or null for root
+     * @param string|null $path The path to browse, or null for the roots view.
+     *
+     * The screen's '/' roots-view SENTINEL is normalized away here, at this
+     * single choke point, and never rides the wire: the server jails a literal
+     * '/' against its configured browse roots (403) unless '/' is itself an
+     * allowed root, so refreshing or navigating back into the roots view must
+     * re-send the NO-PARAM request — the server's documented empty-path roots
+     * response. This is safe in every deployment: even a jail that includes
+     * '/' answers the empty-path request with the same roots list.
      */
     private function fetchCmd(?string $path): \Closure
     {
-        return Cmd::promise(fn () => $this->admin->browseFilesystem($path)->then(
+        $requestPath = ($path === null || $path === '/') ? null : $path;
+
+        return Cmd::promise(fn () => $this->admin->browseFilesystem($requestPath)->then(
             /**
              * @param list<array{name:string,path:string,type:string,size:int,modified:string}> $entries
              * @return AdminFilesystemLoadedMsg
