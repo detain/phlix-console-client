@@ -13,7 +13,7 @@ final class AccessScheduleTest extends TestCase
     {
         $schedule = AccessSchedule::fromArray([
             'id' => 1,
-            'profile_id' => 5,
+            'profile_id' => 'prof-5',
             'name' => 'Weekend Nights',
             'start_time' => '18:00:00',
             'end_time' => '22:00:00',
@@ -22,7 +22,7 @@ final class AccessScheduleTest extends TestCase
         ]);
 
         self::assertSame(1, $schedule->id);
-        self::assertSame(5, $schedule->profileId);
+        self::assertSame('prof-5', $schedule->profileId);
         self::assertSame('Weekend Nights', $schedule->name);
         self::assertSame('18:00:00', $schedule->startTime);
         self::assertSame('22:00:00', $schedule->endTime);
@@ -35,7 +35,7 @@ final class AccessScheduleTest extends TestCase
         $schedule = AccessSchedule::fromArray([]);
 
         self::assertSame(0, $schedule->id);
-        self::assertSame(0, $schedule->profileId);
+        self::assertSame('', $schedule->profileId);
         self::assertSame('', $schedule->name);
         self::assertSame('00:00:00', $schedule->startTime);
         self::assertSame('23:59:59', $schedule->endTime);
@@ -65,7 +65,7 @@ final class AccessScheduleTest extends TestCase
     {
         $schedule = new AccessSchedule(
             id: 2,
-            profileId: 10,
+            profileId: 'prof-10',
             name: 'After School',
             startTime: '15:00:00',
             endTime: '20:00:00',
@@ -76,7 +76,7 @@ final class AccessScheduleTest extends TestCase
         $arr = $schedule->toArray();
 
         self::assertSame(2, $arr['id']);
-        self::assertSame(10, $arr['profile_id']);
+        self::assertSame('prof-10', $arr['profile_id']);
         self::assertSame('After School', $arr['name']);
         self::assertSame('15:00:00', $arr['start_time']);
         self::assertSame('20:00:00', $arr['end_time']);

@@ -2793,12 +2793,12 @@ final class AdminClientTest extends TestCase
     {
         $transport = (new FakeTransport())->json(200, [
             'schedules' => [
-                ['id' => 1, 'profile_id' => 42, 'name' => 'Weekday Evenings', 'start_time' => '18:00:00', 'end_time' => '22:00:00', 'days_of_week' => ['mon', 'tue', 'wed', 'thu', 'fri'], 'is_active' => true],
-                ['id' => 2, 'profile_id' => 42, 'name' => 'Weekend Mornings', 'start_time' => '08:00:00', 'end_time' => '12:00:00', 'days_of_week' => ['sat', 'sun'], 'is_active' => false],
+                ['id' => 1, 'profile_id' => 'p-42', 'name' => 'Weekday Evenings', 'start_time' => '18:00:00', 'end_time' => '22:00:00', 'days_of_week' => ['mon', 'tue', 'wed', 'thu', 'fri'], 'is_active' => true],
+                ['id' => 2, 'profile_id' => 'p-42', 'name' => 'Weekend Mornings', 'start_time' => '08:00:00', 'end_time' => '12:00:00', 'days_of_week' => ['sat', 'sun'], 'is_active' => false],
             ],
         ]);
 
-        $schedules = $this->await($this->clientWith($transport)->profileSchedules(42));
+        $schedules = $this->await($this->clientWith($transport)->profileSchedules('p-42'));
 
         self::assertCount(2, $schedules);
         self::assertContainsOnlyInstancesOf(AccessSchedule::class, $schedules);
@@ -2807,14 +2807,14 @@ final class AdminClientTest extends TestCase
         self::assertTrue($schedules[0]->isActive);
         self::assertFalse($schedules[1]->isActive);
         self::assertSame('GET', $transport->requestAt(0)['method']);
-        self::assertStringContainsString('/api/v1/profiles/42/schedules', $transport->requestAt(0)['url']);
+        self::assertStringContainsString('/api/v1/profiles/p-42/schedules', $transport->requestAt(0)['url']);
     }
 
     public function testProfileSchedulesToleratesEmptyList(): void
     {
         $transport = (new FakeTransport())->json(200, []);
 
-        $schedules = $this->await($this->clientWith($transport)->profileSchedules(42));
+        $schedules = $this->await($this->clientWith($transport)->profileSchedules('p-42'));
 
         self::assertSame([], $schedules);
     }
@@ -2823,11 +2823,11 @@ final class AdminClientTest extends TestCase
     {
         $transport = (new FakeTransport())->json(201, ['schedule_id' => 5, 'message' => 'Schedule created']);
 
-        $message = $this->await($this->clientWith($transport)->createProfileSchedule(42, 'Weekday Evenings', '18:00:00', '22:00:00', ['mon', 'tue', 'wed', 'thu', 'fri'], true));
+        $message = $this->await($this->clientWith($transport)->createProfileSchedule('p-42', 'Weekday Evenings', '18:00:00', '22:00:00', ['mon', 'tue', 'wed', 'thu', 'fri'], true));
 
         self::assertSame('Schedule created', $message);
         self::assertSame('POST', $transport->requestAt(0)['method']);
-        self::assertStringContainsString('/api/v1/profiles/42/schedules', $transport->requestAt(0)['url']);
+        self::assertStringContainsString('/api/v1/profiles/p-42/schedules', $transport->requestAt(0)['url']);
         /** @var array<string,mixed> $body */
         $body = json_decode($transport->requestAt(0)['body'], true);
         self::assertSame('Weekday Evenings', $body['name']);
@@ -2841,11 +2841,11 @@ final class AdminClientTest extends TestCase
     {
         $transport = (new FakeTransport())->json(200, ['message' => 'Schedule deleted']);
 
-        $message = $this->await($this->clientWith($transport)->deleteProfileSchedule(42, 1));
+        $message = $this->await($this->clientWith($transport)->deleteProfileSchedule('p-42', 1));
 
         self::assertSame('Schedule deleted', $message);
         self::assertSame('DELETE', $transport->requestAt(0)['method']);
-        self::assertStringContainsString('/api/v1/profiles/42/schedules/1', $transport->requestAt(0)['url']);
+        self::assertStringContainsString('/api/v1/profiles/p-42/schedules/1', $transport->requestAt(0)['url']);
     }
 
     // ---- parental controls (tags) ---------------------------------------
@@ -2854,45 +2854,45 @@ final class AdminClientTest extends TestCase
     {
         $transport = (new FakeTransport())->json(200, [
             'tags' => [
-                ['id' => 1, 'profile_id' => 42, 'tag' => 'kids', 'tag_type' => 'blocked'],
-                ['id' => 2, 'profile_id' => 42, 'tag' => 'family', 'tag_type' => 'allowed'],
+                ['id' => 1, 'profile_id' => 'p-42', 'tag' => 'kids', 'tag_type' => 'blocked'],
+                ['id' => 2, 'profile_id' => 'p-42', 'tag' => 'family', 'tag_type' => 'allowed'],
             ],
         ]);
 
-        $tags = $this->await($this->clientWith($transport)->profileTags(42));
+        $tags = $this->await($this->clientWith($transport)->profileTags('p-42'));
 
         self::assertCount(2, $tags);
         self::assertContainsOnlyInstancesOf(ProfileTag::class, $tags);
         self::assertSame('kids', $tags[0]->tag);
         self::assertSame('blocked', $tags[0]->tagType);
         self::assertSame('GET', $transport->requestAt(0)['method']);
-        self::assertStringContainsString('/api/v1/profiles/42/tags', $transport->requestAt(0)['url']);
+        self::assertStringContainsString('/api/v1/profiles/p-42/tags', $transport->requestAt(0)['url']);
     }
 
     public function testAddProfileTagPostsAndReturnsMessage(): void
     {
         $transport = (new FakeTransport())->json(201, ['tag_id' => 3, 'message' => 'Tag added']);
 
-        $message = $this->await($this->clientWith($transport)->addProfileTag(42, 'restricted', 'blocked'));
+        $message = $this->await($this->clientWith($transport)->addProfileTag('p-42', 'restricted', 'blocked'));
 
         self::assertSame('Tag added', $message);
         self::assertSame('POST', $transport->requestAt(0)['method']);
-        self::assertStringContainsString('/api/v1/profiles/42/tags', $transport->requestAt(0)['url']);
+        self::assertStringContainsString('/api/v1/profiles/p-42/tags', $transport->requestAt(0)['url']);
         /** @var array<string,mixed> $body */
         $body = json_decode($transport->requestAt(0)['body'], true);
         self::assertSame('restricted', $body['tag']);
-        self::assertSame('blocked', $body['type']);
+        self::assertSame('blocked', $body['tag_type']);
     }
 
     public function testDeleteProfileTagSendsDeleteAndReturnsMessage(): void
     {
         $transport = (new FakeTransport())->json(200, ['message' => 'Tag removed']);
 
-        $message = $this->await($this->clientWith($transport)->deleteProfileTag(42, 1));
+        $message = $this->await($this->clientWith($transport)->deleteProfileTag('p-42', 1));
 
         self::assertSame('Tag removed', $message);
         self::assertSame('DELETE', $transport->requestAt(0)['method']);
-        self::assertStringContainsString('/api/v1/profiles/42/tags/1', $transport->requestAt(0)['url']);
+        self::assertStringContainsString('/api/v1/profiles/p-42/tags/1', $transport->requestAt(0)['url']);
     }
 
     // ---- parental controls (stream limits) ------------------------------
@@ -2903,24 +2903,24 @@ final class AdminClientTest extends TestCase
             'stream_limits' => ['max_concurrent_streams' => 3, 'max_total_bandwidth_kbps' => 1000],
         ]);
 
-        $limit = $this->await($this->clientWith($transport)->profileStreamLimits(42));
+        $limit = $this->await($this->clientWith($transport)->profileStreamLimits('p-42'));
 
         self::assertInstanceOf(ProfileStreamLimit::class, $limit);
         self::assertSame(3, $limit->maxConcurrentStreams);
         self::assertSame(1000, $limit->maxTotalBandwidthKbps);
         self::assertSame('GET', $transport->requestAt(0)['method']);
-        self::assertStringContainsString('/api/v1/profiles/42/stream-limits', $transport->requestAt(0)['url']);
+        self::assertStringContainsString('/api/v1/profiles/p-42/stream-limits', $transport->requestAt(0)['url']);
     }
 
     public function testUpdateProfileStreamLimitsPutsNewLimits(): void
     {
         $transport = (new FakeTransport())->json(200, ['message' => 'Stream limits updated', 'stream_limits' => ['max_concurrent_streams' => 5, 'max_total_bandwidth_kbps' => 2000]]);
 
-        $message = $this->await($this->clientWith($transport)->updateProfileStreamLimits(42, 5, 2000));
+        $message = $this->await($this->clientWith($transport)->updateProfileStreamLimits('p-42', 5, 2000));
 
         self::assertSame('Stream limits updated', $message);
         self::assertSame('PUT', $transport->requestAt(0)['method']);
-        self::assertStringContainsString('/api/v1/profiles/42/stream-limits', $transport->requestAt(0)['url']);
+        self::assertStringContainsString('/api/v1/profiles/p-42/stream-limits', $transport->requestAt(0)['url']);
         /** @var array<string,mixed> $body */
         $body = json_decode($transport->requestAt(0)['body'], true);
         self::assertSame(5, $body['max_concurrent_streams']);
@@ -2931,7 +2931,7 @@ final class AdminClientTest extends TestCase
     {
         $transport = (new FakeTransport())->json(200, ['message' => 'Stream limits updated', 'stream_limits' => ['max_concurrent_streams' => 2]]);
 
-        $this->await($this->clientWith($transport)->updateProfileStreamLimits(42, 2, null));
+        $this->await($this->clientWith($transport)->updateProfileStreamLimits('p-42', 2, null));
 
         /** @var array<string,mixed> $body */
         $body = json_decode($transport->requestAt(0)['body'], true);

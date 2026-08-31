@@ -13,13 +13,13 @@ final class ProfileTagTest extends TestCase
     {
         $tag = ProfileTag::fromArray([
             'id' => 1,
-            'profile_id' => 5,
+            'profile_id' => 'prof-5',
             'tag' => 'violence',
             'tag_type' => 'blocked',
         ]);
 
         self::assertSame(1, $tag->id);
-        self::assertSame(5, $tag->profileId);
+        self::assertSame('prof-5', $tag->profileId);
         self::assertSame('violence', $tag->tag);
         self::assertSame('blocked', $tag->tagType);
     }
@@ -29,7 +29,7 @@ final class ProfileTagTest extends TestCase
         $tag = ProfileTag::fromArray([]);
 
         self::assertSame(0, $tag->id);
-        self::assertSame(0, $tag->profileId);
+        self::assertSame('', $tag->profileId);
         self::assertSame('', $tag->tag);
         self::assertSame(ProfileTag::TYPE_BLOCKED, $tag->tagType);
     }
@@ -38,7 +38,7 @@ final class ProfileTagTest extends TestCase
     {
         $tag = ProfileTag::fromArray([
             'id' => 2,
-            'profile_id' => 3,
+            'profile_id' => 'prof-3',
             'tag' => 'family',
             'tag_type' => 'allowed',
         ]);
@@ -50,7 +50,7 @@ final class ProfileTagTest extends TestCase
     {
         $tag = new ProfileTag(
             id: 10,
-            profileId: 20,
+            profileId: 'prof-20',
             tag: 'profanity',
             tagType: ProfileTag::TYPE_BLOCKED,
         );
@@ -58,7 +58,7 @@ final class ProfileTagTest extends TestCase
         $arr = $tag->toArray();
 
         self::assertSame(10, $arr['id']);
-        self::assertSame(20, $arr['profile_id']);
+        self::assertSame('prof-20', $arr['profile_id']);
         self::assertSame('profanity', $arr['tag']);
         self::assertSame('blocked', $arr['tag_type']);
     }

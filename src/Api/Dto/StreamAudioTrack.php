@@ -17,7 +17,16 @@ namespace Phlix\Console\Api\Dto;
  *
  * From `GET /api/v1/media/{id}/playback-info` → `audio_tracks: StreamAudioTrack[]`.
  *
- * @see https://github.com/phlix/phlix-contracts/blob/v0.3.2/src/AudioTrack.ts
+ * ⚠ S325b reconciliation note: this mirror matches the SERVER's emission
+ * (`StreamTrackShaper::audioTracks()` — keys `title`/`bitrate`, no `url`),
+ * while `@phlix/contracts` `AudioTrack` declares `display_title` + `url?` and
+ * NO bitrate — the contract and this route's wire shape disagree. The
+ * divergence is filed as step S404; do NOT "align" this mirror to the TS
+ * interface without checking the server shaper, or the labels go blank the
+ * way the tizen parental fields did (S234 family).
+ *
+ * @see https://github.com/detain/phlix-contracts/blob/v0.4.4/src/AudioTrack.ts
+ * @see phlix-server src/Media/Library/StreamTrackShaper.php (authoritative emission)
  */
 final readonly class StreamAudioTrack
 {

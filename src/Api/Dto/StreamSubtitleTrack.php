@@ -17,7 +17,14 @@ namespace Phlix\Console\Api\Dto;
  *
  * From `GET /api/v1/media/{id}/playback-info` → `subtitle_tracks: StreamSubtitleTrack[]`.
  *
- * @see https://github.com/phlix/phlix-contracts/blob/v0.3.2/src/SubtitleTrack.ts
+ * ⚠ S325b reconciliation note: this mirror matches the SERVER's emission
+ * (`StreamTrackShaper::subtitleTracks()`), while `@phlix/contracts`
+ * `SubtitleTrack` declares `display_title` where the server emits `title` —
+ * the contract and this route's wire shape disagree. Filed as step S404; do
+ * NOT align this mirror to the TS interface without checking the shaper.
+ *
+ * @see https://github.com/detain/phlix-contracts/blob/v0.4.4/src/SubtitleTrack.ts
+ * @see phlix-server src/Media/Library/StreamTrackShaper.php (authoritative emission)
  */
 final readonly class StreamSubtitleTrack
 {

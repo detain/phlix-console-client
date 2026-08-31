@@ -23,7 +23,9 @@ final readonly class AccessSchedule
      */
     public function __construct(
         public int $id,
-        public int $profileId,
+        // S325b: CHAR(36) UUID string per @phlix/contracts v0.4.4 (S234) — the
+        // old `int` typing collapsed every real profile id to 0.
+        public string $profileId,
         public string $name,
         public string $startTime,
         public string $endTime,
@@ -47,7 +49,7 @@ final readonly class AccessSchedule
 
         return new self(
             id: Coerce::int($data['id'] ?? 0),
-            profileId: Coerce::int($data['profile_id'] ?? 0),
+            profileId: Coerce::str($data['profile_id'] ?? ''),
             name: Coerce::str($data['name'] ?? ''),
             startTime: Coerce::str($data['start_time'] ?? '00:00:00'),
             endTime: Coerce::str($data['end_time'] ?? '23:59:59'),
@@ -57,7 +59,7 @@ final readonly class AccessSchedule
     }
 
     /**
-     * @return array{id: int, profile_id: int, name: string, start_time: string, end_time: string, days_of_week: list<string>, is_active: bool}
+     * @return array{id: int, profile_id: string, name: string, start_time: string, end_time: string, days_of_week: list<string>, is_active: bool}
      */
     public function toArray(): array
     {

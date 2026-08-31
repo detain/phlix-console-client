@@ -13,7 +13,13 @@ use Phlix\Console\Api\Dto\Coerce;
 
 /**
  * A profile tag for content filtering (block or allow).
- * Mirrors @phlix/contracts ProfileTag (v0.3.5).
+ * Mirrors @phlix/contracts ProfileTag (v0.4.4).
+ *
+ * S325b: `profileId` is a CHAR(36) UUID STRING, not an int — the mirror's
+ * `int` typing collapsed every real profile id to `0` (Coerce::int on a UUID),
+ * and the contract has declared it `string` since v0.4.4 (S234). The wire key
+ * stays `profile_id` (server emission); the TS-style property name is the
+ * contract's documented mapping.
  */
 final readonly class ProfileTag
 {
@@ -22,7 +28,7 @@ final readonly class ProfileTag
 
     public function __construct(
         public int $id,
-        public int $profileId,
+        public string $profileId,
         public string $tag,
         public string $tagType,
     ) {
@@ -35,14 +41,14 @@ final readonly class ProfileTag
     {
         return new self(
             id: Coerce::int($data['id'] ?? 0),
-            profileId: Coerce::int($data['profile_id'] ?? 0),
+            profileId: Coerce::str($data['profile_id'] ?? ''),
             tag: Coerce::str($data['tag'] ?? ''),
             tagType: Coerce::str($data['tag_type'] ?? self::TYPE_BLOCKED),
         );
     }
 
     /**
-     * @return array{id: int, profile_id: int, tag: string, tag_type: string}
+     * @return array{id: int, profile_id: string, tag: string, tag_type: string}
      */
     public function toArray(): array
     {
