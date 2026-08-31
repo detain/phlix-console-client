@@ -47,7 +47,7 @@ final class AdminMenuScreenTest extends TestCase
             'Libraries', 'Logs', 'Backup', 'DLNA', 'Remote Access', 'Live TV',
             'Parental Controls', 'Metrics', 'Watch History', 'Duplicates',
             'Webhooks', 'Auth Providers',
-        ], $labels, 'Full admin section set (S405: the never-registered Metadata Match / Server Restart / Filesystem / Services rows were removed with their dead rails)');
+        ], $labels, 'Full admin section set (S405: four never-registered rails and their menu rows were removed)');
         self::assertNotContains('Cast', $labels, 'the stale Cast section row is removed');
 
         // EVERY section is now wired and available — Live TV was the last.
