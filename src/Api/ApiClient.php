@@ -1009,7 +1009,9 @@ final class ApiClient
      */
     public function deleteMediaRating(string $id): PromiseInterface
     {
-        return $this->authed('DELETE', '/api/v1/media/' . rawurlencode($id) . '/ratings')
+        // SINGULAR `/rating` on DELETE — the server registers GET/POST on the
+        // plural collection rail and DELETE/PUT on the singular one.
+        return $this->authed('DELETE', '/api/v1/media/' . rawurlencode($id) . '/rating')
             ->then(static fn (array $data): bool => true);
     }
 
@@ -1173,7 +1175,7 @@ final class ApiClient
      */
     public function getUserSettings(): PromiseInterface
     {
-        return $this->authed('GET', '/api/v1/me/settings');
+        return $this->authed('GET', '/api/v1/users/me/settings');
     }
 
     /**
@@ -1184,7 +1186,7 @@ final class ApiClient
      */
     public function putUserSettings(array $settings): PromiseInterface
     {
-        return $this->authed('PUT', '/api/v1/me/settings', [], $settings);
+        return $this->authed('PUT', '/api/v1/users/me/settings', [], $settings);
     }
 
     // ---- playlists ------------------------------------------------------
