@@ -41,7 +41,6 @@ use Phlix\Console\Api\Dto\Admin\ServerSettings;
 use Phlix\Console\Api\Dto\Admin\ToneMappingSettings;
 use Phlix\Console\Api\Dto\Admin\TranscodingAccelerators;
 use Phlix\Console\Api\Dto\Admin\Tuner;
-use Phlix\Console\Api\Dto\Admin\UserQuota;
 use Phlix\Console\Api\Dto\Admin\WatchHistoryEntry;
 use Phlix\Console\Api\Dto\Coerce;
 use Phlix\Console\Api\Dto\Library;
@@ -90,6 +89,15 @@ final class AdminClient
     /** The base path every library endpoint hangs off. */
     private const LIBRARIES = '/api/v1/libraries';
 
+    /**
+     * The base path for the ADMIN-prefixed library rails (S405). Distinct from
+     * {@see self::LIBRARIES}: the duplicate-detection rail is registered under
+     * `/api/v1/admin/libraries`, while the other library rails this client
+     * calls genuinely live under `/api/v1/libraries` — the two bases must not
+     * be collapsed into one const.
+     */
+    private const ADMIN_LIBRARIES = '/api/v1/admin/libraries';
+
     /** The base path every Live-TV endpoint hangs off. */
     private const LIVETV = '/api/v1/admin/livetv';
 
@@ -98,9 +106,6 @@ final class AdminClient
 
     /** The base path every stats endpoint hangs off. */
     private const STATS = '/api/v1/admin/stats';
-
-    /** The base path every server-control endpoint hangs off. */
-    private const SERVER = '/api/v1/admin/server';
 
     /** The base path every services endpoint hangs off. */
     private const SERVICES = '/api/v1/admin/services';
@@ -335,42 +340,6 @@ final class AdminClient
     private function userAction(string $method, string $suffix, ?array $body = null): PromiseInterface
     {
         return $this->api->send($method, self::USERS . $suffix, [], $body)
-            ->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
-    }
-
-    // ---- user quota ------------------------------------------------------
-
-    /**
-     * Get a user's quota and bandwidth limits. The response shape is
-     * `{quota: {max_concurrent_streams, max_total_bandwidth_kbps}}`.
-     *
-     * @return PromiseInterface<UserQuota>
-     */
-    public function getUserQuota(string $userId): PromiseInterface
-    {
-        return $this->api->send('GET', self::USERS . '/' . rawurlencode($userId) . '/quota')
-            ->then(static fn (array $body): UserQuota => UserQuota::fromArray(
-                Coerce::map($body['quota'] ?? null),
-            ));
-    }
-
-    /**
-     * Update a user's quota and bandwidth limits. The body is `{max_concurrent_streams}` and
-     * optionally `{max_total_bandwidth_kbps}`; on 200 the server returns
-     * `{quota, message}` and this resolves the `message`. Rejects with the
-     * server `error` on a 400 (validation) — the {@see \Phlix\Console\Api\ApiError}
-     * carries it as the exception message.
-     *
-     * @return PromiseInterface<string>
-     */
-    public function setUserQuota(string $userId, int $maxConcurrentStreams, ?int $maxTotalBandwidthKbps = null): PromiseInterface
-    {
-        $body = ['max_concurrent_streams' => $maxConcurrentStreams];
-        if ($maxTotalBandwidthKbps !== null) {
-            $body['max_total_bandwidth_kbps'] = $maxTotalBandwidthKbps;
-        }
-
-        return $this->api->send('PUT', self::USERS . '/' . rawurlencode($userId) . '/quota', [], $body)
             ->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
     }
 
@@ -1580,7 +1549,7 @@ final class AdminClient
      */
     public function duplicates(string $libraryId): PromiseInterface
     {
-        return $this->api->send('GET', self::LIBRARIES . '/' . rawurlencode($libraryId) . '/duplicates')
+        return $this->api->send('GET', self::ADMIN_LIBRARIES . '/' . rawurlencode($libraryId) . '/duplicates')
             ->then(static function (array $body): array {
                 /** @var list<array{canonical_key:string,type:string,library_id:string,primary:array<string,mixed>,duplicates:list<array<string,mixed>>}> */
                 $groups = $body['groups'] ?? [];
@@ -2291,36 +2260,6 @@ final class AdminClient
     }
 
     /**
-     * Enable/disable a webhook subscription (PUT `{enabled}`). Resolves the
-     * refreshed list; rejects with the server `error` on 400/404.
-     *
-     * @return PromiseInterface<list<array<string,mixed>>>
-     */
-    public function setWebhookEnabled(string $id, bool $enabled): PromiseInterface
-    {
-        return $this->api->send('PUT', self::WEBHOOKS . '/subscriptions/' . rawurlencode($id), [], ['enabled' => $enabled])
-            ->then(/**
-             * @param array{data?: array{subscriptions?: list<array<string, mixed>>}} $body
-             * @return list<array<string, mixed>>
-             */
-                static function (array $body): array {
-                    $data = $body['data'] ?? null;
-                    if (!is_array($data) || !isset($data['subscriptions']) || !is_array($data['subscriptions'])) {
-                        return [];
-                    }
-
-                /** @var list<array<string, mixed>> $subscriptions */
-                    $subscriptions = $data['subscriptions'];
-
-                    return array_map(
-                        static fn (array $row): array => self::maskSecret($row),
-                        $subscriptions,
-                    );
-                }
-            );
-    }
-
-    /**
      * Replace any `secret` value in a webhook row with a masked placeholder.
      * The server never returns secrets on GET, but this provides defense-in-depth
      * for any future API change and makes the intent explicit.
@@ -2606,110 +2545,7 @@ final class AdminClient
             });
     }
 
-    // ---- server control --------------------------------------------------
-
-    /**
-     * Trigger a server restart. This is the most destructive action; the caller
-     * is responsible for requiring typed confirmation before calling this. The
-     * server returns 200 with `{message}` on success; the TUI should poll
-     * {@see serverStatus()} until it resolves (the server is down during the
-     * restart window and the request will fail/reject until it comes back up).
-     *
-     * @return PromiseInterface<string>
-     */
-    public function restartServer(): PromiseInterface
-    {
-        return $this->api->send('POST', self::SERVER . '/restart')
-            ->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
-    }
-
-    /**
-     * Check server status (used to poll after a restart). Returns the server
-     * uptime in seconds if the server is up, or rejects if it is down.
-     *
-     * @return PromiseInterface<int>
-     */
-    public function serverStatus(): PromiseInterface
-    {
-        return $this->api->send('GET', self::SERVER . '/status')
-            ->then(static fn (array $body): int => Coerce::int($body['uptime'] ?? 0));
-    }
-
-    /**
-     * Browse the server filesystem at the given path. Returns a list of entries
-     * (files and directories) for the given path. The controller returns data
-     * at the TOP LEVEL with NO `{success, data}` envelope (admin envelopes are
-     * per-controller), so the list is read straight from `$body['entries']`. A
-     * non-list payload yields an empty list.
-     *
-     * @param string|null $path The absolute filesystem path to browse, or null for root
-     * @return PromiseInterface<list<array{name:string,path:string,type:string,size:int,modified:string}>>
-     */
-    public function browseFilesystem(?string $path = null): PromiseInterface
-    {
-        $query = $path !== null ? ['path' => $path] : [];
-
-        return $this->api->send('GET', self::SERVER . '/fs', $query)->then(/**
-         * @param array{entries?: list<array{name:string,path:string,type:string,size:int,modified:string}>} $body
-         * @return list<array{name:string,path:string,type:string,size:int,modified:string}>
-         */
-            static function (array $body): array {
-                $entries = $body['entries'] ?? null;
-                if (!is_array($entries)) {
-                    return [];
-                }
-
-                return self::mapList(
-                    $entries,
-                    static fn (array $row): array => [
-                    'name' => Coerce::str($row['name'] ?? ''),
-                    'path' => Coerce::str($row['path'] ?? ''),
-                    'type' => Coerce::str($row['type'] ?? ''),
-                    'size' => Coerce::int($row['size'] ?? 0),
-                    'modified' => Coerce::str($row['modified'] ?? ''),
-                    ],
-                );
-            }
-        );
-    }
-
     // ---- services (Trakt / Last.fm) -------------------------------------
-
-    /**
-     * Fetch the status of all connected services (Trakt and Last.fm). Like the
-     * other admin controllers, the services controller returns data at the TOP
-     * LEVEL with NO `{success, data}` envelope, so each service status is read
-     * straight from its named key. A missing/non-array key yields the tolerant
-     * empty default so the mapping never breaks.
-     *
-     * @return PromiseInterface<array{trakt: array{connected:bool, username:string|null, configured:bool}, lastfm: array{connected:bool, username:string|null, api_key_set:bool}}>
-     */
-    public function servicesStatus(): PromiseInterface
-    {
-        return $this->api->send('GET', self::SERVICES)->then(/**
-         * @param array<string,mixed> $body
-         * @return array{trakt: array{connected:bool, username:string|null, configured:bool}, lastfm: array{connected:bool, username:string|null, api_key_set:bool}}
-         */
-            static function (array $body): array {
-            /** @var array{connected:bool, username:string|null, configured:bool} $trakt */
-                $trakt = $body['trakt'] ?? [];
-            /** @var array{connected:bool, username:string|null, api_key_set:bool} $lastfm */
-                $lastfm = $body['lastfm'] ?? [];
-                return [
-                'trakt' => [
-                    'connected' => (bool) $trakt['connected'],
-                    'username' => is_string($trakt['username']) ? $trakt['username'] : null,
-                    'configured' => (bool) $trakt['configured'],
-                ],
-                'lastfm' => [
-                    'connected' => (bool) $lastfm['connected'],
-                    'username' => is_string($lastfm['username']) ? $lastfm['username'] : null,
-                    'api_key_set' => (bool) $lastfm['api_key_set'],
-                ],
-                ];
-            }
-        );
-    }
 
     /**
      * Disconnect the Trakt OAuth session (clear stored tokens). ⚠️ Tokens are
@@ -2738,67 +2574,6 @@ final class AdminClient
     }
 
     // ---- media metadata match --------------------------------------------
-
-    /**
-     * Fetch match suggestions for a media item. Returns candidate results
-     * from TMDB based on the item's title/year or a manual query.
-     * When called with no arguments, returns a list of all items needing
-     * metadata match review.
-     *
-     * @param string|null $itemId The media item ID (optional - if not provided,
-     *                            returns list of items needing match review)
-     * @param string|null $query Optional manual search query (default: item title)
-     * @param int|null $year Optional year filter
-     * @param string|null $type Optional type filter ('tv' or 'movie')
-     *
-     * @return PromiseInterface<mixed>
-     */
-    public function metadataMatchSuggestions(
-        ?string $itemId = null,
-        ?string $query = null,
-        ?int $year = null,
-        ?string $type = null,
-    ): PromiseInterface {
-        // When called with no itemId, return list of items needing match review
-        if ($itemId === null && func_num_args() === 0) {
-            return $this->api->send('GET', self::MEDIA . '/match')
-                ->then(static function (array $body): array {
-                    return self::mapList(
-                        $body['items'] ?? null,
-                        static fn (array $row): array => [
-                            'id' => Coerce::str($row['id'] ?? ''),
-                            'title' => Coerce::str($row['title'] ?? ''),
-                            'type' => Coerce::str($row['type'] ?? ''),
-                            'poster_url' => is_string($row['poster_url'] ?? null) ? $row['poster_url'] : null,
-                        ],
-                    );
-                });
-        }
-
-        // Original search behavior when itemId is provided
-        $params = [];
-        if ($query !== null && $query !== '') {
-            $params['query'] = $query;
-        }
-        if ($year !== null) {
-            $params['year'] = (string) $year;
-        }
-        if ($type !== null && ($type === 'tv' || $type === 'movie')) {
-            $params['type'] = $type;
-        }
-
-        return $this->api->send('GET', self::MEDIA . '/' . rawurlencode((string) $itemId) . '/match/search', $params)
-            ->then(static function (array $body): array {
-                return [
-                    'results' => self::mapList(
-                        $body['results'] ?? null,
-                        static fn (array $row): array => $row,
-                    ),
-                    'query' => Coerce::str($body['query'] ?? ''),
-                    'type' => Coerce::str($body['type'] ?? ''),
-                ];
-            });
-    }
 
     /**
      * Apply a metadata match to a media item. Resolves with the updated item

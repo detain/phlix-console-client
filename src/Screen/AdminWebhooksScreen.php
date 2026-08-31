@@ -28,8 +28,7 @@ use SugarCraft\Core\SubscriptionCapable;
  * The admin webhooks management screen: a scrollable list of webhook
  * subscriptions with their URL, events, and enabled status.
  *
- * `r` refetches; `t` toggles the selected webhook enabled/disabled;
- * Esc/q go back. A fetch failure shows a line plus a retry hint; an auth
+ * `r` refetches; Esc/q go back. A fetch failure shows a line plus a retry hint; an auth
  * failure surfaces a session expiry.
  *
  * The client is injected (built locally by the App from its shared ApiClient,
@@ -44,7 +43,7 @@ final class AdminWebhooksScreen implements Breadcrumbed, Themed
 
     private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
     private const LOAD_FAILED = 'Could not load webhooks.';
-    private const HINT = 't  toggle  r  refresh  Esc  back';
+    private const HINT = 'r  refresh  Esc  back';
 
     /** @var list<array<string,mixed>> */
     private array $webhooks = [];
@@ -126,9 +125,6 @@ final class AdminWebhooksScreen implements Breadcrumbed, Themed
         if ($msg->type === KeyType::Char && $msg->rune === 'r') {
             return [$this->reloading(), $this->fetchCmd()];
         }
-        if ($msg->type === KeyType::Char && $msg->rune === 't') {
-            return $this->toggleSelected();
-        }
         if ($msg->type === KeyType::Up || ($msg->type === KeyType::Char && $msg->rune === 'k')) {
             return $this->selectPrev();
         }
@@ -167,47 +163,6 @@ final class AdminWebhooksScreen implements Breadcrumbed, Themed
         $next->selectedIndex = $index;
 
         return $next;
-    }
-
-    // ---- toggle --------------------------------------------------------
-
-    /** @return array{self, ?\Closure} */
-    private function toggleSelected(): array
-    {
-        if ($this->webhooks === []) {
-            return [$this, null];
-        }
-
-        $webhook = $this->webhooks[$this->selectedIndex] ?? null;
-        if ($webhook === null) {
-            return [$this, null];
-        }
-
-        $id = is_string($webhook['id'] ?? null) ? $webhook['id'] : null;
-        if ($id === null) {
-            return [$this, null];
-        }
-
-        $currentlyEnabled = !empty($webhook['enabled']);
-        $newEnabled = !$currentlyEnabled;
-
-        $next = clone $this;
-        $next->selectedIndex = 0;
-
-        return [$next, $this->toggleCmd($id, $newEnabled)];
-    }
-
-    private function toggleCmd(string $id, bool $enabled): \Closure
-    {
-        return Cmd::promise(
-            fn (): \React\Promise\PromiseInterface => $this->admin->setWebhookEnabled($id, $enabled)
-                ->then(
-                    static fn (array $webhooks): AdminWebhooksLoadedMsg => new AdminWebhooksLoadedMsg($webhooks),
-                    static fn (\Throwable $e): Msg => $e instanceof AuthError
-                        ? new SessionExpiredMsg(self::SESSION_EXPIRED)
-                        : new AdminWebhooksFailedMsg(self::LOAD_FAILED),
-                ),
-        );
     }
 
     // ---- error ---------------------------------------------------------
