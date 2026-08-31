@@ -1670,12 +1670,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/JetBrains/phpstorm-stubs",
-                "reference": "4e14dd6b8c20af38c7d42a8bcfc5a8dd40ced583"
+                "reference": "748ab87d16253a5b5d648b5fe4dae1ff4152bb03"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/JetBrains/phpstorm-stubs/zipball/4e14dd6b8c20af38c7d42a8bcfc5a8dd40ced583",
-                "reference": "4e14dd6b8c20af38c7d42a8bcfc5a8dd40ced583",
+                "url": "https://api.github.com/repos/JetBrains/phpstorm-stubs/zipball/748ab87d16253a5b5d648b5fe4dae1ff4152bb03",
+                "reference": "748ab87d16253a5b5d648b5fe4dae1ff4152bb03",
                 "shasum": ""
             },
             "require-dev": {
@@ -1707,7 +1707,7 @@
                 "stubs",
                 "type"
             ],
-            "time": "2026-08-21T14:57:18+00:00"
+            "time": "2026-08-22T14:29:17+00:00"
         },
         {
             "name": "justinrainbow/json-schema",
@@ -2720,16 +2720,16 @@
         },
         {
             "name": "phpstan/phpdoc-parser",
-            "version": "2.3.3",
+            "version": "2.3.4",
             "source": {
                 "type": "git",
                 "url": "https://github.com/phpstan/phpdoc-parser.git",
-                "reference": "fb19eedd2bb67ff8cf7a5502ad329e701d6398a3"
+                "reference": "98dbc9412932af5825e6d5aa5d6bc4de7d82538a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/phpstan/phpdoc-parser/zipball/fb19eedd2bb67ff8cf7a5502ad329e701d6398a3",
-                "reference": "fb19eedd2bb67ff8cf7a5502ad329e701d6398a3",
+                "url": "https://api.github.com/repos/phpstan/phpdoc-parser/zipball/98dbc9412932af5825e6d5aa5d6bc4de7d82538a",
+                "reference": "98dbc9412932af5825e6d5aa5d6bc4de7d82538a",
                 "shasum": ""
             },
             "require": {
@@ -2761,9 +2761,9 @@
             "description": "PHPDoc parser with support for nullable, intersection and generic types",
             "support": {
                 "issues": "https://github.com/phpstan/phpdoc-parser/issues",
-                "source": "https://github.com/phpstan/phpdoc-parser/tree/2.3.3"
+                "source": "https://github.com/phpstan/phpdoc-parser/tree/2.3.4"
             },
-            "time": "2026-07-08T07:01:06+00:00"
+            "time": "2026-08-30T16:25:38+00:00"
         },
         {
             "name": "psr/container",
@@ -4150,12 +4150,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/candy-core.git",
-                "reference": "efd5b5c1236d4cd8ec304bb06c211c82e5be886e"
+                "reference": "59d73b5ab238778a9120bfac04f976519b3a9b04"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/candy-core/zipball/efd5b5c1236d4cd8ec304bb06c211c82e5be886e",
-                "reference": "efd5b5c1236d4cd8ec304bb06c211c82e5be886e",
+                "url": "https://api.github.com/repos/sugarcraft/candy-core/zipball/59d73b5ab238778a9120bfac04f976519b3a9b04",
+                "reference": "59d73b5ab238778a9120bfac04f976519b3a9b04",
                 "shasum": ""
             },
             "require": {
@@ -4208,7 +4208,7 @@
                 "issues": "https://github.com/sugarcraft/candy-core/issues",
                 "source": "https://github.com/sugarcraft/candy-core"
             },
-            "time": "2026-08-22T02:46:43+00:00"
+            "time": "2026-08-25T02:58:31+00:00"
         },
         {
             "name": "sugarcraft/candy-flip",
@@ -4216,12 +4216,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/candy-flip.git",
-                "reference": "a18cbef5e221467129fb8fc8daba1585369839cf"
+                "reference": "baafd23c15d665c47cadf31dd91113b1bf294e4a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/candy-flip/zipball/a18cbef5e221467129fb8fc8daba1585369839cf",
-                "reference": "a18cbef5e221467129fb8fc8daba1585369839cf",
+                "url": "https://api.github.com/repos/sugarcraft/candy-flip/zipball/baafd23c15d665c47cadf31dd91113b1bf294e4a",
+                "reference": "baafd23c15d665c47cadf31dd91113b1bf294e4a",
                 "shasum": ""
             },
             "require": {
@@ -4270,7 +4270,7 @@
                 "issues": "https://github.com/sugarcraft/candy-flip/issues",
                 "source": "https://github.com/sugarcraft/candy-flip"
             },
-            "time": "2026-08-18T00:44:00+00:00"
+            "time": "2026-08-24T20:12:23+00:00"
         },
         {
             "name": "sugarcraft/candy-focus",
@@ -4624,12 +4624,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/candy-mosaic.git",
-                "reference": "08da189fd4a6af4d8cb7759512d73bf185fe0bd1"
+                "reference": "1a0961a161bf3ed2101d60712ab829b6f864e238"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/candy-mosaic/zipball/08da189fd4a6af4d8cb7759512d73bf185fe0bd1",
-                "reference": "08da189fd4a6af4d8cb7759512d73bf185fe0bd1",
+                "url": "https://api.github.com/repos/sugarcraft/candy-mosaic/zipball/1a0961a161bf3ed2101d60712ab829b6f864e238",
+                "reference": "1a0961a161bf3ed2101d60712ab829b6f864e238",
                 "shasum": ""
             },
             "require": {
@@ -4684,7 +4684,7 @@
                 "issues": "https://github.com/sugarcraft/candy-mosaic/issues",
                 "source": "https://github.com/sugarcraft/candy-mosaic"
             },
-            "time": "2026-08-18T00:44:00+00:00"
+            "time": "2026-08-24T16:10:38+00:00"
         },
         {
             "name": "sugarcraft/candy-mouse",
@@ -4807,12 +4807,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/candy-pty.git",
-                "reference": "4280269f1a01e6ed655ffa016b310b3cdfd9d80d"
+                "reference": "f31e1533f3d11b11991bf8fc5a5937726838be29"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/candy-pty/zipball/4280269f1a01e6ed655ffa016b310b3cdfd9d80d",
-                "reference": "4280269f1a01e6ed655ffa016b310b3cdfd9d80d",
+                "url": "https://api.github.com/repos/sugarcraft/candy-pty/zipball/f31e1533f3d11b11991bf8fc5a5937726838be29",
+                "reference": "f31e1533f3d11b11991bf8fc5a5937726838be29",
                 "shasum": ""
             },
             "require": {
@@ -4870,7 +4870,7 @@
                 "issues": "https://github.com/sugarcraft/candy-pty/issues",
                 "source": "https://github.com/sugarcraft/candy-pty"
             },
-            "time": "2026-08-18T00:44:00+00:00"
+            "time": "2026-08-25T18:44:46+00:00"
         },
         {
             "name": "sugarcraft/candy-shine",
@@ -5539,16 +5539,16 @@
         },
         {
             "name": "symfony/console",
-            "version": "v7.4.17",
+            "version": "v7.4.18",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/console.git",
-                "reference": "962e18f09ebe68a49039b4c82fc0ea4871824fca"
+                "reference": "23d6f88a29f6d0eac45bd77d70307adf83ba7ab0"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/console/zipball/962e18f09ebe68a49039b4c82fc0ea4871824fca",
-                "reference": "962e18f09ebe68a49039b4c82fc0ea4871824fca",
+                "url": "https://api.github.com/repos/symfony/console/zipball/23d6f88a29f6d0eac45bd77d70307adf83ba7ab0",
+                "reference": "23d6f88a29f6d0eac45bd77d70307adf83ba7ab0",
                 "shasum": ""
             },
             "require": {
@@ -5613,7 +5613,7 @@
                 "terminal"
             ],
             "support": {
-                "source": "https://github.com/symfony/console/tree/v7.4.17"
+                "source": "https://github.com/symfony/console/tree/v7.4.18"
             },
             "funding": [
                 {
@@ -5633,7 +5633,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-08-21T12:09:28+00:00"
+            "time": "2026-08-25T14:18:37+00:00"
         },
         {
             "name": "symfony/deprecation-contracts",
@@ -5788,16 +5788,16 @@
         },
         {
             "name": "symfony/filesystem",
-            "version": "v7.4.17",
+            "version": "v7.4.18",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/filesystem.git",
-                "reference": "ee7bc7bca4c7079b88e57d5000aeeb20df570c8d"
+                "reference": "90d412aa5277c6819db39e7605aa46b1019e3232"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/filesystem/zipball/ee7bc7bca4c7079b88e57d5000aeeb20df570c8d",
-                "reference": "ee7bc7bca4c7079b88e57d5000aeeb20df570c8d",
+                "url": "https://api.github.com/repos/symfony/filesystem/zipball/90d412aa5277c6819db39e7605aa46b1019e3232",
+                "reference": "90d412aa5277c6819db39e7605aa46b1019e3232",
                 "shasum": ""
             },
             "require": {
@@ -5834,7 +5834,7 @@
             "description": "Provides basic utilities for the filesystem",
             "homepage": "https://symfony.com",
             "support": {
-                "source": "https://github.com/symfony/filesystem/tree/v7.4.17"
+                "source": "https://github.com/symfony/filesystem/tree/v7.4.18"
             },
             "funding": [
                 {
@@ -5854,7 +5854,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-08-21T12:09:28+00:00"
+            "time": "2026-08-23T10:03:40+00:00"
         },
         {
             "name": "symfony/finder",
@@ -6175,16 +6175,16 @@
         },
         {
             "name": "symfony/polyfill-intl-normalizer",
-            "version": "v1.38.0",
+            "version": "v1.42.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/polyfill-intl-normalizer.git",
-                "reference": "2d446c214bdbe5b71bde5011b060a05fece3ae6b"
+                "reference": "aa20edea75bd9c48cfecc8360922e5a6e5c44502"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/polyfill-intl-normalizer/zipball/2d446c214bdbe5b71bde5011b060a05fece3ae6b",
-                "reference": "2d446c214bdbe5b71bde5011b060a05fece3ae6b",
+                "url": "https://api.github.com/repos/symfony/polyfill-intl-normalizer/zipball/aa20edea75bd9c48cfecc8360922e5a6e5c44502",
+                "reference": "aa20edea75bd9c48cfecc8360922e5a6e5c44502",
                 "shasum": ""
             },
             "require": {
@@ -6236,7 +6236,7 @@
                 "shim"
             ],
             "support": {
-                "source": "https://github.com/symfony/polyfill-intl-normalizer/tree/v1.38.0"
+                "source": "https://github.com/symfony/polyfill-intl-normalizer/tree/v1.42.0"
             },
             "funding": [
                 {
@@ -6256,7 +6256,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-05-25T13:48:31+00:00"
+            "time": "2026-08-07T06:33:24+00:00"
         },
         {
             "name": "symfony/polyfill-mbstring",
@@ -6425,7 +6425,7 @@
         },
         {
             "name": "symfony/process",
-            "version": "v7.4.17",
+            "version": "v7.4.18",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/process.git",
@@ -6466,7 +6466,7 @@
             "description": "Executes commands in sub-processes",
             "homepage": "https://symfony.com",
             "support": {
-                "source": "https://github.com/symfony/process/tree/v7.4.17"
+                "source": "https://github.com/symfony/process/tree/v7.4.18"
             },
             "funding": [
                 {
@@ -6490,16 +6490,16 @@
         },
         {
             "name": "symfony/service-contracts",
-            "version": "v3.7.1",
+            "version": "v3.7.3",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/service-contracts.git",
-                "reference": "c0a284bab1ed8aa0417e3d69250ab437739563a0"
+                "reference": "15e6a07ec2a2c75ceb1b21dd98105ee8456d2257"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/service-contracts/zipball/c0a284bab1ed8aa0417e3d69250ab437739563a0",
-                "reference": "c0a284bab1ed8aa0417e3d69250ab437739563a0",
+                "url": "https://api.github.com/repos/symfony/service-contracts/zipball/15e6a07ec2a2c75ceb1b21dd98105ee8456d2257",
+                "reference": "15e6a07ec2a2c75ceb1b21dd98105ee8456d2257",
                 "shasum": ""
             },
             "require": {
@@ -6553,7 +6553,7 @@
                 "standards"
             ],
             "support": {
-                "source": "https://github.com/symfony/service-contracts/tree/v3.7.1"
+                "source": "https://github.com/symfony/service-contracts/tree/v3.7.3"
             },
             "funding": [
                 {
@@ -6573,7 +6573,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-06-16T09:55:08+00:00"
+            "time": "2026-07-27T15:39:01+00:00"
         },
         {
             "name": "symfony/string",
@@ -6668,16 +6668,16 @@
         },
         {
             "name": "symfony/var-dumper",
-            "version": "v7.4.17",
+            "version": "v7.4.18",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/var-dumper.git",
-                "reference": "53712df8727da1744490202eeb9cb50d4b95419d"
+                "reference": "e088da50b813f32473a76871616cbb8fa54653a8"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/var-dumper/zipball/53712df8727da1744490202eeb9cb50d4b95419d",
-                "reference": "53712df8727da1744490202eeb9cb50d4b95419d",
+                "url": "https://api.github.com/repos/symfony/var-dumper/zipball/e088da50b813f32473a76871616cbb8fa54653a8",
+                "reference": "e088da50b813f32473a76871616cbb8fa54653a8",
                 "shasum": ""
             },
             "require": {
@@ -6731,7 +6731,7 @@
                 "dump"
             ],
             "support": {
-                "source": "https://github.com/symfony/var-dumper/tree/v7.4.17"
+                "source": "https://github.com/symfony/var-dumper/tree/v7.4.18"
             },
             "funding": [
                 {
@@ -6751,7 +6751,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-08-21T12:09:28+00:00"
+            "time": "2026-08-30T20:10:52+00:00"
         },
         {
             "name": "thecodingmachine/safe",
@@ -7252,11 +7252,11 @@
         },
         {
             "name": "phpstan/phpstan",
-            "version": "2.2.9",
+            "version": "2.2.11",
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/phpstan/phpstan/zipball/13d6b4f347bad222da436580c8304fa6f83e6bd0",
-                "reference": "13d6b4f347bad222da436580c8304fa6f83e6bd0",
+                "url": "https://api.github.com/repos/phpstan/phpstan/zipball/0eb899d48d9b784eee3f1b58a6c9dc79734cf811",
+                "reference": "0eb899d48d9b784eee3f1b58a6c9dc79734cf811",
                 "shasum": ""
             },
             "require": {
@@ -7312,7 +7312,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-08-22T07:38:16+00:00"
+            "time": "2026-08-31T10:33:10+00:00"
         },
         {
             "name": "phpunit/php-code-coverage",
