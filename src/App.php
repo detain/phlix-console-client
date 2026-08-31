@@ -98,6 +98,7 @@ use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Screen\AdminBackupScreen;
 use Phlix\Console\Screen\AdminDashboardScreen;
 use Phlix\Console\Screen\AdminDlnaScreen;
+use Phlix\Console\Screen\AdminFilesystemScreen;
 use Phlix\Console\Screen\AdminLibrariesScreen;
 use Phlix\Console\Screen\AdminLiveTvScreen;
 use Phlix\Console\Screen\AdminLogsScreen;
@@ -109,6 +110,7 @@ use Phlix\Console\Screen\AdminUserProfilesScreen;
 use Phlix\Console\Screen\AdminPluginsScreen;
 use Phlix\Console\Screen\AdminPluginUpdateScreen;
 use Phlix\Console\Screen\AdminRemoteAccessScreen;
+use Phlix\Console\Screen\AdminServerRestartScreen;
 use Phlix\Console\Screen\AdminSettingsScreen;
 use Phlix\Console\Screen\AdminTranscodingScreen;
 use Phlix\Console\Screen\AdminUsersScreen;
@@ -1810,6 +1812,16 @@ final class App implements Model
             $screen = new AdminAuthProvidersScreen(new AdminClient($this->api), $this->cols, $this->rows);
 
             return [$this->push(Route::AdminAuthProviders, $screen), $screen->init()];
+        }
+        if ($section === Route::AdminServerRestart) {
+            $screen = new AdminServerRestartScreen(new AdminClient($this->api), $this->cols, $this->rows);
+
+            return [$this->push(Route::AdminServerRestart, $screen), $screen->init()];
+        }
+        if ($section === Route::AdminFilesystem) {
+            $screen = new AdminFilesystemScreen(new AdminClient($this->api), $this->cols, $this->rows);
+
+            return [$this->push(Route::AdminFilesystem, $screen), $screen->init()];
         }
 
         return [$this, null];

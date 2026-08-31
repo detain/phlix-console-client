@@ -30,6 +30,7 @@ use Phlix\Console\Api\Dto\Admin\SeriesRule;
 use Phlix\Console\Api\Dto\Admin\ServerSettings;
 use Phlix\Console\Api\Dto\Admin\Tuner;
 use Phlix\Console\Config\TokenBundle;
+use Phlix\Console\Msg\AdminFilesystemLoadedMsg;
 use Phlix\Console\Tests\Api\FakeTransport;
 use PHPUnit\Framework\TestCase;
 use React\EventLoop\Loop;
@@ -2937,6 +2938,113 @@ final class AdminClientTest extends TestCase
         $body = json_decode($transport->requestAt(0)['body'], true);
         self::assertSame(2, $body['max_concurrent_streams']);
         self::assertArrayNotHasKey('max_total_bandwidth_kbps', $body);
+    }
+
+    // ---- server control (S406: restart + fs browse) ---------------------
+
+    public function testRestartServerPostsAndResolvesTheAckMessage(): void
+    {
+        // Real wire shape: 200 with NO `data` key — decode() passes the body
+        // through, so the ack `message` becomes the promise value.
+        $transport = (new FakeTransport())->json(200, ['success' => true, 'message' => 'Restart signal sent']);
+
+        $message = $this->await($this->clientWith($transport)->restartServer());
+
+        self::assertSame('Restart signal sent', $message);
+        self::assertSame('POST', $transport->requestAt(0)['method']);
+        $url = $transport->requestAt(0)['url'];
+        self::assertStringContainsString('/api/v1/admin/restart', $url);
+        self::assertStringNotContainsString('/admin/server/', $url, 'the never-registered /admin/server/* spelling must not return');
+    }
+
+    public function testRestartServerRejectsWithTheServerMessageOnA500(): void
+    {
+        // Non-2xx: decode() takes the `error` key as the ApiError message.
+        $transport = (new FakeTransport())->json(500, [
+            'success' => false,
+            'error' => 'Restart failed',
+            'message' => 'PID file not found',
+        ]);
+
+        $error = $this->awaitError($this->clientWith($transport)->restartServer());
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('Restart failed', $error->getMessage());
+    }
+
+    public function testBrowseFilesystemUnwrapsTheDataEnvelopeAndMapsDirRows(): void
+    {
+        // Real FsBrowseController wire shape: enveloped, entries are name+path only.
+        $transport = (new FakeTransport())->json(200, [
+            'success' => true,
+            'data' => [
+                'path' => '/srv/media',
+                'parent' => '/srv',
+                'entries' => [
+                    ['name' => 'movies', 'path' => '/srv/media/movies'],
+                    ['name' => 'tv', 'path' => '/srv/media/tv'],
+                ],
+            ],
+        ]);
+
+        $rows = $this->await($this->clientWith($transport)->browseFilesystem('/srv/media'));
+
+        self::assertSame([
+            ['name' => 'movies', 'path' => '/srv/media/movies', 'type' => 'dir', 'size' => 0, 'modified' => ''],
+            ['name' => 'tv', 'path' => '/srv/media/tv', 'type' => 'dir', 'size' => 0, 'modified' => ''],
+        ], $rows, 'rows map dir-only constants onto the screen shape');
+        self::assertSame('GET', $transport->requestAt(0)['method']);
+        $url = $transport->requestAt(0)['url'];
+        self::assertStringContainsString('/api/v1/admin/fs/browse', $url);
+        self::assertStringContainsString('path=%2Fsrv%2Fmedia', $url, 'http_build_query percent-encodes the slashes');
+
+        self::assertSame('s406-admin-restore-v1', AdminFilesystemLoadedMsg::RESTORE_PROVENANCE);
+    }
+
+    public function testBrowseFilesystemRootsViewToleratesNullServerPath(): void
+    {
+        // Roots view: no query is sent and the server answers with data.path null.
+        $transport = (new FakeTransport())->json(200, [
+            'success' => true,
+            'data' => [
+                'path' => null,
+                'parent' => null,
+                'entries' => [['name' => 'media', 'path' => '/srv/media']],
+            ],
+        ]);
+
+        $rows = $this->await($this->clientWith($transport)->browseFilesystem());
+
+        self::assertCount(1, $rows);
+        self::assertSame(['name' => 'media', 'path' => '/srv/media', 'type' => 'dir', 'size' => 0, 'modified' => ''], $rows[0]);
+        $url = $transport->requestAt(0)['url'];
+        self::assertStringNotContainsString('path=', $url, 'the roots view sends no path query');
+        self::assertStringContainsString('/api/v1/admin/fs/browse', $url);
+    }
+
+    public function testBrowseFilesystemToleratesAMissingEntriesKey(): void
+    {
+        $transport = (new FakeTransport())->json(200, [
+            'success' => true,
+            'data' => ['path' => '/srv'],
+        ]);
+
+        $rows = $this->await($this->clientWith($transport)->browseFilesystem('/srv'));
+
+        self::assertSame([], $rows, 'a missing entries key is an empty listing, never a crash');
+    }
+
+    public function testBrowseFilesystemRejectsOnA403JailEscape(): void
+    {
+        $transport = (new FakeTransport())->json(403, [
+            'success' => false,
+            'error' => 'Path is outside the allowed roots',
+        ]);
+
+        $error = $this->awaitError($this->clientWith($transport)->browseFilesystem('/etc'));
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertSame('Path is outside the allowed roots', $error->getMessage());
     }
 
     // ---- helpers -------------------------------------------------------
