@@ -10,20 +10,27 @@ declare(strict_types=1);
 namespace Phlix\Console\Api\Dto;
 
 /**
- * A subtitle track from the media_streams table (stream_type = 'subtitle').
+ * A subtitle track element of `subtitle_tracks[]` on
+ * `GET /api/v1/media/{id}/playback-info` (and its `/playback` twin, which share
+ * the server's `Phlix\Media\Library\StreamTrackShaper::subtitleTracks()`).
  *
- * Mirrors the server's `media_streams` row where `stream_type = 'subtitle'`.
- * Language is a BCP 47 tag (e.g., "en-US", "ja-JP", "de-DE").
+ * S404 authority ruling (contracts `v0.4.5`, verified against the shaper at
+ * server `01340633`): the per-track WIRE keys are
+ * `{id, index, stream_index, language, label, codec, source,
+ * hearing_impaired, url}`. The server derives the display string as
+ * `label = title ?? language ?? 'Subtitle N'` — the wire NEVER carries
+ * `title`, `is_forced` or `is_default` on subtitles (the pre-S404 version of
+ * this DTO parsed all three; none was ever populated; its docblock claimed the
+ * opposite). There is no forced/default CONCEPT on the subtitle wire at all —
+ * `hearing_impaired` is the only flag it carries.
  *
- * From `GET /api/v1/media/{id}/playback-info` → `subtitle_tracks: StreamSubtitleTrack[]`.
+ * This DTO mirrors the display-relevant SUBSET of the wire row:
+ * `index`/`stream_index` (ffmpeg selector ordinals) and the signed `url` are
+ * deliberately not modelled here — the console fetches caption payloads via
+ * the separate `/api/v1/media/{id}/subtitles` rail through the distinct
+ * {@see SubtitleTrack} DTO, not from these playback rows.
  *
- * ⚠ S325b reconciliation note: this mirror matches the SERVER's emission
- * (`StreamTrackShaper::subtitleTracks()`), while `@phlix/contracts`
- * `SubtitleTrack` declares `display_title` where the server emits `title` —
- * the contract and this route's wire shape disagree. Filed as step S404; do
- * NOT align this mirror to the TS interface without checking the shaper.
- *
- * @see https://github.com/detain/phlix-contracts/blob/v0.4.4/src/SubtitleTrack.ts
+ * @see https://github.com/detain/phlix-contracts/blob/v0.4.5/src/playback.ts (wire TS twin)
  * @see phlix-server src/Media/Library/StreamTrackShaper.php (authoritative emission)
  */
 final readonly class StreamSubtitleTrack
@@ -31,19 +38,19 @@ final readonly class StreamSubtitleTrack
     public function __construct(
         public string $id,
         public string $codec,
-        /** BCP 47 language tag (e.g., "en-US", "es-ES"). */
+        /** BCP 47 language tag (e.g., "en-US", "es-ES"); the server coerces `'und'`. */
         public string $language,
-        /** Track title (e.g., "English (SDH)", "Spanish"). */
-        public ?string $title = null,
-        /** Whether this is a forced subtitle track (auto-displayed for foreign audio). */
-        public bool $isForced = false,
-        /** Whether this is the default subtitle track. */
-        public bool $isDefault = false,
+        /** Server-derived display string (`title ?? language ?? 'Subtitle N'`); non-empty on the wire. */
+        public string $label,
+        /** Provenance for downloaded external rows (`media_streams.storage_path` rows); `null` for embedded rows. */
+        public ?string $source = null,
+        /** Stored hearing-impaired flag (wire `hearing_impaired`). */
+        public bool $hearingImpaired = false,
     ) {
     }
 
     /**
-     * @param array<array-key,mixed> $data
+     * @param array<array-key,mixed> $data one `subtitle_tracks[]` wire row
      */
     public static function fromArray(array $data): self
     {
@@ -51,9 +58,9 @@ final readonly class StreamSubtitleTrack
             id: Coerce::str($data['id'] ?? ''),
             codec: Coerce::str($data['codec'] ?? ''),
             language: Coerce::str($data['language'] ?? 'und', 'und'),
-            title: Coerce::nstr($data['title'] ?? null),
-            isForced: Coerce::bool($data['is_forced'] ?? false),
-            isDefault: Coerce::bool($data['is_default'] ?? false),
+            label: Coerce::str($data['label'] ?? ''),
+            source: Coerce::nstr($data['source'] ?? null),
+            hearingImpaired: Coerce::bool($data['hearing_impaired'] ?? false),
         );
     }
 
@@ -80,15 +87,20 @@ final readonly class StreamSubtitleTrack
 
     /**
      * A human display label for the menu.
+     *
+     * Leads with the language, appends the server `label` when it says more
+     * than the language already does, and flags hearing-impaired tracks — the
+     * wire's only subtitle flag. (Pre-S404 this appended a never-emitted
+     * `title` and a never-emitted forced marker.)
      */
     public function displayLabel(): string
     {
         $label = $this->language;
-        if ($this->title !== null && $this->title !== '') {
-            $label .= ' - ' . $this->title;
+        if ($this->label !== '' && $this->label !== $this->language) {
+            $label .= ' - ' . $this->label;
         }
-        if ($this->isForced) {
-            $label .= ' [forced]';
+        if ($this->hearingImpaired) {
+            $label .= ' [HI]';
         }
 
         return $label;

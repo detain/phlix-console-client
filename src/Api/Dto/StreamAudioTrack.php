@@ -17,15 +17,15 @@ namespace Phlix\Console\Api\Dto;
  *
  * From `GET /api/v1/media/{id}/playback-info` → `audio_tracks: StreamAudioTrack[]`.
  *
- * ⚠ S325b reconciliation note: this mirror matches the SERVER's emission
- * (`StreamTrackShaper::audioTracks()` — keys `title`/`bitrate`, no `url`),
- * while `@phlix/contracts` `AudioTrack` declares `display_title` + `url?` and
- * NO bitrate — the contract and this route's wire shape disagree. The
- * divergence is filed as step S404; do NOT "align" this mirror to the TS
- * interface without checking the server shaper, or the labels go blank the
- * way the tizen parental fields did (S234 family).
+ * S404 resolution (2026-08-31): the server's `StreamTrackShaper::audioTracks()`
+ * IS the wire authority — keys `{id, index, stream_index, codec, language,
+ * channels, bitrate (always present, nullable), title (nullable), default}`,
+ * no `url`/`label`. This DTO mirrors the display-relevant subset and always
+ * did; the old `@phlix/contracts` `AudioTrack` (the `display_title` fiction)
+ * was corrected to this shape in release 0.4.5. `index`/`stream_index`/
+ * `default` are carried on the wire and ignored here by design.
  *
- * @see https://github.com/detain/phlix-contracts/blob/v0.4.4/src/AudioTrack.ts
+ * @see https://github.com/detain/phlix-contracts/blob/v0.4.5/src/playback.ts
  * @see phlix-server src/Media/Library/StreamTrackShaper.php (authoritative emission)
  */
 final readonly class StreamAudioTrack
