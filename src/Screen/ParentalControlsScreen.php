@@ -152,13 +152,13 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
 
         $doFetch = static function () use ($section, $apiErrorClass, $loadFailed, $sessionExpired, $admin, $profileId): PromiseInterface {
             $promise = match ($section) {
-                'schedules' => $admin->profileSchedules((int) $profileId)->then(
+                'schedules' => $admin->profileSchedules($profileId)->then(
                     static fn (array $rows): Msg => new ParentalSchedulesLoadedMsg($rows),
                 ),
-                'tags' => $admin->profileTags((int) $profileId)->then(
+                'tags' => $admin->profileTags($profileId)->then(
                     static fn (array $rows): Msg => new ParentalTagsLoadedMsg($rows),
                 ),
-                'streamLimits' => $admin->profileStreamLimits((int) $profileId)->then(
+                'streamLimits' => $admin->profileStreamLimits($profileId)->then(
                     static fn (ProfileStreamLimit $limit): Msg => new ParentalStreamLimitsLoadedMsg($limit),
                 ),
                 default => throw new \InvalidArgumentException("Unknown section: {$section}"),
@@ -346,11 +346,11 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
         if ($msg->type === KeyType::Char && $msg->rune === 'y') {
             return match ($this->pendingAction) {
                 self::ACTION_DELETE_SCHEDULE => [$this->working(), $this->actionCmd(
-                    $this->admin->deleteProfileSchedule((int) $this->profileId, $this->pendingId ?? 0),
+                    $this->admin->deleteProfileSchedule($this->profileId, $this->pendingId ?? 0),
                     'Schedule deleted',
                 )[1]],
                 self::ACTION_DELETE_TAG => [$this->working(), $this->actionCmd(
-                    $this->admin->deleteProfileTag((int) $this->profileId, $this->pendingId ?? 0),
+                    $this->admin->deleteProfileTag($this->profileId, $this->pendingId ?? 0),
                     'Tag removed',
                 )[1]],
                 default => [$this, null],
@@ -408,7 +408,7 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
         }
 
         return [$this->closeForm()->working(), $this->actionCmd(
-            $this->admin->createProfileSchedule((int) $this->profileId, $name, $startTime, $endTime, $days, $isActive),
+            $this->admin->createProfileSchedule($this->profileId, $name, $startTime, $endTime, $days, $isActive),
             'Schedule created',
         )[1]];
     }
@@ -434,8 +434,8 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
         $admin = $this->admin;
         $profileId = $this->profileId;
         return [$this->closeForm()->working(), $this->actionCmd(
-            $admin->deleteProfileSchedule((int) $profileId, $original->id)->then(
-                static fn (): PromiseInterface => $admin->createProfileSchedule((int) $profileId, $name, $startTime, $endTime, $days, $isActive),
+            $admin->deleteProfileSchedule($profileId, $original->id)->then(
+                static fn (): PromiseInterface => $admin->createProfileSchedule($profileId, $name, $startTime, $endTime, $days, $isActive),
             ),
             'Schedule updated',
         )[1]];
@@ -455,7 +455,7 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
         }
 
         return [$this->closeForm()->working(), $this->actionCmd(
-            $this->admin->addProfileTag((int) $this->profileId, $tag, $tagType),
+            $this->admin->addProfileTag($this->profileId, $tag, $tagType),
             'Tag added',
         )[1]];
     }
@@ -484,7 +484,7 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
         }
 
         return [$this->closeForm()->working(), $this->actionCmd(
-            $this->admin->updateProfileStreamLimits((int) $this->profileId, $maxStreams, $maxBandwidth),
+            $this->admin->updateProfileStreamLimits($this->profileId, $maxStreams, $maxBandwidth),
             'Stream limits updated',
         )[1]];
     }

@@ -489,7 +489,7 @@ final class AdminClient
      *
      * @return PromiseInterface<list<AccessSchedule>>
      */
-    public function profileSchedules(int $profileId): PromiseInterface
+    public function profileSchedules(string $profileId): PromiseInterface
     {
         return $this->api->send('GET', '/api/v1/profiles/' . $profileId . '/schedules')
             ->then(static function (array $body): array {
@@ -510,7 +510,7 @@ final class AdminClient
      * @param list<string> $daysOfWeek
      * @return PromiseInterface<string>
      */
-    public function createProfileSchedule(int $profileId, string $name, string $startTime, string $endTime, array $daysOfWeek, bool $isActive = true): PromiseInterface
+    public function createProfileSchedule(string $profileId, string $name, string $startTime, string $endTime, array $daysOfWeek, bool $isActive = true): PromiseInterface
     {
         return $this->api->send('POST', '/api/v1/profiles/' . $profileId . '/schedules', [], [
             'name' => $name,
@@ -527,7 +527,7 @@ final class AdminClient
      *
      * @return PromiseInterface<string>
      */
-    public function deleteProfileSchedule(int $profileId, int $scheduleId): PromiseInterface
+    public function deleteProfileSchedule(string $profileId, int $scheduleId): PromiseInterface
     {
         return $this->api->send('DELETE', '/api/v1/profiles/' . $profileId . '/schedules/' . $scheduleId)
             ->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
@@ -542,7 +542,7 @@ final class AdminClient
      *
      * @return PromiseInterface<list<ProfileTag>>
      */
-    public function profileTags(int $profileId): PromiseInterface
+    public function profileTags(string $profileId): PromiseInterface
     {
         return $this->api->send('GET', '/api/v1/profiles/' . $profileId . '/tags')
             ->then(static function (array $body): array {
@@ -561,11 +561,14 @@ final class AdminClient
      *
      * @return PromiseInterface<string>
      */
-    public function addProfileTag(int $profileId, string $tag, string $tagType): PromiseInterface
+    public function addProfileTag(string $profileId, string $tag, string $tagType): PromiseInterface
     {
         return $this->api->send('POST', '/api/v1/profiles/' . $profileId . '/tags', [], [
             'tag' => $tag,
-            'type' => $tagType,
+            // S325b: canonical wire key (@phlix/contracts v0.4.4 / server
+            // emission). `type` remained accepted additively since S233, but
+            // `tag_type` is the declared spelling every consumer converges on.
+            'tag_type' => $tagType,
         ])->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
     }
 
@@ -575,7 +578,7 @@ final class AdminClient
      *
      * @return PromiseInterface<string>
      */
-    public function deleteProfileTag(int $profileId, int $tagId): PromiseInterface
+    public function deleteProfileTag(string $profileId, int $tagId): PromiseInterface
     {
         return $this->api->send('DELETE', '/api/v1/profiles/' . $profileId . '/tags/' . $tagId)
             ->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
@@ -589,7 +592,7 @@ final class AdminClient
      *
      * @return PromiseInterface<ProfileStreamLimit>
      */
-    public function profileStreamLimits(int $profileId): PromiseInterface
+    public function profileStreamLimits(string $profileId): PromiseInterface
     {
         return $this->api->send('GET', '/api/v1/profiles/' . $profileId . '/stream-limits')
             ->then(static fn (array $body): ProfileStreamLimit => ProfileStreamLimit::fromArray(
@@ -606,7 +609,7 @@ final class AdminClient
      *
      * @return PromiseInterface<string>
      */
-    public function updateProfileStreamLimits(int $profileId, int $maxConcurrentStreams, ?int $maxTotalBandwidthKbps = null): PromiseInterface
+    public function updateProfileStreamLimits(string $profileId, int $maxConcurrentStreams, ?int $maxTotalBandwidthKbps = null): PromiseInterface
     {
         $body = ['max_concurrent_streams' => $maxConcurrentStreams];
         if ($maxTotalBandwidthKbps !== null) {

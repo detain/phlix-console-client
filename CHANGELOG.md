@@ -18,6 +18,7 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **docs**: Fix README.md to reflect current PHP version requirement (8.3+), production-ready status, accurate key bindings list, and coherent install story (C10.3)
 - **docs**: Fix stale docblocks throughout `src/` and `tests/` and triage deferral comments with either concrete issue references or completed markers (C10.5)
+- **admin**: Parental-controls mirrors reconciled to `@phlix/contracts` v0.4.4 (S234 canonicalization). `profile_id` is a CHAR(36) UUID **string**; the mirrors typed it `int`, so `Coerce::int()` collapsed every real profile id to `0` and each schedules/tags/stream-limits call against a real profile 404'd. Eight `AdminClient` parental methods, the `ParentalControlsScreen` call sites (9 `(int)` casts removed) and the `AccessSchedule`/`ProfileTag` DTOs now carry `string $profileId` via `Coerce::str`; `addProfileTag()` posts the canonical `tag_type` body key (was `type`). Stale mirror citations corrected to v0.4.4. `StreamAudioTrack`/`StreamSubtitleTrack` docblocks now record a known divergence — the contracts `AudioTrack`/`SubtitleTrack` shape (`display_title`, `url?`) disagrees with the server `StreamTrackShaper` emission (`title`, `bitrate`); filed as S404, deliberately NOT mirror-fixed. Tests pinned to UUID-shaped ids so an int collapse can never pass silently again. Phar rebuilt. (S325b)
 
 ## [1.0.0] - 2026-08-08
 

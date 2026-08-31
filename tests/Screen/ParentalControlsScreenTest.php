@@ -28,7 +28,7 @@ use SugarCraft\Toast\ToastType;
 
 final class ParentalControlsScreenTest extends TestCase
 {
-    private const PROFILE_ID = '42';
+    private const PROFILE_ID = 'p-4f3a9c21-7777-4bbb-9ddd-console';
     private const PROFILE_NAME = 'Kids';
 
     private function screenWith(FakeTransport $transport): ParentalControlsScreen
@@ -122,7 +122,10 @@ final class ParentalControlsScreenTest extends TestCase
         self::assertInstanceOf(\Phlix\Console\Screen\ParentalSchedulesLoadedMsg::class, $msg);
         self::assertCount(1, $msg->schedules);
         self::assertInstanceOf(AccessSchedule::class, $msg->schedules[0]);
-        self::assertStringContainsString('/api/v1/profiles/42/schedules', $transport->requestAt(0)['url']);
+        self::assertStringContainsString(
+            '/api/v1/profiles/' . self::PROFILE_ID . '/schedules',
+            $transport->requestAt(0)['url']
+        );
     }
 
     public function testCrumbAndThemeAreImmutable(): void
@@ -195,7 +198,10 @@ final class ParentalControlsScreenTest extends TestCase
         // Move to tags section
         $withTags = $screen->update($msg)[0]->update(new KeyMsg(KeyType::Right))[0];
         $loadedTags = $withTags->update(new KeyMsg(KeyType::Char, 'r'))[0];
-        self::assertStringContainsString('/api/v1/profiles/42/tags', $transport->requestAt(1)['url']);
+        self::assertStringContainsString(
+            '/api/v1/profiles/' . self::PROFILE_ID . '/tags',
+            $transport->requestAt(1)['url']
+        );
     }
 
     public function testStreamLimitsTabFetchesStreamLimits(): void
@@ -213,7 +219,10 @@ final class ParentalControlsScreenTest extends TestCase
         $s1 = $screen->update($msg)[0]->update(new KeyMsg(KeyType::Right))[0];
         $s2 = $s1->update(new KeyMsg(KeyType::Right))[0];
         $s3 = $s2->update(new KeyMsg(KeyType::Char, 'r'))[0];
-        self::assertStringContainsString('/api/v1/profiles/42/stream-limits', $transport->requestAt(2)['url']);
+        self::assertStringContainsString(
+            '/api/v1/profiles/' . self::PROFILE_ID . '/stream-limits',
+            $transport->requestAt(2)['url']
+        );
     }
 
     // ---- mutation admin call tests -----------------------------------------
@@ -240,7 +249,10 @@ final class ParentalControlsScreenTest extends TestCase
         $formScreen = $formScreen->update(new KeyMsg(KeyType::Enter))[0];
 
         self::assertSame('POST', $transport->requestAt(1)['method']);
-        self::assertStringContainsString('/api/v1/profiles/42/schedules', $transport->requestAt(1)['url']);
+        self::assertStringContainsString(
+            '/api/v1/profiles/' . self::PROFILE_ID . '/schedules',
+            $transport->requestAt(1)['url']
+        );
     }
 
     public function testDeleteProfileScheduleDeletesToCorrectEndpoint(): void
@@ -263,7 +275,10 @@ final class ParentalControlsScreenTest extends TestCase
         $armed->update(new KeyMsg(KeyType::Char, 'y'));
 
         self::assertSame('DELETE', $transport->requestAt(1)['method']);
-        self::assertStringContainsString('/api/v1/profiles/42/schedules/1', $transport->requestAt(1)['url']);
+        self::assertStringContainsString(
+            '/api/v1/profiles/' . self::PROFILE_ID . '/schedules/1',
+            $transport->requestAt(1)['url']
+        );
     }
 
     public function testAddProfileTagPostsToCorrectEndpoint(): void
@@ -288,7 +303,10 @@ final class ParentalControlsScreenTest extends TestCase
         $formScreen = $formScreen->update(new KeyMsg(KeyType::Enter))[0];
 
         self::assertSame('POST', $transport->requestAt(2)['method']);
-        self::assertStringContainsString('/api/v1/profiles/42/tags', $transport->requestAt(2)['url']);
+        self::assertStringContainsString(
+            '/api/v1/profiles/' . self::PROFILE_ID . '/tags',
+            $transport->requestAt(2)['url']
+        );
     }
 
     public function testDeleteProfileTagDeletesToCorrectEndpoint(): void
@@ -319,7 +337,10 @@ final class ParentalControlsScreenTest extends TestCase
         $armed->update(new KeyMsg(KeyType::Char, 'y'));
 
         self::assertSame('DELETE', $transport->requestAt(2)['method']);
-        self::assertStringContainsString('/api/v1/profiles/42/tags/1', $transport->requestAt(2)['url']);
+        self::assertStringContainsString(
+            '/api/v1/profiles/' . self::PROFILE_ID . '/tags/1',
+            $transport->requestAt(2)['url']
+        );
     }
 
     public function testUpdateProfileStreamLimitsPutsToCorrectEndpoint(): void
@@ -345,6 +366,9 @@ final class ParentalControlsScreenTest extends TestCase
         $formScreen = $formScreen->update(new KeyMsg(KeyType::Enter))[0];
 
         self::assertSame('PUT', $transport->requestAt(3)['method']);
-        self::assertStringContainsString('/api/v1/profiles/42/stream-limits', $transport->requestAt(3)['url']);
+        self::assertStringContainsString(
+            '/api/v1/profiles/' . self::PROFILE_ID . '/stream-limits',
+            $transport->requestAt(3)['url']
+        );
     }
 }
