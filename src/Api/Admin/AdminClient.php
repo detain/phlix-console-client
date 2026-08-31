@@ -2545,6 +2545,87 @@ final class AdminClient
             });
     }
 
+    // ---- server control --------------------------------------------------
+
+    /** The base path the restart + filesystem-browse rails hang off. */
+    private const ADMIN = '/api/v1/admin';
+
+    /**
+     * Trigger a graceful worker reload — `POST /api/v1/admin/restart`.
+     *
+     * Wire truth ({@see \Phlix\Server\Http\Controllers\Admin\AdminRestartController},
+     * routed at `AdminRoutes.php:238`): the endpoint takes NO params; success is
+     * HTTP 200 `{success:true, message:"Restart signal sent"}` with NO `data` key,
+     * so {@see ApiClient::decode()} passes the body through and the ack `message`
+     * becomes the promise value. Failures are 500 `{success:false, error,
+     * message}` — decode() centralises them into an ApiError rejection.
+     *
+     * ACK-BEFORE-SIGNAL (`AdminRestartController.php:38-41`): the JSON ack
+     * flushes to the socket BEFORE the deferred SIGUSR2 cycles the worker
+     * serving this request; the master never dies. A 200 therefore means
+     * "reload scheduled", not "reload finished" — and there is deliberately NO
+     * completion poll: the old trio's `/admin/server/status` rail never existed
+     * server-side, so nothing could ever answer one.
+     *
+     * @return PromiseInterface<string> the server's ack message
+     */
+    public function restartServer(): PromiseInterface
+    {
+        return $this->api->send('POST', self::ADMIN . '/restart')
+            ->then(static fn (array $resp): string => Coerce::str($resp['message'] ?? ''));
+    }
+
+    /**
+     * Browse the server filesystem — `GET /api/v1/admin/fs/browse?path=…`.
+     *
+     * Wire truth ({@see \Phlix\Server\Http\Controllers\Admin\FsBrowseController},
+     * routed at `AdminRoutes.php:253`): the response IS enveloped
+     * `{success:true, data:{path, parent, entries}}` and {@see ApiClient::decode()}
+     * unwraps it, so the callback below receives `{path, parent, entries}`
+     * directly. `entries` are DIRECTORIES ONLY with `name`+`path` keys only,
+     * sorted and jailed to the configured browse roots. An empty/absent `path`
+     * returns the roots list with `data.path: null`; outside-jail paths 403,
+     * unknown paths 404, non-directories 400 — all centralised into ApiError
+     * rejections by decode().
+     *
+     * The pre-S405 client parse (top-level `entries[]` rows carrying
+     * `type`/`size`/`modified`) described a response this server NEVER SENT —
+     * it is gone. Rows map to the screen's row shape with directory-only
+     * constants (`'dir'` / 0 / `''`). The wire's `parent` (null when the
+     * directory IS an allowed root) is NOT plumbed through: the resurrected
+     * screen keeps its local pathHistory for up-navigation.
+     *
+     * @param string|null $path The absolute filesystem path to browse, or null for the roots view
+     * @return PromiseInterface<list<array{name:string,path:string,type:string,size:int,modified:string}>>
+     */
+    public function browseFilesystem(?string $path = null): PromiseInterface
+    {
+        $query = $path !== null ? ['path' => $path] : [];
+
+        return $this->api->send('GET', self::ADMIN . '/fs/browse', $query)->then(/**
+         * @param array{path?: ?string, parent?: ?string, entries?: list<array{name?:string, path?:string}>} $body
+         * @return list<array{name:string,path:string,type:string,size:int,modified:string}>
+         */
+            static function (array $body): array {
+                $entries = $body['entries'] ?? null;
+                if (!is_array($entries)) {
+                    return [];
+                }
+
+                return self::mapList(
+                    $entries,
+                    static fn (array $row): array => [
+                    'name' => Coerce::str($row['name'] ?? ''),
+                    'path' => Coerce::str($row['path'] ?? ''),
+                    'type' => 'dir',
+                    'size' => 0,
+                    'modified' => '',
+                    ],
+                );
+            }
+        );
+    }
+
     // ---- services (Trakt / Last.fm) -------------------------------------
 
     /**

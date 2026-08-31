@@ -83,7 +83,7 @@ final class ServerRouteManifestGateTest extends TestCase
      * which BEFORE touching a number).
      */
     private const PER_CLASS_ANCHORS = [
-        'src/Api/Admin/AdminClient.php' => 116,
+        'src/Api/Admin/AdminClient.php' => 118,
         'src/Api/ApiClient.php' => 67,
         'src/Api/Hub/HubClient.php' => 9,
         'src/Screen/RecommendationsScreen.php' => 1,
@@ -148,7 +148,7 @@ final class ServerRouteManifestGateTest extends TestCase
      * accounting drift).
      */
     private const SWEEP_TOKEN_COUNTS = [
-        'src/Api/Admin/AdminClient.php' => 29,
+        'src/Api/Admin/AdminClient.php' => 30,
         'src/Api/ApiClient.php' => 68,
         'src/Api/Cast/CastBackend.php' => 4,
         'src/Api/Hub/HubClient.php' => 3,
@@ -157,7 +157,7 @@ final class ServerRouteManifestGateTest extends TestCase
     ];
 
     /** Total server-manifest-compared sites (anchors − glue − hub + expansions + cast + serve-url). */
-    private const TOTAL_COMPARED = 221;
+    private const TOTAL_COMPARED = 223;
 
     // ── manifest integrity ─────────────────────────────────────────────
 

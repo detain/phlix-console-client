@@ -61,6 +61,8 @@ enum Route
     case AdminDuplicates;
     case AdminWebhooks;
     case AdminAuthProviders;
+    case AdminServerRestart;
+    case AdminFilesystem;
     case Recommendations;
     case WatchHistory;
     case Favorites;
