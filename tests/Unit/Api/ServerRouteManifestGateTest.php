@@ -19,7 +19,7 @@ use PHPUnit\Framework\TestCase;
  * SERVER wire is tuple-exact against the VENDORED phlix-server route manifest
  * (`tests/fixtures/server-route-manifest.json`, a byte-for-byte copy of
  * `@phlix/contracts` `dist/server-route-manifest.json`, 400 tuples @
- * phlix-server 8f72faec). The expected set comes from the SERVER side only —
+ * phlix-server 01340633). The expected set comes from the SERVER side only —
  * a manifest derived from the client it checks would self-adjust and pass
  * every defect it exists to catch (S276/S279/S280 shipped because no such
  * gate existed on console).
@@ -72,9 +72,9 @@ final class ServerRouteManifestGateTest extends TestCase
 
     private const MANIFEST_PATH = __DIR__ . '/../../fixtures/server-route-manifest.json';
 
-    private const EXPECTED_MD5 = 'cca4660dda7876fba840f9d108ad7c18';
+    private const EXPECTED_MD5 = '6ea0eac92bfb0632d986b122608b9acc';
 
-    private const EXPECTED_SERVER_SHA = '8f72faec6ef85c9df1382148d4f294a450d71bed';
+    private const EXPECTED_SERVER_SHA = '0134063318bf601dcc152c6c175368cdf9168378';
 
     /**
      * Per-anchor-file reconstruction pins, measured on the tree at gate time.
