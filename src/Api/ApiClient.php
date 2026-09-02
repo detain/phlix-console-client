@@ -1120,7 +1120,7 @@ final class ApiClient
         return $this->authed('POST', '/api/v1/syncplay/groups', [], [
             'name' => $name,
             'is_public' => $isPublic,
-        ])->then(static fn (array $data): SyncPlaySession => SyncPlaySession::fromArray($data));
+        ])->then(fn (array $data): SyncPlaySession => SyncPlaySession::fromArray($data, $this->baseUrl()));
     }
 
     /**
@@ -1152,7 +1152,7 @@ final class ApiClient
     public function joinSyncPlayGroup(string $roomId): PromiseInterface
     {
         return $this->authed('POST', '/api/v1/syncplay/groups/' . rawurlencode($roomId) . '/join')
-            ->then(static fn (array $data): SyncPlaySession => SyncPlaySession::fromArray($data));
+            ->then(fn (array $data): SyncPlaySession => SyncPlaySession::fromArray($data, $this->baseUrl()));
     }
 
     /**

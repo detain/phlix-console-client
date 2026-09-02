@@ -114,6 +114,7 @@ final class PlayerScreenTest extends TestCase
         string $id = 'm1',
         string $type = 'movie',
         ?array $audioTracks = null,
+        ?array $subtitleTracks = null,
     ): array {
         return ['playback_info' => [
             'id' => $id,
@@ -132,8 +133,50 @@ final class PlayerScreenTest extends TestCase
                 'skip_outro_end' => 100.0,
             ],
             'audio_tracks' => $audioTracks ?? $this->audioTracksPayload(),
-            'subtitle_tracks' => [],
+            // Explicit-only: default stays the historic EMPTY list so every
+            // existing test's behaviour is untouched (S413 wires the
+            // non-default path; see the subtitle tests below).
+            'subtitle_tracks' => $subtitleTracks ?? [],
         ]];
+    }
+
+    /**
+     * The default `subtitle_tracks` payload: an English default subtitle plus a
+     * Spanish hearing-impaired track, in the server
+     * `StreamTrackShaper::subtitleTracks()` wire shape
+     * (`{id, index, stream_index, language, label, codec, source,
+     * hearing_impaired, url}`). The console's StreamSubtitleTrack consumes the
+     * `id/codec/language/label/source/hearing_impaired` subset; the rest are
+     * kept so the fixture matches the real wire payload.
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function subtitleTracksPayload(): array
+    {
+        return [
+            [
+                'id' => 'sub1',
+                'index' => 0,
+                'stream_index' => 3,
+                'language' => 'en',
+                'label' => 'English',
+                'codec' => 'subrip',
+                'source' => null,
+                'hearing_impaired' => false,
+                'url' => '/api/v1/media/m1/subtitles/0',
+            ],
+            [
+                'id' => 'sub2',
+                'index' => 1,
+                'stream_index' => 4,
+                'language' => 'es',
+                'label' => 'Español (SDH)',
+                'codec' => 'webvtt',
+                'source' => 'external',
+                'hearing_impaired' => true,
+                'url' => '/api/v1/media/m1/subtitles/1',
+            ],
+        ];
     }
 
     /**
@@ -856,6 +899,97 @@ final class PlayerScreenTest extends TestCase
 
         [$same] = $ready->update(new KeyMsg(KeyType::Char, 'a'));
         self::assertFalse($same->isAudioTrackMenuOpen());
+    }
+
+    // ---- subtitle tracks (S413) ----------------------------------------
+
+    /**
+     * A ready screen whose init resolved with the default subtitle payload
+     * (mirrors {@see readyWithAudioTracks}; S413 — the same playback response
+     * now carries BOTH track lists across the boundary).
+     *
+     * @param list<array<string,mixed>>|null $subtitleTracks
+     */
+    private function readyWithSubtitleTracks(?array $subtitleTracks = null): PlayerScreen
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->markersResponse())
+            ->json(200, $this->continueWatching())
+            ->json(200, $this->playbackResponse(subtitleTracks: $subtitleTracks ?? $this->subtitleTracksPayload()));
+        [$screen] = $this->screen(transport: $transport);
+
+        return $this->ready($screen);
+    }
+
+    public function testInitCarriesSubtitleTracksAcrossThePlaybackInfoBoundary(): void
+    {
+        // S413's root cause was PlaybackInfo dropping subtitle_tracks — the
+        // message→property feed below is the whole point: before the fix this
+        // asserted an EMPTY list no matter what the wire carried.
+        $ready = $this->readyWithSubtitleTracks();
+
+        $tracks = $ready->subtitleTracks();
+        self::assertCount(2, $tracks);
+        self::assertSame(['sub1', 'sub2'], array_map(static fn ($t): string => $t->id, $tracks));
+        self::assertSame('subrip', $tracks[0]->codec);
+        self::assertSame('English', $tracks[0]->label);
+        self::assertTrue($tracks[1]->hearingImpaired, 'the wire hearing_impaired flag survives the DTO');
+    }
+
+    public function testSubtitleTrackMenuOpensFromAFakeTransportPlaybackPayload(): void
+    {
+        // msg → property → render, exactly the S413 AC: the menu can ONLY open
+        // because init() fed $subtitleTracks (declared-never-assigned before).
+        $ready = $this->readyWithSubtitleTracks();
+
+        [$open, $cmd] = $ready->update(new KeyMsg(KeyType::Char, 'S'));
+
+        self::assertNull($cmd, 'opening the overlay dispatches no Cmd');
+        $menu = $open->subtitleTrackMenu();
+        self::assertNotNull($menu, 'the subtitle menu OPENS once playback-info carries subtitle tracks');
+        self::assertSame(
+            ['sub1', 'sub2'],
+            array_map(static fn ($t): string => $t->id, $menu?->tracks() ?? []),
+        );
+        self::assertStringContainsString('Español (SDH)', $open->view(), 'the overlay lists the wire labels');
+    }
+
+    public function testSubtitleTrackSelectionHasObservableEffectAndCaptionsFlip(): void
+    {
+        $ready = $this->readyWithSubtitleTracks();
+        [$open] = $ready->update(new KeyMsg(KeyType::Char, 'S'));
+        // The overlay leads with an "Off" row (cursor 0); two Downs reach sub2.
+        self::assertSame(0, $open->subtitleTrackMenu()?->cursor(), 'pre-highlight is the leading Off row');
+        [$one] = $open->update(new KeyMsg(KeyType::Down));
+        [$moved] = $one->update(new KeyMsg(KeyType::Down));
+        [$picked] = $moved->update(new KeyMsg(KeyType::Enter));
+
+        self::assertNull($picked->subtitleTrackMenu(), 'the overlay closes on pick');
+        self::assertSame('sub2', $picked->selectedSubtitleTrack(), 'the picked row is pinned (accessor-visible)');
+        self::assertTrue($picked->captionsOn(), 'a non-OFF subtitle pick enables captions (existing apply path)');
+
+        // NAMED, TESTED REFUSAL: selection does NOT re-target the singular
+        // caption rail's fetched cue text. The screen has no player surface
+        // capable of an embedded-stream switch — the AUDIO selection is
+        // identically state-only (applyAudioTrackSelection pins
+        // selectedAudioTrack and dispatches nothing), and caption CONTENT is
+        // owned by the separate /subtitles rail (toggleCaptions →
+        // fetchCaptionsCmd). Wiring stream-level subtitle OUTPUT is a player-
+        // surface feature this console does not have; the observable contract
+        // is menu → pin → captions flag, pinned here on the audio precedent.
+    }
+
+    public function testSubtitleMenuStaysClosedWhenWireCarriesNoSubtitleRows(): void
+    {
+        // The pre-S413 reality for EVERY item — kept honest: a real empty
+        // payload must still be a no-op (empty-set defence, not a fake-open).
+        $ready = $this->readyWithSubtitleTracks(subtitleTracks: []);
+
+        self::assertSame([], $ready->subtitleTracks());
+
+        [$same, $cmd] = $ready->update(new KeyMsg(KeyType::Char, 'S'));
+        self::assertNull($same->subtitleTrackMenu(), 'no rows → no menu');
+        self::assertNull($cmd);
     }
 
     // ---- up-next (episode queue) ---------------------------------------
