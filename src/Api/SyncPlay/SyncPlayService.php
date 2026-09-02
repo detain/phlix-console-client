@@ -18,6 +18,7 @@ use React\EventLoop\LoopInterface;
 use React\Promise\Deferred;
 use React\Promise\PromiseInterface;
 use SugarCraft\Core\Cmd;
+use Workerman\Connection\AsyncTcpConnection;
 
 /**
  * SyncPlay manager handling room lifecycle and WebSocket communication.
@@ -77,13 +78,33 @@ final class SyncPlayService
     /** Time sync engine. */
     private TimeSync $timeSync;
 
+    /**
+     * WebSocket connection factory seam.
+     *
+     * Production default builds a real Workerman `AsyncTcpConnection`; tests
+     * inject a recording stand-in so the REST→DTO→onConnect→frame path can be
+     * driven end-to-end WITHOUT a socket (S414 wire-shape tests). The seam
+     * replaces the connection object ONLY — every byte the captured frames
+     * assert is built by the real {@see Framing} + real DTO fields.
+     *
+     * @var \Closure(string):AsyncTcpConnection
+     */
+    private \Closure $connectionFactory;
+
+    /**
+     * @param (callable(string):AsyncTcpConnection)|null $connectionFactory
+     */
     public function __construct(
         private readonly ApiClient $api,
         ?LoopInterface $loop = null,
+        ?callable $connectionFactory = null,
     ) {
         $this->loop = $loop;
         $this->timeSync = new TimeSync();
         $this->memberId = $this->generateMemberId();
+        $this->connectionFactory = $connectionFactory !== null
+            ? \Closure::fromCallable($connectionFactory)
+            : static fn (string $url): AsyncTcpConnection => new AsyncTcpConnection($url);
     }
 
     // ---- Public API ----------------------------------------------------
@@ -416,8 +437,9 @@ final class SyncPlayService
         // Build WebSocket URL
         $wsUrl = $this->buildWebSocketUrl($session);
 
-        // Create async TCP connection (Workerman-style)
-        $this->wsConnection = new \Workerman\Connection\AsyncTcpConnection($wsUrl);
+        // Create async TCP connection (Workerman-style; via the injectable
+        // seam — S414. Production path constructs the identical object).
+        $this->wsConnection = ($this->connectionFactory)($wsUrl);
 
         // Set up handlers
         $this->wsConnection->onConnect = function () use ($deferred, $session): void {

@@ -11,7 +11,14 @@ namespace Phlix\Console\Api\Dto;
 
 /**
  * Playback info for an item, mirroring `GET /api/v1/media/{id}/playback`'s
- * `playback_info` object (sources + skip markers + audio tracks). Immutable.
+ * `playback_info` object (sources + skip markers + audio tracks + subtitle
+ * tracks). Immutable.
+ *
+ * S413: `subtitle_tracks[]` (same `StreamTrackShaper::subtitleTracks()` wire
+ * shape as audio's twin) is now parsed into {@see StreamSubtitleTrack} here —
+ * before S413 this DTO parsed `audio_tracks` only and silently dropped the
+ * server's subtitle rows at the boundary, which is why PlayerScreen's subtitle
+ * menu could never open.
  *
  * Sources and markers are kept as raw maps for now; the player (Phase 4) will
  * give them dedicated value types once their use is concrete.
@@ -29,6 +36,7 @@ final readonly class PlaybackInfo
      * @param list<array<string,mixed>> $mediaSources
      * @param array<string,mixed>       $markers
      * @param list<StreamAudioTrack>    $audioTracks
+     * @param list<StreamSubtitleTrack> $subtitleTracks
      */
     public function __construct(
         public string $id,
@@ -37,6 +45,7 @@ final readonly class PlaybackInfo
         public array $mediaSources,
         public array $markers,
         public array $audioTracks = [],
+        public array $subtitleTracks = [],
     ) {
     }
 
@@ -62,6 +71,7 @@ final readonly class PlaybackInfo
             mediaSources: $sources,
             markers: Coerce::map($data['markers'] ?? null),
             audioTracks: StreamAudioTrack::listFromArray($data['audio_tracks'] ?? null),
+            subtitleTracks: StreamSubtitleTrack::listFromArray($data['subtitle_tracks'] ?? null),
         );
     }
 }

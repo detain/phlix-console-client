@@ -402,6 +402,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         if ($msg instanceof AudioTracksLoadedMsg) {
             $next = clone $this;
             $next->audioTracks = $msg->audioTracks;
+            $next->subtitleTracks = $msg->subtitleTracks;
 
             return [$next, null];
         }
@@ -673,14 +674,16 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     }
 
     /**
-     * Fetch the available audio tracks from playback-info (P3B).
+     * Fetch the available audio + subtitle tracks from playback-info (P3B).
+     * One round-trip carries both (S413: the subtitle list previously died at
+     * the PlaybackInfo boundary, so the subtitle menu could never open).
      */
     private function fetchAudioTracks(): \Closure
     {
         $id = $this->item->id;
 
         return Cmd::promise(fn (): PromiseInterface => $this->api->playbackInfo($id)->then(
-            static fn ($info): Msg => new AudioTracksLoadedMsg($info->audioTracks),
+            static fn ($info): Msg => new AudioTracksLoadedMsg($info->audioTracks, $info->subtitleTracks),
             static fn (\Throwable $e): ?Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(self::SESSION_EXPIRED)
                 : null,

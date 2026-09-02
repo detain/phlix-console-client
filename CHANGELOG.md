@@ -19,6 +19,45 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **syncplay**: the SyncPlay response DTOs unwrapped an envelope the server
+  never sends (`room_id`/`session_id`/`server_url` top-level keys exist only
+  in the dead `WebSocket/SyncPlay` classes — re-measured live at server
+  `01340633`), so `roomId` was always the empty string, every WS join/leave
+  frame the service built carried `group_id => ''`, and password-protected
+  groups listed as public. `SyncPlaySession` now unwraps the real
+  `{success, group:{…}}` rail output to `group.group_id` (fails closed — the
+  phantom keys must not steer it), keeps `serverUrl` as the DERIVED
+  configured API base (the wire has no such field and
+  `SyncPlayService::buildWebSocketUrl` consumes it verbatim — there was no
+  fallback), and drops the never-consumed `sessionId`. `SyncPlayGroup`'s
+  public/private view is now the inverted `has_password` of the real LIST ROW
+  (tested both directions; absent ⇒ public, documented honest default; the
+  never-emitted `is_public` key no longer steers it). New connection-factory
+  seam on `SyncPlayService` (production path constructs the identical
+  Workerman object) lets the S414 gate drive REST→DTO→onConnect→FRAME-BUILDER
+  over the REAL captured envelope bytes (provenance: phlix-contracts
+  `syncplay-envelope-vectors.json`, server `01340633`) — the join/leave frame
+  payload and the absolute WS URL are asserted from production code, plus a
+  planted-broken red on the phantom-key read. (S414)
+- **player**: the subtitle picker could never open — the `PlayerScreen`
+  property was declared and never assigned because `PlaybackInfo` dropped the
+  server's `subtitle_tracks` rows at the boundary (audio survived). The DTO
+  now parses them into the S404-honest `StreamSubtitleTrack` shape; the
+  playback-info message carries both track lists (the second field defaults
+  to keep every existing construction site valid) and the screen feeds
+  msg→property→menu. New tests drive a fake-transport playback payload whose
+  `subtitle_tracks` rows match `StreamTrackShaper` output: the menu OPENS,
+  lists wire labels, the pick pins the row + flips captions (the observable,
+  audio-precedent state effect; stream-level subtitle OUTPUT is named as the
+  tested refusal — no player surface for it, mirroring how audio selection is
+  state-only), and an empty wire list keeps the menu closed (empty-set
+  defence). Planted-broken red at the boundary, then green. Suite
+  2768→2779 tests (9947→9997 assertions); the tracked phar rebuilt from the
+  production vendor tree (26824725→26829132 bytes): `--version` OK, `bogus`
+  exits 2, stub-server selftest 4/4 OK; PHPStan level 9 clean; PSR-12 delta
+  zero. (S413)
+
+
 - **docs**: Fix README.md to reflect current PHP version requirement (8.3+), production-ready status, accurate key bindings list, and coherent install story (C10.3)
 - **docs**: Fix stale docblocks throughout `src/` and `tests/` and triage deferral comments with either concrete issue references or completed markers (C10.5)
 - **admin**: Parental-controls mirrors reconciled to `@phlix/contracts` v0.4.4 (S234 canonicalization). `profile_id` is a CHAR(36) UUID **string**; the mirrors typed it `int`, so `Coerce::int()` collapsed every real profile id to `0` and each schedules/tags/stream-limits call against a real profile 404'd. Eight `AdminClient` parental methods, the `ParentalControlsScreen` call sites (9 `(int)` casts removed) and the `AccessSchedule`/`ProfileTag` DTOs now carry `string $profileId` via `Coerce::str`; `addProfileTag()` posts the canonical `tag_type` body key (was `type`). Stale mirror citations corrected to v0.4.4. `StreamAudioTrack`/`StreamSubtitleTrack` docblocks now record a known divergence — the contracts `AudioTrack`/`SubtitleTrack` shape (`display_title`, `url?`) disagrees with the server `StreamTrackShaper` emission (`title`, `bitrate`); filed as S404, deliberately NOT mirror-fixed. Tests pinned to UUID-shaped ids so an int collapse can never pass silently again. Phar rebuilt. (S325b)
