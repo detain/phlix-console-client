@@ -5,6 +5,18 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — W33 (cs19): route-manifest provenance re-pin (no route change) — 2026-09-05
+
+- **cs#19 currency cascade.** `tests/fixtures/server-route-manifest.json`
+  re-vendored verbatim from `@phlix/contracts` master `2250def2` (regen
+  against server master `3a253991`; previous provenance `e74cdc88` — S431
+  executable census, one commit, no route hunks). All 400 tuples byte-identical
+  — only provenance moves. `tests/Unit/Api/ServerRouteManifestGateTest.php`
+  follows: `EXPECTED_MD5` `9f69628d` → `5bc7dd6d`, `EXPECTED_SERVER_SHA` →
+  `3a253991…`, the docblock server cite and the `contracts@51ed6cd3` failure
+  cite → `contracts@2250def2`. GATE_ID, the 400-count pins and every coverage
+  pin untouched; the built `.phar` was NOT rebuilt (untagged wave, no grants).
+
 ### Changed — W31 (cs18): route-manifest provenance re-pin (no route change) — 2026-09-05
 
 - **cs#18 currency cascade.** `tests/fixtures/server-route-manifest.json`
