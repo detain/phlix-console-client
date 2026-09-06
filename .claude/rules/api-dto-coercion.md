@@ -1,6 +1,6 @@
 ---
 name: api-dto-coercion
-description: How src/Api/Dto factories normalise raw API arrays through the Coerce helpers, including the cast/crew list DTOs.
+description: How src/Api/Dto factories normalise raw API arrays through the Coerce helpers, including the cast/crew and playback track list DTOs.
 paths:
   - src/Api/Dto/**/*.php
   - tests/Api/Dto/**/*.php
@@ -17,6 +17,11 @@ PHPStan level-9 clean against `mixed` payloads:
 
 The `n*` variants return `null` for absent/blank values; the others take a default
 (`''`, `0`, `0.0`).
+
+A wire list that maps onto a DTO exposes `listFromArray(mixed)` on that DTO instead of a
+`Coerce` helper: `StreamAudioTrack::listFromArray()` / `StreamSubtitleTrack::listFromArray()`
+feed `PlaybackInfo::$audioTracks` / `$subtitleTracks` (`src/Api/Dto/PlaybackInfo.php`) and
+return `[]` for a non-array.
 
 ## Cast and crew
 
@@ -36,5 +41,5 @@ The `n*` variants return `null` for absent/blank values; the others take a defau
 and empty inputs; DTO tests assert the mapped fields, not helper internals.
 
 ```sh
-vendor/bin/phpunit tests/Api/Dto
+vendor/bin/phpunit tests/Api/Dto tests/Api/PlaybackTrackWireShapeTest.php
 ```

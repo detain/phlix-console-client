@@ -93,20 +93,36 @@ compatibility.
 >   recent activity.
 > - **Users** — list with a status filter (All / Pending / Active / Disabled) and
 >   per-row actions: approve, disable, reject, delete, toggle admin, reset password
->   (the new password is revealed once).
+>   (the new password is revealed once); `P` opens that user's viewer profiles.
 > - **Plugins** — list with enable / disable / uninstall and install-from-URL.
+> - **Plugin Updates** — available updates with an auto-update toggle, a catalog
+>   channel setting, and a confirmed apply.
 > - **Logs** — a file list with a single-file or merged "all logs" tail viewer.
 > - **Backup** — list / create / delete / restore / upload-to-S3, plus a backup
 >   schedule editor.
 > - **Server Settings** — per-key typed editing (bool toggles inline; int / float /
 >   string / JSON via a validated input).
+> - **Transcoding** — read-only hardware-accelerator introspection plus editable
+>   HDR tone-mapping settings.
 > - **Libraries** — scan / rescan / match-metadata with a live scan-status readout.
 > - **DLNA server** — status with start / stop.
 > - **Remote Access** — Hub, subdomain, relay, and port-forward status with their
->   toggles (the interactive pairing wizard stays on the web admin).
+>   toggles, plus an in-console Hub **pairing wizard**.
 > - **Live TV** — five tabbed sections (Tuners · Channels · Guide · Recordings ·
 >   Series Rules) with list + simple actions (create / edit are deferred to the web
 >   admin).
+> - **Parental Controls** — per-profile tags, access schedules, and stream limits.
+> - **Metrics** — read-only snapshot / history / connections / routes panels.
+> - **Watch History** — every user's recently-watched items with an optional
+>   filter-by-user.
+> - **Duplicates** — duplicate groups per library, with an armed merge.
+> - **Webhooks** — subscriptions with their URL, events, and enabled status.
+> - **Auth Providers** — OIDC / LDAP / GitHub providers with enable / disable and a
+>   per-provider settings form.
+> - **Server Restart** — a graceful worker reload, confirmed by the server's own
+>   ack (no polling).
+> - **Filesystem** — a navigable listing of the server's configured browse roots
+>   and their subdirectories.
 >
 > **Cast** is not an admin section — press `C` on a media **detail** screen to
 > discover **Chromecast / Roku / AirPlay / DLNA** devices on the network, send the
@@ -203,8 +219,9 @@ bin/phlix run
 ```
 
 Keys: `↑↓←→` move · `⏎` open · `/` search (or filter, in a grid) · Ctrl-K / `:`
-command palette · A–Z jump · `p` play · `C` cast (on a detail screen) · `Tab`
-switch focus on the home screen · `Esc` back · `Ctrl-C` quit.
+command palette · A–Z jump · `p` play · `C` cast (on a detail screen) · `d`
+download (on a detail screen) · `Tab` switch focus on the home screen · `Esc`
+back · `Ctrl-C` quit.
 
 The command palette also opens **Settings** (theme + slideshow interval) and the
 read-only **Stats** screen, toggles the **metrics HUD**, and — when you're signed
@@ -258,10 +275,13 @@ synthesizes its own image with `gd`, so the suite needs no fixtures.
 
 `src/` is checked with **PHPStan at level 9** (its strictest level), enforced in
 CI — any new type error fails the build. There is **no baseline and no
-suppressions**: the whole tree is level-9 clean. Config lives in `phpstan.neon`.
+suppressions**: the whole tree is level-9 clean. Config lives in `phpstan.neon`;
+`tests/` is analysed separately at level 2 via `phpstan-tests.neon`.
 
 ```sh
-composer phpstan   # or: vendor/bin/phpstan analyse
+composer phpstan                                    # or: vendor/bin/phpstan analyse
+vendor/bin/phpstan analyse -c phpstan-tests.neon    # tests/ at level 2
+composer cs                                         # phpcs over src/ and tests/ (composer cs:fix autofixes)
 ```
 
 ## License

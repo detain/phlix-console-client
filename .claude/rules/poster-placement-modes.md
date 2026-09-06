@@ -5,6 +5,8 @@ paths:
   - src/Media/PosterLoader.php
   - src/Screen/LibraryScreen.php
   - src/Screen/DetailScreen.php
+  - src/Screen/BrowseScreen.php
+  - src/Screen/SearchScreen.php
   - tests/Media/PosterLoaderTest.php
 ---
 
@@ -17,22 +19,28 @@ paths:
 - overlay modes (`sixel` / `kitty` / `iterm2`) — `marker` is a placeholder block and
   `imageId` identifies the placement returned by `PosterLoader::imageLayer()`.
 
-A screen must branch on both before storing the result on a card:
+A screen must branch on both before storing the result on a card, and overlay mode must
+hand `withImage()` the **pixel bytes** from the layer, never the marker:
 
 ```php
+$bytes = ($imageId !== null && !$this->posters->isInline())
+    ? $this->posters->imageLayer()[$imageId]->bytes ?? $ansi
+    : $ansi;
 $newCard = ($imageId !== null && !$this->posters->isInline())
-    ? $card->withImage($ansi, $imageId)   // overlay: marker + placement id
-    : $card->withPoster($ansi);           // inline: marker is the pixels
+    ? $card->withImage($bytes, $imageId)   // overlay: bytes + placement id
+    : $card->withPoster($ansi);            // inline: marker is the pixels
 ```
 
 Calling `withPoster()` in an overlay mode throws the `imageId` away, so the runtime
-never paints (or clears) the placement.
+never paints (or clears) the placement. `tests/Screen/PosterCardCallSiteTest.php` pins
+that `withImage()` receives real bytes; the same branch runs in
+`src/Screen/BrowseScreen.php` and `src/Screen/SearchScreen.php`.
 
 ## Digest dedupe
 
-`PosterLoader::present()` keys placements by `hash('xxh3', $bytes)` and reuses the
-cached `marker` / `imageId` for identical bytes. Without it the `ImageLayer` grows
-unbounded and every poster redraws each frame. Place bytes only through
+`PosterLoader::present()` keys placements by `hash('xxh3', $bytes . ':' . $width . ':' . $height)`
+and reuses the cached `marker` / `imageId` for identical bytes. Without it the `ImageLayer`
+grows unbounded and every poster redraws each frame. Place bytes only through
 `present()` — never call `ImageLayer::placeTracked()` from a screen.
 
 ```sh
