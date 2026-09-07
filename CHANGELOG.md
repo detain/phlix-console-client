@@ -5,6 +5,20 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — W36 (cs24): route-manifest provenance re-pin (no route change) — 2026-09-07
+
+- **cs#24 currency leg.** `tests/fixtures/server-route-manifest.json`
+  re-vendored verbatim from `@phlix/contracts` master `59fd9b02` (regen
+  against server master `df6aa8e5`; previous provenance `bcd27df`/`bab33ff2`).
+  All 400 tuples byte-identical — only provenance moves.
+  `tests/Unit/Api/ServerRouteManifestGateTest.php` follows: `EXPECTED_MD5`
+  `e8b23b9b` → `b6acafdf`, `EXPECTED_SERVER_SHA` → `df6aa8e5…`, the docblock
+  server cite and the `contracts@bcd27df` failure cite → `contracts@59fd9b02`.
+  GATE_ID, the 400-count pins and every coverage pin untouched; the built
+  `.phar` was NOT rebuilt (md5 `9d57bfbc…` unchanged — fixture is an unbundled
+  test asset). CI-faithful run: phpunit 2779 tests / 9997 assertions,
+  phpstan clean under a fresh ini-scan dir.
+
 ### Changed — W35 (cs23): route-manifest provenance re-pin (no route change) — 2026-09-06
 
 - **cs#23 currency leg.** `tests/fixtures/server-route-manifest.json`
