@@ -56,6 +56,9 @@ jobs:
       - name: Run PHPStan
         run: vendor/bin/phpstan analyse --no-progress
 
+      - name: Run PHPStan (tests)
+        run: vendor/bin/phpstan analyse -c phpstan-tests.neon --no-progress
+
   phpcs:
     runs-on: ubuntu-latest
     strategy:

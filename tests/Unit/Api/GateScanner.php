@@ -511,7 +511,7 @@ final class GateScanner
     }
 
     /**
-     * @param array{int,string,int}|string $use
+     * @param array{headLiteralLine:?int, constNames:list<string>} $use
      * @return array<string,mixed>
      */
     private static function site(string $file, int $line, string $verb, string $tpl, ?string $helper, array $use, string $kind): array

@@ -18,7 +18,7 @@ final class MusicStoreTest extends TestCase
     /**
      * The `/music/albums` paged envelope: `{ "albums": [ … ], "total": N, "limit": N, "offset": N }`.
      *
-     * @param list<array{name:string,artist:?string,year:?int,track_count:int,tracks:list<array>>} $albums
+     * @param list<array{name:string,artist:?string,year:?int,track_count:int,tracks:array<int,array<string,mixed>>}> $albums
      */
     private function albumPageResponse(array $albums, int $total = 0, int $limit = 100, int $offset = 0): array
     {
