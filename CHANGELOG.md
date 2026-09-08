@@ -5,6 +5,29 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — W43 (cs26): route-manifest currency re-pin (REAL route add, 401 tuples) — 2026-09-08
+
+- **cs#26 currency leg.** `tests/fixtures/server-route-manifest.json`
+  re-vendored verbatim from `@phlix/contracts` master `97c87f27` (regen
+  against server master `1e14b539`; previous provenance `e837e31c`/`2746677e`).
+  Not a pure provenance move this time: the server span added one real rail —
+  `POST /api/v1/admin/updates/check` — so the tuple set goes 400 → **401**.
+  That additive tuple is the only route-set delta; every pre-existing tuple is
+  byte-identical modulo the provenance block.
+- `tests/Unit/Api/ServerRouteManifestGateTest.php` follows the currency pins:
+  `EXPECTED_MD5` `4f4dc687` → `e3647899`, `EXPECTED_SERVER_SHA` → `1e14b539…`,
+  the docblock server cite, the three manifest-integrity count assertions
+  (`provenance.total`, `count(routes)` and the unique-tuple count, each
+  400 → 401) and the `contracts@e837e31c` failure cite → `contracts@97c87f27`.
+- GATE_ID and every coverage pin (per-class anchors, sweeps, expansions, cast,
+  hub negative partition, ws) untouched — the new rail is a server route the
+  console does not call, so the client-side scan is byte-stable and an additive
+  tuple cannot un-serve an existing site.
+- The built `.phar` was NOT rebuilt (md5 `9d57bfbc…` unchanged — fixture is an
+  unbundled test asset). CI-faithful run: phpunit 2782 tests / 10008 assertions
+  (S448 era), both phpstan legs `[OK]`, phpcs adds no new findings (advisory in
+  CI), `composer validate --strict` valid.
+
 ### Fixed — W43 (S448): phpstan-tests.neon gate made real — 2026-09-08
 
 - **The gate now exists.** `phpstan-tests.neon` had been committed but was
