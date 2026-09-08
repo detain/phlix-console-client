@@ -189,6 +189,7 @@ final class SettingsScreenTest extends TestCase
 
         [$next, $cmd] = $screen->update(new KeyMsg(KeyType::Enter));
 
+        self::assertInstanceOf(SettingsScreen::class, $next);
         self::assertNotNull($next->error);
         if ($cmd !== null) {
             self::assertNotInstanceOf(SettingsSavedMsg::class, $cmd());

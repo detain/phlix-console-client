@@ -1698,6 +1698,7 @@ final class PlayerScreenTest extends TestCase
         // on the first tick (non-loop → ended, ticking stops).
         $emptyInner = Player::openForTest(new FakePlayerDecoder([]), fps: 24.0, totalFrames: 0, videoPath: '/fake', paused: false);
         [$ended] = $emptyInner->update(new ReelTickMsg());
+        self::assertInstanceOf(Player::class, $ended);
         self::assertTrue($ended->ended);
 
         [$ready] = $screen->update(new PlayerReadyMsg($ended));
@@ -1709,8 +1710,10 @@ final class PlayerScreenTest extends TestCase
     // ---- harness (mirrors DetailScreenTest) ----------------------------
 
     /**
+     * @template T of Msg
      * @param list<Msg> $msgs
-     * @param class-string $class
+     * @param class-string<T> $class
+     * @return T|null
      */
     private function firstOfType(array $msgs, string $class): ?Msg
     {

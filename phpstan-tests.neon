@@ -6,13 +6,27 @@
 # 2. missingType.generics: Async test helpers use PromiseInterface without T.
 # 3. staticMethod.alreadyNarrowedType: PHPUnit assertions on already-narrowed types.
 #
-# Level 2 is used as baseline. Even at level 2, there are 8 remaining errors:
-# - 4 property.notFound: Model/Msg @property stubs don't merge with vendor interface
-#   (PHPStan stub merging limitation - stub class != vendor interface)
-# - 2 phpDoc issues: Invalid `list<\array{...}>` syntax and incompatible param types
-# - 2 additional property.notFound: Unstubbed properties
+# Level 2 is used as baseline. As of S448 the leg is GREEN — 0 findings.
 #
-# These require either PHPDoc syntax changes in tests or vendor stub enhancements.
+# S448 (2026-09-08): this config existed in the tree but NO CI job ever ran it,
+# so its findings were invisible. Wiring it up surfaced 9 findings, all now fixed:
+#
+#   - 6 x property.notFound (Model::$cols/$rows/$ended/$error, Msg::$item) —
+#       root cause: the vendor `SugarCraft\Core\Model`/`Msg` are INTERFACES, and
+#       PHPStan 2.2.x ignores `@property`/`@property-read` on an interface unless
+#       it declares a native `__get()` (a stub-declared `__get()` is not native).
+#       The old `@property` tags in phpstan.stubs.php were therefore DEAD — the
+#       reason the self-comment below once claimed these "don't merge". Fixed at
+#       the test boundary WITHOUT weakening assertions: concrete-class narrowing via
+#       self::assertInstanceOf(LoginScreen/Player/SettingsScreen::class, ...) and a
+#       `@template T of Msg` on PlayerScreenTest::firstOfType() so `$advance?->item`
+#       sees the real property. No ignoreErrors, no baseline.
+#   - 1 x phpDoc.parseError (MusicStoreTest:21) — `tracks:list<array>` (bare
+#       `array`) breaks the phpdoc parser → `tracks:array<int,array<string,mixed>>`.
+#   - 2 x parameter.phpDocType (SidebarTest:20, GateScanner.php:517) — a variadic
+#       `@param list<string>` corrected to `string ...$names`; a `array{int,string,int}|string`
+#       that is not a subtype of the native `array` corrected to the real parseExpr
+#       3rd-element shape `array{headLiteralLine:?int,constNames:list<string>}`.
 
 parameters:
     level: 2

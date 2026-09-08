@@ -15,11 +15,13 @@ namespace SugarCraft\Core;
  * convenience methods for writing assertions in tests and are implemented
  * by concrete classes like App but not declared in the interface itself.
  *
- * @property int $cols
- * @property int $rows
- * @property bool $ended
- * @property mixed $error
- * @property mixed $item
+ * ⚠ S448: the `@property` tags that used to sit here (cols/rows/ended/error/item)
+ * were DEAD. PHPStan 2.2.x ignores `@property`/`@property-read` on an INTERFACE
+ * unless the interface declares a native `__get()` — and a stub-declared `__get()`
+ * does not count as native. The vendor `SugarCraft\Core\Model` is an interface, so
+ * those tags never merged (only the `@method` tags below do). The real
+ * `$model->cols` accesses now typecheck because the tests narrow to the concrete
+ * class first (self::assertInstanceOf(...)), not because of anything declared here.
  *
  * @method mixed route()
  * @method mixed screen()
@@ -46,9 +48,11 @@ class Model
 }
 
 /**
- * Stub for Msg class with test accessor properties.
+ * Stub for Msg class with test accessor methods.
  *
- * @property mixed $item
+ * ⚠ S448: the `@property mixed $item` tag that used to sit here was DEAD for the
+ * same interface reason documented above. `$msg->item` now typechecks via the
+ * templated `firstOfType()` helper (PlayerScreenTest), not via this stub.
  */
 class Msg
 {

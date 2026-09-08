@@ -5,6 +5,38 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — W43 (S448): phpstan-tests.neon gate made real — 2026-09-08
+
+- **The gate now exists.** `phpstan-tests.neon` had been committed but was
+  invoked by no CI job, and its own header claimed 8 (then 9) remaining
+  findings. S448 fixed all nine at source and wired the leg into both
+  workflows: a `Run PHPStan (tests)` step (`vendor/bin/phpstan analyse -c
+  phpstan-tests.neon --no-progress`) now runs in the `phpstan` job of
+  `ci.yml` and the `update` job of `deps.yml`, mirroring the server/hub
+  two-leg pattern.
+- **property.notFound ×6** — `LoginScreenTest` (`$cols`/`$rows`),
+  `PlayerScreenTest` (`$item` ×2, `$ended`), `SettingsScreenTest`
+  (`$error`): the old stub relied on `@property` tags on the
+  `SugarCraft\Core\Model`/`Msg` stubs, but those are interfaces and
+  PHPStan 2.2 ignores `@property` there — dead tags, deleted from
+  `phpstan.stubs.php` (rationale left as comments). Fixes narrow types at
+  the test site instead: `self::assertInstanceOf(...)` on the concrete
+  screen and a `@template T of Msg` signature on
+  `PlayerScreenTest::firstOfType()`.
+- **phpDoc.parseError** — `MusicStoreTest`: malformed
+  `list<array>` annotation → `array<int,array<string,mixed>>`.
+- **parameter.phpDocType ×2** — `SidebarTest` (`list<string>` on a
+  variadic → `string ...$names`) and `tests/Unit/Api/GateScanner.php`
+  (malformed `array{...}|string` return docblock rewritten with keyed
+  shape members).
+- No `ignoreErrors` entries, no baseline: the leg is green at zero.
+- `tests/Unit/Support/PhpstanTestsLegWiredTest.php` pins the wiring —
+  delete either CI step and it goes RED (mutation-proven on both files).
+  CI-faithful run: phpunit 2782 tests / 10008 assertions (delta +1 test
+  file), both phpstan legs `[OK] No errors`, phpcs house gate clean,
+  `composer validate --strict` valid, built `.phar` untouched (md5
+  `9d57bfbc…`).
+
 ### Changed — W37 (cs25): route-manifest provenance re-pin (no route change) — 2026-09-08
 
 - **cs#25 currency leg.** `tests/fixtures/server-route-manifest.json`

@@ -89,6 +89,7 @@ final class LoginScreenTest extends TestCase
     public function testResizeUpdatesDimensions(): void
     {
         [$next] = LoginScreen::create()->update(new WindowSizeMsg(100, 30));
+        self::assertInstanceOf(LoginScreen::class, $next);
 
         self::assertSame(100, $next->cols);
         self::assertSame(30, $next->rows);

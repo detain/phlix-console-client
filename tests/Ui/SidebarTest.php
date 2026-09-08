@@ -16,7 +16,7 @@ final class SidebarTest extends TestCase
         return explode("\x00", Style::new()->reverse()->bold()->render("\x00"))[0];
     }
 
-    /** @param list<string> $names */
+    /** @param string ...$names */
     private function entries(string ...$names): array
     {
         $entries = [];
