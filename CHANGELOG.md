@@ -5,6 +5,24 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — W49 (cs30): route-manifest provenance re-pin — PURE, 401 tuples unchanged — 2026-09-09
+
+- **cs#30 currency leg.** `tests/fixtures/server-route-manifest.json`
+  re-vendored verbatim from `@phlix/contracts` master `767146a8` (untagged
+  regen #17 against server master `32183f5b`; previous provenance
+  `8697c099`/`e15d9543` — the cs#29 leg). The span `e15d9543` → `32183f5b` is
+  two merges (S266 #747 deterministic Timer-probe outcomes, S171 #748 resolve
+  the unserved `public/index.php` front controller), re-proven route-zero at
+  the contracts leg: route-authority blobs/trees identical,
+  `WebPortalRouter.php` comment-only, the deleted front controller carried zero
+  route-wiring hits. The tuple set is byte-identical (stripped route-content
+  md5 `508a6415` old = new, 401 both sides) — only provenance moves.
+- `tests/Unit/Api/ServerRouteManifestGateTest.php` follows the currency pins:
+  `EXPECTED_MD5` `27834ef4` → `cb53d53f…`, `EXPECTED_SERVER_SHA` → `32183f5b…`,
+  the docblock server cite and the drift message contracts cite `8697c099` →
+  `767146a8`; the three count assertions stay 401. `build/phlix.phar` is
+  UNTOUCHED — md5 `9d57bfbc…` verified identical (bytes, `md5sum`) both sides.
+
 ### Changed — W48 (cs29): route-manifest provenance re-pin — PURE, 401 tuples unchanged — 2026-09-09
 
 - **cs#29 currency leg.** `tests/fixtures/server-route-manifest.json`
