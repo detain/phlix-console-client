@@ -5,6 +5,21 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — W47 (cs28): route-manifest provenance re-pin — PURE, 401 tuples unchanged — 2026-09-09
+
+- **cs#28 currency leg.** `tests/fixtures/server-route-manifest.json`
+  re-vendored verbatim from `@phlix/contracts` master `a1ca39d8` (regen
+  against server master `a5cde27e`; previous provenance `28000fa4`/`afe54c7c` —
+  the cs#27 leg). S187 whole-tree unused-import reflow is route-zero: the tuple
+  set is byte-identical (stripped route-content md5 `508a6415` old = new,
+  401 both sides) — only provenance moves.
+- `tests/Unit/Api/ServerRouteManifestGateTest.php` follows the currency pins:
+  `EXPECTED_MD5` `5c06306c` → `0331a2d8…`, `EXPECTED_SERVER_SHA` → `a5cde27e…`,
+  the docblock server cite and the drift message contracts cite `28000fa4` →
+  `a1ca39d8`; the three count assertions stay 401. `build/phlix.phar` is
+  UNTOUCHED — md5 `9d57bfbc…` verified identical before and after this leg.
+  Suite 2782/10008-era exact on this box.
+
 ### Changed — W46 (cs27): route-manifest provenance re-pin — PURE, 401 tuples unchanged — 2026-09-09
 
 - **cs#27 currency leg.** `tests/fixtures/server-route-manifest.json`
