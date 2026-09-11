@@ -5,6 +5,25 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — W59 (cs35): route-manifest full regen (401 → 402 tuples) — 2026-09-11
+
+- **cs#35 currency re-pin cascade (lane cs35).** Vendored
+  `tests/fixtures/server-route-manifest.json` re-vendored byte-identical from
+  `@phlix/contracts` master (untagged regen against the current phlix-server
+  master tip). Genuine full regen, not provenance-only: the server gained one
+  WebPortal route, so the manifest moves 401 → 402 `[method, path]` tuples
+  (Application source count holds, WebPortal source count rises by one, shared
+  overlap unchanged). Gate pins in `ServerRouteManifestGateTest.php`
+  (`EXPECTED_MD5`, `EXPECTED_SERVER_SHA`, provenance.total / routes-count /
+  uniqueness assertions, docblock + failure-message cites) advance in the same
+  commit. No Console request site calls the new route, so the client-side scan
+  totals the gate derives from this repo's own code stay exactly as pinned — the
+  manifest simply becomes a superset. Test-only change — the tracked
+  `build/phlix.phar` is NOT rebuilt and its content holds. Untagged wave: the
+  dependency tag pin stays put.
+
+### Prior era snapshot — W58 (cs34): PURE provenance re-pin (401 tuples)
+
 ### Changed — W58 (cs34): route-manifest provenance re-pin — PURE, 401 tuples unchanged — 2026-09-10
 
 - PURE provenance re-pin, zero route bytes: vendored
