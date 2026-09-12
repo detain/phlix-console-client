@@ -420,13 +420,18 @@ final class ApiClient
     }
 
     /**
-     * A single album by name (the server keys albums by name, case-insensitive).
+     * A single album by name via the S240 query-param rail
+     * (`GET /api/v1/music/album?name=`; the server keys albums by name,
+     * case-insensitive). The value rides the query array exactly like the
+     * `musicAlbums` list rail above, so `http_build_query` RFC1738-encodes it
+     * (space → `+`) — the singular `/music/album?name=` replaces the legacy
+     * plural `/music/albums/{name}` path segment.
      *
      * @return PromiseInterface<Album>
      */
     public function musicAlbum(string $name): PromiseInterface
     {
-        return $this->authed('GET', '/api/v1/music/albums/' . rawurlencode($name))
+        return $this->authed('GET', '/api/v1/music/album', ['name' => $name])
             ->then(static fn (array $data): Album => Album::fromArray(Coerce::map($data['album'] ?? null)));
     }
 
