@@ -19,7 +19,7 @@ use PHPUnit\Framework\TestCase;
  * SERVER wire is tuple-exact against the VENDORED phlix-server route manifest
  * (`tests/fixtures/server-route-manifest.json`, a byte-for-byte copy of
  * `@phlix/contracts` `dist/server-route-manifest.json`, 402 tuples @
- * phlix-server eb6bb619). The expected set comes from the SERVER side only —
+ * phlix-server 12125138). The expected set comes from the SERVER side only —
  * a manifest derived from the client it checks would self-adjust and pass
  * every defect it exists to catch (S276/S279/S280 shipped because no such
  * gate existed on console).
@@ -72,9 +72,9 @@ final class ServerRouteManifestGateTest extends TestCase
 
     private const MANIFEST_PATH = __DIR__ . '/../../fixtures/server-route-manifest.json';
 
-    private const EXPECTED_MD5 = '16a32ec5563a51d98b1fce55820fc119';
+    private const EXPECTED_MD5 = '2d11ac2a1140a58500c30019406fde09';
 
-    private const EXPECTED_SERVER_SHA = 'eb6bb6190784f8da68025cff6cdf98a85270cc0b';
+    private const EXPECTED_SERVER_SHA = '12125138f1838ea46b0c4f9f46de9b75a18f30de';
 
     /**
      * Per-anchor-file reconstruction pins, measured on the tree at gate time.
@@ -164,7 +164,7 @@ final class ServerRouteManifestGateTest extends TestCase
     public function testVendoredManifestIsTheContractsArtifactByteIdentical(): void
     {
         $raw = (string) file_get_contents(self::MANIFEST_PATH);
-        self::assertSame(self::EXPECTED_MD5, md5($raw), self::GATE_ID . ': vendored manifest drifted from contracts@b5b8313');
+        self::assertSame(self::EXPECTED_MD5, md5($raw), self::GATE_ID . ': vendored manifest drifted from contracts@222361ab');
 
         $manifest = self::manifest();
         self::assertSame(self::EXPECTED_SERVER_SHA, $manifest['provenance']['serverSha']);
