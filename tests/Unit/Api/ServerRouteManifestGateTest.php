@@ -18,8 +18,8 @@ use PHPUnit\Framework\TestCase;
  * WHAT IT PINS: every URL the console's request-issuing code can put on the
  * SERVER wire is tuple-exact against the VENDORED phlix-server route manifest
  * (`tests/fixtures/server-route-manifest.json`, a byte-for-byte copy of
- * `@phlix/contracts` `dist/server-route-manifest.json`, 402 tuples @
- * phlix-server ae401e7f). The expected set comes from the SERVER side only —
+ * `@phlix/contracts` `dist/server-route-manifest.json`, 404 tuples @
+ * phlix-server e96f586d). The expected set comes from the SERVER side only —
  * a manifest derived from the client it checks would self-adjust and pass
  * every defect it exists to catch (S276/S279/S280 shipped because no such
  * gate existed on console).
@@ -72,9 +72,9 @@ final class ServerRouteManifestGateTest extends TestCase
 
     private const MANIFEST_PATH = __DIR__ . '/../../fixtures/server-route-manifest.json';
 
-    private const EXPECTED_MD5 = '6d184ef45018691c7529616dbd281748';
+    private const EXPECTED_MD5 = '86aa1f61bc9d6b0f277c57585b3ee1fa';
 
-    private const EXPECTED_SERVER_SHA = 'ae401e7f244366d8a1396397258acafe113240e6';
+    private const EXPECTED_SERVER_SHA = 'e96f586da884b45b06df10492fdc3f48919b47bb';
 
     /**
      * Per-anchor-file reconstruction pins, measured on the tree at gate time.
@@ -164,19 +164,19 @@ final class ServerRouteManifestGateTest extends TestCase
     public function testVendoredManifestIsTheContractsArtifactByteIdentical(): void
     {
         $raw = (string) file_get_contents(self::MANIFEST_PATH);
-        self::assertSame(self::EXPECTED_MD5, md5($raw), self::GATE_ID . ': vendored manifest drifted from contracts@a8e7f40b');
+        self::assertSame(self::EXPECTED_MD5, md5($raw), self::GATE_ID . ': vendored manifest drifted from contracts@42f866f');
 
         $manifest = self::manifest();
         self::assertSame(self::EXPECTED_SERVER_SHA, $manifest['provenance']['serverSha']);
-        self::assertSame(402, $manifest['provenance']['total']);
-        self::assertSame(402, count($manifest['routes']));
+        self::assertSame(404, $manifest['provenance']['total']);
+        self::assertSame(404, count($manifest['routes']));
         self::assertSame('scripts/generate-server-route-manifest.mjs', $manifest['provenance']['generator']);
 
         $unique = [];
         foreach ($manifest['routes'] as [$m, $p]) {
             $unique["{$m} {$p}"] = true;
         }
-        self::assertCount(402, $unique, 'manifest tuples must be unique');
+        self::assertCount(404, $unique, 'manifest tuples must be unique');
     }
 
     // ── the gate ───────────────────────────────────────────────────────
@@ -377,6 +377,11 @@ final class ServerRouteManifestGateTest extends TestCase
         );
         self::assertTrue(self::isServed('DELETE', '/api/v1/media/{P}/rating'), 'the S405 repointed singular rail is served');
         self::assertTrue(self::isServed('GET', '/api/v1/users/me/settings'), 'the S405 repointed settings rail is served');
+        // cs#43 / S240: the additive music query-param rails must be served — the
+        // console musicAlbum client now rides `/music/album?name=`; if the vendored
+        // manifest regressed to the pre-S240 402-tuple set these two RED.
+        self::assertTrue(self::isServed('GET', '/api/v1/music/album'), 'the S240 album query rail is served');
+        self::assertTrue(self::isServed('GET', '/api/v1/music/artist'), 'the S240 artist query rail is served');
         self::assertTrue(
             self::isServed('GET', '/api/v1/admin/libraries/{P}/duplicates'),
             'the S405 admin-prefixed duplicates rail is served'

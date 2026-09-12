@@ -496,7 +496,7 @@ final class ApiClientTest extends TestCase
         self::assertSame('Abbey Road', $album->name);
         self::assertCount(1, $album->tracks);
         self::assertSame('Come Together', $album->tracks[0]->title);
-        self::assertSame(self::BASE . '/api/v1/music/albums/Abbey%20Road', $t->requestAt(0)['url']);
+        self::assertSame(self::BASE . '/api/v1/music/album?name=Abbey+Road', $t->requestAt(0)['url']);
     }
 
     // ---- books ---------------------------------------------------------

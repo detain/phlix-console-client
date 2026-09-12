@@ -5,6 +5,40 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — W81 (cs43): route-manifest CONTENT regen (402→404) + S240 album query-param migration — 2026-09-12
+
+- **cs#43 currency cascade (lane cs43) — a CONTENT regen.** phlix-server S240
+  merged two ADDITIVE query-param rails (`GET /api/v1/music/artist?name=` and
+  `GET /api/v1/music/album?name=[&artist=]`) alongside the existing legacy
+  path-param routes, so the vendored manifest grows **402 → 404 `[method, path]`
+  tuples**. `tests/fixtures/server-route-manifest.json` re-vendored byte-identical
+  from `@phlix/contracts` master (untagged regen #30 @ server `e96f586d`; the
+  blob is content-identical across the estate).
+- **S240 album client migration (the pinned-broken-spelling reconcile).**
+  `ApiClient::musicAlbum` previously built the LEGACY plural path
+  `/api/v1/music/albums/{name}` (`rawurlencode`, space → `%20`). It now rides the
+  S240 singular query rail `authed('GET', '/api/v1/music/album', ['name' =>
+  $name])`, following the `musicAlbums` list method's existing `$query`-array
+  building exactly (so `http_build_query` RFC1738-encodes the value, space → `+`,
+  server-decoded to the same name). `ApiClientTest::testMusicAlbumHits…` is
+  reconciled to the new URL `/api/v1/music/album?name=Abbey+Road`; reverting the
+  client to the legacy plural form turns that assertion RED (verified — the exact
+  S240 reconcile AC).
+- **Gate moves with the content.** `ServerRouteManifestGateTest.php`:
+  `EXPECTED_MD5` → the new contracts export md5, `EXPECTED_SERVER_SHA` → the
+  era sha, the integrity header + `total`/`count`/uniqueness pins advance `402 →
+  404`, the drift-message contracts cite advances to `@42f866f`, and two named
+  S240 `isServed` AC checks (album + artist query rails) are added next to the
+  S405 rail checks — they RED if the manifest regresses below S240. Every
+  client-side count the gate derives from this repo's own code was RE-MEASURED and
+  held unchanged: `SWEEP_TOKEN_COUNTS['src/Api/ApiClient.php']` = 68, the
+  reconstruction anchor = 67, `TOTAL_COMPARED` = 223 — the migration swaps one
+  `/api/v1`-carrying literal for another (the value now rides the query array), so
+  the per-file token inventory does not move.
+- `build/phlix.phar` deliberately NOT rebuilt (cs#42 precedent). PHPUnit baseline
+  holds green at this tip: 2782 tests / 10010 assertions, 0 errors/failures
+  (9 skipped); phpstan clean; phpcs introduces no new warnings.
+
 ### Changed — W79 (cs42): route-manifest currency re-pin to current server master — 2026-09-12
 
 - **cs#42 currency re-pin cascade (lane cs42).** Vendored
