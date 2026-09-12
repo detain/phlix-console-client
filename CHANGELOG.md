@@ -5,6 +5,24 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — W75 (cs41): route-manifest currency re-pin to current server master — 2026-09-12
+
+- **cs#41 currency re-pin cascade (lane cs41).** Vendored
+  `tests/fixtures/server-route-manifest.json` re-vendored byte-identical from
+  `@phlix/contracts` master (untagged regen #28 against the current phlix-server
+  master tip). **Pure provenance re-pin, not a content change:** the server span
+  since the prior pin is one merge confined to the parallel-suite
+  junit-merge tooling, two new guard tests and changelog/release-journal
+  prose — an empty diff under the route-surface
+  directories — so the manifest still carries exactly 402 `[method, path]`
+  tuples and the stripped route content is unchanged (the estate fence digest
+  measures equal old-vs-new); only `provenance.serverSha` / `generatedAt` move.
+  Gate pins in `ServerRouteManifestGateTest.php` (`EXPECTED_MD5`,
+  `EXPECTED_SERVER_SHA`, failure-message contracts cite) advance in the
+  same commit; every client-side scan total the gate derives from this repo's own
+  code stays exactly as pinned. No Console request surface changed;
+  `build/phlix.phar` deliberately NOT rebuilt (unchanged source, cs31/cs32 held).
+
 ### Changed — W72 (cs40): route-manifest currency re-pin to current server master — 2026-09-12
 
 - **cs#40 currency re-pin cascade (lane cs40).** Vendored
