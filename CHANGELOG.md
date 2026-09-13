@@ -5,6 +5,26 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — W83 (cs44): route-manifest PROVENANCE re-pin (404 tuples — route bytes unmoved) — 2026-09-13
+
+- **cs#44 currency cascade (lane cs44) — PROVENANCE-only, not a content regen.**
+  `tests/fixtures/server-route-manifest.json` re-vendored byte-identical from the
+  `@phlix/contracts` canonical master export, and `ServerRouteManifestGateTest.php`
+  advances its header cite, `EXPECTED_MD5`, `EXPECTED_SERVER_SHA`, and the
+  contracts-drift failure message to the current phlix-server master tip in the
+  same commit. The server span since the previous pin is bundle-only: no
+  route-registration file and nothing under the server's `include/` or `src/`
+  moved, so the `[method, path]` tuples are byte-for-byte identical and the
+  `total`/route-count/unique all HOLD at 404. Only the embedded provenance moves,
+  which rotates the vendored blob while the described route surface is unchanged.
+  The client-side inventories are HELD: `SWEEP_TOKEN_COUNTS`
+  (`src/Api/ApiClient.php` = 68), `PER_CLASS_ANCHORS` (67), and `TOTAL_COMPARED`
+  (223) — no client request site moved this wave. The two S240 `isServed` query-rail
+  assertions (album / artist) survive untouched as preservation checks. `build/phlix.phar`
+  is NOT rebuilt (cs#42/#43 precedent — the gate tolerates the stale phar). No
+  survival-token home in this repo — the wave token lives in its two verified code
+  homes.
+
 ### Changed — W81 (cs43): route-manifest CONTENT regen (402→404) + S240 album query-param migration — 2026-09-12
 
 - **cs#43 currency cascade (lane cs43) — a CONTENT regen.** phlix-server S240
@@ -12,8 +32,8 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `GET /api/v1/music/album?name=[&artist=]`) alongside the existing legacy
   path-param routes, so the vendored manifest grows **402 → 404 `[method, path]`
   tuples**. `tests/fixtures/server-route-manifest.json` re-vendored byte-identical
-  from `@phlix/contracts` master (untagged regen #30 @ server `e96f586d`; the
-  blob is content-identical across the estate).
+   from `@phlix/contracts` master (untagged regen #30 @ the then-current server
+   tip; the blob is content-identical across the estate).
 - **S240 album client migration (the pinned-broken-spelling reconcile).**
   `ApiClient::musicAlbum` previously built the LEGACY plural path
   `/api/v1/music/albums/{name}` (`rawurlencode`, space → `%20`). It now rides the
