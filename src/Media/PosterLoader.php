@@ -9,22 +9,18 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Media;
 
-use React\EventLoop\Loop;
-use React\Promise\Deferred;
 use React\Promise\PromiseInterface;
+use SugarCraft\Core\Util\Semaphore;
 use SugarCraft\Mosaic\DiskCache;
 use SugarCraft\Mosaic\ImageLayer;
-use SugarCraft\Mosaic\ImageSource;
 use SugarCraft\Mosaic\Mosaic;
-use SugarCraft\Mosaic\Scale;
-
-use function React\Promise\resolve;
 
 /**
  * The result of {@see PosterLoader::load()}: in inline mode the marker is the
  * rendered poster bytes and imageId is null; in overlay mode the marker is the
  * placeholder cell block and imageId is the assigned overlay image ID.
- * The digest is the xxh3 hash of bytes+width+height and is non-null in overlay mode.
+ * The digest is the {@see ImageLayer::digestFor()} window key of bytes+size and
+ * is non-null in overlay mode.
  */
 final readonly class PosterLoadResult
 {
@@ -51,18 +47,14 @@ final readonly class PosterLoadResult
  */
 final class PosterLoader
 {
+    /** Poster fetches in flight when PHLIX_POSTER_CONCURRENCY is unset. */
+    private const DEFAULT_CONCURRENCY = 6;
+
     private readonly bool $inline;
     private readonly ImageLayer $images;
 
-    /** @var Semaphore<PosterLoadResult> */
     private readonly Semaphore $semaphore;
 
-    /** @var array<string, array{marker: string, imageId: int|null}> */
-    private array $placedByDigest = [];
-
-    /**
-     * @param ?Semaphore<PosterLoadResult> $semaphore
-     */
     public function __construct(
         private readonly Mosaic $mosaic,
         private readonly ?DiskCache $cache = null,
@@ -70,13 +62,11 @@ final class PosterLoader
     ) {
         $this->inline = $mosaic->isInline();
         $this->images = new ImageLayer();
-        $this->semaphore = $semaphore ?? new Semaphore();
+        $this->semaphore = $semaphore ?? Semaphore::new(self::concurrencyLimit());
     }
 
     /**
      * The semaphore used to bound concurrent poster operations.
-     *
-     * @return Semaphore<PosterLoadResult>
      */
     public function semaphore(): Semaphore
     {
@@ -97,62 +87,59 @@ final class PosterLoader
      */
     public function load(string $url, int $width, int $height): PromiseInterface
     {
-        $key = DiskCache::key($url, $width, $height, $this->mosaic->protocol());
-
-        $hit = $this->cache?->get($key);
-        if ($hit !== null) {
-            return resolve($this->present($hit, $width, $height));
-        }
-
         if (!$this->isValidImageUrl($url)) {
             throw new \InvalidArgumentException('Invalid or missing URL scheme');
         }
 
-        // Phlix only ever loads image URLs handed back by its own configured
-        // server, which for a self-hosted deployment is routinely on localhost
-        // or a LAN address. candy-mosaic's fromUrlAsync() SSRF guard rejects
-        // private/reserved hosts by default, so allow-list the URL's own host —
-        // any cross-host redirect stays guarded.
-        $host = parse_url($url, PHP_URL_HOST);
-        $allowedHosts = is_string($host) && $host !== '' ? [$host] : null;
-
-        $task = fn (): PromiseInterface => ImageSource::fromUrlAsync($url, allowedHosts: $allowedHosts)->then(
-            function (ImageSource $image) use ($key, $width, $height): PromiseInterface {
-                return $this->deferRender($image, $width, $height)->then(
-                    function (string $bytes) use ($key, $width, $height): PosterLoadResult {
-                        $this->cache?->put($key, $bytes);
-
-                        return $this->present($bytes, $width, $height);
-                    },
-                );
-            },
+        // Fetch, render and disk-cache in one upstream call: Mosaic::posterAsync()
+        // owns the cache key, the Fill-by-default poster scaling and populating
+        // the cache on a miss, so the client no longer restates any of that.
+        //
+        // Note the deliberate trade-off: posterAsync() consults the cache itself,
+        // so a warm hit now waits for a semaphore permit instead of resolving
+        // instantly the way a client-side pre-check did. Bounded and self-healing,
+        // and it keeps the key formula upstream — the alternative is restating
+        // DiskCache::key() here, which is exactly the duplication this removes.
+        return $this->semaphore->run(
+            fn (): PromiseInterface => $this->mosaic
+                ->posterAsync($url, $width, $height, $this->cache, $this->allowedHosts($url))
+                ->then(fn (string $bytes): PosterLoadResult => $this->present($bytes, $width, $height)),
         );
-
-        return $this->semaphore->wrap($task);
     }
 
     /**
-     * Schedule render() on Loop::futureTick() and return a promise.
+     * Phlix only ever loads image URLs handed back by its own configured server,
+     * which for a self-hosted deployment is routinely on localhost or a LAN
+     * address. candy-mosaic's SSRF guard rejects private/reserved hosts by
+     * default, so allow-list the URL's own host — any cross-host redirect stays
+     * guarded. The host VALUES are phlix knowledge and stay here; the guarding
+     * mechanism itself is upstream's.
      *
-     * This yields during decode: the synchronous render work is deferred so
-     * the event loop can drain other tasks (e.g. network I/O) before the
-     * CPU-heavy pixel processing runs.
-     *
-     * @return PromiseInterface<string>
+     * @return list<string>|null
      */
-    public function deferRender(ImageSource $image, int $width, int $height)
+    private function allowedHosts(string $url): ?array
     {
-        $deferred = new Deferred();
+        $host = parse_url($url, PHP_URL_HOST);
 
-        Loop::futureTick(function () use ($image, $width, $height, $deferred): void {
-            $bytes = $this->mosaic->withScale(Scale::Fill)->render($image, $width, $height);
-            $deferred->resolve($bytes);
-        });
+        return is_string($host) && $host !== '' ? [$host] : null;
+    }
 
-        /** @var PromiseInterface<string> */
-        $promise = $deferred->promise();
+    /**
+     * Read the app's poster fan-out cap out of the environment. A foundation
+     * semaphore takes its limit as an argument and reads nothing from the
+     * process; this env var is phlix configuration, so the lookup lives here.
+     */
+    private static function concurrencyLimit(): int
+    {
+        $env = $_ENV['PHLIX_POSTER_CONCURRENCY'] ?? $_SERVER['PHLIX_POSTER_CONCURRENCY'] ?? null;
 
-        return $promise;
+        if ($env === null) {
+            return self::DEFAULT_CONCURRENCY;
+        }
+
+        $parsed = filter_var($env, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+
+        return $parsed !== false ? $parsed : self::DEFAULT_CONCURRENCY;
     }
 
     /**
@@ -193,6 +180,11 @@ final class PosterLoader
     /**
      * Inline mode → the bytes are the poster. Overlay mode → register the bytes
      * with the {@see ImageLayer} and return a marker block for the text frame.
+     *
+     * Dedup is the layer's own: identical bytes at an identical footprint reuse
+     * the image id they were already assigned, so a poster that scrolls back into
+     * view costs no second terminal allocation. The window digest returned is the
+     * key {@see release()}/{@see releaseAllExcept()} take.
      */
     private function present(string $bytes, int $width, int $height): PosterLoadResult
     {
@@ -200,39 +192,30 @@ final class PosterLoader
             return new PosterLoadResult($bytes, null);
         }
 
-        $digest = hash('xxh3', $bytes . ':' . $width . ':' . $height);
-        if (isset($this->placedByDigest[$digest])) {
-            $cached = $this->placedByDigest[$digest];
-
-            return new PosterLoadResult($cached['marker'], $cached['imageId']);
-        }
-
+        $digest = ImageLayer::digestFor($bytes, $width, $height);
         $placed = $this->images->placeTracked($bytes, $width, $height);
-        $this->placedByDigest[$digest] = [
-            'marker' => $placed->marker,
-            'imageId' => $placed->imageId,
-        ];
 
         return new PosterLoadResult($placed->marker, $placed->imageId, $digest);
     }
 
     /**
-     * Release a placement by digest, removing it from the image layer and the
-     * digest index. Safe to call even if the digest is not currently tracked.
+     * Release a placement by its {@see ImageLayer::digestFor()} window key,
+     * unregistering it from the layer. Safe to call even if the digest is not
+     * currently tracked.
+     *
+     * The delete sequence `release()` returns is deliberately discarded: this
+     * layer is built without a renderer (see the constructor), so upstream
+     * always yields an empty string here — same as the `removeById()` call this
+     * replaced. Should the layer ever carry a renderer, the sequences this
+     * returns must be plumbed through to the terminal output.
      */
     public function release(string $digest): void
     {
-        if (!isset($this->placedByDigest[$digest])) {
-            return;
-        }
-
-        $imageId = $this->placedByDigest[$digest]['imageId'];
-        // imageId is null when the id space was exhausted at placement time;
-        // in that case nothing was added to the image layer, so nothing to remove.
+        $imageId = $this->images->imageIdForDigest($digest);
+        // A digest with no live id was never placed, or was already released.
         if ($imageId !== null) {
-            $this->images->removeById($imageId);
+            $this->images->release($imageId);
         }
-        unset($this->placedByDigest[$digest]);
     }
 
     /**
@@ -244,12 +227,15 @@ final class PosterLoader
      */
     public function releaseAllExcept(array $keepDigests): void
     {
-        $keep = array_flip($keepDigests);
-        foreach (array_keys($this->placedByDigest) as $digest) {
-            if (!isset($keep[$digest])) {
-                $this->release($digest);
+        $keepIds = [];
+        foreach ($keepDigests as $digest) {
+            $imageId = $this->images->imageIdForDigest($digest);
+            if ($imageId !== null) {
+                $keepIds[] = $imageId;
             }
         }
+
+        $this->images->releaseAllExcept($keepIds);
     }
 
     /**

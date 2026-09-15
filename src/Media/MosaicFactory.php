@@ -10,8 +10,6 @@ declare(strict_types=1);
 namespace Phlix\Console\Media;
 
 use SugarCraft\Mosaic\Mosaic;
-use SugarCraft\Mosaic\Renderer\AsciiColorMode;
-use SugarCraft\Mosaic\Renderer\KittyRenderer;
 
 /**
  * Builds a {@see Mosaic} for a render mode chosen on the command line
@@ -46,22 +44,19 @@ final class MosaicFactory
      * `quarterblock` (denser blocks), `ascii` (monochrome character ramp),
      * `ansi256` (256-colour chars), `truecolor` (24-bit-colour chars).
      * Graphics modes (single image only): `sixel`, `kitty`, `iterm2`.
+     *
+     * The mode vocabulary itself belongs to candy-mosaic ({@see Mosaic::fromModeString()});
+     * this factory only converts a null/unrecognised name into the app's policy —
+     * auto-detection for `null`/`auto`, a hard error for a typo.
      */
     public static function forMode(?string $mode): Mosaic
     {
-        return match ($mode) {
-            null, 'auto'              => Mosaic::auto(),
-            'sixel'                   => Mosaic::sixel(),
-            'iterm2'                  => Mosaic::iterm2(),
-            'halfblock', 'half', 'ansi' => Mosaic::halfBlock(),
-            'quarterblock', 'quarter' => Mosaic::quarterBlock(),
-            'ascii'                   => Mosaic::ascii(AsciiColorMode::Mono),
-            'ansi256'                 => Mosaic::ascii(AsciiColorMode::Ansi256),
-            'truecolor'               => Mosaic::ascii(AsciiColorMode::TrueColor),
-            // candy-mosaic has no Mosaic::kitty() factory; build it explicitly.
-            'kitty'                   => Mosaic::builder()->withRenderer(new KittyRenderer())->build(),
-            default                   => throw new \InvalidArgumentException("Unknown render mode: {$mode}"),
-        };
+        if ($mode === null || $mode === 'auto') {
+            return Mosaic::auto();
+        }
+
+        return Mosaic::fromModeString($mode)
+            ?? throw new \InvalidArgumentException("Unknown render mode: {$mode}");
     }
 
     /**

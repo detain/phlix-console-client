@@ -8,9 +8,6 @@ use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Media\MosaicFactory;
 use Phlix\Console\Media\PosterCardFactory;
 use Phlix\Console\Media\PosterLoader;
-use Phlix\Console\Tests\Graphics\Iterm2Decoder;
-use Phlix\Console\Tests\Graphics\KittyDecoder;
-use Phlix\Console\Tests\Graphics\SixelDecoder;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SugarCraft\Gallery\PosterCard;
@@ -28,12 +25,12 @@ use SugarCraft\Gallery\PosterCard;
  */
 final class PosterRenderTest extends TestCase
 {
-    /** @return iterable<string, array{string, class-string}> */
-    public static function protocolDecoderProvider(): iterable
+    /** @return iterable<string, array{string}> */
+    public static function graphicsModeProvider(): iterable
     {
-        yield 'sixel'    => ['sixel',    SixelDecoder::class];
-        yield 'iterm2'  => ['iterm2',  Iterm2Decoder::class];
-        yield 'kitty'    => ['kitty',    KittyDecoder::class];
+        yield 'sixel'   => ['sixel'];
+        yield 'iterm2'  => ['iterm2'];
+        yield 'kitty'   => ['kitty'];
     }
 
     /** @return iterable<string, array{string}> */
@@ -109,8 +106,8 @@ final class PosterRenderTest extends TestCase
      * than cell text. This test verifies that PosterLoader correctly identifies
      * graphics/overlay mode and that the image layer accumulates placements.
      */
-    #[DataProvider('protocolDecoderProvider')]
-    public function testGraphicsModesProduceOverlayPlacements(string $protocol, string $_decoderClass): void
+    #[DataProvider('graphicsModeProvider')]
+    public function testGraphicsModesProduceOverlayPlacements(string $protocol): void
     {
         $mosaic = MosaicFactory::forMode($protocol);
 

@@ -12,6 +12,7 @@ namespace Phlix\Console\Store;
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\Dto\Library;
 use React\Promise\PromiseInterface;
+use SugarCraft\Core\Util\LruMap;
 
 use function React\Promise\resolve;
 
@@ -24,7 +25,7 @@ final class LibrariesStore
     /** Single-entry cache capacity. */
     private const CACHE_CAPACITY = 1;
 
-    /** @var LruMap|null */
+    /** @var LruMap<mixed>|null */
     private ?LruMap $cache;
 
     /** @var \Closure(): float */
@@ -39,7 +40,7 @@ final class LibrariesStore
         ?\Closure $clock = null,
     ) {
         $this->clock = $clock ?? static fn (): float => microtime(true);
-        $this->cache = new LruMap(self::CACHE_CAPACITY);
+        $this->cache = LruMap::new(self::CACHE_CAPACITY);
     }
 
     /**
@@ -54,7 +55,7 @@ final class LibrariesStore
 
         // Reinitialize cache if it was invalidated (set to null).
         if ($this->cache === null) {
-            $this->cache = new LruMap(self::CACHE_CAPACITY);
+            $this->cache = LruMap::new(self::CACHE_CAPACITY);
         }
 
         $entry = $this->cache->peek($key);
@@ -67,7 +68,7 @@ final class LibrariesStore
 
         return $this->api->libraries()->then(function (array $libraries) use ($key, $now): array {
             if ($this->cache !== null) {
-                $this->cache->set($key, ['cache' => $libraries, 'at' => $now]);
+                $this->cache->put($key, ['cache' => $libraries, 'at' => $now]);
             }
 
             return $libraries;

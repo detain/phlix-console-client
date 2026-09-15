@@ -29,6 +29,7 @@ use React\EventLoop\Loop;
 use React\Promise\PromiseInterface;
 use SugarCraft\Core\AsyncCmd;
 use SugarCraft\Core\BatchMsg;
+use SugarCraft\Core\Util\LruMap;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg;
@@ -169,12 +170,9 @@ final class AdminLibrariesScreenTest extends TestCase
      */
     private function populateLibrariesStore(LibrariesStore $store, array $data): void
     {
-        // Create an LruMap and set its internal data to the proper cache structure.
         // The cache stores ['libraries' => ['cache' => list<Library>, 'at' => float]]
-        $lruMap = new \Phlix\Console\Store\LruMap(1);
-        $lruDataReflect = new \ReflectionProperty(\Phlix\Console\Store\LruMap::class, 'data');
-        $lruDataReflect->setAccessible(true);
-        $lruDataReflect->setValue($lruMap, ['libraries' => ['cache' => $data, 'at' => time() - 10]]);
+        $lruMap = LruMap::new(1);
+        $lruMap->put('libraries', ['cache' => $data, 'at' => time() - 10]);
 
         $cacheReflect = new \ReflectionProperty($store, 'cache');
         $cacheReflect->setAccessible(true);
@@ -186,12 +184,9 @@ final class AdminLibrariesScreenTest extends TestCase
      */
     private function populateMediaStore(MediaStore $store): void
     {
-        // Create an LruMap and set its internal data to the proper cache structure.
         // The pages cache stores [$key => ['page' => MediaPage, 'at' => float]]
-        $lruMap = new \Phlix\Console\Store\LruMap(2000);
-        $lruDataReflect = new \ReflectionProperty(\Phlix\Console\Store\LruMap::class, 'data');
-        $lruDataReflect->setAccessible(true);
-        $lruDataReflect->setValue($lruMap, ['some-key' => ['page' => 'data', 'at' => time() - 10]]);
+        $lruMap = LruMap::new(2000);
+        $lruMap->put('some-key', ['page' => 'data', 'at' => time() - 10]);
 
         $pagesReflect = new \ReflectionProperty($store, 'pages');
         $pagesReflect->setAccessible(true);

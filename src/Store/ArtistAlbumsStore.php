@@ -11,6 +11,7 @@ use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\Dto\AlbumPage;
 use React\Promise\Deferred;
 use React\Promise\PromiseInterface;
+use SugarCraft\Core\Util\LruMap;
 
 use function React\Promise\all;
 use function React\Promise\resolve;
@@ -22,7 +23,7 @@ use function React\Promise\resolve;
  */
 final class ArtistAlbumsStore
 {
-    /** @var LruMap */
+    /** @var LruMap<mixed> */
     private LruMap $pages;
 
     /** @var array<string, PromiseInterface<AlbumPage>> In-flight page fetches, keyed by offset. */
@@ -43,7 +44,7 @@ final class ArtistAlbumsStore
         ?\Closure $clock = null,
     ) {
         $this->clock = $clock ?? static fn (): float => microtime(true);
-        $this->pages = new LruMap(64);
+        $this->pages = LruMap::new(64);
     }
 
     /**
@@ -113,7 +114,7 @@ final class ArtistAlbumsStore
 
         $this->api->musicAlbums($limit, $offset, $this->artistName)->then(
             function (AlbumPage $page) use ($key, $now, $deferred): void {
-                $this->pages->set($key, ['page' => $page, 'at' => $now]);
+                $this->pages->put($key, ['page' => $page, 'at' => $now]);
                 unset($this->inFlight[$key]);
                 $deferred->resolve($page);
             },

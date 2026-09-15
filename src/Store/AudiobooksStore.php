@@ -16,6 +16,7 @@ use Phlix\Console\Api\Dto\AudiobookPage;
 use Phlix\Console\Api\Dto\AudiobookProgress;
 use React\Promise\Deferred;
 use React\Promise\PromiseInterface;
+use SugarCraft\Core\Util\LruMap;
 
 use function React\Promise\all;
 use function React\Promise\resolve;
@@ -43,25 +44,25 @@ final class AudiobooksStore
     /** Maximum number of item/detail entries to cache. */
     private const ITEM_CAPACITY = 500;
 
-    /** @var LruMap */
+    /** @var LruMap<mixed> */
     private LruMap $pages;
 
     /** @var array<string, PromiseInterface<AudiobookPage>>  page key → in-flight fetch */
     private array $inFlight = [];
 
-    /** @var LruMap */
+    /** @var LruMap<mixed> */
     private LruMap $allLists;
 
     /** @var array<string, PromiseInterface<list<Audiobook>>>  library key → in-flight all() fetch */
     private array $allInFlight = [];
 
-    /** @var LruMap */
+    /** @var LruMap<mixed> */
     private LruMap $audiobooks;
 
     /** @var array<string, PromiseInterface<Audiobook>>  id → in-flight detail fetch */
     private array $audiobooksInFlight = [];
 
-    /** @var LruMap */
+    /** @var LruMap<mixed> */
     private LruMap $chapters;
 
     /** @var array<string, PromiseInterface<list<AudiobookChapter>>>  id → in-flight chapters fetch */
@@ -79,10 +80,10 @@ final class AudiobooksStore
         ?\Closure $clock = null,
     ) {
         $this->clock = $clock ?? static fn (): float => microtime(true);
-        $this->pages = new LruMap(self::PAGE_CAPACITY);
-        $this->allLists = new LruMap(self::PAGE_CAPACITY);
-        $this->audiobooks = new LruMap(self::ITEM_CAPACITY);
-        $this->chapters = new LruMap(self::ITEM_CAPACITY);
+        $this->pages = LruMap::new(self::PAGE_CAPACITY);
+        $this->allLists = LruMap::new(self::PAGE_CAPACITY);
+        $this->audiobooks = LruMap::new(self::ITEM_CAPACITY);
+        $this->chapters = LruMap::new(self::ITEM_CAPACITY);
     }
 
     /**
@@ -118,7 +119,7 @@ final class AudiobooksStore
 
         $this->api->audiobooks($libraryId, $limit, $offset)->then(
             function (AudiobookPage $page) use ($key, $now, $deferred): void {
-                $this->pages->set($key, ['page' => $page, 'at' => $now]);
+                $this->pages->put($key, ['page' => $page, 'at' => $now]);
                 unset($this->inFlight[$key]);
                 $deferred->resolve($page);
             },
@@ -220,7 +221,7 @@ final class AudiobooksStore
 
         $this->fetchAllPages($libraryId, 0, 0, [])->then(
             function (array $list) use ($key, $now, $deferred): void {
-                $this->allLists->set($key, ['list' => $list, 'at' => $now]);
+                $this->allLists->put($key, ['list' => $list, 'at' => $now]);
                 unset($this->allInFlight[$key]);
                 $deferred->resolve($list);
             },
@@ -290,7 +291,7 @@ final class AudiobooksStore
 
         $this->api->audiobook($id)->then(
             function (Audiobook $audiobook) use ($id, $now, $deferred): void {
-                $this->audiobooks->set($id, ['audiobook' => $audiobook, 'at' => $now]);
+                $this->audiobooks->put($id, ['audiobook' => $audiobook, 'at' => $now]);
                 unset($this->audiobooksInFlight[$id]);
                 $deferred->resolve($audiobook);
             },
@@ -330,7 +331,7 @@ final class AudiobooksStore
 
         $this->api->audiobookChapters($id)->then(
             function (array $chapters) use ($id, $now, $deferred): void {
-                $this->chapters->set($id, ['chapters' => $chapters, 'at' => $now]);
+                $this->chapters->put($id, ['chapters' => $chapters, 'at' => $now]);
                 unset($this->chaptersInFlight[$id]);
                 $deferred->resolve($chapters);
             },
