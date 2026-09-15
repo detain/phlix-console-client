@@ -116,7 +116,7 @@ final class PhotoAlbumScreenTest extends TestCase
     }
 
     /**
-     * An empty thumbnail URL is the ONLY case skipped by loadCoversIn: after
+     * An empty thumbnail URL is the ONLY case skipped by loadVisibleCovers: after
      * resolveUrl it stays empty, so no load Cmd is scheduled (a crash-free skip —
      * no "URL scheme unknown" from the loader).
      */

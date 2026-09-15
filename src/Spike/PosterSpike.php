@@ -10,7 +10,6 @@ declare(strict_types=1);
 namespace Phlix\Console\Spike;
 
 use Phlix\Console\Media\MosaicFactory;
-use SugarCraft\Mosaic\ImageSource;
 use SugarCraft\Mosaic\Scale;
 
 /**
@@ -29,6 +28,6 @@ final class PosterSpike
 
         return MosaicFactory::forMode($mode)
             ->withScale(Scale::Fit)
-            ->render(ImageSource::fromFile($path), $width, $height);
+            ->posterFile($path, $width, $height);
     }
 }

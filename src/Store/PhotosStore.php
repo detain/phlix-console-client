@@ -15,6 +15,7 @@ use Phlix\Console\Api\Dto\PhotoAlbum;
 use Phlix\Console\Api\Dto\PhotoAlbumPage;
 use React\Promise\Deferred;
 use React\Promise\PromiseInterface;
+use SugarCraft\Core\Util\LruMap;
 
 use function React\Promise\all;
 use function React\Promise\resolve;
@@ -36,7 +37,7 @@ final class PhotosStore
     /** Maximum number of item/detail entries to cache. */
     private const ITEM_CAPACITY = 500;
 
-    /** @var LruMap */
+    /** @var LruMap<mixed> */
     private LruMap $pages;
 
     /** @var array<string, PromiseInterface<PhotoAlbumPage>>  page key → in-flight fetch */
@@ -48,7 +49,7 @@ final class PhotosStore
     /** @var array<string, PromiseInterface<list<PhotoAlbum>>>  libraryId → in-flight forced album fetch */
     private array $albumsForceInFlight = [];
 
-    /** @var LruMap */
+    /** @var LruMap<mixed> */
     private LruMap $photos;
 
     /** @var array<string, PromiseInterface<Photo>>  photo id → in-flight detail fetch */
@@ -68,8 +69,8 @@ final class PhotosStore
         ?\Closure $clock = null,
     ) {
         $this->clock = $clock ?? static fn (): float => microtime(true);
-        $this->pages = new LruMap(self::PAGE_CAPACITY);
-        $this->photos = new LruMap(self::ITEM_CAPACITY);
+        $this->pages = LruMap::new(self::PAGE_CAPACITY);
+        $this->photos = LruMap::new(self::ITEM_CAPACITY);
     }
 
     /**
@@ -205,7 +206,7 @@ final class PhotosStore
 
         $this->api->photoAlbums($libraryId, $limit, $offset)->then(
             function (PhotoAlbumPage $page) use ($key, $now, $deferred): void {
-                $this->pages->set($key, ['page' => $page, 'at' => $now]);
+                $this->pages->put($key, ['page' => $page, 'at' => $now]);
                 unset($this->inFlight[$key]);
                 $deferred->resolve($page);
             },
@@ -246,7 +247,7 @@ final class PhotosStore
 
         $this->api->photo($id)->then(
             function (Photo $photo) use ($id, $now, $deferred): void {
-                $this->photos->set($id, ['photo' => $photo, 'at' => $now]);
+                $this->photos->put($id, ['photo' => $photo, 'at' => $now]);
                 unset($this->photosInFlight[$id]);
                 $deferred->resolve($photo);
             },

@@ -247,7 +247,7 @@ final class PlayerScreenTest extends TestCase
             $captured[] = $url;
 
             // totalFrames 2400 @ 24fps = a 100s clip, so ±10s seeks aren't clamped.
-            return Player::openForTest($decoder, fps: 24.0, totalFrames: 2400, cellsW: $c, cellsH: $r, videoPath: '/fake', paused: true);
+            return Player::fromDecoder($decoder, fps: 24.0, totalFrames: 2400, cellsW: $c, cellsH: $r, videoPath: '/fake', paused: true);
         };
         $transport ??= (new FakeTransport())->json(200, $this->markersResponse());
         $api = new ApiClient($base, $transport);
@@ -625,7 +625,7 @@ final class PlayerScreenTest extends TestCase
         $decoder = new FakePlayerDecoder($this->frames());
         $factory = function (string $url, int $c, int $r) use ($decoder): Player {
             if (str_contains($url, 'master.m3u8')) {
-                return Player::openForTest($decoder, fps: 24.0, totalFrames: 2400, cellsW: $c, cellsH: $r, videoPath: '/fake', paused: true);
+                return Player::fromDecoder($decoder, fps: 24.0, totalFrames: 2400, cellsW: $c, cellsH: $r, videoPath: '/fake', paused: true);
             }
             throw new \RuntimeException('cannot direct-play this container');
         };
@@ -1026,7 +1026,7 @@ final class PlayerScreenTest extends TestCase
             ->json(200, $this->playbackResponse($id, 'episode'))       // 3: audio tracks
             ->json(200, $this->episodesPage());                        // 4: siblings
         $decoder = new FakePlayerDecoder($this->frames($frameCount));
-        $factory = static fn (string $u, int $c, int $r): Player => Player::openForTest($decoder, fps: 24.0, totalFrames: 2400, cellsW: $c, cellsH: $r, videoPath: '/fake', paused: true);
+        $factory = static fn (string $u, int $c, int $r): Player => Player::fromDecoder($decoder, fps: 24.0, totalFrames: 2400, cellsW: $c, cellsH: $r, videoPath: '/fake', paused: true);
         $api = new ApiClient('https://srv', $transport);
         $syncPlayService = new SyncPlayService($api);
         $screen = new PlayerScreen($this->episodeItem($id), 'https://srv', $api, $factory, $syncPlayService, cols: 80, rows: 24);
@@ -1134,7 +1134,7 @@ final class PlayerScreenTest extends TestCase
                 ['id' => 'spec', 'name' => 'A Special'], // no season/episode numbers
             ], 'total' => 2]);
         $decoder = new FakePlayerDecoder($this->frames(0));
-        $factory = static fn (string $u, int $c, int $r): Player => Player::openForTest($decoder, fps: 24.0, totalFrames: 2400, cellsW: $c, cellsH: $r, videoPath: '/fake', paused: true);
+        $factory = static fn (string $u, int $c, int $r): Player => Player::fromDecoder($decoder, fps: 24.0, totalFrames: 2400, cellsW: $c, cellsH: $r, videoPath: '/fake', paused: true);
         $api = new ApiClient('https://srv', $transport);
         $syncPlayService = new SyncPlayService($api);
         $item = MediaItem::fromArray(['id' => 'cur', 'name' => 'Current', 'type' => 'episode', 'parent_id' => 'season-1', 'stream_url' => self::STREAM]);
@@ -1178,7 +1178,7 @@ final class PlayerScreenTest extends TestCase
     private function episodeScreenWithParent(string $id, string $parentId, FakeTransport $transport): PlayerScreen
     {
         $decoder = new FakePlayerDecoder($this->frames());
-        $factory = static fn (string $u, int $c, int $r): Player => Player::openForTest($decoder, fps: 24.0, totalFrames: 2400, cellsW: $c, cellsH: $r, videoPath: '/fake', paused: true);
+        $factory = static fn (string $u, int $c, int $r): Player => Player::fromDecoder($decoder, fps: 24.0, totalFrames: 2400, cellsW: $c, cellsH: $r, videoPath: '/fake', paused: true);
         $api = new ApiClient('https://srv', $transport);
         $syncPlayService = new SyncPlayService($api);
         $item = MediaItem::fromArray([
@@ -1372,7 +1372,7 @@ final class PlayerScreenTest extends TestCase
         [$withResume] = $screen->update(new ResumeInfoMsg(42.0));
         self::assertFalse($withResume->isResumed(), 'cannot resume until the player exists');
 
-        $player = Player::openForTest($decoder, fps: 24.0, totalFrames: 2400, cellsW: 80, cellsH: 18, videoPath: '/fake', paused: true);
+        $player = Player::fromDecoder($decoder, fps: 24.0, totalFrames: 2400, cellsW: 80, cellsH: 18, videoPath: '/fake', paused: true);
         [$ready] = $withResume->update(new PlayerReadyMsg($player));
 
         self::assertTrue($ready->isResumed());
@@ -1696,7 +1696,7 @@ final class PlayerScreenTest extends TestCase
         [$screen] = $this->screen();
         // Drive a tiny inner player to the ended state: an empty decoder runs out
         // on the first tick (non-loop → ended, ticking stops).
-        $emptyInner = Player::openForTest(new FakePlayerDecoder([]), fps: 24.0, totalFrames: 0, videoPath: '/fake', paused: false);
+        $emptyInner = Player::fromDecoder(new FakePlayerDecoder([]), fps: 24.0, totalFrames: 0, videoPath: '/fake', paused: false);
         [$ended] = $emptyInner->update(new ReelTickMsg());
         self::assertInstanceOf(Player::class, $ended);
         self::assertTrue($ended->ended);

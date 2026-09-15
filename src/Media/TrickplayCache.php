@@ -12,6 +12,7 @@ namespace Phlix\Console\Media;
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\Dto\Trickplay;
 use React\Promise\PromiseInterface;
+use SugarCraft\Core\Util\Semaphore;
 use SugarCraft\Mosaic\DiskCache;
 
 use function React\Promise\resolve;
@@ -29,9 +30,6 @@ final class TrickplayCache
     /** @var array<string, Trickplay> */
     private array $memory = [];
 
-    /**
-     * @param Semaphore<Trickplay>|null $semaphore
-     */
     public function __construct(
         private readonly ApiClient $api,
         private readonly ?DiskCache $cache = null,
@@ -78,7 +76,7 @@ final class TrickplayCache
         $task = static fn (): PromiseInterface => $api->trickplay($mediaId);
 
         $promise = $this->semaphore !== null
-            ? $this->semaphore->wrap($task)
+            ? $this->semaphore->run($task)
             : $task();
 
         /** @return PromiseInterface<Trickplay> */

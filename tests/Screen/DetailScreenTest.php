@@ -613,7 +613,7 @@ final class DetailScreenTest extends TestCase
 
     /**
      * An empty (or null) child posterUrl is the ONLY case skipped by
-     * loadChildPostersIn: after resolveUrl it stays empty, so no child-poster
+     * loadVisibleChildPosters: after resolveUrl it stays empty, so no child-poster
      * load Cmd is scheduled (a crash-free skip).
      */
     public function testEmptyStringPosterUrlForChildIsSkippedAndDoesNotCrash(): void

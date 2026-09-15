@@ -19,6 +19,7 @@ use Phlix\Console\Api\Dto\MediaRatings;
 use Phlix\Console\Api\MediaQuery;
 use React\Promise\Deferred;
 use React\Promise\PromiseInterface;
+use SugarCraft\Core\Util\LruMap;
 
 use function React\Promise\all;
 use function React\Promise\resolve;
@@ -36,31 +37,31 @@ final class MediaStore
     /** Maximum number of item/detail entries to cache. */
     private const ITEM_CAPACITY = 500;
 
-    /** @var LruMap */
+    /** @var LruMap<mixed> */
     private LruMap $pages;
 
     /** @var array<string, PromiseInterface<MediaPage>>  page key → in-flight fetch */
     private array $inFlight = [];
 
-    /** @var LruMap */
+    /** @var LruMap<mixed> */
     private LruMap $letterIndexes;
 
     /** @var array<string, PromiseInterface<LetterIndex>>  cache key → in-flight fetch */
     private array $letterIndexesInFlight = [];
 
-    /** @var LruMap */
+    /** @var LruMap<mixed> */
     private LruMap $items;
 
     /** @var array<string, PromiseInterface<MediaItem>>  item id → in-flight detail fetch */
     private array $itemsInFlight = [];
 
-    /** @var LruMap */
+    /** @var LruMap<mixed> */
     private LruMap $ratings;
 
     /** @var array<string, PromiseInterface<MediaRatings>>  item id → in-flight ratings fetch */
     private array $ratingsInFlight = [];
 
-    /** @var LruMap */
+    /** @var LruMap<mixed> */
     private LruMap $chapters;
 
     /** @var array<string, PromiseInterface<list<Chapter>>>  item id → in-flight chapters fetch */
@@ -84,11 +85,11 @@ final class MediaStore
         ?\Closure $clock = null,
     ) {
         $this->clock = $clock ?? static fn (): float => microtime(true);
-        $this->pages = new LruMap(self::PAGE_CAPACITY);
-        $this->letterIndexes = new LruMap(self::PAGE_CAPACITY);
-        $this->items = new LruMap(self::ITEM_CAPACITY);
-        $this->ratings = new LruMap(self::ITEM_CAPACITY);
-        $this->chapters = new LruMap(self::ITEM_CAPACITY);
+        $this->pages = LruMap::new(self::PAGE_CAPACITY);
+        $this->letterIndexes = LruMap::new(self::PAGE_CAPACITY);
+        $this->items = LruMap::new(self::ITEM_CAPACITY);
+        $this->ratings = LruMap::new(self::ITEM_CAPACITY);
+        $this->chapters = LruMap::new(self::ITEM_CAPACITY);
     }
 
     public function api(): ApiClient
@@ -127,7 +128,7 @@ final class MediaStore
 
         $this->api->media($query)->then(
             function (MediaPage $page) use ($key, $now, $deferred): void {
-                $this->pages->set($key, ['page' => $page, 'at' => $now]);
+                $this->pages->put($key, ['page' => $page, 'at' => $now]);
                 unset($this->inFlight[$key]);
                 $deferred->resolve($page);
             },
@@ -169,7 +170,7 @@ final class MediaStore
 
         $this->api->mediaItem($id)->then(
             function (MediaItem $item) use ($id, $now, $deferred): void {
-                $this->items->set($id, ['item' => $item, 'at' => $now]);
+                $this->items->put($id, ['item' => $item, 'at' => $now]);
                 unset($this->itemsInFlight[$id]);
                 $deferred->resolve($item);
             },
@@ -210,7 +211,7 @@ final class MediaStore
 
         $this->api->mediaRatings($id)->then(
             function (MediaRatings $mediaRatings) use ($id, $now, $deferred): void {
-                $this->ratings->set($id, ['ratings' => $mediaRatings, 'at' => $now]);
+                $this->ratings->put($id, ['ratings' => $mediaRatings, 'at' => $now]);
                 unset($this->ratingsInFlight[$id]);
                 $deferred->resolve($mediaRatings);
             },
@@ -251,7 +252,7 @@ final class MediaStore
 
         $this->api->mediaChapters($id)->then(
             function (array $chapters) use ($id, $now, $deferred): void {
-                $this->chapters->set($id, ['chapters' => $chapters, 'at' => $now]);
+                $this->chapters->put($id, ['chapters' => $chapters, 'at' => $now]);
                 unset($this->chaptersInFlight[$id]);
                 $deferred->resolve($chapters);
             },
@@ -346,7 +347,7 @@ final class MediaStore
 
         $this->api->letterIndex($query)->then(
             function (LetterIndex $index) use ($key, $now, $deferred): void {
-                $this->letterIndexes->set($key, ['index' => $index, 'at' => $now]);
+                $this->letterIndexes->put($key, ['index' => $index, 'at' => $now]);
                 unset($this->letterIndexesInFlight[$key]);
                 $deferred->resolve($index);
             },

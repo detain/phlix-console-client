@@ -14,6 +14,7 @@ use Phlix\Console\Api\Dto\Book;
 use Phlix\Console\Api\Dto\BookPage;
 use React\Promise\Deferred;
 use React\Promise\PromiseInterface;
+use SugarCraft\Core\Util\LruMap;
 
 use function React\Promise\all;
 use function React\Promise\resolve;
@@ -32,13 +33,13 @@ final class BooksStore
     /** Maximum number of item/detail entries to cache. */
     private const ITEM_CAPACITY = 500;
 
-    /** @var LruMap */
+    /** @var LruMap<mixed> */
     private LruMap $pages;
 
     /** @var array<string, PromiseInterface<BookPage>>  page key → in-flight fetch */
     private array $inFlight = [];
 
-    /** @var LruMap */
+    /** @var LruMap<mixed> */
     private LruMap $books;
 
     /** @var array<string, PromiseInterface<Book>>  book id → in-flight detail fetch */
@@ -56,8 +57,8 @@ final class BooksStore
         ?\Closure $clock = null,
     ) {
         $this->clock = $clock ?? static fn (): float => microtime(true);
-        $this->pages = new LruMap(self::PAGE_CAPACITY);
-        $this->books = new LruMap(self::ITEM_CAPACITY);
+        $this->pages = LruMap::new(self::PAGE_CAPACITY);
+        $this->books = LruMap::new(self::ITEM_CAPACITY);
     }
 
     /**
@@ -92,7 +93,7 @@ final class BooksStore
 
         $this->api->books($libraryId, $limit, $offset)->then(
             function (BookPage $page) use ($key, $now, $deferred): void {
-                $this->pages->set($key, ['page' => $page, 'at' => $now]);
+                $this->pages->put($key, ['page' => $page, 'at' => $now]);
                 unset($this->inFlight[$key]);
                 $deferred->resolve($page);
             },
@@ -133,7 +134,7 @@ final class BooksStore
 
         $this->api->book($id)->then(
             function (Book $book) use ($id, $now, $deferred): void {
-                $this->books->set($id, ['book' => $book, 'at' => $now]);
+                $this->books->put($id, ['book' => $book, 'at' => $now]);
                 unset($this->booksInFlight[$id]);
                 $deferred->resolve($book);
             },

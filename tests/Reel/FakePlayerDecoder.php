@@ -10,7 +10,7 @@ use SugarCraft\Reel\Render\Mode;
 /**
  * A client-side sugar-reel FakeDecoder double yielding a fixed frame
  * sequence — so PlayerScreen tests can build a real sugar-reel Player
- * (via Player::openForTest) without spawning ffmpeg.
+ * (via Player::fromDecoder) without spawning ffmpeg.
  */
 final class FakePlayerDecoder extends \SugarCraft\Reel\Tests\FakeDecoder
 {
@@ -23,20 +23,27 @@ final class FakePlayerDecoder extends \SugarCraft\Reel\Tests\FakeDecoder
     {
     }
 
-    public function open(string $source, int $cellsW, int $cellsH, float $fps, ?Mode $mode = null, float $startSec = 0.0): void
+    public function open(string $source, int $cellsW, int $cellsH, float $fps, ?Mode $mode = null, float $startSec = 0.0, array $headers = []): void
     {
         $this->index = 0;
         $this->closed = false;
         $this->ended = false;
     }
 
-    public function reopen(string $source, int $cellsW, int $cellsH, float $fps, ?Mode $mode = null, float $startSec = 0.0): void
+    public function reopen(string $source, int $cellsW, int $cellsH, float $fps, ?Mode $mode = null, float $startSec = 0.0, array $headers = []): void
     {
         $this->index = 0;
         $this->closed = false;
         $this->ended = false;
-        $this->opened = true;
-        $this->everOpened = true;
+    }
+
+    /**
+     * Overrides the parent reset: this class shadows `$index` (the parent's is
+     * private, so the inherited reset() would zero a slot next() never reads).
+     */
+    public function reset(): void
+    {
+        $this->index = 0;
     }
 
     public function next(): ?RgbFrame

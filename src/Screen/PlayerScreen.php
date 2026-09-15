@@ -138,6 +138,8 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     private const UP_NEXT_COUNTDOWN = 8;
     /** Seconds between transcode-readiness polls. */
     private const TRANSCODE_POLL_INTERVAL = 2.0;
+    /** Assumed terminal cell pixel box when the terminal never reported one. */
+    private const FALLBACK_CELL_PX = [10, 20];
 
     private ?Player $inner = null;
     private ?string $error = null;
@@ -282,19 +284,26 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
      *                          mode (e.g. 'auto' → 'chafa') falls back to the
      *                          terminal's best auto-detected mode.
      * @param array{cellWidth:int,cellHeight:int}|null $cellSize The terminal's detected
-     *                          cell pixel size. Graphics modes decode video at the full
-     *                          pixel resolution (cells × cell-pixel-size); null falls back
-     *                          to a 10×20 assumed cell box.
+     *                          cell pixel size, straight from {@see \SugarCraft\Mosaic\Mosaic::fontSize()}
+     *                          (it reports either a complete measurement or nothing at all).
+     *                          Graphics modes decode video at the full pixel resolution
+     *                          (cells × cell-pixel-size).
      * @return \Closure(string $url, int $cols, int $rows): Player
      */
     public static function productionFactory(?string $mode = null, ?array $cellSize = null): \Closure
     {
         $reelMode = ($mode !== null ? Mode::tryFrom($mode) : null) ?? RendererFactory::autoMode();
-        $cellPxW = $cellSize['cellWidth'] ?? 10;
-        $cellPxH = $cellSize['cellHeight'] ?? 20;
+
+        // A terminal that never reported a cell box gets one documented default
+        // pair — the same 10×20 upstream Player::open() itself assumes. The
+        // measurement from Mosaic::fontSize() is all-or-nothing, so there is no
+        // half-measured case to guard per key.
+        [$cellPxW, $cellPxH] = $cellSize === null
+            ? self::FALLBACK_CELL_PX
+            : [$cellSize['cellWidth'], $cellSize['cellHeight']];
 
         return static fn (string $url, int $cols, int $rows): Player
-            => Player::open($url, $cols, $rows, null, $reelMode, false, 'standard', $cellPxW, $cellPxH);
+            => Player::open($url, $cols, $rows, mode: $reelMode, cellPxW: $cellPxW, cellPxH: $cellPxH);
     }
 
     /**

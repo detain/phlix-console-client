@@ -37,7 +37,8 @@
         "humbug/box": "^4.7",
         "phpstan/phpstan": "^2.0",
         "phpunit/phpunit": "^11.0",
-        "squizlabs/php_codesniffer": "^4.0"
+        "squizlabs/php_codesniffer": "^4.0",
+        "sugarcraft/candy-testing": "dev-master"
     },
     "autoload": {
         "psr-4": {

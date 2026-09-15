@@ -61,6 +61,7 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
     use SubscriptionCapable;
     use ThemedScreen;
     use ShimmeringScreen;
+    use PosterFetchPolicy;
 
     private const CARD_WIDTH = 14;
     private const POSTER_HEIGHT = 9;
@@ -459,24 +460,24 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
         [$start, $overScanEnd] = $grid->visibleRange(self::OVERSCAN);
 
         // Release image layer entries that are no longer in the visible window.
-        // Digests for the new visible range come from digestByIndex (populated by
-        // onPoster as async loads complete). Items newly visible but not yet loaded
-        // don't have entries yet - their loads are already queued via loadPostersIn.
+        // The keep-set is the loaded cards inside the overscan window (the seam's
+        // visibleCards — skeleton cells hold no art and pin nothing); their
+        // digests come from digestByIndex, populated by onPoster as loads land.
         $digestsToKeep = [];
-        for ($i = $start; $i <= $overScanEnd; $i++) {
-            if (isset($this->digestByIndex[$i])) {
-                $digestsToKeep[] = $this->digestByIndex[$i];
+        foreach (array_keys($grid->visibleCards(self::OVERSCAN)) as $index) {
+            if (isset($this->digestByIndex[$index])) {
+                $digestsToKeep[] = $this->digestByIndex[$index];
             }
         }
         $this->posters->releaseAllExcept($digestsToKeep);
 
         $cmds = [];
         $requested = $this->requestedRange;
-        if ($overScanEnd >= $start && !($start >= $requested[0] && $overScanEnd <= $requested[1])) {
+        if ($grid->needsFetch($requested, self::OVERSCAN)) {
             $cmds[] = $this->fetchRange($start, $overScanEnd);
             $requested = [$start, $overScanEnd];
         }
-        $posterCmd = $this->loadPostersIn($grid, $start, $overScanEnd);
+        $posterCmd = $this->loadVisiblePosters($grid);
         if ($posterCmd !== null) {
             $cmds[] = $posterCmd;
         }
@@ -502,9 +503,7 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
         $next->grid = $grid;
         $next->loaded = true;
 
-        [$start, $end] = $grid->visibleRange(self::OVERSCAN);
-
-        return [$next, $next->loadPostersIn($grid, $start, $end)];
+        return [$next, $next->loadVisiblePosters($grid)];
     }
 
     private function onPoster(int $index, string $ansi, ?int $imageId = null, ?string $digest = null): self
@@ -560,28 +559,22 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
         ));
     }
 
-    /** Batch poster loads for the loaded, poster-less cells in [start, end]. */
-    private function loadPostersIn(PosterGrid $grid, int $start, int $end): ?\Closure
+    /**
+     * Batch poster loads for the loaded, poster-less cells of the visible window
+     * (widened by overscan) via the sugar-gallery seam. Transport policy stays
+     * local in the fillability predicate ({@see PosterFetchPolicy}): a cell whose
+     * poster URL does not resolve to an absolute http(s) target keeps its
+     * skeleton and is never queued.
+     */
+    private function loadVisiblePosters(PosterGrid $grid): ?\Closure
     {
         $cmds = [];
-        for ($i = max(0, $start); $i <= $end; $i++) {
-            $card = $grid->item($i);
-            if ($card === null || $card->posterUrl === null || $card->posterUrl === '' || $card->hasPoster()) {
-                continue;
+        foreach ($grid->indicesNeedingPoster(self::OVERSCAN, $this->isFillablePoster(...)) as $index) {
+            $card = $grid->item($index);
+            $url = $card !== null ? $this->fetchablePosterUrl($card) : null;
+            if ($url === null) {
+                continue; // unreachable: the seam already applied the predicate
             }
-            // Resolve relative URLs against the server base URL; absolute/empty pass through.
-            $url = $this->resolveUrl($card->posterUrl);
-            if ($url === '') {
-                continue;
-            }
-            // Defensive: validate URL has a valid http/https scheme before attempting load.
-            // parse_url returns false for malformed URLs and null for URLs with no scheme.
-            $scheme = parse_url($url, PHP_URL_SCHEME);
-            if ($scheme === null || $scheme === false || !in_array($scheme, ['http', 'https'], true)) {
-                // Skip malformed URLs or non-http(s) schemes silently - treat them the same as a missing poster.
-                continue;
-            }
-            $index = $i;
             $cmds[] = Cmd::promise(fn () => $this->posters->load($url, self::CARD_WIDTH, self::POSTER_HEIGHT)->then(
                 static fn (PosterLoadResult $result): Msg => new GridPosterLoadedMsg($index, $result->marker, $result->imageId, $result->digest),
                 static fn (\Throwable $e): ?Msg => null, // a broken poster keeps its skeleton

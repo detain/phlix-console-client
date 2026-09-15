@@ -300,7 +300,7 @@ final class SearchScreenTest extends TestCase
     }
 
     /**
-     * An empty (or null) posterUrl is the ONLY case skipped by loadPostersIn:
+     * An empty (or null) posterUrl is the ONLY case skipped by loadVisiblePosters:
      * after resolveUrl it stays empty, so no load Cmd is scheduled. (A crash-free
      * skip — no "URL scheme unknown" from the loader.)
      */

@@ -43,6 +43,3 @@ parameters:
         - tests/stub
         - tests/Reel/FakePlayerDecoder.php
         - tests/Reel/FakeAudioPlayer.php
-        - tests/Graphics/KittyDecoder.php
-        - tests/Graphics/Iterm2Decoder.php
-        - tests/Graphics/SixelDecoder.php

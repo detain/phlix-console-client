@@ -23,7 +23,6 @@ use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\SubscriptionCapable;
-use SugarCraft\Gallery\PosterCard;
 use SugarCraft\Gallery\PosterGrid;
 
 /**
@@ -48,6 +47,7 @@ final class PhotoAlbumScreen implements Breadcrumbed, Themed
 {
     use SubscriptionCapable;
     use ThemedScreen;
+    use PosterFetchPolicy;
 
     private const CARD_WIDTH = 14;
     private const POSTER_HEIGHT = 9;
@@ -82,7 +82,7 @@ final class PhotoAlbumScreen implements Breadcrumbed, Themed
     {
         // No data fetch — the album carries its photos. Just load the initially
         // visible thumbnails (each card already has its signed thumbnail URL).
-        return $this->loadCoversIn($this->grid, ...$this->grid->visibleRange(self::OVERSCAN));
+        return $this->loadVisibleCovers($this->grid);
     }
 
     /** @return array{self, ?\Closure} */
@@ -177,7 +177,7 @@ final class PhotoAlbumScreen implements Breadcrumbed, Themed
         $next = clone $this;
         $next->grid = $grid;
 
-        return [$next, $next->loadCoversIn($grid, ...$grid->visibleRange(self::OVERSCAN))];
+        return [$next, $next->loadVisibleCovers($grid)];
     }
 
     private function onPoster(int $index, string $ansi): self
@@ -191,36 +191,25 @@ final class PhotoAlbumScreen implements Breadcrumbed, Themed
     }
 
     /**
-     * Load thumbnails for the cover-less cells in [start, end]: each card already
-     * carries its signed thumbnail as `posterUrl`, so render it DIRECTLY (no
-     * detail fetch) → {@see GridPosterLoadedMsg}. A card with a null `posterUrl`
-     * is skipped — it keeps its placeholder. Any render failure is swallowed so
-     * the cell keeps its placeholder, never crashing.
+     * Load thumbnails for the loaded, cover-less cells of the visible window
+     * (widened by overscan) via the sugar-gallery seam. Each card already carries
+     * its signed thumbnail as `posterUrl`, so the transport here renders it
+     * DIRECTLY (no detail fetch) → {@see GridPosterLoadedMsg}. Policy stays local
+     * in the fillability predicate ({@see PosterFetchPolicy}): the thumbnail must
+     * resolve to an absolute http(s) URL or the cell keeps its placeholder; any
+     * render failure is swallowed so the cell keeps its placeholder, never
+     * crashing.
      */
-    private function loadCoversIn(PosterGrid $grid, int $start, int $end): ?\Closure
+    private function loadVisibleCovers(PosterGrid $grid): ?\Closure
     {
         $cmds = [];
-        for ($i = max(0, $start); $i <= $end; $i++) {
-            $card = $grid->item($i);
-            if ($card === null || $card->hasPoster() || $card->posterUrl === null || $card->posterUrl === '') {
-                continue;
+        foreach ($grid->indicesNeedingPoster(self::OVERSCAN, $this->isFillablePoster(...)) as $index) {
+            $card = $grid->item($index);
+            $url = $card !== null ? $this->fetchablePosterUrl($card) : null;
+            if ($url === null) {
+                continue; // unreachable: the seam already applied the predicate
             }
-            // Resolve relative URLs against the server base URL BEFORE scheme validation;
-            // absolute/empty pass through. A raw relative thumbnail (e.g. /cover.png) has
-            // no scheme, so scheme-checking it first would drop it — resolve first.
-            $url = $this->resolveUrl($card->posterUrl);
-            if ($url === '') {
-                continue;
-            }
-            // Defensive: validate URL has a valid http/https scheme before attempting load.
-            // parse_url returns false for malformed URLs and null for URLs with no scheme.
-            $scheme = parse_url($url, PHP_URL_SCHEME);
-            if ($scheme === null || $scheme === false || !in_array($scheme, ['http', 'https'], true)) {
-                // Skip malformed URLs or non-http(s) schemes silently - treat them the
-                // same as a missing poster.
-                continue;
-            }
-            $cmds[] = $this->loadCover($i, $url);
+            $cmds[] = $this->loadCover($index, $url);
         }
 
         return $cmds === [] ? null : Cmd::batch(...$cmds);
