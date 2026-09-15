@@ -412,7 +412,7 @@ final class PhotosScreenTest extends TestCase
     }
 
     /**
-     * An empty cover thumbnail URL is the ONLY case skipped by loadCoversIn: after
+     * An empty cover thumbnail URL is the ONLY case skipped by loadVisibleCovers: after
      * resolveUrl it stays empty, so no cover load Cmd is scheduled (a crash-free
      * skip — no "URL scheme unknown" from the loader).
      */

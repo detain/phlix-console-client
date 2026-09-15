@@ -54,6 +54,7 @@ final class PhotosScreen implements Breadcrumbed, Loadable, Shimmering, Themed
     use SubscriptionCapable;
     use ThemedScreen;
     use ShimmeringScreen;
+    use PosterFetchPolicy;
 
     private const CARD_WIDTH = 14;
     private const POSTER_HEIGHT = 9;
@@ -250,9 +251,7 @@ final class PhotosScreen implements Breadcrumbed, Loadable, Shimmering, Themed
         }
         $next->grid = $this->grid->reset($count)->withItems($cards);
 
-        [$start, $end] = $next->grid->visibleRange(self::OVERSCAN);
-
-        return [$next, $next->loadCoversIn($next->grid, $start, $end)];
+        return [$next, $next->loadVisibleCovers($next->grid)];
     }
 
     private function fetchRange(int $start, int $end): \Closure
@@ -298,7 +297,7 @@ final class PhotosScreen implements Breadcrumbed, Loadable, Shimmering, Themed
             $next->requestedRange = [$fetchStart, $fetchEnd];
         }
 
-        $coverCmd = $next->loadCoversIn($grid, ...$grid->visibleRange(self::OVERSCAN));
+        $coverCmd = $next->loadVisibleCovers($grid);
 
         if ($cmds === [] && $coverCmd === null) {
             return [$next, null];
@@ -335,36 +334,24 @@ final class PhotosScreen implements Breadcrumbed, Loadable, Shimmering, Themed
     }
 
     /**
-     * Load covers for the cover-less cells in [start, end]: each card already
-     * carries its signed thumbnail as `posterUrl`, so render it DIRECTLY (no
-     * detail fetch) → {@see GridPosterLoadedMsg}. A card with a null `posterUrl`
-     * (an album with no cover) is skipped — it keeps its placeholder. Any render
+     * Load covers for the loaded, cover-less cells of the visible window (widened
+     * by overscan) via the sugar-gallery seam. Each card already carries its
+     * signed thumbnail as `posterUrl`, so the transport here renders it DIRECTLY
+     * (no detail fetch) → {@see GridPosterLoadedMsg}. Policy stays local in the
+     * fillability predicate ({@see PosterFetchPolicy}): the thumbnail must resolve
+     * to an absolute http(s) URL or the cell keeps its placeholder; any render
      * failure is swallowed so the cell keeps its placeholder, never crashing.
      */
-    private function loadCoversIn(PosterGrid $grid, int $start, int $end): ?\Closure
+    private function loadVisibleCovers(PosterGrid $grid): ?\Closure
     {
         $cmds = [];
-        for ($i = max(0, $start); $i <= $end; $i++) {
-            $card = $grid->item($i);
-            if ($card === null || $card->hasPoster() || $card->posterUrl === null || $card->posterUrl === '') {
-                continue;
+        foreach ($grid->indicesNeedingPoster(self::OVERSCAN, $this->isFillablePoster(...)) as $index) {
+            $card = $grid->item($index);
+            $url = $card !== null ? $this->fetchablePosterUrl($card) : null;
+            if ($url === null) {
+                continue; // unreachable: the seam already applied the predicate
             }
-            // Resolve relative URLs against the server base URL BEFORE scheme validation;
-            // absolute/empty pass through. A raw relative thumbnail (e.g. /cover.png) has
-            // no scheme, so scheme-checking it first would drop it — resolve first.
-            $url = $this->resolveUrl($card->posterUrl);
-            if ($url === '') {
-                continue;
-            }
-            // Defensive: validate URL has a valid http/https scheme before attempting load.
-            // parse_url returns false for malformed URLs and null for URLs with no scheme.
-            $scheme = parse_url($url, PHP_URL_SCHEME);
-            if ($scheme === null || $scheme === false || !in_array($scheme, ['http', 'https'], true)) {
-                // Skip malformed URLs or non-http(s) schemes silently - treat them the
-                // same as a missing poster.
-                continue;
-            }
-            $cmds[] = $this->loadCover($i, $url);
+            $cmds[] = $this->loadCover($index, $url);
         }
 
         return $cmds === [] ? null : Cmd::batch(...$cmds);

@@ -100,6 +100,7 @@ final class DetailScreen implements Breadcrumbed, Themed
 {
     use SubscriptionCapable;
     use ThemedScreen;
+    use PosterFetchPolicy;
 
     private const HERO_WIDTH = 26;
     private const HERO_HEIGHT = 16;
@@ -976,20 +977,14 @@ final class DetailScreen implements Breadcrumbed, Themed
 
     private function fetchHero(string $url): ?\Closure
     {
-        // Resolve relative URLs against the server base URL; absolute/empty pass through.
-        $url = $this->resolveUrl($url);
-        if ($url === '') {
-            return null;
-        }
-        // Defensive: validate URL has a valid http/https scheme before attempting load.
-        // parse_url returns false for malformed URLs and null for URLs with no scheme.
-        $scheme = parse_url($url, PHP_URL_SCHEME);
-        if ($scheme === null || $scheme === false || !in_array($scheme, ['http', 'https'], true)) {
-            // Skip relative URLs (no scheme), malformed URLs, or non-http(s) schemes silently.
+        $fetchable = $this->fetchableUrl($url);
+        if ($fetchable === null) {
+            // Empty, malformed or non-http(s) hero URL - silently keep the placeholder,
+            // treated the same as a missing poster.
             return null;
         }
 
-        return Cmd::promise(fn () => $this->posters->load($url, self::HERO_WIDTH, self::HERO_HEIGHT)->then(
+        return Cmd::promise(fn () => $this->posters->load($fetchable, self::HERO_WIDTH, self::HERO_HEIGHT)->then(
             function (\Phlix\Console\Media\PosterLoadResult $result): Msg {
                 return new DetailPosterLoadedMsg($result->marker, $result->imageId);
             },
@@ -1083,9 +1078,7 @@ final class DetailScreen implements Breadcrumbed, Themed
         $next->childGrid = $grid;
         $next->childLoaded = true;
 
-        [$start, $end] = $grid->visibleRange(self::OVERSCAN);
-
-        return [$next, $next->loadChildPostersIn($grid, $start, $end)];
+        return [$next, $next->loadVisibleChildPosters($grid)];
     }
 
     private function onChildPoster(string $parentId, int $index, string $marker, ?int $imageId): self
@@ -1124,11 +1117,11 @@ final class DetailScreen implements Breadcrumbed, Themed
 
         $cmds = [];
         $requested = $this->childRequested;
-        if ($end >= $start && !($start >= $requested[0] && $end <= $requested[1])) {
+        if ($grid->needsFetch($requested, self::OVERSCAN)) {
             $cmds[] = $this->fetchChildren($start, $end);
             $requested = [$start, $end];
         }
-        $posterCmd = $this->loadChildPostersIn($grid, $start, $end);
+        $posterCmd = $this->loadVisibleChildPosters($grid);
         if ($posterCmd !== null) {
             $cmds[] = $posterCmd;
         }
@@ -1140,30 +1133,23 @@ final class DetailScreen implements Breadcrumbed, Themed
         return [$next, $cmds === [] ? null : Cmd::batch(...$cmds)];
     }
 
-    /** Batch poster loads for the loaded, poster-less child cells in [start, end]. */
-    private function loadChildPostersIn(PosterGrid $grid, int $start, int $end): ?\Closure
+    /**
+     * Batch poster loads for the loaded, poster-less child cells of the visible
+     * window (widened by overscan) via the sugar-gallery seam. Transport policy
+     * stays local in the fillability predicate ({@see PosterFetchPolicy}): a cell
+     * whose poster URL does not resolve to an absolute http(s) target keeps its
+     * skeleton and is never queued.
+     */
+    private function loadVisibleChildPosters(PosterGrid $grid): ?\Closure
     {
         $parentId = $this->id;
         $cmds = [];
-        for ($i = max(0, $start); $i <= $end; $i++) {
-            $card = $grid->item($i);
-            if ($card === null || $card->posterUrl === null || $card->posterUrl === '' || $card->hasPoster()) {
-                continue;
+        foreach ($grid->indicesNeedingPoster(self::OVERSCAN, $this->isFillablePoster(...)) as $index) {
+            $card = $grid->item($index);
+            $url = $card !== null ? $this->fetchablePosterUrl($card) : null;
+            if ($url === null) {
+                continue; // unreachable: the seam already applied the predicate
             }
-            // Resolve relative URLs against the server base URL; absolute/empty pass through.
-            $url = $this->resolveUrl($card->posterUrl);
-            if ($url === '') {
-                continue;
-            }
-            // Defensive: validate URL has a valid http/https scheme before attempting load.
-            // parse_url returns false for malformed URLs and null for URLs with no scheme.
-            $scheme = parse_url($url, PHP_URL_SCHEME);
-            if ($scheme === null || $scheme === false || !in_array($scheme, ['http', 'https'], true)) {
-                // Skip relative URLs (no scheme), malformed URLs, or non-http(s) schemes
-                // silently - treat them the same as a missing poster.
-                continue;
-            }
-            $index = $i;
             $cmds[] = Cmd::promise(fn () => $this->posters->load($url, self::CARD_WIDTH, self::POSTER_HEIGHT)->then(
                 function (\Phlix\Console\Media\PosterLoadResult $result) use ($parentId, $index): Msg {
                     return new ChildPosterLoadedMsg($parentId, $index, $result->marker, $result->imageId);

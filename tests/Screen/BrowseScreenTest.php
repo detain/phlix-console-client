@@ -799,8 +799,8 @@ final class BrowseScreenTest extends TestCase
     }
 
     /**
-     * An empty (or null) posterUrl is the ONLY case skipped by loadPostersIn:
-     * after resolveUrl it stays empty, so no poster load Cmd is scheduled (a
+     * An empty (or null) posterUrl is the ONLY case skipped by the rail poster
+     * fill: after resolveUrl it stays empty, so no poster load Cmd is scheduled (a
      * crash-free skip — no "URL scheme unknown" from the loader).
      */
     public function testEmptyStringPosterUrlIsSkippedAndDoesNotCrash(): void

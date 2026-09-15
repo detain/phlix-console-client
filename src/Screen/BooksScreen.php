@@ -221,11 +221,11 @@ final class BooksScreen implements Breadcrumbed, Loadable, Shimmering, Themed
 
         $cmds = [];
         $requested = $this->requestedRange;
-        if ($end >= $start && !($start >= $requested[0] && $end <= $requested[1])) {
+        if ($grid->needsFetch($requested, self::OVERSCAN)) {
             $cmds[] = $this->fetchRange($start, $end);
             $requested = [$start, $end];
         }
-        $coverCmd = $this->loadCoversIn($grid, $start, $end);
+        $coverCmd = $this->loadVisibleCovers($grid);
         if ($coverCmd !== null) {
             $cmds[] = $coverCmd;
         }
@@ -254,9 +254,7 @@ final class BooksScreen implements Breadcrumbed, Loadable, Shimmering, Themed
         $next->grid = $grid;
         $next->loaded = true;
 
-        [$start, $end] = $grid->visibleRange(self::OVERSCAN);
-
-        return [$next, $next->loadCoversIn($grid, $start, $end)];
+        return [$next, $next->loadVisibleCovers($grid)];
     }
 
     private function onPoster(int $index, string $ansi): self
@@ -282,20 +280,23 @@ final class BooksScreen implements Breadcrumbed, Loadable, Shimmering, Themed
     }
 
     /**
-     * Lazily load covers for the loaded, cover-less cells in [start, end]: each
-     * needs the book's DETAIL first (the list shape has no cover URL), so chain
-     * `book(id)` → resolve `coverUrl` → render → {@see GridPosterLoadedMsg}. A
-     * null cover or any failure is swallowed so the cell keeps its placeholder.
+     * Lazily load covers for the loaded, cover-less cells of the visible window
+     * (widened by overscan) via the sugar-gallery seam. Every loaded cell is
+     * fillable by definition — the list shape carries no cover URL, so the
+     * transport here is `book(id)` detail → resolve `coverUrl` → render
+     * ({@see self::loadCover()}); the detail fetch is what lazily discovers the URL.
+     * A null cover or any failure is swallowed so the cell keeps its placeholder.
      */
-    private function loadCoversIn(PosterGrid $grid, int $start, int $end): ?\Closure
+    private function loadVisibleCovers(PosterGrid $grid): ?\Closure
     {
         $cmds = [];
-        for ($i = max(0, $start); $i <= $end; $i++) {
-            $card = $grid->item($i);
-            if ($card === null || $card->hasPoster()) {
-                continue;
+        $everyCardIsFillable = static fn (PosterCard $card): bool => true;
+        foreach ($grid->indicesNeedingPoster(self::OVERSCAN, $everyCardIsFillable) as $index) {
+            $card = $grid->item($index);
+            if ($card === null) {
+                continue; // unreachable: the seam only reports loaded cells
             }
-            $cmds[] = $this->loadCover($i, $card->id);
+            $cmds[] = $this->loadCover($index, $card->id);
         }
 
         return $cmds === [] ? null : Cmd::batch(...$cmds);
