@@ -12,6 +12,7 @@ namespace Phlix\Console\Media;
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\Dto\Trickplay;
 use React\Promise\PromiseInterface;
+use SugarCraft\Core\Util\LruMap;
 use SugarCraft\Core\Util\Semaphore;
 use SugarCraft\Mosaic\DiskCache;
 
@@ -26,15 +27,19 @@ use function React\Promise\resolve;
  */
 final class TrickplayCache
 {
+    /** Entries the in-memory tier holds before the LRU victim is dropped. */
+    private const MEMORY_CAPACITY = 512;
+
     /** In-memory cache of already-resolved trickplay data, keyed by media ID. */
-    /** @var array<string, Trickplay> */
-    private array $memory = [];
+    /** @var LruMap<mixed> — Trickplay values (phpstan cannot bind V on a static new()). */
+    private LruMap $memory;
 
     public function __construct(
         private readonly ApiClient $api,
         private readonly ?DiskCache $cache = null,
         private readonly ?Semaphore $semaphore = null,
     ) {
+        $this->memory = LruMap::new(self::MEMORY_CAPACITY);
     }
 
     /**
@@ -46,8 +51,9 @@ final class TrickplayCache
     public function load(string $mediaId): PromiseInterface
     {
         // Memory cache hit — instant resolve without I/O.
-        if (isset($this->memory[$mediaId])) {
-            return resolve($this->memory[$mediaId]);
+        $cached = $this->memory->get($mediaId);
+        if ($cached instanceof Trickplay) {
+            return resolve($cached);
         }
 
         $key = 'trickplay:' . $mediaId;
@@ -64,7 +70,7 @@ final class TrickplayCache
                 ) {
                     /** @var array{sprite_url: ?string, timeline_url: ?string} $data */
                     $tp = Trickplay::fromArray($data);
-                    $this->memory[$mediaId] = $tp;
+                    $this->memory->put($mediaId, $tp);
 
                     return resolve($tp);
                 }
@@ -82,7 +88,7 @@ final class TrickplayCache
         /** @return PromiseInterface<Trickplay> */
         return $promise->then(function (Trickplay $tp) use ($mediaId, $key): Trickplay {
             // Store in memory cache.
-            $this->memory[$mediaId] = $tp;
+            $this->memory->put($mediaId, $tp);
 
             // Persist to disk cache if available.
             if ($this->cache !== null) {
