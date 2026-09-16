@@ -24,7 +24,6 @@ use Phlix\Console\Msg\TranscodeStatusMsg;
 use Phlix\Console\Msg\UpNextTickMsg;
 use Phlix\Console\Screen\PlayerScreen;
 use Phlix\Console\Tests\Api\FakeTransport;
-use Phlix\Console\Tests\Reel\FakePlayerDecoder;
 use PHPUnit\Framework\TestCase;
 use React\EventLoop\Loop;
 use React\Http\Message\Response;
@@ -39,6 +38,7 @@ use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Reel\Decode\RgbFrame;
 use SugarCraft\Reel\Msg\TickMsg as ReelTickMsg;
 use SugarCraft\Reel\Player;
+use SugarCraft\Reel\Tests\FakeDecoder;
 
 use function React\Promise\resolve;
 
@@ -232,7 +232,7 @@ final class PlayerScreenTest extends TestCase
      * markers transport defaults to the standard `/playback-info` response.
      *
      * @param list<string> $captured
-     * @return array{PlayerScreen, FakePlayerDecoder}
+     * @return array{PlayerScreen, FakeDecoder}
      */
     private function screen(
         ?string $streamUrl = self::STREAM,
@@ -242,7 +242,7 @@ final class PlayerScreenTest extends TestCase
         int $rows = 24,
         ?FakeTransport $transport = null,
     ): array {
-        $decoder = new FakePlayerDecoder($this->frames());
+        $decoder = new FakeDecoder($this->frames());
         $factory = function (string $url, int $c, int $r) use ($decoder, &$captured): Player {
             $captured[] = $url;
 
@@ -618,11 +618,11 @@ final class PlayerScreenTest extends TestCase
      * A screen whose factory FAILS to direct-play (throws) but succeeds on an
      * HLS master URL — so the transcode fallback can be exercised.
      *
-     * @return array{PlayerScreen, FakePlayerDecoder}
+     * @return array{PlayerScreen, FakeDecoder}
      */
     private function transcodeScreen(FakeTransport $transport): array
     {
-        $decoder = new FakePlayerDecoder($this->frames());
+        $decoder = new FakeDecoder($this->frames());
         $factory = function (string $url, int $c, int $r) use ($decoder): Player {
             if (str_contains($url, 'master.m3u8')) {
                 return Player::fromDecoder($decoder, fps: 24.0, totalFrames: 2400, cellsW: $c, cellsH: $r, videoPath: '/fake', paused: true);
@@ -1025,7 +1025,7 @@ final class PlayerScreenTest extends TestCase
             ->json(200, $this->continueWatching())                     // 2: resume (none)
             ->json(200, $this->playbackResponse($id, 'episode'))       // 3: audio tracks
             ->json(200, $this->episodesPage());                        // 4: siblings
-        $decoder = new FakePlayerDecoder($this->frames($frameCount));
+        $decoder = new FakeDecoder($this->frames($frameCount));
         $factory = static fn (string $u, int $c, int $r): Player => Player::fromDecoder($decoder, fps: 24.0, totalFrames: 2400, cellsW: $c, cellsH: $r, videoPath: '/fake', paused: true);
         $api = new ApiClient('https://srv', $transport);
         $syncPlayService = new SyncPlayService($api);
@@ -1133,7 +1133,7 @@ final class PlayerScreenTest extends TestCase
                 ['id' => 'cur', 'name' => 'Current', 'type' => 'episode', 'season_number' => 1, 'episode_number' => 1],
                 ['id' => 'spec', 'name' => 'A Special'], // no season/episode numbers
             ], 'total' => 2]);
-        $decoder = new FakePlayerDecoder($this->frames(0));
+        $decoder = new FakeDecoder($this->frames(0));
         $factory = static fn (string $u, int $c, int $r): Player => Player::fromDecoder($decoder, fps: 24.0, totalFrames: 2400, cellsW: $c, cellsH: $r, videoPath: '/fake', paused: true);
         $api = new ApiClient('https://srv', $transport);
         $syncPlayService = new SyncPlayService($api);
@@ -1177,7 +1177,7 @@ final class PlayerScreenTest extends TestCase
      */
     private function episodeScreenWithParent(string $id, string $parentId, FakeTransport $transport): PlayerScreen
     {
-        $decoder = new FakePlayerDecoder($this->frames());
+        $decoder = new FakeDecoder($this->frames());
         $factory = static fn (string $u, int $c, int $r): Player => Player::fromDecoder($decoder, fps: 24.0, totalFrames: 2400, cellsW: $c, cellsH: $r, videoPath: '/fake', paused: true);
         $api = new ApiClient('https://srv', $transport);
         $syncPlayService = new SyncPlayService($api);
@@ -1696,7 +1696,7 @@ final class PlayerScreenTest extends TestCase
         [$screen] = $this->screen();
         // Drive a tiny inner player to the ended state: an empty decoder runs out
         // on the first tick (non-loop → ended, ticking stops).
-        $emptyInner = Player::fromDecoder(new FakePlayerDecoder([]), fps: 24.0, totalFrames: 0, videoPath: '/fake', paused: false);
+        $emptyInner = Player::fromDecoder(new FakeDecoder([]), fps: 24.0, totalFrames: 0, videoPath: '/fake', paused: false);
         [$ended] = $emptyInner->update(new ReelTickMsg());
         self::assertInstanceOf(Player::class, $ended);
         self::assertTrue($ended->ended);
