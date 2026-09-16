@@ -89,11 +89,6 @@ final class Scrubber
     /** Seconds → "m:ss" (or "h:mm:ss" past an hour). */
     private static function clock(float $seconds): string
     {
-        $s = max(0, (int) round($seconds));
-        $h = intdiv($s, 3600);
-        $m = intdiv($s % 3600, 60);
-        $sec = $s % 60;
-
-        return $h > 0 ? sprintf('%d:%02d:%02d', $h, $m, $sec) : sprintf('%d:%02d', $m, $sec);
+        return Clock::format((int) round($seconds));
     }
 }

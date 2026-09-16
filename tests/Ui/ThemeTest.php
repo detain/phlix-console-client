@@ -7,13 +7,14 @@ namespace Phlix\Console\Tests\Ui;
 use Phlix\Console\Ui\Theme;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use SugarCraft\Core\Util\Ansi;
 
 final class ThemeTest extends TestCase
 {
     /** Strip SGR colour escapes so the visible text can be compared. */
     private static function stripAnsi(string $s): string
     {
-        return preg_replace('/\e\[[0-9;]*m/', '', $s) ?? $s;
+        return Ansi::strip($s);
     }
 
     // ---- Nocturne is the identity (zero SGR) ---------------------------

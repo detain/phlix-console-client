@@ -13,6 +13,9 @@ use Phlix\Console\Media\MosaicFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SugarCraft\Mosaic\ImageSource;
+use SugarCraft\Palette\Color;
+use SugarCraft\Palette\ColorDistance;
+use SugarCraft\Palette\NearestColor;
 use SugarCraft\Testing\Graphics\GraphicsAssertions;
 use SugarCraft\Testing\Graphics\Iterm2Stream;
 use SugarCraft\Testing\Graphics\KittyStream;
@@ -120,13 +123,22 @@ final class PosterGraphicsStreamTest extends TestCase
     {
         $sixel = SixelStream::decode(MosaicFactory::forMode('sixel')->render($this->posterSource(), 12, 6));
 
-        $palette = array_values($sixel->palette());
-        $nearestToRed = self::nearestPaletteEntry($palette, [200, 30, 30]);
+        /** @var list<Color> $palette */
+        $palette = array_map(
+            static fn (array $rgb): Color => new Color($rgb[0], $rgb[1], $rgb[2]),
+            array_values($sixel->palette()),
+        );
+        $red = new Color(200, 30, 30);
 
-        self::assertNotNull($nearestToRed, 'no palette entry at all');
+        self::assertNotEmpty($palette, 'no palette entry at all');
+        $nearestToRed = $palette[(new NearestColor(ColorDistance::Euclidean))->closest($red, $palette)];
+
+        // Norm equivalence in R^3: ||x||_1 <= sqrt(3) * ||x||_2, so an
+        // Euclidean bound of 40/sqrt(3) ⇒ the former L1-sum bound of 40 —
+        // the assertion keeps its exact strength, only the scorer is upstream.
         self::assertLessThan(
-            40,
-            self::channelDistance($nearestToRed, [200, 30, 30]),
+            40 / sqrt(3),
+            ColorDistance::Euclidean->between($nearestToRed, $red),
             'the poster red is missing from the sixel palette',
         );
     }
@@ -158,38 +170,5 @@ final class PosterGraphicsStreamTest extends TestCase
         imagedestroy($image);
 
         return ImageSource::fromString($png);
-    }
-
-    /**
-     * @param list<array{int, int, int}> $palette
-     * @param array{int, int, int}       $rgb
-     *
-     * @return array{int, int, int}|null
-     */
-    private static function nearestPaletteEntry(array $palette, array $rgb): ?array
-    {
-        $best = null;
-        $bestDistance = PHP_INT_MAX;
-
-        foreach ($palette as $entry) {
-            $distance = self::channelDistance($entry, $rgb);
-            if ($distance < $bestDistance) {
-                $best = $entry;
-                $bestDistance = $distance;
-            }
-        }
-
-        return $best;
-    }
-
-    /**
-     * Sum of per-channel deviations between two colours.
-     *
-     * @param array{int, int, int} $a
-     * @param array{int, int, int} $b
-     */
-    private static function channelDistance(array $a, array $b): int
-    {
-        return abs($a[0] - $b[0]) + abs($a[1] - $b[1]) + abs($a[2] - $b[2]);
     }
 }

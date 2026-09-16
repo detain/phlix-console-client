@@ -8,6 +8,7 @@ use Phlix\Console\Msg\GoHomeMsg;
 use Phlix\Console\Ui\CommandPalette;
 use Phlix\Console\Ui\PaletteAction;
 use PHPUnit\Framework\TestCase;
+use SugarCraft\Core\Util\Ansi;
 
 final class CommandPaletteTest extends TestCase
 {
@@ -131,7 +132,7 @@ final class CommandPaletteTest extends TestCase
         self::assertStringContainsString("\e[38;2;153;153;153m", $out, 'the backdrop is dimmed');
         // The action is shown — its visible text ('Music') survives even though the
         // match highlight splits the raw bytes (e.g. "\e[1mMus\e[0mic").
-        $visible = preg_replace('/\e\[[0-9;]*m/', '', $out);
+        $visible = Ansi::strip($out);
         self::assertStringContainsString('Music', $visible, 'the matched action is shown');
         self::assertSame(24, substr_count($out, "\n") + 1, 'the frame keeps its line count');
     }

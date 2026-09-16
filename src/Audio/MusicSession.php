@@ -11,6 +11,7 @@ namespace Phlix\Console\Audio;
 
 use Phlix\Console\Api\Dto\Album;
 use Phlix\Console\Api\Dto\Track;
+use Phlix\Console\Ui\Clock;
 use SugarCraft\Reel\AudioPlayer;
 
 /**
@@ -210,11 +211,6 @@ final class MusicSession implements NowPlayingSession
     /** Seconds → "m:ss" (or "h:mm:ss" past an hour). */
     private static function clock(int $seconds): string
     {
-        $s = max(0, $seconds);
-        $h = intdiv($s, 3600);
-        $m = intdiv($s % 3600, 60);
-        $sec = $s % 60;
-
-        return $h > 0 ? sprintf('%d:%02d:%02d', $h, $m, $sec) : sprintf('%d:%02d', $m, $sec);
+        return Clock::format($seconds);
     }
 }

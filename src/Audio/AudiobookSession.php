@@ -11,6 +11,7 @@ namespace Phlix\Console\Audio;
 
 use Phlix\Console\Api\Dto\Audiobook;
 use Phlix\Console\Api\Dto\AudiobookChapter;
+use Phlix\Console\Ui\Clock;
 use SugarCraft\Reel\AudioPlayer;
 
 /**
@@ -264,13 +265,6 @@ final class AudiobookSession implements NowPlayingSession
     /** Milliseconds → "m:ss" (or "h:mm:ss" once an hour or longer). */
     private static function clock(int $ms): string
     {
-        $total = intdiv(max(0, $ms), 1000);
-        $hours = intdiv($total, 3600);
-        $minutes = intdiv($total % 3600, 60);
-        $seconds = $total % 60;
-
-        return $hours > 0
-            ? sprintf('%d:%02d:%02d', $hours, $minutes, $seconds)
-            : sprintf('%d:%02d', $minutes, $seconds);
+        return Clock::format(intdiv(max(0, $ms), 1000));
     }
 }
