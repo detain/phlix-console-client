@@ -66,6 +66,7 @@ use Phlix\Console\Msg\UpNextTickMsg;
 use Phlix\Console\Ui\AudioTrackList;
 use Phlix\Console\Ui\ChapterList;
 use Phlix\Console\Ui\Chrome;
+use Phlix\Console\Ui\Clock;
 use Phlix\Console\Ui\QualityMenu;
 use Phlix\Console\Ui\SleepTimer;
 use Phlix\Console\Ui\SleepTimerMenu;
@@ -138,8 +139,6 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     private const UP_NEXT_COUNTDOWN = 8;
     /** Seconds between transcode-readiness polls. */
     private const TRANSCODE_POLL_INTERVAL = 2.0;
-    /** Assumed terminal cell pixel box when the terminal never reported one. */
-    private const FALLBACK_CELL_PX = [10, 20];
 
     private ?Player $inner = null;
     private ?string $error = null;
@@ -294,16 +293,19 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     {
         $reelMode = ($mode !== null ? Mode::tryFrom($mode) : null) ?? RendererFactory::autoMode();
 
-        // A terminal that never reported a cell box gets one documented default
-        // pair — the same 10×20 upstream Player::open() itself assumes. The
-        // measurement from Mosaic::fontSize() is all-or-nothing, so there is no
-        // half-measured case to guard per key.
-        [$cellPxW, $cellPxH] = $cellSize === null
-            ? self::FALLBACK_CELL_PX
-            : [$cellSize['cellWidth'], $cellSize['cellHeight']];
-
-        return static fn (string $url, int $cols, int $rows): Player
-            => Player::open($url, $cols, $rows, mode: $reelMode, cellPxW: $cellPxW, cellPxH: $cellPxH);
+        // The measurement from Mosaic::fontSize() is all-or-nothing. When the
+        // terminal never reported a cell box the args are simply omitted, so
+        // the upstream Player::open() defaults are the single source of truth.
+        return static fn (string $url, int $cols, int $rows): Player => $cellSize === null
+            ? Player::open($url, $cols, $rows, mode: $reelMode)
+            : Player::open(
+                $url,
+                $cols,
+                $rows,
+                mode: $reelMode,
+                cellPxW: $cellSize['cellWidth'],
+                cellPxH: $cellSize['cellHeight'],
+            );
     }
 
     /**
@@ -2458,12 +2460,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     /** Seconds → "m:ss" (or "h:mm:ss" past an hour). */
     private static function clock(float $seconds): string
     {
-        $s = max(0, (int) round($seconds));
-        $h = intdiv($s, 3600);
-        $m = intdiv($s % 3600, 60);
-        $sec = $s % 60;
-
-        return $h > 0 ? sprintf('%d:%02d:%02d', $h, $m, $sec) : sprintf('%d:%02d', $m, $sec);
+        return Clock::format((int) round($seconds));
     }
 
     /** @return list<\Phlix\Console\Api\Dto\Chapter> */

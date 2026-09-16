@@ -145,14 +145,7 @@ final class ChapterList
 
     private function formatTime(float $seconds): string
     {
-        $h = (int) floor($seconds / 3600);
-        $m = (int) floor(($seconds % 3600) / 60);
-        $s = (int) floor($seconds % 60);
-        if ($h > 0) {
-            return sprintf('%d:%02d:%02d', $h, $m, $s);
-        }
-
-        return sprintf('%d:%02d', $m, $s);
+        return Clock::format((int) floor($seconds));
     }
 
     /**

@@ -23,6 +23,7 @@ use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\ToggleAudioMsg;
 use Phlix\Console\Store\AudiobooksStore;
 use Phlix\Console\Ui\Chrome;
+use Phlix\Console\Ui\Clock;
 use Phlix\Console\Ui\Table;
 use React\Promise\PromiseInterface;
 use SugarCraft\Core\Cmd;
@@ -359,14 +360,7 @@ final class AudiobookDetailScreen implements Breadcrumbed, Themed
     /** Milliseconds → "m:ss" (or "h:mm:ss" once an hour or longer). */
     private static function clock(int $ms): string
     {
-        $total = intdiv(max(0, $ms), 1000);
-        $hours = intdiv($total, 3600);
-        $minutes = intdiv($total % 3600, 60);
-        $seconds = $total % 60;
-
-        return $hours > 0
-            ? sprintf('%d:%02d:%02d', $hours, $minutes, $seconds)
-            : sprintf('%d:%02d', $minutes, $seconds);
+        return Clock::format(intdiv(max(0, $ms), 1000));
     }
 
     private function headerTitle(): string
