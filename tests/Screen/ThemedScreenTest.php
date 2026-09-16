@@ -11,6 +11,7 @@ use Phlix\Console\Store\MusicStore;
 use Phlix\Console\Tests\Api\FakeTransport;
 use Phlix\Console\Ui\Theme;
 use PHPUnit\Framework\TestCase;
+use SugarCraft\Core\Util\Ansi;
 
 /**
  * Exercises the {@see \Phlix\Console\Screen\ThemedScreen} trait through a concrete
@@ -65,7 +66,7 @@ final class ThemedScreenTest extends TestCase
         self::assertStringContainsString("\e[", $out, 'a colour theme tints the chrome');
         self::assertMatchesRegularExpression('/\e\[[0-9;]*m Phlix \e\[0m/', $out, 'the brand token is colour-wrapped');
         // The visible content is unchanged once SGR is stripped.
-        $stripped = preg_replace('/\e\[[0-9;]*m/', '', $out) ?? $out;
+        $stripped = Ansi::strip($out);
         self::assertStringContainsString('Loading music', $stripped);
     }
 }

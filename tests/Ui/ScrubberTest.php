@@ -7,13 +7,14 @@ namespace Phlix\Console\Tests\Ui;
 use Phlix\Console\Api\Dto\Chapter;
 use Phlix\Console\Ui\Scrubber;
 use PHPUnit\Framework\TestCase;
+use SugarCraft\Core\Util\Ansi;
 
 final class ScrubberTest extends TestCase
 {
     /** Strip SGR so the bar glyphs can be counted. */
     private function plain(string $s): string
     {
-        return (string) preg_replace('/\e\[[0-9;]*m/', '', $s);
+        return Ansi::strip($s);
     }
 
     public function testRendersClocksAndABar(): void

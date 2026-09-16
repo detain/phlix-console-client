@@ -18,6 +18,7 @@ use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ServerRequestInterface;
 use React\EventLoop\Loop;
 use React\Http\HttpServer;
+use SugarCraft\Core\Util\Ansi;
 use React\Http\Message\Response;
 use React\Promise\PromiseInterface;
 use React\Socket\SocketServer;
@@ -131,7 +132,7 @@ final class BookDetailScreenTest extends TestCase
         $long = 'https://srv/api/v1/books/b1/download?expires=1719100000'
             . '&signature=abcdef0123456789abcdef0123456789deadbeefcafe';
         $view = $this->loaded(['download_url' => $long])->view();
-        $plain = (string) preg_replace('/\e\[[0-9;]*m/', '', $view);
+        $plain = Ansi::strip($view);
 
         self::assertStringContainsString('books/b1/download?expires', $plain, 'the URL head is shown');
         self::assertStringContainsString('deadbeefcafe', $plain, 'the URL tail survives (wrapped, not truncated)');

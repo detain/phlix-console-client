@@ -6,6 +6,7 @@ namespace Phlix\Console\Tests\Ui;
 
 use Phlix\Console\Ui\Sidebar;
 use PHPUnit\Framework\TestCase;
+use SugarCraft\Core\Util\Ansi;
 use SugarCraft\Sprinkles\Style;
 
 final class SidebarTest extends TestCase
@@ -29,7 +30,7 @@ final class SidebarTest extends TestCase
 
     private function strip(string $s): string
     {
-        return preg_replace('/\e\[[0-9;]*m/', '', $s) ?? $s;
+        return Ansi::strip($s);
     }
 
     /** @return list<string> */
