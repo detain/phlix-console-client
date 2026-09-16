@@ -5,6 +5,27 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — W96 (cs46c): route-manifest PROVENANCE re-vendor (404 tuples — route bytes unmoved) — 2026-09-15
+
+- **cs#46 currency re-vendor (lane cs46c) — PROVENANCE-only, not a content regen.**
+  `tests/fixtures/server-route-manifest.json` re-vendored byte-identical from the
+  `@phlix/contracts` canonical master export (untagged regen #33), and
+  `ServerRouteManifestGateTest.php` advances its header cite, `EXPECTED_MD5`,
+  `EXPECTED_SERVER_SHA`, and the contracts-drift failure message to the current
+  phlix-server master tip in the same commit. The server span since the previous
+  pin is bundle-only: no route-registration file and nothing under the server's
+  `include/` or `src/` moved, so the `[method, path]` tuples are byte-for-byte
+  identical and the `total`/route-count/unique all HOLD at 404 — only the embedded
+  provenance moves, which rotates the vendored blob while the described route
+  surface is unchanged. The client-side inventories are HELD:
+  `SWEEP_TOKEN_COUNTS` (`src/Api/ApiClient.php` = 68), `PER_CLASS_ANCHORS` (67),
+  and `TOTAL_COMPARED` (223) — no client request site moved this wave. The two
+  S240 `isServed` query-rail assertions (album / artist) survive untouched as
+  preservation checks. `build/phlix.phar` is NOT rebuilt (cs#42/#43/#44/#45
+  precedent — the gate tolerates the stale phar). This leg additionally plants the
+  lane ritual token as a public class constant beside the pins (cs#46 ceremony;
+  no behavior change), giving this repo a survival-token home for the merge gate.
+
 ### Changed — W85 (cs45): route-manifest PROVENANCE re-pin (404 tuples — route bytes unmoved) — 2026-09-13
 
 - **cs#45 currency cascade (lane cs45) — PROVENANCE-only, not a content regen.**
