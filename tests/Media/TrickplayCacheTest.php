@@ -27,9 +27,6 @@ final class TrickplayCacheTest extends TestCase
 {
     private const BASE = 'https://srv';
 
-    /** Matches TrickplayCache::MEMORY_CAPACITY. */
-    private const CAPACITY = 512;
-
     public function testRepeatedLoadOfOneMediaIdHitsMemoryNotTheApi(): void
     {
         $transport = (new FakeTransport())->json(200, ['sprite_url' => '/sp.jpg', 'timeline_url' => '/tl.json']);
@@ -46,26 +43,39 @@ final class TrickplayCacheTest extends TestCase
 
     public function testMemoryTierEvictsLeastRecentlyUsedBeyondCapacity(): void
     {
+        $capacity = $this->memoryCapacity();
         $transport = new FakeTransport();
         $cache = $this->cache($transport);
 
-        foreach (range(1, self::CAPACITY + 1) as $i) {
+        foreach (range(1, $capacity + 1) as $i) {
             $this->await($cache->load('m' . $i));
         }
 
-        self::assertSame(self::CAPACITY + 1, $transport->requestCount(), 'every distinct id fetched once');
+        self::assertSame($capacity + 1, $transport->requestCount(), 'every distinct id fetched once');
 
         // The most recent entry is still warm: no new request for it.
-        $this->await($cache->load('m' . (self::CAPACITY + 1)));
-        self::assertSame(self::CAPACITY + 1, $transport->requestCount(), 'the newest id stays cached');
+        $this->await($cache->load('m' . ($capacity + 1)));
+        self::assertSame($capacity + 1, $transport->requestCount(), 'the newest id stays cached');
 
         // The capacity bound evicted the oldest entry, so it re-fetches.
         $this->await($cache->load('m1'));
         self::assertSame(
-            self::CAPACITY + 2,
+            $capacity + 2,
             $transport->requestCount(),
             'the LRU victim re-fetches — the tier is bounded',
         );
+    }
+
+    /**
+     * Read the eviction bound from the class under test rather than mirroring
+     * a literal, so the pin survives a future capacity change.
+     */
+    private function memoryCapacity(): int
+    {
+        $capacity = (new \ReflectionClass(TrickplayCache::class))->getConstant('MEMORY_CAPACITY');
+        self::assertIsInt($capacity, 'TrickplayCache::MEMORY_CAPACITY must be an int');
+
+        return $capacity;
     }
 
     private function cache(FakeTransport $transport): TrickplayCache
