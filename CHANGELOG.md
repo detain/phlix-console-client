@@ -5,6 +5,21 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — W111 (cs47b): route-manifest CONTENT re-vendor (404→410 tuples) — 2026-09-17
+
+- **cs#47 currency re-vendor (lane cs47b) — CONTENT regen, console is NOT pure this
+  wave.** `tests/fixtures/server-route-manifest.json` re-vendored byte-identical from
+  the `@phlix/contracts` canonical master export (untagged regen #34), and
+  `ServerRouteManifestGateTest.php` advances its header cite, `EXPECTED_MD5`,
+  `EXPECTED_SERVER_SHA`, the contracts-drift failure message and the three tuple
+  counts (`total`/route-count/unique all RISEN 404→410 — six new quick-connect
+  pairing + consent-gated telemetry routes) in the same commit. The client-side
+  inventories are HELD: `SWEEP_TOKEN_COUNTS` (`src/Api/ApiClient.php` = 68),
+  `PER_CLASS_ANCHORS` (67) and `TOTAL_COMPARED` (223) — no console request site
+  moved this wave; none of the six new server tuples is issued client-side. The CS46
+  ritual token constant is untouched; full suite 2776 tests / 11586 assertions with
+  zero delta vs the pristine same-tree control.
+
 ### Changed — W96 (cs46c): route-manifest PROVENANCE re-vendor (404 tuples — route bytes unmoved) — 2026-09-15
 
 - **cs#46 currency re-vendor (lane cs46c) — PROVENANCE-only, not a content regen.**

@@ -18,8 +18,8 @@ use PHPUnit\Framework\TestCase;
  * WHAT IT PINS: every URL the console's request-issuing code can put on the
  * SERVER wire is tuple-exact against the VENDORED phlix-server route manifest
  * (`tests/fixtures/server-route-manifest.json`, a byte-for-byte copy of
- * `@phlix/contracts` `dist/server-route-manifest.json`, 404 tuples @
- * phlix-server c9c551e0). The expected set comes from the SERVER side only —
+ * `@phlix/contracts` `dist/server-route-manifest.json`, 410 tuples @
+ * phlix-server 730e55b7). The expected set comes from the SERVER side only —
  * a manifest derived from the client it checks would self-adjust and pass
  * every defect it exists to catch (S276/S279/S280 shipped because no such
  * gate existed on console).
@@ -72,9 +72,9 @@ final class ServerRouteManifestGateTest extends TestCase
 
     private const MANIFEST_PATH = __DIR__ . '/../../fixtures/server-route-manifest.json';
 
-    private const EXPECTED_MD5 = '56eb7052069a56cd95f7b2558f151f63';
+    private const EXPECTED_MD5 = '06ce7ec95bc064cc0f13b94389af9a82';
 
-    private const EXPECTED_SERVER_SHA = 'c9c551e0506a742220c17a34022d4a2f497e6989';
+    private const EXPECTED_SERVER_SHA = '730e55b7d3ad44a155f6b46374a9f6c463792840';
 
     // cs#46 currency re-vendor ritual token (code-resident survival assertion target).
     public const CS46_CURRENCY_TOKEN = 'CS46CURRENCYPINX9X1';
@@ -167,19 +167,19 @@ final class ServerRouteManifestGateTest extends TestCase
     public function testVendoredManifestIsTheContractsArtifactByteIdentical(): void
     {
         $raw = (string) file_get_contents(self::MANIFEST_PATH);
-        self::assertSame(self::EXPECTED_MD5, md5($raw), self::GATE_ID . ': vendored manifest drifted from contracts@29b8310');
+        self::assertSame(self::EXPECTED_MD5, md5($raw), self::GATE_ID . ': vendored manifest drifted from contracts@b34651d');
 
         $manifest = self::manifest();
         self::assertSame(self::EXPECTED_SERVER_SHA, $manifest['provenance']['serverSha']);
-        self::assertSame(404, $manifest['provenance']['total']);
-        self::assertSame(404, count($manifest['routes']));
+        self::assertSame(410, $manifest['provenance']['total']);
+        self::assertSame(410, count($manifest['routes']));
         self::assertSame('scripts/generate-server-route-manifest.mjs', $manifest['provenance']['generator']);
 
         $unique = [];
         foreach ($manifest['routes'] as [$m, $p]) {
             $unique["{$m} {$p}"] = true;
         }
-        self::assertCount(404, $unique, 'manifest tuples must be unique');
+        self::assertCount(410, $unique, 'manifest tuples must be unique');
     }
 
     // ── the gate ───────────────────────────────────────────────────────
