@@ -3979,12 +3979,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/candy-ansi.git",
-                "reference": "d0f90c6fe6d619e1a320a611a67984a8efdfbe43"
+                "reference": "9d7910e773dc7845e5c2601d770419219959aefc"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/candy-ansi/zipball/d0f90c6fe6d619e1a320a611a67984a8efdfbe43",
-                "reference": "d0f90c6fe6d619e1a320a611a67984a8efdfbe43",
+                "url": "https://api.github.com/repos/sugarcraft/candy-ansi/zipball/9d7910e773dc7845e5c2601d770419219959aefc",
+                "reference": "9d7910e773dc7845e5c2601d770419219959aefc",
                 "shasum": ""
             },
             "require": {
@@ -4028,7 +4028,7 @@
                 "issues": "https://github.com/sugarcraft/candy-ansi/issues",
                 "source": "https://github.com/sugarcraft/candy-ansi"
             },
-            "time": "2026-09-15T10:13:53+00:00"
+            "time": "2026-09-16T14:52:20+00:00"
         },
         {
             "name": "sugarcraft/candy-async",
@@ -4150,12 +4150,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/candy-core.git",
-                "reference": "e5c6f22c407f6520666feb69836117470526a3d4"
+                "reference": "5c6b18f357a39e6409a3713d3a0e4596cb57209a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/candy-core/zipball/e5c6f22c407f6520666feb69836117470526a3d4",
-                "reference": "e5c6f22c407f6520666feb69836117470526a3d4",
+                "url": "https://api.github.com/repos/sugarcraft/candy-core/zipball/5c6b18f357a39e6409a3713d3a0e4596cb57209a",
+                "reference": "5c6b18f357a39e6409a3713d3a0e4596cb57209a",
                 "shasum": ""
             },
             "require": {
@@ -4208,7 +4208,7 @@
                 "issues": "https://github.com/sugarcraft/candy-core/issues",
                 "source": "https://github.com/sugarcraft/candy-core"
             },
-            "time": "2026-09-15T11:15:46+00:00"
+            "time": "2026-09-15T22:59:37+00:00"
         },
         {
             "name": "sugarcraft/candy-flip",
@@ -4509,12 +4509,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/candy-input.git",
-                "reference": "e7603a69d26ba4d91a92234961947e41b54d630d"
+                "reference": "852e64a6ceaadf1ea6a77e834338aebb033e9c02"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/candy-input/zipball/e7603a69d26ba4d91a92234961947e41b54d630d",
-                "reference": "e7603a69d26ba4d91a92234961947e41b54d630d",
+                "url": "https://api.github.com/repos/sugarcraft/candy-input/zipball/852e64a6ceaadf1ea6a77e834338aebb033e9c02",
+                "reference": "852e64a6ceaadf1ea6a77e834338aebb033e9c02",
                 "shasum": ""
             },
             "require": {
@@ -4561,7 +4561,7 @@
                 "issues": "https://github.com/sugarcraft/candy-input/issues",
                 "source": "https://github.com/sugarcraft/candy-input"
             },
-            "time": "2026-09-15T10:30:20+00:00"
+            "time": "2026-09-15T15:43:25+00:00"
         },
         {
             "name": "sugarcraft/candy-layout",
@@ -4624,12 +4624,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/candy-mosaic.git",
-                "reference": "b7dbe17fb6bce89706c317639642097e3f4462f0"
+                "reference": "7f5f38cc7845f551a6408ed0fc95994cf02fad9d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/candy-mosaic/zipball/b7dbe17fb6bce89706c317639642097e3f4462f0",
-                "reference": "b7dbe17fb6bce89706c317639642097e3f4462f0",
+                "url": "https://api.github.com/repos/sugarcraft/candy-mosaic/zipball/7f5f38cc7845f551a6408ed0fc95994cf02fad9d",
+                "reference": "7f5f38cc7845f551a6408ed0fc95994cf02fad9d",
                 "shasum": ""
             },
             "require": {
@@ -4638,6 +4638,7 @@
                 "php": "^8.3",
                 "react/promise": "^3.3",
                 "sugarcraft/candy-core": "dev-master",
+                "sugarcraft/candy-flip": "dev-master",
                 "sugarcraft/candy-palette": "dev-master"
             },
             "require-dev": {
@@ -4684,7 +4685,7 @@
                 "issues": "https://github.com/sugarcraft/candy-mosaic/issues",
                 "source": "https://github.com/sugarcraft/candy-mosaic"
             },
-            "time": "2026-09-15T11:15:46+00:00"
+            "time": "2026-09-16T11:43:53+00:00"
         },
         {
             "name": "sugarcraft/candy-mouse",
@@ -4748,12 +4749,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/candy-palette.git",
-                "reference": "72e0927c1407b1a54058329f48b7e254a8ab1e6e"
+                "reference": "c9887e589790613e05b942497114ab91b2d838a5"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/candy-palette/zipball/72e0927c1407b1a54058329f48b7e254a8ab1e6e",
-                "reference": "72e0927c1407b1a54058329f48b7e254a8ab1e6e",
+                "url": "https://api.github.com/repos/sugarcraft/candy-palette/zipball/c9887e589790613e05b942497114ab91b2d838a5",
+                "reference": "c9887e589790613e05b942497114ab91b2d838a5",
                 "shasum": ""
             },
             "require": {
@@ -4799,7 +4800,7 @@
                 "issues": "https://github.com/sugarcraft/candy-palette/issues",
                 "source": "https://github.com/sugarcraft/candy-palette"
             },
-            "time": "2026-09-15T11:34:41+00:00"
+            "time": "2026-09-15T22:59:37+00:00"
         },
         {
             "name": "sugarcraft/candy-pty",
@@ -5300,12 +5301,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/sugar-reel.git",
-                "reference": "4ba3281677ffee3224ba59eaa7423954ef6c74db"
+                "reference": "3402cfa6a02b42dbc8945309c4c65f5663b19e55"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/sugar-reel/zipball/4ba3281677ffee3224ba59eaa7423954ef6c74db",
-                "reference": "4ba3281677ffee3224ba59eaa7423954ef6c74db",
+                "url": "https://api.github.com/repos/sugarcraft/sugar-reel/zipball/3402cfa6a02b42dbc8945309c4c65f5663b19e55",
+                "reference": "3402cfa6a02b42dbc8945309c4c65f5663b19e55",
                 "shasum": ""
             },
             "require": {
@@ -5360,7 +5361,7 @@
                 "issues": "https://github.com/sugarcraft/sugar-reel/issues",
                 "source": "https://github.com/sugarcraft/sugar-reel"
             },
-            "time": "2026-09-15T11:15:46+00:00"
+            "time": "2026-09-16T13:08:09+00:00"
         },
         {
             "name": "sugarcraft/sugar-table",
@@ -5368,12 +5369,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/sugar-table.git",
-                "reference": "65697a61a936326d81bd8226699f1c8e5adcf0b7"
+                "reference": "c83e8daed92633523a2936a42296d2ce4b44630e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/sugar-table/zipball/65697a61a936326d81bd8226699f1c8e5adcf0b7",
-                "reference": "65697a61a936326d81bd8226699f1c8e5adcf0b7",
+                "url": "https://api.github.com/repos/sugarcraft/sugar-table/zipball/c83e8daed92633523a2936a42296d2ce4b44630e",
+                "reference": "c83e8daed92633523a2936a42296d2ce4b44630e",
                 "shasum": ""
             },
             "require": {
@@ -5419,7 +5420,7 @@
                 "issues": "https://github.com/sugarcraft/sugar-table/issues",
                 "source": "https://github.com/sugarcraft/sugar-table"
             },
-            "time": "2026-08-18T00:44:00+00:00"
+            "time": "2026-09-16T04:22:38+00:00"
         },
         {
             "name": "sugarcraft/sugar-toast",
@@ -5427,12 +5428,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/sugar-toast.git",
-                "reference": "8fedf7d26159462ff61656b4e60f2341a63f3508"
+                "reference": "593b29f5a66204d0134a39a9d5bebba882cdbb0d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/sugar-toast/zipball/8fedf7d26159462ff61656b4e60f2341a63f3508",
-                "reference": "8fedf7d26159462ff61656b4e60f2341a63f3508",
+                "url": "https://api.github.com/repos/sugarcraft/sugar-toast/zipball/593b29f5a66204d0134a39a9d5bebba882cdbb0d",
+                "reference": "593b29f5a66204d0134a39a9d5bebba882cdbb0d",
                 "shasum": ""
             },
             "require": {
@@ -5476,7 +5477,7 @@
                 "issues": "https://github.com/sugarcraft/sugar-toast/issues",
                 "source": "https://github.com/sugarcraft/sugar-toast"
             },
-            "time": "2026-08-18T00:44:00+00:00"
+            "time": "2026-09-16T00:19:38+00:00"
         },
         {
             "name": "sugarcraft/sugar-veil",
@@ -8817,12 +8818,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/candy-testing.git",
-                "reference": "28459817498191821dec9af9ec5bf35d70ecad0c"
+                "reference": "9a80ece84ac68470d0541fb0adf6593abdcaccdd"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/candy-testing/zipball/28459817498191821dec9af9ec5bf35d70ecad0c",
-                "reference": "28459817498191821dec9af9ec5bf35d70ecad0c",
+                "url": "https://api.github.com/repos/sugarcraft/candy-testing/zipball/9a80ece84ac68470d0541fb0adf6593abdcaccdd",
+                "reference": "9a80ece84ac68470d0541fb0adf6593abdcaccdd",
                 "shasum": ""
             },
             "require": {
@@ -8868,7 +8869,7 @@
                 "issues": "https://github.com/sugarcraft/candy-testing/issues",
                 "source": "https://github.com/sugarcraft/candy-testing"
             },
-            "time": "2026-09-15T11:21:38+00:00"
+            "time": "2026-09-16T07:44:22+00:00"
         },
         {
             "name": "theseer/tokenizer",
