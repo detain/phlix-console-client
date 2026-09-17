@@ -85,6 +85,7 @@ use SugarCraft\Core\SubscriptionCapable;
 use SugarCraft\Core\Util\Ansi;
 use SugarCraft\Core\Util\Width;
 use SugarCraft\Reel\Decode\RgbFrame;
+use SugarCraft\Reel\Msg\ResizeRebuildMsg;
 use SugarCraft\Reel\Msg\TickMsg as ReelTickMsg;
 use SugarCraft\Reel\Player;
 use SugarCraft\Reel\Subtitle\WebVtt;
@@ -513,6 +514,14 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         }
         if ($msg instanceof ReelTickMsg) {
             // The frame pump: drive the inner player's wall-clock frame advance.
+            return $this->forwardToInner($msg);
+        }
+        if ($msg instanceof ResizeRebuildMsg) {
+            // The debounced second half of a WindowSizeMsg (finding #52): the inner
+            // Player owns the pending geometry, and it is the Program's re-dispatch
+            // of THIS msg — not the WindowSizeMsg itself — that runs applyPendingResize().
+            // Without this arm the msg hits the fall-through below, the decoder/renderer
+            // never rebuild, and playback keeps decoding at the pre-resize geometry.
             return $this->forwardToInner($msg);
         }
         if ($msg instanceof SubtitleDownloadedMsg) {

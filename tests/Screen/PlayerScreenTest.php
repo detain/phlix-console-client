@@ -35,7 +35,9 @@ use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
+use SugarCraft\Core\TickRequest;
 use SugarCraft\Reel\Decode\RgbFrame;
+use SugarCraft\Reel\Msg\ResizeRebuildMsg;
 use SugarCraft\Reel\Msg\TickMsg as ReelTickMsg;
 use SugarCraft\Reel\Player;
 use SugarCraft\Reel\Tests\FakeDecoder;
@@ -430,6 +432,46 @@ final class PlayerScreenTest extends TestCase
         [$resized] = $ready->update(new WindowSizeMsg(120, 40));
 
         self::assertIsString($resized->view());
+    }
+
+    /**
+     * Wave-13 E28: sugar-reel ≥3402cfa defers the decoder/renderer rebuild behind
+     * a debounce — `Player::update(WindowSizeMsg)` stashes the geometry and returns
+     * `Cmd::tick(0.05, ResizeRebuildMsg)`. The Program re-dispatches that fired Msg
+     * to the ACTIVE MODEL (the screen, not the nested inner Player), so the screen
+     * must forward it or `applyPendingResize()` never runs and the decoder keeps
+     * decoding at the stale geometry. This drives the full round trip: resize →
+     * surface the debounce Cmd → fire it → feed the ResizeRebuildMsg back → assert
+     * the inner Player's public-readonly geometry actually rebuilt.
+     */
+    public function testResizeRebuildLandsAfterDebounce(): void
+    {
+        $ready = $this->ready($this->screen()[0]);
+
+        $before = $ready->player();
+        self::assertInstanceOf(Player::class, $before);
+        self::assertSame(80, $before->cellsW, 'factory built the player at the screen default width');
+
+        [$resized, $debounce] = $ready->update(new WindowSizeMsg(120, 40));
+
+        // Cmd::tick hands back a closure producing the internal TickRequest the
+        // Program arms on the loop; when the delay elapses dispatch() feeds the
+        // produce() Msg to the active model — replay exactly that here.
+        self::assertNotNull($debounce, 'a geometry change must arm the resize debounce');
+        $request = $debounce();
+        self::assertInstanceOf(TickRequest::class, $request);
+        $fired = ($request->produce)();
+        self::assertInstanceOf(ResizeRebuildMsg::class, $fired);
+
+        [$applied] = $resized->update($fired);
+
+        $after = $applied->player();
+        self::assertInstanceOf(Player::class, $after);
+        // The inner received (cols=120, rows=innerRows()) — rows 40 minus the
+        // screen's chrome — and applyPendingResize() is the only writer of a NEW
+        // geometry on the Player.
+        self::assertSame(120, $after->cellsW, 'the debounced rebuild must reach the inner Player');
+        self::assertNotSame($before->cellsH, $after->cellsH, 'height must rebuild too');
     }
 
     // ---- teardown ------------------------------------------------------
