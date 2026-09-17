@@ -3323,16 +3323,16 @@
         },
         {
             "name": "react/http",
-            "version": "v1.11.0",
+            "version": "v1.11.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/reactphp/http.git",
-                "reference": "8db02de41dcca82037367f67a2d4be365b1c4db9"
+                "reference": "e5b8eb2654dec6cbbc692a39f05ea4ecd40c8cc1"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/reactphp/http/zipball/8db02de41dcca82037367f67a2d4be365b1c4db9",
-                "reference": "8db02de41dcca82037367f67a2d4be365b1c4db9",
+                "url": "https://api.github.com/repos/reactphp/http/zipball/e5b8eb2654dec6cbbc692a39f05ea4ecd40c8cc1",
+                "reference": "e5b8eb2654dec6cbbc692a39f05ea4ecd40c8cc1",
                 "shasum": ""
             },
             "require": {
@@ -3349,7 +3349,7 @@
                 "clue/http-proxy-react": "^1.8",
                 "clue/reactphp-ssh-proxy": "^1.4",
                 "clue/socks-react": "^1.4",
-                "phpunit/phpunit": "^9.6 || ^5.7 || ^4.8.36",
+                "phpunit/phpunit": "^9.6 || ^8.5 || ^5.7 || ^4.8.36",
                 "react/async": "^4.2 || ^3 || ^2",
                 "react/promise-stream": "^1.4",
                 "react/promise-timer": "^1.11"
@@ -3402,7 +3402,7 @@
             ],
             "support": {
                 "issues": "https://github.com/reactphp/http/issues",
-                "source": "https://github.com/reactphp/http/tree/v1.11.0"
+                "source": "https://github.com/reactphp/http/tree/v1.11.1"
             },
             "funding": [
                 {
@@ -3410,7 +3410,7 @@
                     "type": "open_collective"
                 }
             ],
-            "time": "2024-11-20T15:24:08+00:00"
+            "time": "2026-09-09T07:08:28+00:00"
         },
         {
             "name": "react/promise",
@@ -8934,14 +8934,14 @@
         "sugarcraft/candy-palette": 20,
         "sugarcraft/candy-shine": 20,
         "sugarcraft/candy-sprinkles": 20,
+        "sugarcraft/candy-testing": 20,
         "sugarcraft/sugar-boxer": 20,
         "sugarcraft/sugar-crumbs": 20,
         "sugarcraft/sugar-gallery": 20,
         "sugarcraft/sugar-reel": 20,
         "sugarcraft/sugar-table": 20,
         "sugarcraft/sugar-toast": 20,
-        "sugarcraft/sugar-veil": 20,
-        "sugarcraft/candy-testing": 20
+        "sugarcraft/sugar-veil": 20
     },
     "prefer-stable": true,
     "prefer-lowest": false,
@@ -8949,6 +8949,6 @@
         "php": ">=8.3",
         "ext-gd": "*"
     },
-    "platform-dev": [],
-    "plugin-api-version": "2.6.0"
+    "platform-dev": {},
+    "plugin-api-version": "2.9.0"
 }
