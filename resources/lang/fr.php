@@ -63,4 +63,19 @@ return [
     'filter.order_label' => 'Ordre : ',
     'filter.order_asc' => 'asc',
     'filter.order_desc' => 'desc',
+
+    // ---- SyncPlay errors ----------------------------------------------
+    'syncplay.not_authenticated' => 'Connectez-vous avant d’utiliser les soirées synchronisées.',
+    'syncplay.not_in_group' => 'Vous ne faites pas partie d’un groupe synchronisé.',
+    'syncplay.not_host' => 'Seul l’hôte du groupe peut faire cela.',
+    'syncplay.unknown_message' => 'Le serveur a rejeté une demande non reconnue.',
+    'syncplay.handler_error' => 'Une erreur est survenue sur le serveur de synchronisation.',
+    'syncplay.protocol_version_mismatch' => 'Cette application est incompatible avec la version du serveur.',
+    'syncplay.invalid_new_host' => 'Le nouvel hôte demandé n’est pas valide.',
+    'syncplay.member_not_found' => 'Ce membre est introuvable dans le groupe.',
+    'syncplay.same_host' => 'Ce membre est déjà l’hôte du groupe.',
+    'syncplay.create_failed' => 'Impossible de créer le groupe synchronisé.',
+    'syncplay.join_failed' => 'Impossible de rejoindre le groupe synchronisé.',
+    'syncplay.leave_failed' => 'Impossible de quitter le groupe synchronisé.',
+    'syncplay.unknown_error' => 'Une erreur de synchronisation est survenue.',
 ];

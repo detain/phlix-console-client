@@ -603,6 +603,7 @@ final class SyncPlayService
                 break;
 
             case Messages::TYPE_ERROR:
+            case Messages::LEGACY_TYPE_ERROR:
                 $this->handleError($message);
                 break;
 
@@ -713,17 +714,41 @@ final class SyncPlayService
     }
 
     /**
-     * Handle ERROR message.
+     * Handle an error frame.
+     *
+     * Per SPEC.md read-order doctrine, server `syncplay_error` frames carry
+     * `error_code` (via Messages::error()) while legacy sendError() frames
+     * carry `code` — so `error_code` wins, `code` is the fallback. The
+     * message stays raw server English here; an empty string is passed when
+     * absent so the presentation layer can localize the generic fallback.
      * @param array<string, mixed> $message
      */
     private function handleError(array $message): void
     {
-        $code = $message['code'] ?? $message['error_code'] ?? 'unknown';
-        $errorMsg = $message['message'] ?? 'Unknown error';
+        $code = $message['error_code'] ?? $message['code'] ?? 'unknown';
+        $errorMsg = $message['message'] ?? $this->legacyEnvelopeMessage($message) ?? '';
 
         $codeStr = is_string($code) ? $code : (is_int($code) ? (string) $code : 'unknown');
-        $errorStr = is_string($errorMsg) ? $errorMsg : 'Unknown error';
+        $errorStr = is_string($errorMsg) ? $errorMsg : '';
         ($this->onError ?? fn () => null)($codeStr, $errorStr);
+    }
+
+    /**
+     * Extract the message text from a deprecated `{type:'error', data:{...}}`
+     * envelope, if present.
+     * @param array<string, mixed> $message
+     */
+    private function legacyEnvelopeMessage(array $message): ?string
+    {
+        $data = $message['data'] ?? null;
+
+        if (!is_array($data)) {
+            return null;
+        }
+
+        $inner = $data['message'] ?? null;
+
+        return is_string($inner) ? $inner : null;
     }
 
     /**

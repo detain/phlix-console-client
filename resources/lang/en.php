@@ -60,4 +60,19 @@ return [
     'filter.order_label' => 'Order: ',
     'filter.order_asc' => 'asc',
     'filter.order_desc' => 'desc',
+
+    // ---- SyncPlay errors ----------------------------------------------
+    'syncplay.not_authenticated' => 'Sign in before using watch parties.',
+    'syncplay.not_in_group' => 'You are not in a watch group.',
+    'syncplay.not_host' => 'Only the group host can do that.',
+    'syncplay.unknown_message' => 'The server rejected an unrecognized request.',
+    'syncplay.handler_error' => 'Something went wrong on the sync server.',
+    'syncplay.protocol_version_mismatch' => 'This app is not compatible with the server version.',
+    'syncplay.invalid_new_host' => 'The requested new host is not valid.',
+    'syncplay.member_not_found' => 'That member was not found in the group.',
+    'syncplay.same_host' => 'That member is already the group host.',
+    'syncplay.create_failed' => 'Could not create the watch group.',
+    'syncplay.join_failed' => 'Could not join the watch group.',
+    'syncplay.leave_failed' => 'Could not leave the watch group.',
+    'syncplay.unknown_error' => 'A sync error occurred.',
 ];

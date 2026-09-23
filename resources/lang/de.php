@@ -63,4 +63,19 @@ return [
     'filter.order_label' => 'Reihenfolge: ',
     'filter.order_asc' => 'asc',
     'filter.order_desc' => 'desc',
+
+    // ---- SyncPlay errors ----------------------------------------------
+    'syncplay.not_authenticated' => 'Melde dich an, bevor du Watch-Parties nutzt.',
+    'syncplay.not_in_group' => 'Du bist in keiner synchronisierten Gruppe.',
+    'syncplay.not_host' => 'Nur der Gruppenhost kann das tun.',
+    'syncplay.unknown_message' => 'Der Server hat eine unbekannte Anfrage abgelehnt.',
+    'syncplay.handler_error' => 'Auf dem Sync-Server ist etwas schiefgelaufen.',
+    'syncplay.protocol_version_mismatch' => 'Diese App ist mit der Serverversion nicht kompatibel.',
+    'syncplay.invalid_new_host' => 'Der angeforderte neue Host ist ungültig.',
+    'syncplay.member_not_found' => 'Dieses Mitglied wurde in der Gruppe nicht gefunden.',
+    'syncplay.same_host' => 'Dieses Mitglied ist bereits der Gruppenhost.',
+    'syncplay.create_failed' => 'Die synchronisierte Gruppe konnte nicht erstellt werden.',
+    'syncplay.join_failed' => 'Der Gruppe konnte nicht beigetreten werden.',
+    'syncplay.leave_failed' => 'Die Gruppe konnte nicht verlassen werden.',
+    'syncplay.unknown_error' => 'Ein Synchronisierungsfehler ist aufgetreten.',
 ];
