@@ -306,7 +306,7 @@ final class DetailScreen implements Breadcrumbed, Themed
                 $next->previousRatings = null;
             }
 
-            return [$next, Cmd::send(ShowToastMsg::error('Rating failed to save: ' . $msg->reason))];
+            return [$next, Cmd::send(ShowToastMsg::error(Lang::t('detail.rating_save_failed') . $msg->reason))];
         }
         if ($msg instanceof SimilarLoadedMsg) {
             return $this->onSimilar($msg->mediaId, $msg->items);
@@ -933,7 +933,7 @@ final class DetailScreen implements Breadcrumbed, Themed
             static fn (MediaItem $item): Msg => new DetailLoadedMsg($item),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
-                : new DetailFailedMsg('Could not load this title.'),
+                : new DetailFailedMsg(Lang::t('detail.load_failed')),
         ));
     }
 
@@ -1010,7 +1010,7 @@ final class DetailScreen implements Breadcrumbed, Themed
             },
             static fn (\Throwable $e): Msg => new SimilarFailedMsg(
                 $id,
-                $e instanceof AuthError ? Lang::t(self::SESSION_EXPIRED_KEY) : 'Could not load similar titles.',
+                $e instanceof AuthError ? Lang::t(self::SESSION_EXPIRED_KEY) : Lang::t('detail.similar_load_failed'),
             ),
         ));
     }
@@ -1030,7 +1030,9 @@ final class DetailScreen implements Breadcrumbed, Themed
             },
             static fn (\Throwable $e): Msg => new MissingEpisodesFailedMsg(
                 $id,
-                $e instanceof AuthError ? Lang::t(self::SESSION_EXPIRED_KEY) : 'Could not load missing episodes.',
+                $e instanceof AuthError
+                    ? Lang::t(self::SESSION_EXPIRED_KEY)
+                    : Lang::t('detail.missing_episodes_load_failed'),
             ),
         ));
     }
@@ -1060,7 +1062,7 @@ final class DetailScreen implements Breadcrumbed, Themed
             static fn (MediaRange $range): Msg => new ChildrenLoadedMsg($parentId, $range),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
-                : new ChildrenFailedMsg($parentId, 'Could not load this content.'),
+                : new ChildrenFailedMsg($parentId, Lang::t('detail.children_load_failed')),
         ));
     }
 
@@ -1187,7 +1189,7 @@ final class DetailScreen implements Breadcrumbed, Themed
         // The item name is already in the Chrome title bar, so the content header
         // is a single meta line (count · year · genres) — matching LibraryScreen's
         // one-line-plus-blank layout so the grid (incl. card titles) is not clipped.
-        $parts = [$this->childLoaded ? $this->childKindLabel($grid->total()) : 'Loading…'];
+        $parts = [$this->childLoaded ? $this->childKindLabel($grid->total()) : Lang::t('detail.loading_content')];
         if ($item->year !== null) {
             $parts[] = (string) $item->year;
         }
@@ -1202,7 +1204,10 @@ final class DetailScreen implements Breadcrumbed, Themed
         // "Missing Episodes" row — shown only when the report has loaded and is non-empty.
         if ($this->missingEpisodes !== null && !$this->missingEpisodes->isEmpty()) {
             $count = count($this->missingEpisodes->missingEpisodes);
-            $lines[] = "⚠  {$count} episode" . ($count === 1 ? '' : 's') . ' missing';
+            // English counts get "1 episode" vs "N episodes"; the count is
+            // interpolated so each locale can word this line naturally.
+            $key = $count === 1 ? 'detail.missing_episodes_one' : 'detail.missing_episodes_many';
+            $lines[] = Lang::t($key, ['count' => $count]);
         }
 
         $body = implode("\n", $lines) . "\n\n" . $grid->render(true);
@@ -1213,13 +1218,15 @@ final class DetailScreen implements Breadcrumbed, Themed
     /** "3 seasons" for a series, "12 episodes" for a season, else "N items". */
     private function childKindLabel(int $count): string
     {
-        $noun = match ($this->item?->type) {
-            'series' => Lang::t('detail.season'),
-            'season' => Lang::t('detail.episode'),
-            default => Lang::t('detail.item'),
+        $kind = match ($this->item?->type) {
+            'series' => 'season',
+            'season' => 'episode',
+            default => 'item',
         };
 
-        return $count . ' ' . $noun . ($count === 1 ? '' : 's');
+        // The plural form comes from the catalog (not an appended 's') so each
+        // locale inflects its own noun: de "2 Staffeln", ja "2 シーズン", it "3 stagioni".
+        return $count . ' ' . Lang::t($count === 1 ? "detail.$kind" : "detail.{$kind}_plural");
     }
 
     private function containerViewportCols(int $cols): int
@@ -1252,7 +1259,7 @@ final class DetailScreen implements Breadcrumbed, Themed
         $lines = $this->appendCastLines($lines, $item, $width);
 
         $header = $lines;
-        $actions = $this->playNotice ? Lang::t(self::PLAY_NOTICE_KEY) : '▶  p  Play        Esc  Back';
+        $actions = $this->playNotice ? Lang::t(self::PLAY_NOTICE_KEY) : Lang::t('detail.actions_hint');
 
         // Check if similar items should be rendered (non-empty).
         $hasSimilar = $this->similar !== null && $this->similar !== [];

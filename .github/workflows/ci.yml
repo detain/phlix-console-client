@@ -108,6 +108,20 @@ jobs:
             exit 1
           fi
 
+  i18n:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: Run i18n guards
+        run: php scripts/check-i18n-hardcoded.php && php scripts/check-i18n-catalogs.php
+
   vendor-patches:
     runs-on: ubuntu-latest
     steps:

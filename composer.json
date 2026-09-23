@@ -58,6 +58,12 @@
         "test": "phpunit",
         "phpstan": "phpstan analyse",
         "cs": "phpcs --standard=phpcs.xml --colors src/ tests/",
-        "cs:fix": "phpcbf --standard=phpcs.xml src/ tests/"
+        "cs:fix": "phpcbf --standard=phpcs.xml src/ tests/",
+        "i18n:hardcoded": "php scripts/check-i18n-hardcoded.php",
+        "i18n:catalogs": "php scripts/check-i18n-catalogs.php",
+        "i18n:check": [
+            "@i18n:hardcoded",
+            "@i18n:catalogs"
+        ]
     }
 }
