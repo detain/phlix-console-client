@@ -26,7 +26,13 @@ return [
 
     // ---- DetailScreen -------------------------------------------------
     'detail.session_expired' => 'Your session expired. Please sign in again.',
+    'detail.load_failed' => 'Could not load this title.',
+    'detail.similar_load_failed' => 'Could not load similar titles.',
+    'detail.missing_episodes_load_failed' => 'Could not load missing episodes.',
+    'detail.children_load_failed' => 'Could not load this content.',
+    'detail.rating_save_failed' => 'Rating failed to save: ',
     'detail.play_notice' => '▶  This title has no playable source.',
+    'detail.actions_hint' => '▶  p  Play        Esc  Back',
     'detail.hint' => '↑↓  scroll synopsis      p  play      s  shuffle      C  cast      r  rate      F  favorite      w  watched      l  thumbs up      j  thumbs down      d  download      Esc  back',
     'detail.container_hint' => '↑↓←→  move      ⏎  open      s  shuffle      Esc  back',
     'detail.loading_hint' => 'Esc  back',
@@ -38,8 +44,13 @@ return [
     'detail.directed_by' => 'Directed by ',
     'detail.more_cast' => '  +{count} more',
     'detail.season' => 'season',
+    'detail.season_plural' => 'seasons',
     'detail.episode' => 'episode',
+    'detail.episode_plural' => 'episodes',
     'detail.item' => 'item',
+    'detail.item_plural' => 'items',
+    'detail.missing_episodes_one' => '⚠  {count} episode missing',
+    'detail.missing_episodes_many' => '⚠  {count} episodes missing',
     'detail.loading_content' => 'Loading…',
 
     // ---- FilterBar ----------------------------------------------------

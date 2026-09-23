@@ -29,6 +29,7 @@ use Phlix\Console\Audio\AudiobookSession;
 use Phlix\Console\Audio\MusicSession;
 use Phlix\Console\Audio\NowPlayingSession;
 use Phlix\Console\Config\Config;
+use Phlix\Console\I18n\Locale;
 use Phlix\Console\Media\TrickplayCache;
 use Phlix\Console\Msg\AudiobookTickMsg;
 use Phlix\Console\Msg\AudioSkipMsg;
@@ -284,8 +285,10 @@ final class App implements Model
         ?\Closure $audioFactory = null,
     ): self {
         // Detect and set the terminal locale from $LANG / $LC_ALL / $LC_MESSAGES.
-        // This affects all Lang::t() calls throughout the app.
-        T::setLocale(T::detect());
+        // Locale::current() resolves the raw environment value onto a catalog
+        // shipped in resources/lang/ (es, fr, de, it, pt-br, ja — else en),
+        // which affects all Lang::t() calls throughout the app.
+        T::setLocale(Locale::current());
 
         // The persisted theme name (if any) maps to a preset; an absent / unknown
         // name falls back to Nocturne (the identity look) via Theme::byName().
