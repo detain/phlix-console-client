@@ -63,4 +63,19 @@ return [
     'filter.order_label' => 'Orden: ',
     'filter.order_asc' => 'asc',
     'filter.order_desc' => 'desc',
+
+    // ---- SyncPlay errors ----------------------------------------------
+    'syncplay.not_authenticated' => 'Inicia sesión antes de usar las salas de visionado.',
+    'syncplay.not_in_group' => 'No estás en un grupo de visionado.',
+    'syncplay.not_host' => 'Solo el anfitrión del grupo puede hacer eso.',
+    'syncplay.unknown_message' => 'El servidor rechazó una solicitud no reconocida.',
+    'syncplay.handler_error' => 'Algo salió mal en el servidor de sincronización.',
+    'syncplay.protocol_version_mismatch' => 'Esta aplicación no es compatible con la versión del servidor.',
+    'syncplay.invalid_new_host' => 'El nuevo anfitrión solicitado no es válido.',
+    'syncplay.member_not_found' => 'Ese miembro no se encontró en el grupo.',
+    'syncplay.same_host' => 'Ese miembro ya es el anfitrión del grupo.',
+    'syncplay.create_failed' => 'No se pudo crear el grupo de visionado.',
+    'syncplay.join_failed' => 'No se pudo unir al grupo de visionado.',
+    'syncplay.leave_failed' => 'No se pudo salir del grupo de visionado.',
+    'syncplay.unknown_error' => 'Ocurrió un error de sincronización.',
 ];

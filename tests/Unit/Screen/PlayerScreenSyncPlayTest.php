@@ -8,6 +8,8 @@ use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\Dto\SyncPlayUser;
 use Phlix\Console\Api\SyncPlay\SyncPlayService;
+use Phlix\Console\I18n\Lang;
+use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Msg\SyncPlayDisconnectedMsg;
 use Phlix\Console\Msg\SyncPlayGroupStateMsg;
 use Phlix\Console\Msg\SyncPlayHostChangedMsg;
@@ -24,6 +26,16 @@ use SugarCraft\Core\Msg\WindowSizeMsg;
  */
 final class PlayerScreenSyncPlayTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        \SugarCraft\Core\I18n\T::reset();
+    }
+
+    protected function tearDown(): void
+    {
+        \SugarCraft\Core\I18n\T::reset();
+    }
+
     private function item(): MediaItem
     {
         return MediaItem::fromArray([
@@ -178,5 +190,129 @@ final class PlayerScreenSyncPlayTest extends TestCase
         $status = $statusProperty->getValue($nextScreen);
         // Since we haven't joined a room, status should be 'Not in room'
         $this->assertIsString($status);
+    }
+
+    /**
+     * Drive a server-shaped syncplay_error frame through the screen's real
+     * wire path: service handleMessage -> onError closure -> queued toast.
+     *
+     * @param array<string, mixed> $frame
+     */
+    private function dispatchErrorFrame(PlayerScreen $screen, array $frame): void
+    {
+        $screenReflection = new \ReflectionClass($screen);
+        $serviceProperty = $screenReflection->getProperty('syncPlayService');
+        $serviceProperty->setAccessible(true);
+        /** @var SyncPlayService $service */
+        $service = $serviceProperty->getValue($screen);
+
+        $handle = new \ReflectionMethod($service, 'handleMessage');
+        $handle->setAccessible(true);
+        $handle->invoke($service, json_encode($frame, JSON_THROW_ON_ERROR));
+    }
+
+    /**
+     * @param array<string, mixed> $frame
+     */
+    private function errorToast(PlayerScreen $screen, array $frame): ShowToastMsg
+    {
+        $this->dispatchErrorFrame($screen, $frame);
+
+        $screenReflection = new \ReflectionClass($screen);
+        $pendingProperty = $screenReflection->getProperty('pendingSyncPlayEvents');
+        $pendingProperty->setAccessible(true);
+        /** @var list<Msg> $pendingEvents */
+        $pendingEvents = $pendingProperty->getValue($screen);
+
+        $this->assertCount(1, $pendingEvents);
+        $this->assertInstanceOf(ShowToastMsg::class, $pendingEvents[0]);
+        /** @var ShowToastMsg $toast */
+        $toast = $pendingEvents[0];
+
+        return $toast;
+    }
+
+    public function testKnownErrorCodeToastIsLocalizedInSpanish(): void
+    {
+        Lang::t('syncplay.unknown_error'); // registers the real catalog directory
+        \SugarCraft\Core\I18n\T::setLocale('es');
+        $screen = $this->createScreen();
+
+        $toast = $this->errorToast($screen, [
+            'type' => 'syncplay_error',
+            'protocol_version' => 1,
+            'error_code' => 'NOT_IN_GROUP',
+            'message' => 'Player is not in a group',
+            'timestamp' => 1771000000,
+        ]);
+
+        $this->assertSame('SyncPlay: No estás en un grupo de visionado.', $toast->message);
+    }
+
+    public function testKnownErrorCodeToastIsLocalizedInJapanese(): void
+    {
+        Lang::t('syncplay.unknown_error');
+        \SugarCraft\Core\I18n\T::setLocale('ja');
+        $screen = $this->createScreen();
+
+        $toast = $this->errorToast($screen, [
+            'type' => 'syncplay_error',
+            'protocol_version' => 1,
+            'error_code' => 'JOIN_FAILED',
+            'message' => 'Could not join the watch group',
+            'timestamp' => 1771000000,
+        ]);
+
+        $this->assertSame('SyncPlay: ウォッチグループに参加できませんでした。', $toast->message);
+    }
+
+    public function testLocalizedCodeWinsOverServerEnglishText(): void
+    {
+        Lang::t('syncplay.unknown_error');
+        \SugarCraft\Core\I18n\T::setLocale('es');
+        $screen = $this->createScreen();
+
+        $toast = $this->errorToast($screen, [
+            'type' => 'syncplay_error',
+            'protocol_version' => 1,
+            'error_code' => 'CREATE_FAILED',
+            'message' => 'raw internal db detail',
+            'timestamp' => 1771000000,
+        ]);
+
+        $this->assertSame('SyncPlay: No se pudo crear el grupo de visionado.', $toast->message);
+        $this->assertStringNotContainsString('raw internal db detail', $toast->message);
+    }
+
+    public function testUnknownErrorCodeFallsBackToServerText(): void
+    {
+        Lang::t('syncplay.unknown_error');
+        \SugarCraft\Core\I18n\T::setLocale('ja');
+        $screen = $this->createScreen();
+
+        $toast = $this->errorToast($screen, [
+            'type' => 'syncplay_error',
+            'protocol_version' => 1,
+            'error_code' => 'SOME_FUTURE_CODE',
+            'message' => 'brand new server diagnostic',
+            'timestamp' => 1771000000,
+        ]);
+
+        $this->assertSame('SyncPlay: brand new server diagnostic', $toast->message);
+    }
+
+    public function testUnknownCodeWithoutMessageShowsGenericLocalizedLine(): void
+    {
+        Lang::t('syncplay.unknown_error');
+        $screen = $this->createScreen();
+
+        $toast = $this->errorToast($screen, [
+            'type' => 'syncplay_error',
+            'protocol_version' => 1,
+            'error_code' => 'SOME_FUTURE_CODE',
+            'timestamp' => 1771000000,
+        ]);
+
+        $this->assertSame('SyncPlay: A sync error occurred.', $toast->message);
     }
 }

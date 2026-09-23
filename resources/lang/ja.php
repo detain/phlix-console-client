@@ -63,4 +63,19 @@ return [
     'filter.order_label' => '順序: ',
     'filter.order_asc' => '昇順',
     'filter.order_desc' => '降順',
+
+    // ---- SyncPlay errors ----------------------------------------------
+    'syncplay.not_authenticated' => 'ウォッチパーティを使う前にサインインしてください。',
+    'syncplay.not_in_group' => '現在グループに参加していません。',
+    'syncplay.not_host' => 'この操作はグループのホストだけが行えます。',
+    'syncplay.unknown_message' => 'サーバーが認識できないリクエストを拒否しました。',
+    'syncplay.handler_error' => '同期サーバーで問題が発生しました。',
+    'syncplay.protocol_version_mismatch' => 'このアプリはサーバーのバージョンと互換性がありません。',
+    'syncplay.invalid_new_host' => '要求された新しいホストは有効ではありません。',
+    'syncplay.member_not_found' => 'そのメンバーはグループ内に見つかりませんでした。',
+    'syncplay.same_host' => 'そのメンバーはすでにグループのホストです。',
+    'syncplay.create_failed' => 'ウォッチグループを作成できませんでした。',
+    'syncplay.join_failed' => 'ウォッチグループに参加できませんでした。',
+    'syncplay.leave_failed' => 'ウォッチグループから退出できませんでした。',
+    'syncplay.unknown_error' => '同期エラーが発生しました。',
 ];

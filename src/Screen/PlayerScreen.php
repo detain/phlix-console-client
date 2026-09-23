@@ -27,6 +27,7 @@ use Phlix\Console\Api\Dto\Trickplay;
 use Phlix\Console\Api\MediaQuery;
 use Phlix\Console\Api\SyncPlay\SyncPlayService;
 use Phlix\Console\Config\Config;
+use Phlix\Console\I18n\SyncPlayErrors;
 use Phlix\Console\Media\TrickplayCache;
 use Phlix\Console\Msg\AccessScheduleDeniedMsg;
 use Phlix\Console\Msg\AudioTracksLoadedMsg;
@@ -346,7 +347,9 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
 
         $this->syncPlayService->onError(
             function (string $code, string $message): void {
-                $this->pendingSyncPlayEvents[] = ShowToastMsg::error("SyncPlay: {$message}");
+                $this->pendingSyncPlayEvents[] = ShowToastMsg::error(
+                    'SyncPlay: ' . SyncPlayErrors::localize($code, $message),
+                );
             },
         );
 
