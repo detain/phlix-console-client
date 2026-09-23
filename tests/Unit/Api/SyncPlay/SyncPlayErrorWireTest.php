@@ -139,8 +139,8 @@ final class SyncPlayErrorWireTest extends TestCase
 
     public function testDeprecatedErrorEnvelopeStillReachesCallback(): void
     {
-        // Connection::sendMessage() shape from the server's auth gate and
-        // JSON-parse failure paths: {type:'error', data:{message}, timestamp}.
+        // Connection::sendMessage() shape from the server's JSON-parse
+        // failure and handler-error catch paths: {type:'error', data:{message}, timestamp}.
         $received = $this->dispatch($this->service(), [
             'type' => 'error',
             'data' => ['message' => 'Websocket authentication failed'],

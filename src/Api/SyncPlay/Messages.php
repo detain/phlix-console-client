@@ -56,8 +56,8 @@ final class Messages
 
     /**
      * Deprecated Tizen-style envelope type still emitted by the server's
-     * Connection::sendMessage() error paths (MessageHandler auth gate and
-     * JSON-parse failure). Carries `{type: 'error', data: {message}, timestamp}`
+     * Connection::sendMessage() error paths (MessageHandler JSON-parse
+     * failure and handler-error catch). Carries `{type: 'error', data: {message}, timestamp}`
      * with no error_code. Dispatch-only: deliberately absent from
      * VALID_TYPES so it is never sent or treated as a current wire type.
      */
