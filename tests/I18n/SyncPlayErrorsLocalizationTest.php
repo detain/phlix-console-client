@@ -180,11 +180,11 @@ final class SyncPlayErrorsLocalizationTest extends TestCase
     {
         T::setLocale('en');
 
-        foreach (self::SPECIALIZATIONS as $name => $spec) {
+        foreach (self::SPECIALIZATIONS as $spec) {
             self::assertSame(
                 $spec['texts']['en'],
                 SyncPlayErrors::localize($spec['code'], $spec['prose']),
-                "specialization {$spec['code']} must render its catalog line, not the server prose '$spec[prose]'",
+                "specialization {$spec['code']} must render its catalog line, not the server prose '{$spec['prose']}'",
             );
         }
     }
