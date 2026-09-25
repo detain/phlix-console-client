@@ -74,5 +74,9 @@ return [
     'syncplay.create_failed' => 'Could not create the watch group.',
     'syncplay.join_failed' => 'Could not join the watch group.',
     'syncplay.leave_failed' => 'Could not leave the watch group.',
+    'syncplay.group_limit_reached' => 'The host has reached the limit for watch groups.',
+    'syncplay.group_not_found' => 'That watch group no longer exists.',
+    'syncplay.invalid_password' => 'That password is not correct.',
+    'syncplay.group_full' => 'That watch group is full.',
     'syncplay.unknown_error' => 'A sync error occurred.',
 ];

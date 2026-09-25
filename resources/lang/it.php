@@ -77,5 +77,9 @@ return [
     'syncplay.create_failed' => 'Impossibile creare il gruppo di visione.',
     'syncplay.join_failed' => 'Impossibile unirsi al gruppo di visione.',
     'syncplay.leave_failed' => 'Impossibile uscire dal gruppo di visione.',
+    'syncplay.group_limit_reached' => 'L’ospite ha raggiunto il limite di sale di visione.',
+    'syncplay.group_not_found' => 'Quel gruppo di visione non esiste più.',
+    'syncplay.invalid_password' => 'La password non è corretta.',
+    'syncplay.group_full' => 'Quel gruppo di visione è pieno.',
     'syncplay.unknown_error' => 'Si è verificato un errore di sincronizzazione.',
 ];

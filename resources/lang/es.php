@@ -77,5 +77,9 @@ return [
     'syncplay.create_failed' => 'No se pudo crear el grupo de visionado.',
     'syncplay.join_failed' => 'No se pudo unir al grupo de visionado.',
     'syncplay.leave_failed' => 'No se pudo salir del grupo de visionado.',
+    'syncplay.group_limit_reached' => 'El anfitrión alcanzó el límite de salas de visionado.',
+    'syncplay.group_not_found' => 'Ese grupo de visionado ya no existe.',
+    'syncplay.invalid_password' => 'La contraseña no es correcta.',
+    'syncplay.group_full' => 'Ese grupo de visionado está lleno.',
     'syncplay.unknown_error' => 'Ocurrió un error de sincronización.',
 ];
