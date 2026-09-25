@@ -77,5 +77,9 @@ return [
     'syncplay.create_failed' => 'Impossible de créer le groupe synchronisé.',
     'syncplay.join_failed' => 'Impossible de rejoindre le groupe synchronisé.',
     'syncplay.leave_failed' => 'Impossible de quitter le groupe synchronisé.',
+    'syncplay.group_limit_reached' => 'L’hôte a atteint la limite de soirées synchronisées.',
+    'syncplay.group_not_found' => 'Ce groupe synchronisé n’existe plus.',
+    'syncplay.invalid_password' => 'Le mot de passe n’est pas correct.',
+    'syncplay.group_full' => 'Ce groupe synchronisé est complet.',
     'syncplay.unknown_error' => 'Une erreur de synchronisation est survenue.',
 ];

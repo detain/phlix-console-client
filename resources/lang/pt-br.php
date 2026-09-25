@@ -82,5 +82,9 @@ return [
     'syncplay.create_failed' => 'Não foi possível criar o grupo de exibição.',
     'syncplay.join_failed' => 'Não foi possível entrar no grupo de exibição.',
     'syncplay.leave_failed' => 'Não foi possível sair do grupo de exibição.',
+    'syncplay.group_limit_reached' => 'O anfitrião atingiu o limite de sessões sincronizadas.',
+    'syncplay.group_not_found' => 'Esse grupo de exibição não existe mais.',
+    'syncplay.invalid_password' => 'A senha não está correta.',
+    'syncplay.group_full' => 'Esse grupo de exibição está cheio.',
     'syncplay.unknown_error' => 'Ocorreu um erro de sincronização.',
 ];

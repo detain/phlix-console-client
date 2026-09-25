@@ -17,8 +17,15 @@ use SugarCraft\Core\I18n\T;
  * dotted code must resolve through the real T/Lang path to exactly the text
  * its SCREAMING twin already renders — the flip is a rendering non-event.
  *
- * Removing any twin mapping from SyncPlayErrors::CODE_KEYS reddens the
- * twin tests: the raw server prose would surface instead of the catalog line.
+ * The four inner-path specializations (syncplay.group_limit_reached /
+ * group_not_found / invalid_password / group_full, live since srv #793 at
+ * SyncPlayManager.php:621/:702/:741/:745) are the opposite shape: they
+ * un-wrap a coarse carrier into a precise reason, so each must resolve to
+ * its OWN catalog line and never to the carrier text nor the server prose
+ * they used to leak through the debug fallback.
+ *
+ * Removing any mapping from SyncPlayErrors::CODE_KEYS reddens its test:
+ * the raw server prose would surface instead of the catalog line.
  */
 final class SyncPlayErrorsLocalizationTest extends TestCase
 {
@@ -54,6 +61,61 @@ final class SyncPlayErrorsLocalizationTest extends TestCase
                 'en' => 'Could not leave the watch group.',
                 'es' => 'No se pudo salir del grupo de visionado.',
                 'ja' => 'ウォッチグループから退出できませんでした。',
+            ],
+        ],
+    ];
+
+    /**
+     * Inner-path specializations (contracts registry, all four LIVE since
+     * srv #793): dotted codes the createGroup/joinGroup handlers un-wrap
+     * out of the coarse carriers. Unlike the `_failed` trio they render
+     * their OWN precise catalog line, not the carrier text — before the
+     * mapping they were unknown codes and surfaced the server's English
+     * prose (quoted per site at srv SyncPlayManager.php:621/:702/:741/:745)
+     * through the debug fallback. Texts pinned byte-for-locale to the
+     * roku catalogs; carrier names the twin map routes each under.
+     *
+     * @var array<string, array{code: string, carrier: string, prose: string, texts: array<string, string>}>
+     */
+    private const SPECIALIZATIONS = [
+        'group_limit_reached' => [
+            'code' => 'syncplay.group_limit_reached',
+            'carrier' => 'CREATE_FAILED',
+            'prose' => 'Maximum group limit reached',
+            'texts' => [
+                'en' => 'The host has reached the limit for watch groups.',
+                'es' => 'El anfitrión alcanzó el límite de salas de visionado.',
+                'ja' => 'ホストのウォッチパーティが上限に達しました。',
+            ],
+        ],
+        'group_not_found' => [
+            'code' => 'syncplay.group_not_found',
+            'carrier' => 'JOIN_FAILED',
+            'prose' => 'Group not found',
+            'texts' => [
+                'en' => 'That watch group no longer exists.',
+                'es' => 'Ese grupo de visionado ya no existe.',
+                'ja' => 'そのウォッチグループは存在しません。',
+            ],
+        ],
+        'invalid_password' => [
+            'code' => 'syncplay.invalid_password',
+            'carrier' => 'JOIN_FAILED',
+            'prose' => 'Invalid password',
+            'texts' => [
+                'en' => 'That password is not correct.',
+                'es' => 'La contraseña no es correcta.',
+                'ja' => 'パスワードが正しくありません。',
+            ],
+        ],
+        'group_full' => [
+            'code' => 'syncplay.group_full',
+            'carrier' => 'JOIN_FAILED',
+            'prose' => 'Group is full',
+            'texts' => [
+                'en' => 'That watch group is full.',
+                'es' => 'Ese grupo de visionado está lleno.',
+                'ja' => 'そのウォッチグループは満員です。',
             ],
         ],
     ];
@@ -111,6 +173,50 @@ final class SyncPlayErrorsLocalizationTest extends TestCase
 
         foreach (self::PAIRS as $pair) {
             self::assertSame($pair['texts']['ja'], SyncPlayErrors::localize($pair['twin'], ''));
+        }
+    }
+
+    public function testInnerPathSpecializationsResolveToOwnCatalogLines(): void
+    {
+        T::setLocale('en');
+
+        foreach (self::SPECIALIZATIONS as $spec) {
+            self::assertSame(
+                $spec['texts']['en'],
+                SyncPlayErrors::localize($spec['code'], $spec['prose']),
+                "specialization {$spec['code']} must render its catalog line, not the server prose '{$spec['prose']}'",
+            );
+        }
+    }
+
+    public function testInnerPathSpecializationsAreMorePreciseThanTheirCarriers(): void
+    {
+        T::setLocale('en');
+
+        foreach (self::SPECIALIZATIONS as $name => $spec) {
+            self::assertNotSame(
+                SyncPlayErrors::localize($spec['carrier'], "legacy prose for $name"),
+                SyncPlayErrors::localize($spec['code'], $spec['prose']),
+                "specialization {$spec['code']} must un-wrap its carrier '$spec[carrier]' into its own line",
+            );
+        }
+    }
+
+    public function testInnerPathSpecializationsLocalizeInSpanish(): void
+    {
+        T::setLocale('es');
+
+        foreach (self::SPECIALIZATIONS as $spec) {
+            self::assertSame($spec['texts']['es'], SyncPlayErrors::localize($spec['code'], ''));
+        }
+    }
+
+    public function testInnerPathSpecializationsLocalizeInJapanese(): void
+    {
+        T::setLocale('ja');
+
+        foreach (self::SPECIALIZATIONS as $spec) {
+            self::assertSame($spec['texts']['ja'], SyncPlayErrors::localize($spec['code'], ''));
         }
     }
 

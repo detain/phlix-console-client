@@ -77,5 +77,9 @@ return [
     'syncplay.create_failed' => 'Die synchronisierte Gruppe konnte nicht erstellt werden.',
     'syncplay.join_failed' => 'Der Gruppe konnte nicht beigetreten werden.',
     'syncplay.leave_failed' => 'Die Gruppe konnte nicht verlassen werden.',
+    'syncplay.group_limit_reached' => 'Der Host hat die maximale Anzahl an Watch-Parties erreicht.',
+    'syncplay.group_not_found' => 'Diese synchronisierte Gruppe existiert nicht mehr.',
+    'syncplay.invalid_password' => 'Das Passwort ist nicht korrekt.',
+    'syncplay.group_full' => 'Diese synchronisierte Gruppe ist voll.',
     'syncplay.unknown_error' => 'Ein Synchronisierungsfehler ist aufgetreten.',
 ];

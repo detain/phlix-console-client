@@ -32,6 +32,15 @@ final class SyncPlayErrors
      * catalog key: two codes, one key, byte-identical text before and
      * after the flip. The SCREAMING entries stay mapped for older servers
      * that still emit them.
+     *
+     * Inner-path specializations: the four dotted codes the createGroup /
+     * joinGroup handlers return beneath the carriers (srv SyncPlayManager
+     * :621 group_limit_reached, :702 group_not_found, :741 invalid_password,
+     * :745 group_full — forwarded verbatim by the `?? ` wraps at :1588 /
+     * :1627) un-wrap a coarse carrier into a precise reason, so each gets
+     * its own catalog key instead of the carrier text. Before this mapping
+     * they were unknown codes and rendered the server's English prose via
+     * the debug fallback; texts mirror the roku catalogs byte-for-locale.
      */
     private const CODE_KEYS = [
         'NOT_AUTHENTICATED' => 'syncplay.not_authenticated',
@@ -49,6 +58,10 @@ final class SyncPlayErrors
         'syncplay.create_failed' => 'syncplay.create_failed',
         'syncplay.join_failed' => 'syncplay.join_failed',
         'syncplay.leave_failed' => 'syncplay.leave_failed',
+        'syncplay.group_limit_reached' => 'syncplay.group_limit_reached',
+        'syncplay.group_not_found' => 'syncplay.group_not_found',
+        'syncplay.invalid_password' => 'syncplay.invalid_password',
+        'syncplay.group_full' => 'syncplay.group_full',
     ];
 
     /**
