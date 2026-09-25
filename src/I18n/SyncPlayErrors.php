@@ -22,6 +22,16 @@ final class SyncPlayErrors
     /**
      * Server error codes (phlix-server SyncPlayManager / MessageHandler
      * sendError literals) mapped to catalog keys.
+     *
+     * Wave-2 dotted twins: the server flip replaces the coarse SCREAMING
+     * carriers below with the dotted codes reserved by the contracts
+     * registry (@phlix/contracts src/errors.ts SYNCPLAY_ERROR_CODE_TWINS —
+     * syncplay.create_failed / syncplay.join_failed / syncplay.leave_failed
+     * twin CREATE_FAILED / JOIN_FAILED / LEAVE_FAILED). A twin is the same
+     * failure as its carrier, so both wire codes resolve to the same
+     * catalog key: two codes, one key, byte-identical text before and
+     * after the flip. The SCREAMING entries stay mapped for older servers
+     * that still emit them.
      */
     private const CODE_KEYS = [
         'NOT_AUTHENTICATED' => 'syncplay.not_authenticated',
@@ -36,6 +46,9 @@ final class SyncPlayErrors
         'CREATE_FAILED' => 'syncplay.create_failed',
         'JOIN_FAILED' => 'syncplay.join_failed',
         'LEAVE_FAILED' => 'syncplay.leave_failed',
+        'syncplay.create_failed' => 'syncplay.create_failed',
+        'syncplay.join_failed' => 'syncplay.join_failed',
+        'syncplay.leave_failed' => 'syncplay.leave_failed',
     ];
 
     /**

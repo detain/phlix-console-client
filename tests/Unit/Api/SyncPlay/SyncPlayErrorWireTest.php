@@ -152,6 +152,32 @@ final class SyncPlayErrorWireTest extends TestCase
         self::assertSame('Websocket authentication failed', $received[1]);
     }
 
+    public function testPostFlipDottedTwinCodesPassThroughUnchanged(): void
+    {
+        // The Wave-2 flip sends the contracts registry's dotted twins on
+        // error_code (src/errors.ts SYNCPLAY_ERROR_CODE_TWINS). The wire
+        // layer must hand each dotted code to onError verbatim — dots and
+        // all — so SyncPlayErrors can resolve it to its catalog line.
+        $frames = [
+            'syncplay.create_failed',
+            'syncplay.join_failed',
+            'syncplay.leave_failed',
+        ];
+
+        foreach ($frames as $code) {
+            $received = $this->dispatch($this->service(), [
+                'type' => 'syncplay_error',
+                'protocol_version' => 1,
+                'error_code' => $code,
+                'message' => 'Coarse carrier prose',
+                'timestamp' => 1771000000,
+            ]);
+
+            self::assertNotNull($received);
+            self::assertSame($code, $received[0], "dotted twin '$code' must survive framing verbatim");
+        }
+    }
+
     public function testFramingAcceptsServerErrorEnvelope(): void
     {
         self::assertTrue(Framing::validateEnvelope([
