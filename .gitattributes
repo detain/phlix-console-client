@@ -1,0 +1,33 @@
+# =============================================================================
+# EOL shield — normalise all text to LF in the working tree (windows #46 class)
+# =============================================================================
+# Rationale (estate hygiene campaign, 2026-09-25; mirrors the phlix-windows-client
+# PR #46 precedent and the tizen/ui/contracts/hub/roku shields):
+#
+# If any windows-latest CI job ever lands on this repo, git's autocrlf line
+# endings (or a machine-level core.autocrlf=true) can silently convert
+# working-tree text files to CRLF at checkout. Three byte laws are exposed:
+#
+#  1. tests/fixtures/server-route-manifest.json is vendored byte-for-byte from
+#     @phlix/contracts dist/server-route-manifest.json and HARD-PINNED by md5 in
+#     tests/Unit/Api/ServerRouteManifestGateTest.php (EXPECTED_MD5
+#     06ce7ec95bc064cc0f13b94389af9a82 — gate s405-console-route-gate-v1).
+#  2. build/phlix.phar is a COMMITTED distribution artifact (mode 755) executed
+#     by tests/PharTest.php — any line-ending munging of the zip container or
+#     its stub bytes corrupts the shipped binary outright.
+#  3. docs/images/ terminal-capability references (png/gif) are committed
+#     rendering evidence.
+#
+# `* text=auto eol=lf` forces LF working-tree bytes on every text file on
+# every platform regardless of core.autocrlf; git detects text vs binary by
+# content (NUL heuristic), so binary files never convert. Committed blobs are
+# already pure LF (2026-09-25 census @4ea13bed: 754 tracked blobs, CR only in
+# png/gif/phar assets — all guarded below), so renormalisation is a guaranteed
+# no-op and this file only FROZE the invariant against future checkouts.
+# vendor/ (composer-managed, untracked) is unaffected.
+# =============================================================================
+* text=auto eol=lf
+# Committed binary artifacts and rendering evidence: never EOL-converted.
+*.png binary
+*.gif binary
+*.phar binary
