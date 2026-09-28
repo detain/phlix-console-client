@@ -901,16 +901,16 @@
         },
         {
             "name": "composer/semver",
-            "version": "3.4.4",
+            "version": "3.5.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/composer/semver.git",
-                "reference": "198166618906cb2de69b95d7d47e5fa8aa1b2b95"
+                "reference": "f7a296f4c4cf8cb8bb83e35d6951a406bb11afa5"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/composer/semver/zipball/198166618906cb2de69b95d7d47e5fa8aa1b2b95",
-                "reference": "198166618906cb2de69b95d7d47e5fa8aa1b2b95",
+                "url": "https://api.github.com/repos/composer/semver/zipball/f7a296f4c4cf8cb8bb83e35d6951a406bb11afa5",
+                "reference": "f7a296f4c4cf8cb8bb83e35d6951a406bb11afa5",
                 "shasum": ""
             },
             "require": {
@@ -952,7 +952,7 @@
                     "homepage": "http://robbast.nl"
                 }
             ],
-            "description": "Semver library that offers utilities, version constraint parsing and validation.",
+            "description": "Version comparison library that offers utilities, version constraint parsing and validation.",
             "keywords": [
                 "semantic",
                 "semver",
@@ -962,7 +962,7 @@
             "support": {
                 "irc": "ircs://irc.libera.chat:6697/composer",
                 "issues": "https://github.com/composer/semver/issues",
-                "source": "https://github.com/composer/semver/tree/3.4.4"
+                "source": "https://github.com/composer/semver/tree/3.5.0"
             },
             "funding": [
                 {
@@ -974,7 +974,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2025-08-20T19:15:30+00:00"
+            "time": "2026-09-24T14:38:51+00:00"
         },
         {
             "name": "composer/xdebug-handler",
@@ -1711,16 +1711,16 @@
         },
         {
             "name": "justinrainbow/json-schema",
-            "version": "6.12.0",
+            "version": "6.13.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/jsonrainbow/json-schema.git",
-                "reference": "8ef236a1a37df364b518b7411a4b5bb95b040d79"
+                "reference": "30de5e9b3fa04253af272a7d932a38cd026c311b"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/jsonrainbow/json-schema/zipball/8ef236a1a37df364b518b7411a4b5bb95b040d79",
-                "reference": "8ef236a1a37df364b518b7411a4b5bb95b040d79",
+                "url": "https://api.github.com/repos/jsonrainbow/json-schema/zipball/30de5e9b3fa04253af272a7d932a38cd026c311b",
+                "reference": "30de5e9b3fa04253af272a7d932a38cd026c311b",
                 "shasum": ""
             },
             "require": {
@@ -1770,9 +1770,9 @@
             ],
             "support": {
                 "issues": "https://github.com/jsonrainbow/json-schema/issues",
-                "source": "https://github.com/jsonrainbow/json-schema/tree/6.12.0"
+                "source": "https://github.com/jsonrainbow/json-schema/tree/6.13.0"
             },
-            "time": "2026-09-04T12:54:20+00:00"
+            "time": "2026-09-23T19:46:42+00:00"
         },
         {
             "name": "kelunik/certificate",
@@ -1834,16 +1834,16 @@
         },
         {
             "name": "league/commonmark",
-            "version": "2.10.1",
+            "version": "2.10.3",
             "source": {
                 "type": "git",
                 "url": "https://github.com/thephpleague/commonmark.git",
-                "reference": "9d489ab67a02960fd8ffe624d93f751daf95439e"
+                "reference": "6efbd9c472b91db0a3350fcd601c8332c2382e1f"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/thephpleague/commonmark/zipball/9d489ab67a02960fd8ffe624d93f751daf95439e",
-                "reference": "9d489ab67a02960fd8ffe624d93f751daf95439e",
+                "url": "https://api.github.com/repos/thephpleague/commonmark/zipball/6efbd9c472b91db0a3350fcd601c8332c2382e1f",
+                "reference": "6efbd9c472b91db0a3350fcd601c8332c2382e1f",
                 "shasum": ""
             },
             "require": {
@@ -1937,7 +1937,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-09-07T13:44:26+00:00"
+            "time": "2026-09-21T13:07:34+00:00"
         },
         {
             "name": "league/config",
@@ -2545,20 +2545,25 @@
         },
         {
             "name": "phpdocumentor/reflection-common",
-            "version": "2.2.0",
+            "version": "2.2.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/phpDocumentor/ReflectionCommon.git",
-                "reference": "1d01c49d4ed62f25aa84a747ad35d5a16924662b"
+                "reference": "ee15a5a2022c8383906b225055e9496a6a5e6e3b"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/phpDocumentor/ReflectionCommon/zipball/1d01c49d4ed62f25aa84a747ad35d5a16924662b",
-                "reference": "1d01c49d4ed62f25aa84a747ad35d5a16924662b",
+                "url": "https://api.github.com/repos/phpDocumentor/ReflectionCommon/zipball/ee15a5a2022c8383906b225055e9496a6a5e6e3b",
+                "reference": "ee15a5a2022c8383906b225055e9496a6a5e6e3b",
                 "shasum": ""
             },
             "require": {
-                "php": "^7.2 || ^8.0"
+                "php": "^7.4 || ^8.0"
+            },
+            "require-dev": {
+                "phpstan/phpstan": "^1.8",
+                "phpunit/phpunit": "^9.5",
+                "vimeo/psalm": "^4.25"
             },
             "type": "library",
             "extra": {
@@ -2582,7 +2587,7 @@
                 }
             ],
             "description": "Common reflection classes used by phpdocumentor to reflect the code structure",
-            "homepage": "http://www.phpdoc.org",
+            "homepage": "https://www.phpdoc.org",
             "keywords": [
                 "FQSEN",
                 "phpDocumentor",
@@ -2592,9 +2597,9 @@
             ],
             "support": {
                 "issues": "https://github.com/phpDocumentor/ReflectionCommon/issues",
-                "source": "https://github.com/phpDocumentor/ReflectionCommon/tree/2.x"
+                "source": "https://github.com/phpDocumentor/ReflectionCommon/tree/2.2.1"
             },
-            "time": "2020-06-27T09:03:43+00:00"
+            "time": "2025-11-10T21:21:55+00:00"
         },
         {
             "name": "phpdocumentor/reflection-docblock",
@@ -2720,16 +2725,16 @@
         },
         {
             "name": "phpstan/phpdoc-parser",
-            "version": "2.3.5",
+            "version": "2.3.6",
             "source": {
                 "type": "git",
                 "url": "https://github.com/phpstan/phpdoc-parser.git",
-                "reference": "148cefffaf0233e4c08cc13db8a195a56dd6dfe9"
+                "reference": "1427af4647235b4a73b13940b1f1258d3584f36e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/phpstan/phpdoc-parser/zipball/148cefffaf0233e4c08cc13db8a195a56dd6dfe9",
-                "reference": "148cefffaf0233e4c08cc13db8a195a56dd6dfe9",
+                "url": "https://api.github.com/repos/phpstan/phpdoc-parser/zipball/1427af4647235b4a73b13940b1f1258d3584f36e",
+                "reference": "1427af4647235b4a73b13940b1f1258d3584f36e",
                 "shasum": ""
             },
             "require": {
@@ -2761,9 +2766,9 @@
             "description": "PHPDoc parser with support for nullable, intersection and generic types",
             "support": {
                 "issues": "https://github.com/phpstan/phpdoc-parser/issues",
-                "source": "https://github.com/phpstan/phpdoc-parser/tree/2.3.5"
+                "source": "https://github.com/phpstan/phpdoc-parser/tree/2.3.6"
             },
-            "time": "2026-08-31T16:05:28+00:00"
+            "time": "2026-09-27T20:07:45+00:00"
         },
         {
             "name": "psr/container",
@@ -4216,12 +4221,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/candy-flip.git",
-                "reference": "b946518194377b7a2d57c516c0faefbae319a62a"
+                "reference": "cf636a4c121518f07d7bcc2ab597870768f37a43"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/candy-flip/zipball/b946518194377b7a2d57c516c0faefbae319a62a",
-                "reference": "b946518194377b7a2d57c516c0faefbae319a62a",
+                "url": "https://api.github.com/repos/sugarcraft/candy-flip/zipball/cf636a4c121518f07d7bcc2ab597870768f37a43",
+                "reference": "cf636a4c121518f07d7bcc2ab597870768f37a43",
                 "shasum": ""
             },
             "require": {
@@ -4270,7 +4275,7 @@
                 "issues": "https://github.com/sugarcraft/candy-flip/issues",
                 "source": "https://github.com/sugarcraft/candy-flip"
             },
-            "time": "2026-09-15T22:53:01+00:00"
+            "time": "2026-09-21T20:33:23+00:00"
         },
         {
             "name": "sugarcraft/candy-focus",
@@ -4569,12 +4574,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/candy-layout.git",
-                "reference": "82bca8c735b45fe136ffaa8ac76b73d9c2e24bed"
+                "reference": "cee662b6ba5e3bc5cd7d2238a711d4dec22df7fa"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/candy-layout/zipball/82bca8c735b45fe136ffaa8ac76b73d9c2e24bed",
-                "reference": "82bca8c735b45fe136ffaa8ac76b73d9c2e24bed",
+                "url": "https://api.github.com/repos/sugarcraft/candy-layout/zipball/cee662b6ba5e3bc5cd7d2238a711d4dec22df7fa",
+                "reference": "cee662b6ba5e3bc5cd7d2238a711d4dec22df7fa",
                 "shasum": ""
             },
             "require": {
@@ -4616,7 +4621,7 @@
                 "issues": "https://github.com/sugarcraft/candy-layout/issues",
                 "source": "https://github.com/sugarcraft/candy-layout/tree/master"
             },
-            "time": "2026-09-17T18:26:15+00:00"
+            "time": "2026-09-22T21:14:12+00:00"
         },
         {
             "name": "sugarcraft/candy-mosaic",
@@ -4879,12 +4884,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/candy-shine.git",
-                "reference": "643ce69780afe642daeb80634214b038cccd80e1"
+                "reference": "663d9545668b2d858658039aa0b412e0224a56db"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/candy-shine/zipball/643ce69780afe642daeb80634214b038cccd80e1",
-                "reference": "643ce69780afe642daeb80634214b038cccd80e1",
+                "url": "https://api.github.com/repos/sugarcraft/candy-shine/zipball/663d9545668b2d858658039aa0b412e0224a56db",
+                "reference": "663d9545668b2d858658039aa0b412e0224a56db",
                 "shasum": ""
             },
             "require": {
@@ -4933,7 +4938,7 @@
                 "issues": "https://github.com/sugarcraft/candy-shine/issues",
                 "source": "https://github.com/sugarcraft/candy-shine"
             },
-            "time": "2026-09-17T18:26:16+00:00"
+            "time": "2026-09-21T20:33:00+00:00"
         },
         {
             "name": "sugarcraft/candy-sprinkles",
@@ -5301,12 +5306,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/sugar-reel.git",
-                "reference": "493137db736c2d509ec1169dcabb7e953d6d07c8"
+                "reference": "9b0050ee97245568702998f3efda7a551546b254"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/sugar-reel/zipball/493137db736c2d509ec1169dcabb7e953d6d07c8",
-                "reference": "493137db736c2d509ec1169dcabb7e953d6d07c8",
+                "url": "https://api.github.com/repos/sugarcraft/sugar-reel/zipball/9b0050ee97245568702998f3efda7a551546b254",
+                "reference": "9b0050ee97245568702998f3efda7a551546b254",
                 "shasum": ""
             },
             "require": {
@@ -5361,7 +5366,7 @@
                 "issues": "https://github.com/sugarcraft/sugar-reel/issues",
                 "source": "https://github.com/sugarcraft/sugar-reel"
             },
-            "time": "2026-09-17T01:37:10+00:00"
+            "time": "2026-09-21T20:33:23+00:00"
         },
         {
             "name": "sugarcraft/sugar-table",
@@ -7254,11 +7259,11 @@
         },
         {
             "name": "phpstan/phpstan",
-            "version": "2.2.14",
+            "version": "2.2.16",
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/phpstan/phpstan/zipball/9c672e7a8e791dfc3d30e55f683e73fc0b63a3ac",
-                "reference": "9c672e7a8e791dfc3d30e55f683e73fc0b63a3ac",
+                "url": "https://api.github.com/repos/phpstan/phpstan/zipball/46a6d9060e5a7763adfcc21ebcb8b504ebdbcb92",
+                "reference": "46a6d9060e5a7763adfcc21ebcb8b504ebdbcb92",
                 "shasum": ""
             },
             "require": {
@@ -7314,7 +7319,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-09-12T21:39:33+00:00"
+            "time": "2026-09-25T09:31:51+00:00"
         },
         {
             "name": "phpunit/php-code-coverage",
