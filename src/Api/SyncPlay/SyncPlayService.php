@@ -478,10 +478,22 @@ final class SyncPlayService
         $conn = ($this->connectionFactory)($wsUrl);
         $this->wsConnection = $conn;
 
-        // Set up handlers. onClose/onError carry the connection as Workerman's
-        // first argument — a handler from a socket the service has already
-        // replaced (or torn down on purpose) is a stale echo and is ignored,
-        // so old sockets can never resurrect the ladder for a newer one.
+        // Set up handlers against Workerman's REAL invocation shapes (verified
+        // against the vendored call sites): onMessage is invoked as
+        // ($connection, $data) (TcpConnection.php:715-831), onError as
+        // ($connection, $code, $message) (AsyncTcpConnection.php:336,
+        // TcpConnection.php:513/:1130). Typing these any other way turns every
+        // genuine socket event into a TypeError that the vendor's try/catch
+        // catches only to hand it to `error()` — which with no custom
+        // errorHandler calls `Worker::stopAll(250)` — so the event never
+        // reaches us and the process goes down with it.
+        // onConnect/onClose are invoked as ($connection); the zero-parameter
+        // closures below accept that extra argument silently, as PHP does for
+        // user callables.
+        //
+        // A handler from a socket the service has already replaced (or torn
+        // down on purpose) is a stale echo and is ignored via the identity
+        // guard, so old sockets can never resurrect the ladder for a newer one.
         $conn->onConnect = function () use ($deferred, $session): void {
             $this->connected = true;
             $this->reconnecting = false;
@@ -502,20 +514,29 @@ final class SyncPlayService
             $deferred->resolve($session);
         };
 
-        $conn->onMessage = function (string $_, string $data): void {
+        $conn->onMessage = function (AsyncTcpConnection $_connection, string $data): void {
             $this->handleMessage($data);
         };
 
-        $conn->onError = function (\Throwable $e) use ($deferred, $conn): void {
+        $conn->onError = function (
+            AsyncTcpConnection $_connection,
+            int|string $code,
+            mixed $message,
+        ) use (
+            $deferred,
+            $conn,
+        ): void {
             if ($conn !== $this->wsConnection) {
                 return;
             }
 
+            $detail = self::describeConnectionError($code, $message);
+
             $this->connected = false;
-            ($this->onError ?? fn () => null)('websocket_error', $e->getMessage());
+            ($this->onError ?? fn () => null)('websocket_error', $detail);
 
             try {
-                $deferred->reject(new \RuntimeException('WebSocket connection failed: ' . $e->getMessage()));
+                $deferred->reject(new \RuntimeException('WebSocket connection failed: ' . $detail));
             } catch (\Throwable) {
                 // Already resolved, ignore
             }
@@ -540,6 +561,33 @@ final class SyncPlayService
 
         /** @var PromiseInterface<SyncPlaySession> */
         return $deferred->promise();
+    }
+
+    /**
+     * Normalize Workerman's onError pair — an int constant code
+     * (CONNECT_FAIL/SEND_FAIL) plus a free-form mixed message — into the
+     * single-line detail string the service-level onError consumers receive.
+     * The vendor's `emitError(int $code, mixed $msg)` types the message
+     * `mixed`, so nothing beyond the int constants is trusted at this
+     * boundary: scalars stringify, everything else degrades to its type name.
+     */
+    private static function describeConnectionError(int|string $code, mixed $message): string
+    {
+        $label = match (true) {
+            $code === AsyncTcpConnection::CONNECT_FAIL => 'connect failed',
+            $code === AsyncTcpConnection::SEND_FAIL => 'send failed',
+            is_string($code) => $code,
+            default => 'error ' . $code,
+        };
+
+        $detail = match (true) {
+            is_string($message) => $message,
+            is_scalar($message) => (string) $message,
+            $message === null => '',
+            default => gettype($message) . ' detail',
+        };
+
+        return $detail === '' ? $label : $label . ': ' . $detail;
     }
 
     /**

@@ -5,6 +5,34 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Workerman callback arity (websocket_error was a guaranteed TypeError) — 2026-09-29
+
+- **`SyncPlayService`'s socket handlers now match Workerman's real invocation
+  shapes.** The vendor emits `onError` as `($connection, $code, $message)`
+  (`AsyncTcpConnection.php:336`, plus the `SEND_FAIL` paths in
+  `TcpConnection.php:513/:1130`) and `onMessage` as `($connection, $data)`
+  (`TcpConnection.php:715-831`). The service had registered `onError` typed
+  `function (\Throwable $e)` and `onMessage` typed `function (string $_, …)`
+  — every genuine connection error was therefore a `TypeError` thrown inside
+  the vendor's own try/catch, routed to `ConnectionInterface::error()` and
+  `Worker::stopAll(250)`: the service-level `websocket_error` event never
+  reached `PlayerScreen`, the initial-dial join promise never rejected, and
+  inbound frames would have died the same way. `onError` now accepts the
+  vendor triple (house convention per `HubRelayConsumer`), normalizes the
+  `(int code, mixed message)` pair into one detail line via
+  `describeConnectionError()`, and still surfaces `websocket_error`, rejects
+  the pending dial promise, and enters the capped ladder. `onMessage` takes
+  the connection object as its first parameter. `onConnect`/`onClose` were
+  verified safe (the vendor sends one argument; zero-parameter closures
+  legally ignore it), and the stale-socket identity guards are unchanged.
+- **Test-freeze retired.** The 2d3557a ladder pins invoked the handlers with
+  the WRONG (Throwable/string) shapes and stayed green while production threw;
+  they now fire with the vendor arity, plus three new pins: a
+  `ReflectionMethod::emitError` drive of the vendor's real error funnel
+  (proving both the surfaced event and the once-dead initial-dial rejection),
+  a vendor-shaped `onMessage` dispatch, and a closure-signature assertion so
+  a wrong-type first parameter cannot silently recur.
+
 ### Fixed — independent audit (syncplay WS endpoint law, capped ladder, genre chips) — 2026-09-29
 
 - **C1 — SyncPlay WS dial moved to the dedicated worker.** `buildWebSocketUrl()`

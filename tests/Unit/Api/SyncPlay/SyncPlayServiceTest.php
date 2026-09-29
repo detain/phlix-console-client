@@ -338,7 +338,7 @@ final class SyncPlayServiceTest extends TestCase
 
         $staleError = $stale->onError;
         self::assertIsCallable($staleError);
-        $staleError(new \RuntimeException('stale socket echo'));
+        $staleError($stale, AsyncTcpConnection::CONNECT_FAIL, 'stale socket echo');
 
         self::assertSame(2, count($harness['connections']), 'a stale echo dials nothing');
         self::assertSame([1.0], $harness['clock']->oneShotDelays, 'a stale echo arms nothing');
@@ -388,14 +388,153 @@ final class SyncPlayServiceTest extends TestCase
         $harness = $this->createLadderHarness();
         $harness['join']();
 
-        $harness['fireErrorOnLive'](new \RuntimeException('ECONNRESET'));
+        $harness['fireErrorOnLive'](AsyncTcpConnection::CONNECT_FAIL, 'ECONNRESET');
         $harness['closeLive']();
 
         self::assertSame(['websocket_error'], $harness['errorCodes'], 'the error callback surfaces exactly once');
-        self::assertSame(['ECONNRESET'], $harness['errorMessages']);
+        self::assertSame(
+            ['connect failed: ECONNRESET'],
+            $harness['errorMessages'],
+            'the Workerman code/message pair is normalized into one detail line',
+        );
         self::assertSame([1.0], $harness['clock']->oneShotDelays, 'error+close pair dedupes to a single armed rung');
         self::assertSame(1, $harness['clock']->pendingOneShotCount());
         self::assertSame([true], $harness['disconnects'], 'only the close surfaces a disconnect');
+    }
+
+    // ---- Vendor invocation-shape pins (the TypeError class of defect) --------
+
+    public function testInitialDialFailureThroughVendorEmitErrorSurfacesEventAndRejectsTheJoinPromise(): void
+    {
+        $transport = (new FakeTransport())->json(200, self::joinEnvelope());
+        $clock = new FakeClockLoop();
+        $connection = new RecordingConnection();
+        $service = new SyncPlayService(
+            new ApiClient('https://srv', $transport),
+            $clock,
+            static fn (string $url): AsyncTcpConnection => $connection,
+        );
+
+        /** @var list<string> $errorCodes */
+        $errorCodes = [];
+        /** @var list<string> $errorMessages */
+        $errorMessages = [];
+
+        $service->onError(static function (string $code, string $message) use (&$errorCodes, &$errorMessages): void {
+            $errorCodes[] = $code;
+            $errorMessages[] = $message;
+        });
+
+        $rejection = null;
+        $service->joinRoom('sp_cca927fbf4ba11f9')
+            ->then(null, static function (\Throwable $e) use (&$rejection): void {
+                $rejection = $e;
+            });
+
+        // Drive the vendor's REAL call site, not a hand-written arity:
+        // emitError() is the single funnel every Workerman connect/send
+        // failure passes through (AsyncTcpConnection.php:304/:453/:512,
+        // TcpConnection.php:513/:1130) and it invokes the handler as
+        // ($this, $code, $msg) at AsyncTcpConnection.php:336. Pre-fix the
+        // Throwable-typed handler turned this into a TypeError that
+        // Worker::error() caught and routed to Worker::stopAll(250) — the
+        // event below never fired and this promise never rejected.
+        $emitError = new \ReflectionMethod(RecordingConnection::class, 'emitError');
+        $emitError->setAccessible(true);
+        $emitError->invoke($connection, AsyncTcpConnection::CONNECT_FAIL, 'Connection refused');
+
+        self::assertSame(
+            ['websocket_error'],
+            $errorCodes,
+            'a genuine Workerman error must reach the service-level onError exactly once',
+        );
+        self::assertSame(
+            ['connect failed: Connection refused'],
+            $errorMessages,
+            'the (code, mixed message) pair normalizes into one detail line',
+        );
+        self::assertInstanceOf(
+            \RuntimeException::class,
+            $rejection,
+            'the initial-dial promise must reject when the dial fails',
+        );
+        self::assertStringContainsString(
+            'WebSocket connection failed: connect failed: Connection refused',
+            $rejection?->getMessage() ?? '',
+        );
+    }
+
+    public function testVendorShapedOnMessageInvocationDispatchesFrameData(): void
+    {
+        $harness = $this->createLadderHarness();
+        $harness['join']();
+
+        /** @var RecordingConnection $connection */
+        $connection = $harness['connections'][0];
+        $onMessage = $connection->onMessage;
+        self::assertIsCallable($onMessage);
+
+        // TcpConnection invokes onMessage as ($connection, $data) on every
+        // path (TcpConnection.php:715-831). Pre-fix the string-typed first
+        // parameter made every inbound frame a TypeError.
+        $onMessage($connection, (string) json_encode([
+            'type' => 'error',
+            'data' => ['message' => 'Websocket authentication failed'],
+            'timestamp' => 1771000000,
+        ], JSON_THROW_ON_ERROR));
+
+        self::assertSame(
+            ['unknown'],
+            $harness['errorCodes'],
+            'the frame must reach handleMessage through the vendor call shape',
+        );
+        self::assertSame(['Websocket authentication failed'], $harness['errorMessages']);
+    }
+
+    public function testSocketHandlerSignaturesMatchTheVendorInvocationShapes(): void
+    {
+        $harness = $this->createLadderHarness();
+        $harness['join']();
+
+        /** @var RecordingConnection $connection */
+        $connection = $harness['connections'][0];
+
+        $onError = $connection->onError;
+        self::assertIsCallable($onError);
+        $errorShape = new \ReflectionFunction($onError);
+        self::assertSame(
+            3,
+            $errorShape->getNumberOfParameters(),
+            'vendor emits onError($connection, $code, $message) — AsyncTcpConnection.php:336',
+        );
+        self::assertSame(
+            AsyncTcpConnection::class,
+            (string) $errorShape->getParameters()[0]->getType(),
+            'the first parameter must accept the connection — typing it \\Throwable '
+            . 'is the shipped production defect this pin retires',
+        );
+
+        $onMessage = $connection->onMessage;
+        self::assertIsCallable($onMessage);
+        $messageShape = new \ReflectionFunction($onMessage);
+        self::assertSame(
+            2,
+            $messageShape->getNumberOfParameters(),
+            'vendor emits onMessage($connection, $data) — TcpConnection.php:831',
+        );
+        self::assertSame(AsyncTcpConnection::class, (string) $messageShape->getParameters()[0]->getType());
+
+        // onConnect/onClose are invoked as ($connection) (vendor
+        // AsyncTcpConnection.php:497 / TcpConnection.php:1180). Zero-parameter
+        // closures legally ignore that extra positional argument, so pin only
+        // that neither handler DEMANDS more than the vendor ever sends.
+        $onConnect = $connection->onConnect;
+        self::assertIsCallable($onConnect);
+        self::assertLessThanOrEqual(1, (new \ReflectionFunction($onConnect))->getNumberOfRequiredParameters());
+
+        $onClose = $connection->onClose;
+        self::assertIsCallable($onClose);
+        self::assertLessThanOrEqual(1, (new \ReflectionFunction($onClose))->getNumberOfRequiredParameters());
     }
 
     // ---- Ladder harness ------------------------------------------------------
@@ -410,7 +549,7 @@ final class SyncPlayServiceTest extends TestCase
      *     disconnects: list<bool>,
      *     join: callable(): mixed,
      *     closeLive: callable(): mixed,
-     *     fireErrorOnLive: callable(\Throwable): mixed
+     *     fireErrorOnLive: callable(int|string, mixed): mixed
      * }
      */
     private function createLadderHarness(): array
@@ -449,16 +588,28 @@ final class SyncPlayServiceTest extends TestCase
                 ->then(null, static fn (): null => null);
         };
 
+        // Drive the handlers with Workerman's REAL invocation arity:
+        // onClose is invoked as ($connection) (TcpConnection.php:1180) and
+        // onError as ($connection, $code, $message)
+        // (AsyncTcpConnection.php:336). Pre-fix these pins baked the wrong
+        // signatures and stayed green while production threw TypeErrors.
         $closeLive = static function () use (&$connections): void {
+            /** @var AsyncTcpConnection $connection */
+            $connection = end($connections);
             /** @var \Closure $onClose */
-            $onClose = end($connections)->onClose;
-            $onClose();
+            $onClose = $connection->onClose;
+            $onClose($connection);
         };
 
-        $fireErrorOnLive = static function (\Throwable $error) use (&$connections): void {
+        $fireErrorOnLive = static function (
+            int|string $code = AsyncTcpConnection::CONNECT_FAIL,
+            mixed $message = 'connect fail',
+        ) use (&$connections): void {
+            /** @var AsyncTcpConnection $connection */
+            $connection = end($connections);
             /** @var \Closure $onError */
-            $onError = end($connections)->onError;
-            $onError($error);
+            $onError = $connection->onError;
+            $onError($connection, $code, $message);
         };
 
         return [
