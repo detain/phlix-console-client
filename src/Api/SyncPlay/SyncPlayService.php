@@ -15,6 +15,7 @@ use Phlix\Console\Api\Dto\SyncPlaySession;
 use Phlix\Console\Api\Dto\SyncPlayPlaybackCommand;
 use Phlix\Console\Api\Dto\SyncPlayUser;
 use React\EventLoop\LoopInterface;
+use React\EventLoop\TimerInterface;
 use React\Promise\Deferred;
 use React\Promise\PromiseInterface;
 use SugarCraft\Core\Cmd;
@@ -24,10 +25,37 @@ use Workerman\Connection\AsyncTcpConnection;
  * SyncPlay manager handling room lifecycle and WebSocket communication.
  *
  * Uses Workerman's AsyncTcpConnection for WebSocket communication with the
- * SyncPlay relay server. Owns the protocol state machine and time sync.
+ * SyncPlay server. Owns the protocol state machine and time sync.
+ *
+ * Endpoint law (phlix-server): the SyncPlay WebSocket lives on the DEDICATED
+ * plaintext worker at port {@see DEFAULT_WS_PORT} (:8097), NOT on the HTTP
+ * API port (:8096) — the HTTP worker does not upgrade `/api/v1/*`. The
+ * handshake requires a valid `?token=` query parameter (the server rejects
+ * the upgrade pre-101 without it when JWT enforcement is on); the bearer
+ * sub-protocol is tracked estate debt and deliberately NOT adopted here.
+ *
+ * Reconnect law: capped exponential backoff mirroring {@see HubRelayConsumer}
+ * — base delay doubling per attempt, at most {@see MAX_RECONNECT_ATTEMPTS},
+ * then a terminal stop until the room is (re)joined.
  */
 final class SyncPlayService
 {
+    /**
+     * Dedicated plaintext SyncPlay WebSocket port on phlix-server
+     * (server `config/server.php` → `websocket.port`). Overridable per
+     * server entry via {@see \Phlix\Console\Config\ServerEntry::$wsPort}.
+     */
+    public const DEFAULT_WS_PORT = 8097;
+
+    /** Reconnect ladder budget — same idiom as {@see HubRelayConsumer}. */
+    public const MAX_RECONNECT_ATTEMPTS = 5;
+
+    /** First rung of the doubling reconnect ladder, in seconds. */
+    public const RECONNECT_BASE_DELAY_SECONDS = 1.0;
+
+    /** Protocol ping cadence while connected, in seconds. */
+    private const TIME_SYNC_INTERVAL_SECONDS = 30.0;
+
     private ?SyncPlaySession $session = null;
     private ?SyncPlayGroup $currentRoom = null;
     private ?\Workerman\Connection\AsyncTcpConnection $wsConnection = null;
@@ -48,6 +76,9 @@ final class SyncPlayService
 
     private bool $connected = false;
     private bool $reconnecting = false;
+    private int $reconnectAttempts = 0;
+    private ?TimerInterface $reconnectTimer = null;
+    private ?TimerInterface $pingTimer = null;
 
     /** @var \Closure(SyncPlayPlaybackCommand): void */
     private \Closure $onPlaybackCommand;
@@ -93,11 +124,14 @@ final class SyncPlayService
 
     /**
      * @param (callable(string):AsyncTcpConnection)|null $connectionFactory
+     * @param int|null                                    $wsPort SyncPlay WebSocket port override;
+     *                                                            null → {@see DEFAULT_WS_PORT}.
      */
     public function __construct(
         private readonly ApiClient $api,
         ?LoopInterface $loop = null,
         ?callable $connectionFactory = null,
+        private readonly ?int $wsPort = null,
     ) {
         $this->loop = $loop;
         $this->timeSync = new TimeSync();
@@ -286,6 +320,7 @@ final class SyncPlayService
                 new SyncPlayUser($this->memberId ?? '', $this->memberName ?? 'You', true),
             ];
             $this->playbackState = 'stopped';
+            $this->startFreshLadder();
 
             return $this->connectWebSocket($session);
         });
@@ -302,6 +337,7 @@ final class SyncPlayService
             $this->session = $session;
             $this->isHost = false;
             $this->playbackState = 'stopped';
+            $this->startFreshLadder();
 
             return $this->connectWebSocket($session);
         });
@@ -330,7 +366,7 @@ final class SyncPlayService
             }
         }
 
-        $this->disconnectWebSocket(false);
+        $this->disconnectWebSocket();
         $this->session = null;
         $this->currentRoom = null;
         $this->members = [];
@@ -439,12 +475,18 @@ final class SyncPlayService
 
         // Create async TCP connection (Workerman-style; via the injectable
         // seam — S414. Production path constructs the identical object).
-        $this->wsConnection = ($this->connectionFactory)($wsUrl);
+        $conn = ($this->connectionFactory)($wsUrl);
+        $this->wsConnection = $conn;
 
-        // Set up handlers
-        $this->wsConnection->onConnect = function () use ($deferred, $session): void {
+        // Set up handlers. onClose/onError carry the connection as Workerman's
+        // first argument — a handler from a socket the service has already
+        // replaced (or torn down on purpose) is a stale echo and is ignored,
+        // so old sockets can never resurrect the ladder for a newer one.
+        $conn->onConnect = function () use ($deferred, $session): void {
             $this->connected = true;
             $this->reconnecting = false;
+            $this->reconnectAttempts = 0;
+            $this->cancelReconnectTimer();
 
             // Start time sync ping loop
             $this->startTimeSyncPing();
@@ -460,11 +502,15 @@ final class SyncPlayService
             $deferred->resolve($session);
         };
 
-        $this->wsConnection->onMessage = function (string $_, string $data): void {
+        $conn->onMessage = function (string $_, string $data): void {
             $this->handleMessage($data);
         };
 
-        $this->wsConnection->onError = function (\Throwable $e) use ($deferred): void {
+        $conn->onError = function (\Throwable $e) use ($deferred, $conn): void {
+            if ($conn !== $this->wsConnection) {
+                return;
+            }
+
             $this->connected = false;
             ($this->onError ?? fn () => null)('websocket_error', $e->getMessage());
 
@@ -477,81 +523,150 @@ final class SyncPlayService
             $this->attemptReconnect();
         };
 
-        $this->wsConnection->onClose = function (): void {
+        $conn->onClose = function () use ($conn): void {
+            if ($conn !== $this->wsConnection) {
+                return;
+            }
+
             $this->connected = false;
+            $this->wsConnection = null;
             ($this->onDisconnect ?? fn () => null)($this->reconnecting);
 
-            if (!$this->reconnecting) {
-                $this->attemptReconnect();
-            }
+            $this->attemptReconnect();
         };
 
         // Connect asynchronously
-        $this->wsConnection->connect();
+        $conn->connect();
 
         /** @var PromiseInterface<SyncPlaySession> */
         return $deferred->promise();
     }
 
     /**
-     * Disconnect from the WebSocket.
+     * Tear the socket down on purpose: cancel the ladder, silence the
+     * handlers, close. Intentional exits must never re-arm a reconnect
+     * loop nor surface a 'disconnected' event for our own goodbyes.
      */
-    private function disconnectWebSocket(bool $isIntentional = true): void
+    private function disconnectWebSocket(): void
     {
-        if ($isIntentional) {
-            $this->reconnecting = false;
-        }
+        $this->reconnecting = false;
+        $this->cancelReconnectTimer();
+        $this->cancelPingTimer();
 
-        if ($this->wsConnection !== null) {
+        $conn = $this->wsConnection;
+        $this->wsConnection = null;
+
+        if ($conn !== null) {
+            $conn->onMessage = null;
+            $conn->onError = null;
+            $conn->onClose = null;
+
             try {
-                $this->wsConnection->close();
+                $conn->close();
             } catch (\Throwable) {
                 // Ignore close errors
             }
-            $this->wsConnection = null;
         }
 
         $this->connected = false;
     }
 
     /**
-     * Attempt to reconnect after a disconnect.
+     * Arm a fresh reconnect budget for a (re)joined room.
+     */
+    private function startFreshLadder(): void
+    {
+        $this->cancelReconnectTimer();
+        $this->reconnectAttempts = 0;
+        $this->reconnecting = false;
+    }
+
+    /**
+     * Attempt to reconnect after an unexpected disconnect — capped
+     * exponential ladder (1s, 2s, 4s, …), same budget idiom as
+     * {@see HubRelayConsumer}. Exhaustion fails loud, not forever.
      */
     private function attemptReconnect(): void
     {
-        if ($this->reconnecting || $this->session === null) {
+        if ($this->session === null || $this->reconnectTimer !== null) {
+            return;
+        }
+
+        if ($this->reconnectAttempts >= self::MAX_RECONNECT_ATTEMPTS) {
+            $this->reconnecting = false;
+            ($this->onError ?? fn () => null)(
+                'reconnect_exhausted',
+                sprintf('SyncPlay reconnect stopped after %d failed attempts', self::MAX_RECONNECT_ATTEMPTS),
+            );
+
+            return;
+        }
+
+        if ($this->loop === null) {
+            // No scheduler wired — honest no-op (App injects the global
+            // react loop; a service built without one simply never retries).
             return;
         }
 
         $this->reconnecting = true;
+        $delay = self::RECONNECT_BASE_DELAY_SECONDS * (2 ** $this->reconnectAttempts);
+        $this->reconnectAttempts++;
 
-        // Schedule reconnect after delay
-        if ($this->loop !== null) {
-            $loop = $this->loop;
-            $loop->addTimer(3.0, function (): void {
-                if ($this->session === null || $this->reconnecting === false) {
-                    return;
-                }
+        $this->reconnectTimer = $this->loop->addTimer($delay, function (): void {
+            $this->reconnectTimer = null;
 
-                $session = $this->session;
-                $this->wsConnection = null;
-                $this->connectWebSocket($session);
-            });
+            if ($this->session === null || $this->reconnecting === false) {
+                return;
+            }
+
+            /** @var SyncPlaySession $session */
+            $session = $this->session;
+            $this->wsConnection = null;
+            $this->connectWebSocket($session);
+        });
+    }
+
+    private function cancelReconnectTimer(): void
+    {
+        if ($this->loop !== null && $this->reconnectTimer !== null) {
+            $this->loop->cancelTimer($this->reconnectTimer);
         }
+
+        $this->reconnectTimer = null;
+    }
+
+    private function cancelPingTimer(): void
+    {
+        if ($this->loop !== null && $this->pingTimer !== null) {
+            $this->loop->cancelTimer($this->pingTimer);
+        }
+
+        $this->pingTimer = null;
     }
 
     /**
      * Build the WebSocket URL for a session.
+     *
+     * Scheme and host follow the configured server base; the PORT is the
+     * dedicated SyncPlay worker ({@see DEFAULT_WS_PORT}, overridable per
+     * server entry) — never the API port baked into serverUrl, because the
+     * :8096 HTTP worker does not perform the WebSocket upgrade. The
+     * `?token=` query carrier is current phlix-server handshake law.
      */
     private function buildWebSocketUrl(SyncPlaySession $session): string
     {
-        // Replace http(s) with ws(s) and append the path
-        $url = $session->serverUrl;
-        $url = preg_replace('/^https:/', 'wss:', $url) ?: $url;
-        $url = preg_replace('/^http:/', 'ws:', $url) ?: $url;
-        $url = rtrim($url, '/');
+        $scheme = str_starts_with($session->serverUrl, 'https://') ? 'wss://' : 'ws://';
+        $host = parse_url($session->serverUrl, PHP_URL_HOST) ?? 'localhost';
+        $port = $this->wsPort ?? self::DEFAULT_WS_PORT;
 
-        return $url . '/api/v1/syncplay/' . rawurlencode($session->roomId) . '?token=' . urlencode($this->getAuthToken());
+        return sprintf(
+            '%s%s:%d/syncplay/%s?token=%s',
+            $scheme,
+            $host,
+            $port,
+            rawurlencode($session->roomId),
+            urlencode($this->getAuthToken()),
+        );
     }
 
     /**
@@ -786,15 +901,17 @@ final class SyncPlayService
 
     /**
      * Start the periodic time sync ping.
+     *
+     * Single-arm: the timer survives reconnects (it self-guards on
+     * `connected`), so a reconnect ladder must never stack copies of it.
      */
     private function startTimeSyncPing(): void
     {
-        if ($this->loop === null) {
+        if ($this->loop === null || $this->pingTimer !== null) {
             return;
         }
 
-        $loop = $this->loop;
-        $loop->addPeriodicTimer(30.0, function (): void {
+        $this->pingTimer = $this->loop->addPeriodicTimer(self::TIME_SYNC_INTERVAL_SECONDS, function (): void {
             if (!$this->connected || $this->session === null) {
                 return;
             }

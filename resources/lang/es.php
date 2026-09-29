@@ -63,6 +63,7 @@ return [
     'filter.order_label' => 'Orden: ',
     'filter.order_asc' => 'asc',
     'filter.order_desc' => 'desc',
+    'filter.genre_label' => 'Géneros: ',
 
     // ---- SyncPlay errors ----------------------------------------------
     'syncplay.not_authenticated' => 'Inicia sesión antes de usar las salas de visionado.',

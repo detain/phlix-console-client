@@ -207,7 +207,10 @@ final class SyncPlayEnvelopeWireShapeTest extends TestCase
         $onConnect($sinkRef);
 
         self::assertNotSame('', (string) $urlRef);
-        self::assertStringStartsWith('wss://srv/api/v1/syncplay/', (string) $urlRef, 'serverUrl DERIVED from the configured base makes the WS URL absolute (empty wire fiction produced a relative junk URL)');
+        // Endpoint law: the WS dial targets the DEDICATED :8097 SyncPlay
+        // worker with the /syncplay/{room} path and the ?token= query carrier
+        // — never the :8096 HTTP base port, which does not upgrade.
+        self::assertStringStartsWith('wss://srv:8097/syncplay/', (string) $urlRef, 'the WS dial must hit the dedicated :8097 SyncPlay worker path, derived from the configured base (the :8096 HTTP port never upgrades)');
         self::assertStringContainsString(rawurlencode(self::REAL_GROUP_ID), (string) $urlRef);
 
         $frames = $sinkRef->sent ?? [];

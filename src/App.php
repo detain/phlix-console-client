@@ -1651,6 +1651,7 @@ final class App implements Model
                             label: $s->label,
                             url: $s->url,
                             hubId: $hubId,
+                            wsPort: $s->wsPort,
                         );
                     } else {
                         $serversWithHubId[] = $s;
@@ -2260,7 +2261,16 @@ final class App implements Model
     /** @return array{App, ?\Closure} */
     private function openPlayer(MediaItem $item): array
     {
-        $syncPlayService = new SyncPlayService($this->api);
+        // The interactive Program drives the React global loop (same instance
+        // Program::run() pumps by default), so the service's reconnect ladder
+        // and time-sync ping actually fire; the WS port follows the active
+        // server entry (null = SyncPlayService::DEFAULT_WS_PORT, :8097 — the
+        // dedicated phlix-server WS worker, never the :8096 HTTP base port).
+        $syncPlayService = new SyncPlayService(
+            $this->api,
+            \React\EventLoop\Loop::get(),
+            wsPort: $this->config->activeServer()?->wsPort,
+        );
         $trickplayCache = new TrickplayCache($this->api);
 
         $screen = new PlayerScreen(

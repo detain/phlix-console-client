@@ -433,8 +433,11 @@ final class GateScanner
                 continue;
             }
             $frames = preg_match_all('/\$this->wsConnection\??->send\(/', $code);
-            $occ = substr_count($code, "'/api/v1/syncplay/'");
-            $out[] = ['file' => $file, 'occurrences' => $occ, 'frames' => $frames, 'path' => '/api/v1/syncplay/{P}'];
+            // Endpoint law: the room socket is dialled on the dedicated WS
+            // worker path (/syncplay/{room}?token=), NOT under /api/v1 — the
+            // HTTP worker never upgrades. Pin the dial-literal shape.
+            $occ = substr_count($code, "'%s%s:%d/syncplay/%s?token=%s'");
+            $out[] = ['file' => $file, 'occurrences' => $occ, 'frames' => $frames, 'path' => '/syncplay/{P}'];
         }
         return $out;
     }

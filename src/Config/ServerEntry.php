@@ -20,6 +20,14 @@ final readonly class ServerEntry
         public string $label,
         public string $url,
         public ?string $hubId = null,
+        /**
+         * Optional override for the server's SyncPlay WebSocket port. The
+         * phlix-server WS worker listens on plaintext :8097 by default
+         * (server `config/server.php` → `websocket.port`), independent of the
+         * HTTP base in `$url`. Null means "use the default" — see
+         * {@see \Phlix\Console\Api\SyncPlay\SyncPlayService::DEFAULT_WS_PORT}.
+         */
+        public ?int $wsPort = null,
     ) {
     }
 }

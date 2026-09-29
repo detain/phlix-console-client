@@ -155,7 +155,6 @@ final class ServerRouteManifestGateTest extends TestCase
         'src/Api/ApiClient.php' => 68,
         'src/Api/Cast/CastBackend.php' => 4,
         'src/Api/Hub/HubClient.php' => 3,
-        'src/Api/SyncPlay/SyncPlayService.php' => 1,
         'src/Screen/RecommendationsScreen.php' => 1,
     ];
 
@@ -320,8 +319,8 @@ final class ServerRouteManifestGateTest extends TestCase
         $scan = self::scan();
         self::assertCount(1, $scan['ws']);
         $ws = $scan['ws'][0];
-        self::assertSame('/api/v1/syncplay/{P}', $ws['path']);
-        self::assertSame(1, $ws['occurrences'], "the ws URL literal must occur exactly once ({$ws['file']})");
+        self::assertSame('/syncplay/{P}', $ws['path']);
+        self::assertSame(1, $ws['occurrences'], "the ws dial literal must occur exactly once ({$ws['file']})");
         self::assertSame(6, $ws['frames'], 'ws frame sends (terminal, no HTTP literal) must stay 6');
 
         $shadow = self::matchRoutes(null, $ws['path']);
@@ -329,7 +328,7 @@ final class ServerRouteManifestGateTest extends TestCase
         self::assertSame(
             [],
             $shadowKeys,
-            'the syncplay ROOM socket must not collide with a server HTTP rail (groups rails are 5 segments)'
+            'the syncplay ROOM socket must not collide with a server HTTP rail — it lives on the :8097 worker, outside /api/v1'
         );
     }
 

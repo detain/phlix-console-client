@@ -63,6 +63,7 @@ return [
     'filter.order_label' => 'Ordre : ',
     'filter.order_asc' => 'asc',
     'filter.order_desc' => 'desc',
+    'filter.genre_label' => 'Genres : ',
 
     // ---- SyncPlay errors ----------------------------------------------
     'syncplay.not_authenticated' => 'Connectez-vous avant d’utiliser les soirées synchronisées.',

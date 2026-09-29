@@ -5,6 +5,44 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — independent audit (syncplay WS endpoint law, capped ladder, genre chips) — 2026-09-29
+
+- **C1 — SyncPlay WS dial moved to the dedicated worker.** `buildWebSocketUrl()`
+  used to re-use the HTTP API base verbatim (`https://host:8096/api/v1/syncplay/…`),
+  a socket the server never opens: the SyncPlay WebSocket lives on the plaintext
+  `:8097` worker (server `config/server.php` → `websocket.port`). The console now
+  dials `ws(s)://{host}:{ws_port}/syncplay/{room}?token=…` — scheme/host derived
+  from the configured base, port defaulting to `SyncPlayService::DEFAULT_WS_PORT`
+  (8097), per-server override via the new `ws_port` key on `config.json` server
+  entries (`ServerEntry::$wsPort`, parsed at the Config boundary, documented in
+  `docs/clients/console.md`). The `?token=` query carrier is current server
+  handshake law; the bearer sub-protocol (tracked estate debt) is deliberately
+  NOT adopted.
+- **C6 — the reconnect ladder is now capped exponential and actually wired.**
+  The old fixed-3s one-shot silently stalled (retry close never re-armed because
+  `reconnecting` stayed true) and never ran at all in production (the service was
+  constructed without a loop). `App::openPlayer()` now passes the global react
+  loop, and `attemptReconnect()` mirrors the `HubRelayConsumer` budget idiom:
+  1s×2^n, at most `MAX_RECONNECT_ATTEMPTS` (5), terminal loud
+  `reconnect_exhausted` onError instead of an infinite retry, budget reset per
+  (re)join, stale-socket identity guards on close/error, and single-arm ping
+  timer across reconnects.
+- **C3 — genre facet chips are reachable.** `FilterBar` renders facet chips but
+  had no control that could select one (`toggleGenre()` had zero call sites) —
+  a dead affordance. GENRE joins the Tab cycle only while facets are present
+  (`cycleSize()` 3↔4): ←/→ move the chip cursor, Space/Enter toggles the chip
+  under it. New `filter.genre_label` key added to all seven locale catalogs in
+  the same commit (key-set parity gate is order-sensitive).
+- **Gate re-pins (legitimate moves, same commit):** `GateScanner::ws()` now
+  recognises the dedicated-worker literal (path pin `/api/v1/syncplay/{P}` →
+  `/syncplay/{P}`) and `SWEEP_TOKEN_COUNTS` drops the
+  `src/Api/SyncPlay/SyncPlayService.php` entry — the file no longer contains a
+  single `/api/v1` string token (its old one WAS the bug). Frames pin stays 6.
+  `SyncPlayEnvelopeWireShapeTest` asserts the new URL shape.
+- Gates: phpunit 2897/2897 (13 pre-existing deprecations, 9 pre-existing skips),
+  phpstan OK, phpcs net −4 warnings vs the pristine same-tree control,
+  `i18n:hardcoded` + `i18n:catalogs` pass, no new PHP files.
+
 ### Changed — W111 (cs47b): route-manifest CONTENT re-vendor (404→410 tuples) — 2026-09-17
 
 - **cs#47 currency re-vendor (lane cs47b) — CONTENT regen, console is NOT pure this

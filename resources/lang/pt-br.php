@@ -68,6 +68,7 @@ return [
     'filter.order_label' => 'Ordem: ',
     'filter.order_asc' => 'asc',
     'filter.order_desc' => 'desc',
+    'filter.genre_label' => 'Gêneros: ',
 
     // ---- SyncPlay errors ----------------------------------------------
     'syncplay.not_authenticated' => 'Entre na sua conta antes de usar as sessões sincronizadas.',

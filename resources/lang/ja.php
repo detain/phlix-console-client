@@ -63,6 +63,7 @@ return [
     'filter.order_label' => '順序: ',
     'filter.order_asc' => '昇順',
     'filter.order_desc' => '降順',
+    'filter.genre_label' => 'ジャンル: ',
 
     // ---- SyncPlay errors ----------------------------------------------
     'syncplay.not_authenticated' => 'ウォッチパーティを使う前にサインインしてください。',

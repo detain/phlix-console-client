@@ -63,6 +63,7 @@ return [
     'filter.order_label' => 'Reihenfolge: ',
     'filter.order_asc' => 'asc',
     'filter.order_desc' => 'desc',
+    'filter.genre_label' => 'Genre: ',
 
     // ---- SyncPlay errors ----------------------------------------------
     'syncplay.not_authenticated' => 'Melde dich an, bevor du Watch-Parties nutzt.',

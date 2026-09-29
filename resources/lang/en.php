@@ -60,6 +60,7 @@ return [
     'filter.order_label' => 'Order: ',
     'filter.order_asc' => 'asc',
     'filter.order_desc' => 'desc',
+    'filter.genre_label' => 'Genres: ',
 
     // ---- SyncPlay errors ----------------------------------------------
     'syncplay.not_authenticated' => 'Sign in before using watch parties.',

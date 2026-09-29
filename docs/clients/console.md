@@ -85,6 +85,16 @@ Within that directory:
 | `tokens.json` | Auth tokens (access + refresh) |
 | `posters/` | Poster image cache (tiled per render mode) |
 
+#### Server entries (`config.json` → `servers[]`)
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `id` | uuid | Entry identifier |
+| `label` | `Server` | Name shown in the server switcher |
+| `url` | — | API base URL (e.g. `https://host:8096` — the HTTP worker) |
+| `hub_id` | unset | Hub this server belongs to (relay/remote features) |
+| `ws_port` | `8097` | Dedicated SyncPlay WebSocket port. The client dials `ws(s)://{host}:{ws_port}/syncplay/{room}?token=…`; omit it to use the server's stock `:8097` WS worker — the `:8096` HTTP worker never upgrades WebSockets. |
+
 ### Environment variables
 
 | Variable | Default | Description |

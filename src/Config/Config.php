@@ -131,6 +131,11 @@ final class Config
                     label: self::string($row['label'] ?? null) ?: 'Server',
                     url: self::normalizeUrl(self::string($row['url'] ?? null) ?: ''),
                     hubId: self::string($row['hub_id'] ?? null) ?: null,
+                    // Parse at the boundary: only a positive int is a port;
+                    // anything else (junk, out-of-range, absent) is null = default.
+                    wsPort: (isset($row['ws_port']) && is_int($row['ws_port']) && $row['ws_port'] > 0)
+                        ? $row['ws_port']
+                        : null,
                 );
             }
         }
@@ -169,6 +174,7 @@ final class Config
                         'label' => $s->label,
                         'url' => $s->url,
                         'hub_id' => $s->hubId,
+                        'ws_port' => $s->wsPort,
                     ],
                     $this->servers,
                 ),
