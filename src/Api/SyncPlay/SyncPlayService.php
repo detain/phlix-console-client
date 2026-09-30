@@ -30,9 +30,17 @@ use Workerman\Connection\AsyncTcpConnection;
  * Endpoint law (phlix-server): the SyncPlay WebSocket lives on the DEDICATED
  * plaintext worker at port {@see DEFAULT_WS_PORT} (:8097), NOT on the HTTP
  * API port (:8096) — the HTTP worker does not upgrade `/api/v1/*`. The
- * handshake requires a valid `?token=` query parameter (the server rejects
- * the upgrade pre-101 without it when JWT enforcement is on); the bearer
- * sub-protocol is tracked estate debt and deliberately NOT adopted here.
+ * handshake carries the JWT in the `Sec-WebSocket-Protocol: bearer, <jwt>`
+ * request header (Workerman seam: the `websocketClientProtocol` connection
+ * property, read by the vendored client handshake builder
+ * `Protocols\Ws::sendHandshake()`); the server 101 echoes only the
+ * `bearer` marker and the vendored client never inspects that echo, so the
+ * subset response is accepted. RETIRED (phlix-server 424c14d0,
+ * docs/dev/WEBSOCKET_AUTH_CARRIERS.md): the `?token=` query carrier — the
+ * server keeps it as a transitional fallback for older clients only, and
+ * sending BOTH carriers with differing values is rejected pre-101, so this
+ * client sends exactly one. No token ⇒ no offer at all, which the server
+ * rejects pre-101 exactly as it rejected an empty `?token=`.
  *
  * Reconnect law: capped exponential backoff mirroring {@see HubRelayConsumer}
  * — base delay doubling per attempt, at most {@see MAX_RECONNECT_ATTEMPTS},
@@ -46,6 +54,15 @@ final class SyncPlayService
      * server entry via {@see \Phlix\Console\Config\ServerEntry::$wsPort}.
      */
     public const DEFAULT_WS_PORT = 8097;
+
+    /**
+     * Bearer sub-protocol marker offered in the `Sec-WebSocket-Protocol`
+     * handshake header, mirroring the server constant
+     * `SyncPlayAuthMiddleware::BEARER_SUBPROTOCOL` (phlix-server 424c14d0).
+     * The full offer sent to the server is `bearer, <jwt>` — two comma-
+     * separated entries: this marker plus the credential.
+     */
+    public const BEARER_SUBPROTOCOL = 'bearer';
 
     /** Reconnect ladder budget — same idiom as {@see HubRelayConsumer}. */
     public const MAX_RECONNECT_ATTEMPTS = 5;
@@ -478,6 +495,19 @@ final class SyncPlayService
         $conn = ($this->connectionFactory)($wsUrl);
         $this->wsConnection = $conn;
 
+        // Auth carrier (phlix-server 424c14d0 dual-carrier law, query
+        // RETIRING): the JWT rides in the WS handshake as
+        // `Sec-WebSocket-Protocol: bearer, <jwt>` via the vendor's
+        // websocketClientProtocol seam — MUST be set before connect(),
+        // because Ws::onConnect builds the handshake the moment the TCP
+        // socket is established. Empty token ⇒ no offer header at all:
+        // the server rejects the upgrade pre-101 exactly as it rejected
+        // the legacy empty `?token=`, so there is no silent-anonymous path.
+        $token = $this->getAuthToken();
+        if ($token !== '') {
+            $conn->websocketClientProtocol = self::BEARER_SUBPROTOCOL . ', ' . $token;
+        }
+
         // Set up handlers against Workerman's REAL invocation shapes (verified
         // against the vendored call sites): onMessage is invoked as
         // ($connection, $data) (TcpConnection.php:715-831), onError as
@@ -698,8 +728,12 @@ final class SyncPlayService
      * Scheme and host follow the configured server base; the PORT is the
      * dedicated SyncPlay worker ({@see DEFAULT_WS_PORT}, overridable per
      * server entry) — never the API port baked into serverUrl, because the
-     * :8096 HTTP worker does not perform the WebSocket upgrade. The
-     * `?token=` query carrier is current phlix-server handshake law.
+     * :8096 HTTP worker does not perform the WebSocket upgrade. The URL
+     * carries NO credential: since phlix-server 424c14d0 the handshake
+     * law is the `Sec-WebSocket-Protocol: bearer, <jwt>` header (see
+     * class docblock and server docs/dev/WEBSOCKET_AUTH_CARRIERS.md);
+     * the retired `?token=` query carrier must not reappear here —
+     * sending both with differing values is refused pre-101.
      */
     private function buildWebSocketUrl(SyncPlaySession $session): string
     {
@@ -708,17 +742,16 @@ final class SyncPlayService
         $port = $this->wsPort ?? self::DEFAULT_WS_PORT;
 
         return sprintf(
-            '%s%s:%d/syncplay/%s?token=%s',
+            '%s%s:%d/syncplay/%s',
             $scheme,
             $host,
             $port,
             rawurlencode($session->roomId),
-            urlencode($this->getAuthToken()),
         );
     }
 
     /**
-     * Get the auth token for WebSocket connection.
+     * Get the auth token for the WebSocket bearer sub-protocol carrier.
      */
     private function getAuthToken(): string
     {

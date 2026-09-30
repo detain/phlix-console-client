@@ -434,9 +434,12 @@ final class GateScanner
             }
             $frames = preg_match_all('/\$this->wsConnection\??->send\(/', $code);
             // Endpoint law: the room socket is dialled on the dedicated WS
-            // worker path (/syncplay/{room}?token=), NOT under /api/v1 — the
-            // HTTP worker never upgrades. Pin the dial-literal shape.
-            $occ = substr_count($code, "'%s%s:%d/syncplay/%s?token=%s'");
+            // worker path (/syncplay/{room}), NOT under /api/v1 — the HTTP
+            // worker never upgrades. Pin the dial-literal shape. Carrier law
+            // (phlix-server 424c14d0): the URL carries no credential — the
+            // JWT rides the Sec-WebSocket-Protocol bearer offer — so the
+            // needle's closing quote after %s doubles as a ?token= ban pin.
+            $occ = substr_count($code, "'%s%s:%d/syncplay/%s'");
             $out[] = ['file' => $file, 'occurrences' => $occ, 'frames' => $frames, 'path' => '/syncplay/{P}'];
         }
         return $out;

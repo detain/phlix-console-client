@@ -5,6 +5,34 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — SyncPlay handshake carrier flipped to `Sec-WebSocket-Protocol: bearer, <jwt>` — 2026-09-30
+
+- **The JWT left the URL.** `buildWebSocketUrl()` no longer appends the
+  retired `?token=` query carrier (phlix-server 424c14d0,
+  `docs/dev/WEBSOCKET_AUTH_CARRIERS.md`); the room path, host derivation and
+  dedicated `:8097` worker law are unchanged. `connectWebSocket()` now sets
+  the vendor-native `websocketClientProtocol` property on the
+  `AsyncTcpConnection` **before** `connect()`, so the vendored client
+  handshake builder (`Protocols\Ws::sendHandshake()`, Workerman v5.2.2
+  Ws.php:372/:379) emits `Sec-WebSocket-Protocol: bearer, <jwt>`.
+- **No transitional fallback needed — echo-strictness verdict: LENIENT.**
+  The pinned vendor's 101 handler (`Ws::dealHandshake()`, Ws.php:398-417)
+  validates only `Sec-WebSocket-Accept` and never inspects the echoed
+  protocol, so the server's subset echo of `bearer` (without the credential)
+  is accepted. Mutation-proven: forcing the vendor client to strict-match the
+  full offer turns the new harness red at exactly the buffered-join read.
+- **Empty-token posture:** no token ⇒ no offer header and no query — the
+  server rejects such a handshake pre-101 exactly as it rejected the legacy
+  empty `?token=`; there is no silent-anonymous path.
+- **Proof:** new `SyncPlayBearerCarrierHandshakeTest` (forked loopback
+  listener, phlix-server `NatPmpClientTest` idiom b620e4e1) asserts on wire
+  bytes: offer header present, `token=` absent from the whole handshake,
+  clean `/syncplay/{room}` request target, and the pre-101-buffered join
+  frame flushed by the vendor ONLY after the subset-echo 101 — then drives a
+  post-handshake `group_state` through the production message path in the
+  child. Wire-shape/gate pins updated honestly (new dial literal, carrier
+  pins, no-token pin); `docs/clients/console.md` ws_port row updated.
+
 ### Fixed — Workerman callback arity (websocket_error was a guaranteed TypeError) — 2026-09-29
 
 - **`SyncPlayService`'s socket handlers now match Workerman's real invocation

@@ -10,6 +10,7 @@ use Phlix\Console\Api\Dto\SyncPlaySession;
 use Phlix\Console\Api\SyncPlay\Framing;
 use Phlix\Console\Api\SyncPlay\Messages;
 use Phlix\Console\Api\SyncPlay\SyncPlayService;
+use Phlix\Console\Config\TokenBundle;
 use Phlix\Console\Tests\Api\FakeTransport;
 use PHPUnit\Framework\TestCase;
 use Workerman\Connection\AsyncTcpConnection;
@@ -42,6 +43,9 @@ final class SyncPlayEnvelopeWireShapeTest extends TestCase
 {
     /** The real group id from the S415 golden vector. */
     private const REAL_GROUP_ID = 'sp_cca927fbf4ba11f9';
+
+    /** Stand-in access token for the bearer sub-protocol carrier pins. */
+    private const TEST_JWT = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1MSJ9.sig';
 
     /** @return array<string,mixed> */
     private static function createEnvelope(): array
@@ -186,6 +190,7 @@ final class SyncPlayEnvelopeWireShapeTest extends TestCase
     {
         $transport = (new FakeTransport())->json(200, self::createEnvelope());
         $api = new ApiClient('https://srv', $transport);
+        $api->setToken(new TokenBundle(self::TEST_JWT, 'r1'));
 
         $urlRef = null;
         $sinkRef = null;
@@ -208,10 +213,16 @@ final class SyncPlayEnvelopeWireShapeTest extends TestCase
 
         self::assertNotSame('', (string) $urlRef);
         // Endpoint law: the WS dial targets the DEDICATED :8097 SyncPlay
-        // worker with the /syncplay/{room} path and the ?token= query carrier
-        // — never the :8096 HTTP base port, which does not upgrade.
+        // worker with the /syncplay/{room} path — never the :8096 HTTP base
+        // port, which does not upgrade. Carrier law (phlix-server 424c14d0):
+        // the URL carries NO credential; the JWT rides the handshake header.
         self::assertStringStartsWith('wss://srv:8097/syncplay/', (string) $urlRef, 'the WS dial must hit the dedicated :8097 SyncPlay worker path, derived from the configured base (the :8096 HTTP port never upgrades)');
         self::assertStringContainsString(rawurlencode(self::REAL_GROUP_ID), (string) $urlRef);
+        self::assertStringNotContainsString('?token=', (string) $urlRef, 'the retired query carrier must not reappear — dual-carrier mismatch is refused pre-101 by the server');
+        // Bearer sub-protocol offer (the flipped carrier): two comma-
+        // separated entries, marker then credential, set on the connection
+        // BEFORE connect() so the vendor handshake builder emits the header.
+        self::assertSame('bearer, ' . self::TEST_JWT, (string) $sinkRef->websocketClientProtocol);
 
         $frames = $sinkRef->sent ?? [];
         self::assertNotEmpty($frames, 'onConnect must send the join frame');
@@ -235,6 +246,34 @@ final class SyncPlayEnvelopeWireShapeTest extends TestCase
         // Framing bytes stay parseable JSON with the type FIRST key (wire law).
         self::assertSame('type', array_keys((array) json_decode((string) $frames[0], true))[0]);
         unset($frames, $join, $leave);
+    }
+
+    /**
+     * Empty-token posture after the carrier flip: no bearer offer header is
+     * set AND the retired `?token=` query must not return as a fallback —
+     * the server rejects such a handshake pre-101 exactly as it rejected the
+     * legacy empty `?token=`, so there is no silent-anonymous path.
+     */
+    public function testHandshakeWithoutTokenOffersNoCarrierAndNoQuery(): void
+    {
+        $transport = (new FakeTransport())->json(200, self::createEnvelope());
+        $api = new ApiClient('https://srv', $transport); // deliberately no setToken()
+
+        $urlRef = null;
+        $sinkRef = null;
+        $service = new SyncPlayService($api, null, static function (string $url) use (&$urlRef, &$sinkRef): AsyncTcpConnection {
+            $urlRef = $url;
+            $sinkRef = self::recordingConnection();
+
+            return $sinkRef;
+        });
+
+        $service->createRoom('Movie Night');
+
+        self::assertNotNull($sinkRef, 'the injected factory built the connection stand-in');
+        self::assertFalse(isset($sinkRef->websocketClientProtocol), 'no token must mean NO Sec-WebSocket-Protocol offer — an empty or marker-only offer would be a fake credential');
+        self::assertStringNotContainsString('token=', (string) $urlRef, 'the retired query carrier must not reappear as the no-token fallback');
+        self::assertStringStartsWith('wss://srv:8097/syncplay/', (string) $urlRef, 'the dial still targets the dedicated :8097 worker path');
     }
 
     public function testJoinFrameGroupMatchesFramingDecoder(): void
