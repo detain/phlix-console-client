@@ -5,6 +5,49 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `wss://` dials no longer throw at construction (Workerman has no `Protocols\Wss`) — 2026-09-30
+
+- **Prod-latent crash class, both WS consumers.** The pinned Workerman
+  v5.2.2 `AsyncTcpConnection` maps a URL scheme to EITHER a built-in
+  transport (`BUILD_IN_TRANSPORTS` = tcp/udp/unix/ssl/sslv2/sslv3/tls,
+  AsyncTcpConnection.php:58-68) OR a `\Workerman\Protocols\{Scheme}`
+  framing class (:212-224). `Protocols\Ws` exists, `Protocols\Wss` does
+  NOT — so every `https:`-based dial (`SyncPlayService::buildWebSocketUrl()`
+  and `HubRelayConsumer::buildRelayUrl()` both emit `wss://` for https
+  bases) died with `RuntimeException("class \Protocols\Wss not exist")`
+  at construction, before a socket existed. Only `ws://` (http bases)
+  worked; the syncplay path had shipped unreviewed for this class.
+- **Fix at the shared construction seam.** New `Api\SyncPlay\WebSocketDialer`
+  implements the vendor's sanctioned two-layer TLS form — keep the `ws`
+  scheme so `Protocols\Ws` framing is chosen, then set the PUBLIC
+  `$transport = 'ssl'` (:87) before `connect()`; `connect()` dials a plain
+  `tcp://` async socket with the stream context applied (:289-292) and
+  `checkConnection()` upgrades it via `doSslHandshake()` /
+  `stream_socket_enable_crypto()` when `transport === 'ssl'` (:476-478 →
+  TcpConnection.php:924). SNI (`SNI_enabled`) and CA-verified
+  `peer_name` are pinned to the URL host by default; loosening trust is
+  only possible through the explicit `$sslOptions` parameter (harness use).
+  `SyncPlayService`'s default connection factory and a new
+  `HubRelayConsumer` construction seam (mirrors the S414 SyncPlayService
+  seam) both route through it. Canonical `wss://` URL notation is
+  unchanged at both builders (spec-facing tests keep pinning it).
+- **Proof.** New `WebSocketDialerTest` (12 tests: raw vendor `wss://`
+  construction throws — the regression pin; dialer returns an armed
+  connection with `ssl` transport, `Protocols\Ws` framing, host/port/URI
+  and SNI context intact; both consumers' default factories route through
+  the dialer; non-ws schemes fail fast). New
+  `SyncPlayTlsDialRoundTripTest` forks a real self-signed TLS WebSocket
+  responder (b620e4e1/04a1590 harness idiom) and drives the PRODUCTION
+  `createRoom()` path over `wss://`: real TLS handshake, HTTP upgrade read
+  inside the encrypted layer (bearer offer present, no `token=`, clean
+  room path), 101, buffered join replayed masked through TLS, and
+  post-101 `group_state` delivered to the production handler. Mutation
+  proof: swapping the dialer back to `new AsyncTcpConnection($url)` in the
+  harness turns the test red at the dial (child dies at construction).
+- **Gates:** PHPUnit 2923 tests green (13 new), phpstan level 9 (src) and
+  tests corpus clean, phpcs baseline-parity (533 errors / 696 warnings —
+  zero new), i18n hardcoded + catalogs checks pass.
+
 ### Changed — SyncPlay handshake carrier flipped to `Sec-WebSocket-Protocol: bearer, <jwt>` — 2026-09-30
 
 - **The JWT left the URL.** `buildWebSocketUrl()` no longer appends the

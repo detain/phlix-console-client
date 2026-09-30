@@ -129,7 +129,10 @@ final class SyncPlayService
     /**
      * WebSocket connection factory seam.
      *
-     * Production default builds a real Workerman `AsyncTcpConnection`; tests
+     * Production default builds a real Workerman `AsyncTcpConnection`
+     * through {@see WebSocketDialer} (v5.2.2 has no `Protocols\Wss`; the
+     * dialer translates the canonical `wss://` URL into `ws` framing +
+     * `ssl` transport instead of throwing at construction). Tests
      * inject a recording stand-in so the REST→DTO→onConnect→frame path can be
      * driven end-to-end WITHOUT a socket (S414 wire-shape tests). The seam
      * replaces the connection object ONLY — every byte the captured frames
@@ -155,7 +158,7 @@ final class SyncPlayService
         $this->memberId = $this->generateMemberId();
         $this->connectionFactory = $connectionFactory !== null
             ? \Closure::fromCallable($connectionFactory)
-            : static fn (string $url): AsyncTcpConnection => new AsyncTcpConnection($url);
+            : static fn (string $url): AsyncTcpConnection => WebSocketDialer::dial($url);
     }
 
     // ---- Public API ----------------------------------------------------
@@ -734,6 +737,11 @@ final class SyncPlayService
      * class docblock and server docs/dev/WEBSOCKET_AUTH_CARRIERS.md);
      * the retired `?token=` query carrier must not reappear here —
      * sending both with differing values is refused pre-101.
+     *
+     * The `wss://` form (https base) is canonical wire notation; the
+     * default connection seam ({@see WebSocketDialer}) translates it
+     * into Workerman v5.2.2's two-layer TLS form — the vendor has no
+     * `Protocols\Wss` class and would throw at construction otherwise.
      */
     private function buildWebSocketUrl(SyncPlaySession $session): string
     {

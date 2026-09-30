@@ -86,6 +86,17 @@ final class HubRelayConsumer
     private ?\Closure $onStatusChange;
 
     /**
+     * Connection-construction seam (mirrors SyncPlayService S414): production
+     * default builds the socket through {@see WebSocketDialer} — Workerman
+     * v5.2.2 has no `Protocols\Wss`, so a raw `new AsyncTcpConnection()` of
+     * the `wss://` relay URL would throw at construction; tests inject a
+     * stand-in.
+     *
+     * @var \Closure(string): AsyncTcpConnection
+     */
+    private \Closure $connectionFactory;
+
+    /**
      * @param string  $hubBaseUrl     Hub base origin, e.g. `https://hub.example.com`.
      *                                The relay listens on port 8804 regardless of
      *                                this origin's own port.
@@ -107,6 +118,10 @@ final class HubRelayConsumer
      * @param \Closure(string): void|null $onStatusChange
      *                                Optional lifecycle visibility: `connecting`,
      *                                `reconnecting`, `open`, `closed`, `exhausted`.
+     * @param \Closure(string): AsyncTcpConnection|null $connectionFactory
+     *                                Optional seam replacing ONLY socket
+     *                                construction (tests); production passes
+     *                                nothing and gets {@see WebSocketDialer::dial()}.
      */
     public function __construct(
         private readonly string $hubBaseUrl,
@@ -114,10 +129,13 @@ final class HubRelayConsumer
         \Closure $tokenProvider,
         \Closure $onPendingCommand,
         ?\Closure $onStatusChange = null,
+        ?\Closure $connectionFactory = null,
     ) {
         $this->tokenProvider = $tokenProvider;
         $this->onPendingCommand = $onPendingCommand;
         $this->onStatusChange = $onStatusChange;
+        $this->connectionFactory = $connectionFactory
+            ?? static fn (string $url): AsyncTcpConnection => WebSocketDialer::dial($url);
     }
 
     // ---- lifecycle -------------------------------------------------------
@@ -259,7 +277,10 @@ final class HubRelayConsumer
      * Build the relay URL: `ws(s)://<host>:8804/syncplay/<server_id>`.
      *
      * The scheme follows `$hubBaseUrl` (`https:` → `wss:`); the port is the
-     * relay's own 8804, never the origin's. Exported for tests.
+     * relay's own 8804, never the origin's. The `wss:` form is canonical
+     * wire notation — the connection seam ({@see WebSocketDialer}) is what
+     * turns it into Workerman v5.2.2's `ws` framing + `ssl` transport.
+     * Exported for tests.
      */
     public static function buildRelayUrl(string $hubBaseUrl, string $serverId): string
     {
@@ -306,7 +327,7 @@ final class HubRelayConsumer
         $this->setStatus($this->reconnectAttempts > 0 ? 'reconnecting' : 'connecting');
 
         /** @var AsyncTcpConnection $socket */
-        $socket = new AsyncTcpConnection($url);
+        $socket = ($this->connectionFactory)($url);
         // S237/S298: the relay token travels in the upgrade request's
         // `Authorization: Bearer` header — the carrier the hub accepts and the
         // one a PHP Workerman client can set (the browser-only subprotocol
