@@ -79,5 +79,6 @@ return [
     'syncplay.group_not_found' => 'That watch group no longer exists.',
     'syncplay.invalid_password' => 'That password is not correct.',
     'syncplay.group_full' => 'That watch group is full.',
+    'syncplay.queue_limit_exceeded' => 'The playback queue for that watch group is full.',
     'syncplay.unknown_error' => 'A sync error occurred.',
 ];

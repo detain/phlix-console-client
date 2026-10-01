@@ -82,5 +82,6 @@ return [
     'syncplay.group_not_found' => 'Ce groupe synchronisé n’existe plus.',
     'syncplay.invalid_password' => 'Le mot de passe n’est pas correct.',
     'syncplay.group_full' => 'Ce groupe synchronisé est complet.',
+    'syncplay.queue_limit_exceeded' => 'La file de lecture de ce groupe synchronisé est pleine.',
     'syncplay.unknown_error' => 'Une erreur de synchronisation est survenue.',
 ];

@@ -33,10 +33,11 @@ final class SyncPlayErrors
      * after the flip. The SCREAMING entries stay mapped for older servers
      * that still emit them.
      *
-     * Inner-path specializations: the four dotted codes the createGroup /
-     * joinGroup handlers return beneath the carriers (srv SyncPlayManager
+     * Inner-path specializations: the five dotted codes the createGroup /
+     * joinGroup / enqueue paths return beneath the carriers (srv SyncPlayManager
      * :621 group_limit_reached, :702 group_not_found, :741 invalid_password,
-     * :745 group_full — forwarded verbatim by the `?? ` wraps at :1588 /
+     * :745 group_full, :1230 queue_limit_exceeded LIVE since srv 7baa398a —
+     * forwarded verbatim by the `?? ` wraps at :1588 /
      * :1627) un-wrap a coarse carrier into a precise reason, so each gets
      * its own catalog key instead of the carrier text. Before this mapping
      * they were unknown codes and rendered the server's English prose via
@@ -62,6 +63,7 @@ final class SyncPlayErrors
         'syncplay.group_not_found' => 'syncplay.group_not_found',
         'syncplay.invalid_password' => 'syncplay.invalid_password',
         'syncplay.group_full' => 'syncplay.group_full',
+        'syncplay.queue_limit_exceeded' => 'syncplay.queue_limit_exceeded',
     ];
 
     /**

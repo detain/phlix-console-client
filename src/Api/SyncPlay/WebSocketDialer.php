@@ -47,21 +47,30 @@ final class WebSocketDialer
      *
      * @param array<string, mixed> $sslOptions extra stream-context `ssl` options
      *
+     * @throws \RuntimeException when no Workerman event pump is installed
+     *         (fail-loud stopguard; see {@see WorkermanEventBridge::pumpOrThrow()})
      * @throws InvalidArgumentException when the URL is not a ws(s):// URL with a host
      */
     public static function dial(string $url, array $sslOptions = []): AsyncTcpConnection
     {
         $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
-
-        if ($scheme === 'ws') {
-            return new AsyncTcpConnection($url);
-        }
-
         $host = parse_url($url, PHP_URL_HOST);
-        if ($scheme !== 'wss' || !is_string($host) || $host === '') {
+
+        if (($scheme !== 'ws' && $scheme !== 'wss') || !is_string($host) || $host === '') {
             throw new InvalidArgumentException(
                 sprintf('WebSocketDialer requires a ws(s):// URL with a host, got "%s"', $url),
             );
+        }
+
+        // Deterministic argument error first, environment precondition second:
+        // fail loud BEFORE handing out a socket that would only TypeError at
+        // connect(). Workerman client sockets resolve their loop from
+        // Worker::$globalEvent, which interactive boot installs via the React
+        // bridge and the watch command installs as a Select.
+        WorkermanEventBridge::pumpOrThrow();
+
+        if ($scheme === 'ws') {
+            return new AsyncTcpConnection($url);
         }
 
         // Swap the scheme to `ws` so the vendor picks Protocols\Ws

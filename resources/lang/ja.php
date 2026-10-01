@@ -82,5 +82,6 @@ return [
     'syncplay.group_not_found' => 'そのウォッチグループは存在しません。',
     'syncplay.invalid_password' => 'パスワードが正しくありません。',
     'syncplay.group_full' => 'そのウォッチグループは満員です。',
+    'syncplay.queue_limit_exceeded' => 'そのウォッチグループの再生キューが満杯です。',
     'syncplay.unknown_error' => '同期エラーが発生しました。',
 ];

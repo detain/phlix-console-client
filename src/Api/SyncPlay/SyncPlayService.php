@@ -703,7 +703,20 @@ final class SyncPlayService
             /** @var SyncPlaySession $session */
             $session = $this->session;
             $this->wsConnection = null;
-            $this->connectWebSocket($session);
+
+            // A dial that throws synchronously (the event-pump stopguard, a
+            // transport construction failure) must not escape into the loop's
+            // timer dispatch — it would kill the pump the whole TUI runs on.
+            // Surface it on the error channel and climb to the next rung.
+            try {
+                $this->connectWebSocket($session);
+            } catch (\Throwable $throwable) {
+                ($this->onError ?? static fn (): null => null)(
+                    'websocket_connect_failed',
+                    'SyncPlay reconnect attempt failed: ' . $throwable->getMessage(),
+                );
+                $this->attemptReconnect();
+            }
         });
     }
 

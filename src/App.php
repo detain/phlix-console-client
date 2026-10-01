@@ -16,6 +16,7 @@ use Phlix\Console\Api\AuthResult;
 use Phlix\Console\Api\Cast\CastClient;
 use Phlix\Console\Api\Hub\HubClient;
 use Phlix\Console\Api\SyncPlay\SyncPlayService;
+use Phlix\Console\Api\SyncPlay\WorkermanEventBridge;
 use Phlix\Console\Api\Dto\Album;
 use Phlix\Console\Api\Dto\Audiobook;
 use Phlix\Console\Api\Dto\AudiobookChapter;
@@ -2266,6 +2267,15 @@ final class App implements Model
         // and time-sync ping actually fire; the WS port follows the active
         // server entry (null = SyncPlayService::DEFAULT_WS_PORT, :8097 — the
         // dedicated phlix-server WS worker, never the :8096 HTTP base port).
+        //
+        // Workerman's AsyncTcpConnection resolves its event loop from
+        // Worker::$globalEvent at connect() time, which the `watch` command
+        // installs as a Select but interactive `run` never did — every join
+        // silently TypeErrored. Bridge the React loop in exactly once, here,
+        // before the service can dial; idempotent, and it never clobbers a
+        // pump already installed (the run/watch paths are disjoint commands).
+        WorkermanEventBridge::installOnce(\React\EventLoop\Loop::get());
+
         $syncPlayService = new SyncPlayService(
             $this->api,
             \React\EventLoop\Loop::get(),

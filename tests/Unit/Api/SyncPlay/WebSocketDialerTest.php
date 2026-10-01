@@ -9,13 +9,18 @@ use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\SyncPlay\HubRelayConsumer;
 use Phlix\Console\Api\SyncPlay\SyncPlayService;
 use Phlix\Console\Api\SyncPlay\WebSocketDialer;
+use Phlix\Console\Api\SyncPlay\WorkermanEventBridge;
 use Phlix\Console\Tests\Api\FakeTransport;
+use Phlix\Console\Tests\Api\RecordingEventLoop;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 use RuntimeException;
 use Workerman\Connection\AsyncTcpConnection;
+use Workerman\Events\EventInterface;
+use Workerman\Events\Select;
 use Workerman\Protocols\Ws;
+use Workerman\Worker;
 
 /**
  * Construction-level proof for the TLS-websocket fix: the pinned Workerman
@@ -30,6 +35,56 @@ use Workerman\Protocols\Ws;
  */
 final class WebSocketDialerTest extends TestCase
 {
+    private ?EventInterface $globalEventBefore = null;
+
+    protected function setUp(): void
+    {
+        // Dialing is only legal with a pump installed for the process — the
+        // stopguard law. Construction tests run against the honest production
+        // precondition (interactive bridge); the stopguard tests below remove
+        // it deliberately to pin the loud failure.
+        $this->globalEventBefore = Worker::$globalEvent;
+        Worker::$globalEvent = new WorkermanEventBridge(new RecordingEventLoop());
+    }
+
+    protected function tearDown(): void
+    {
+        Worker::$globalEvent = $this->globalEventBefore;
+    }
+
+    public function testDialWithoutEventPumpFailsLoudInsteadOfDyingAtConnect(): void
+    {
+        Worker::$globalEvent = null;
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('SyncPlay WS requires the React-loop event bridge');
+
+        WebSocketDialer::dial('ws://127.0.0.1:8097/syncplay/room');
+    }
+
+    public function testArgumentErrorsPrecedeThePumpGuard(): void
+    {
+        // Ordering law: a malformed URL is a deterministic programmer error
+        // and must keep reporting InvalidArgumentException whether or not a
+        // pump exists — the fail-fast tests above stay pump-independent.
+        Worker::$globalEvent = null;
+
+        $this->expectException(InvalidArgumentException::class);
+
+        WebSocketDialer::dial('http://hub.example.com:8800/x');
+    }
+
+    public function testDialAcceptsTheWatchCommandsSelectPump(): void
+    {
+        // The stopguard predicate is "a pump exists for this process", not
+        // "the pump is our bridge" — the watch path's Select stays legal.
+        Worker::$globalEvent = new Select();
+
+        $connection = WebSocketDialer::dial('ws://127.0.0.1:8097/syncplay/room');
+
+        self::assertInstanceOf(AsyncTcpConnection::class, $connection);
+    }
+
     public function testRawVendorConstructionOfWssThrowsRegressionPin(): void
     {
         // WHY the dialer exists: the vendor itself cannot construct wss.

@@ -7,10 +7,11 @@ namespace Phlix\Console\Tests\Unit\Api\SyncPlay;
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\SyncPlay\Messages;
 use Phlix\Console\Api\SyncPlay\SyncPlayService;
+use Phlix\Console\Api\SyncPlay\WorkermanEventBridge;
 use Phlix\Console\Config\TokenBundle;
 use Phlix\Console\Tests\Api\FakeTransport;
 use PHPUnit\Framework\TestCase;
-use Workerman\Events\Select;
+use Workerman\Timer;
 use Workerman\Worker;
 
 /**
@@ -176,20 +177,26 @@ final class SyncPlayBearerCarrierHandshakeTest extends TestCase
      * or the watchdog SIGKILLs it. SIGKILL (not exit) so inherited PHPUnit
      * shutdown handlers never fire a second time.
      *
+     * Pump law (event-loop bridge lane): the child runs the REAL handshake on
+     * the WorkermanEventBridge over the React loop — the exact pairing the
+     * interactive TUI installs — not on a Workerman Select. The watchdog is
+     * armed through Workerman's Timer facade to prove installOnce wired it
+     * onto the same pump.
+     *
      * @param resource $server
      */
     private function runChild(SyncPlayService $service, string $marker, $server): never
     {
         fclose($server);
 
-        $loop = new Select();
-        Worker::$globalEvent = $loop;
+        Worker::$globalEvent = null;
+        WorkermanEventBridge::installOnce(\React\EventLoop\Loop::get());
 
         // Watchdog: a stalled handshake (e.g. a vendor-side strict-echo
         // rejection) must surface as a parent-side failure, not a hang.
-        $loop->repeat(8.0, static function (): never {
+        Timer::add(8.0, static function (): never {
             self::suicide();
-        });
+        }, [], false);
 
         $service->onGroupState(static function () use ($marker): never {
             file_put_contents($marker, 'OK');
@@ -199,7 +206,7 @@ final class SyncPlayBearerCarrierHandshakeTest extends TestCase
         // Production dial path, REAL factory (default), REAL AsyncTcpConnection.
         $service->createRoom('Carrier Harness');
 
-        $loop->run();
+        \React\EventLoop\Loop::run();
         self::suicide();
     }
 

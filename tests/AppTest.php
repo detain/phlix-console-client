@@ -13,6 +13,7 @@ use Phlix\Console\Api\Dto\Library;
 use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\Dto\PhotoAlbum;
 use Phlix\Console\App;
+use Phlix\Console\Api\SyncPlay\WorkermanEventBridge;
 use Phlix\Console\Config\Config;
 use Phlix\Console\Config\ServerEntry;
 use Phlix\Console\Config\TokenBundle;
@@ -122,6 +123,8 @@ use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Toast\Position;
 use SugarCraft\Toast\Toast;
 use SugarCraft\Toast\ToastType;
+use Workerman\Timer;
+use Workerman\Worker;
 
 final class AppTest extends TestCase
 {
@@ -626,6 +629,47 @@ final class AppTest extends TestCase
         // The build Cmd is returned but intentionally NOT invoked here — running it
         // would spawn real ffmpeg. The player's own tests drive it with a fake factory.
         self::assertInstanceOf(\Closure::class, $cmd);
+    }
+
+    public function testOpeningThePlayerInstallsTheWorkermanBridgeExactlyOnce(): void
+    {
+        // Interactive boot law (event-loop bridge lane): opening the player —
+        // the only SyncPlayService construction site — must arm Workerman's
+        // global pump (and the Timer facade riding it) before any dial is
+        // possible, and a second player open must reuse, never stack.
+        $globalEventBefore = Worker::$globalEvent;
+        $timerEvent = new \ReflectionProperty(Timer::class, 'event');
+        $timerEventBefore = $timerEvent->getValue();
+        Worker::$globalEvent = null;
+        $timerEvent->setValue(null, null);
+
+        try {
+            $browse = $this->browsing();
+            $item = MediaItem::fromArray([
+                'id' => 'm1',
+                'name' => 'The Matrix',
+                'type' => 'movie',
+                'stream_url' => 'https://srv/media/m1/stream?sig=x',
+            ]);
+
+            [$player] = $browse->update(new PlayRequestedMsg($item));
+
+            self::assertInstanceOf(WorkermanEventBridge::class, Worker::$globalEvent);
+            self::assertSame(
+                Worker::$globalEvent,
+                $timerEvent->getValue(),
+                'Timer::add must route through the installed bridge',
+            );
+            $first = Worker::$globalEvent;
+
+            // Second player open from the same pre-player state: idempotent.
+            [$playerAgain] = $browse->update(new PlayRequestedMsg($item));
+            self::assertSame($first, Worker::$globalEvent, 'a second boot never stacks bridges');
+            self::assertInstanceOf(PlayerScreen::class, $playerAgain->screen());
+        } finally {
+            Worker::$globalEvent = $globalEventBefore;
+            $timerEvent->setValue(null, $timerEventBefore);
+        }
     }
 
     public function testCastRequestPushesTheCastScreen(): void

@@ -5,6 +5,77 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — interactive SyncPlay WS is alive: Workerman→React event bridge + fail-loud stopguard — 2026-10-01
+
+- **Prod-dead feature, root cause.** The interactive TUI (`bin/phlix run`)
+  pumps a React loop; Workerman's `AsyncTcpConnection::connect()` resolves
+  its loop from `Worker::getEventLoop()` → `Worker::$globalEvent`, which
+  only the `watch` command installs (`new Select()`, bin/phlix:479). In
+  interactive mode it is null → TypeError at connect → **every** room join
+  silently failed regardless of port/URL, the rejection discarded with the
+  join promise (`PlayerScreen::onSyncPlayJoined` dropped it; the
+  reconnect-ladder timer callback called `connectWebSocket()` bare).
+- **The bridge (owner ruling option-a).** New `Api\SyncPlay\WorkermanEventBridge`
+  implements the pinned Workerman v5.2.2 `Events\EventInterface`
+  (15 methods) by delegating every concern to an injected React
+  `LoopInterface`: one int-id timer table mirroring `Select` (delay/repeat
+  share a counter; fired one-shots self-forget), streams keyed by
+  `(int)$stream`, signals via `addSignal`/`removeSignal` (wrapper stored so
+  React's identity contract holds), and a `safeCall` mirror — one throwing
+  handler must never kill the shared pump (fallback `error_log`, not
+  `echo`: stdout is the TUI canvas). `run()`/`stop()` refuse (throw): the
+  SugarCraft Program owns the loop. `deleteAllTimer()` cancels without
+  stopping — documented divergence from Select.
+- **Boot install.** `App::openPlayer()` — the sole interactive
+  `SyncPlayService` construction site — calls
+  `WorkermanEventBridge::installOnce(Loop::get())` before wiring the
+  service: idempotent, never clobbers a pump that exists (watch path
+  untouched), and on first install wires `Workerman\Timer::init($bridge)`
+  so vendor-internal `Timer::add` (e.g. `AsyncTcpConnection::reconnect`)
+  rides the React loop instead of falling through to the SIGALRM/throw
+  path in a no-worker process.
+- **Fail-loud stopguard.** `WebSocketDialer::dial()` (the shared choke
+  point for BOTH consumers — SyncPlayService and HubRelayConsumer default
+  factories) calls `WorkermanEventBridge::pumpOrThrow()` after the
+  deterministic URL-argument check: `Worker::$globalEvent === null` now
+  throws `RuntimeException` with the actionable law ("interactive boot
+  installs it — this call site bypassed App boot") instead of dying as a
+  swallowed vendor TypeError. Predicate is "a pump exists for this
+  process" — a watch-path `Select` passes; unit fakes injected through the
+  `connectionFactory` seam bypass dialing entirely.
+- **Silence closed at both seams.** `onSyncPlayJoined` now returns a
+  `Cmd::promise` mapping join rejection → `SyncPlayFailedMsg` (rides the
+  Cmd channel, not the service-callback queue, which writes to the
+  instance captured at init time while `update()` stacks clones);
+  `onSyncPlayFailed` with the modal closed toasts instead of vanishing;
+  the reconnect-ladder rung wraps the dial in try/catch → `onError
+  ('websocket_connect_failed', …)` and climbs the next rung (technical,
+  non-localized text per the `reconnect_exhausted` precedent).
+- **Proof.** New `WorkermanEventBridgeTest` (21 tests: exact interval
+  delegation, shared id space, arg forwarding, periodic repeat/cancel,
+  oneshot self-forget, stream re-registration ordering, signal listener
+  identity, safeCall routing on both timer+stream paths, run/stop refusal,
+  installOnce set/idempotent/non-clobber + Timer-facade wiring,
+  pumpOrThrow accept/reject). New `tests/Api/RecordingEventLoop.php`
+  double (sibling of `FakeClockLoop`, which stays stream-strict).
+  `WebSocketDialerTest` +3 (stopguard throws loud, argument errors precede
+  the pump guard, Select pump accepted) with setUp/tearDown install
+  discipline. `SyncPlayServiceTest` +2 (default factory + null pump → loud
+  join rejection; throwing ladder rung reports and climbs, never escapes).
+  `PlayerScreenSyncPlayTest` +2 (rejection surfaces via the Cmd promise
+  end-to-end; failed-msg toasts without modal). `AppTest` +1 (player open
+  installs the bridge exactly once). The forked
+  `SyncPlayBearerCarrierHandshakeTest` child now completes the REAL WS
+  handshake through the bridge over the React loop (was Select) —
+  end-to-end pump proof; the TLS round-trip test stays on Select.
+- **Contracts pin (v0.5.2-era consumer).** Vendored
+  `server-route-manifest.json` re-vendored byte-for-byte from contracts
+  tag `v0.5.3` (410→412 tuples, md5 `915796837d38a77733c169996d97640c`,
+  server `758f9149`); gate pins rotated. `SyncPlayErrors` gains the 8th
+  dotted row `syncplay.queue_limit_exceeded` (LIVE on server since
+  `7baa398a`) with the catalog key added to all 7 locales
+  (order-sensitive parity holds: 60 keys).
+
 ### Fixed — `wss://` dials no longer throw at construction (Workerman has no `Protocols\Wss`) — 2026-09-30
 
 - **Prod-latent crash class, both WS consumers.** The pinned Workerman

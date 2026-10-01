@@ -17,9 +17,10 @@ use SugarCraft\Core\I18n\T;
  * dotted code must resolve through the real T/Lang path to exactly the text
  * its SCREAMING twin already renders — the flip is a rendering non-event.
  *
- * The four inner-path specializations (syncplay.group_limit_reached /
+ * The five inner-path specializations (syncplay.group_limit_reached /
  * group_not_found / invalid_password / group_full, live since srv #793 at
- * SyncPlayManager.php:621/:702/:741/:745) are the opposite shape: they
+ * SyncPlayManager.php:621/:702/:741/:745, plus queue_limit_exceeded LIVE
+ * since srv 7baa398a at :1230) are the opposite shape: they
  * un-wrap a coarse carrier into a precise reason, so each must resolve to
  * its OWN catalog line and never to the carrier text nor the server prose
  * they used to leak through the debug fallback.
@@ -116,6 +117,20 @@ final class SyncPlayErrorsLocalizationTest extends TestCase
                 'en' => 'That watch group is full.',
                 'es' => 'Ese grupo de visionado está lleno.',
                 'ja' => 'そのウォッチグループは満員です。',
+            ],
+        ],
+        // LIVE since srv 7baa398a (SyncPlayManager.php:1230): the queue-set
+        // validation rejects an over-cap playback queue with this precise
+        // dotted code — no SCREAMING ancestor existed; unmapped it would
+        // leak the server's English prose through the debug fallback.
+        'queue_limit_exceeded' => [
+            'code' => 'syncplay.queue_limit_exceeded',
+            'carrier' => 'HANDLER_ERROR',
+            'prose' => 'Playback queue exceeds the 1000-item cap; queue unchanged',
+            'texts' => [
+                'en' => 'The playback queue for that watch group is full.',
+                'es' => 'La cola de reproducción de ese grupo de visionado está llena.',
+                'ja' => 'そのウォッチグループの再生キューが満杯です。',
             ],
         ],
     ];

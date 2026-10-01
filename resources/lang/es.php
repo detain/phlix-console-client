@@ -82,5 +82,6 @@ return [
     'syncplay.group_not_found' => 'Ese grupo de visionado ya no existe.',
     'syncplay.invalid_password' => 'La contraseña no es correcta.',
     'syncplay.group_full' => 'Ese grupo de visionado está lleno.',
+    'syncplay.queue_limit_exceeded' => 'La cola de reproducción de ese grupo de visionado está llena.',
     'syncplay.unknown_error' => 'Ocurrió un error de sincronización.',
 ];

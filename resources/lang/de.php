@@ -82,5 +82,6 @@ return [
     'syncplay.group_not_found' => 'Diese synchronisierte Gruppe existiert nicht mehr.',
     'syncplay.invalid_password' => 'Das Passwort ist nicht korrekt.',
     'syncplay.group_full' => 'Diese synchronisierte Gruppe ist voll.',
+    'syncplay.queue_limit_exceeded' => 'Die Wiedergabeliste dieser synchronisierten Gruppe ist voll.',
     'syncplay.unknown_error' => 'Ein Synchronisierungsfehler ist aufgetreten.',
 ];

@@ -637,4 +637,93 @@ final class SyncPlayServiceTest extends TestCase
         {"success": true, "group": {"group_id": "sp_cca927fbf4ba11f9", "group_name": "Movie Night", "member_count": 1, "members": {"member_host": {"id": "member_host", "name": "Host One", "is_host": true, "joined_at": 1788300111}}, "host_id": "member_host", "current_media_id": null, "current_media_duration": 0, "playback_position": 0, "playback_state": "stopped", "queue": [], "created_at": 1788300111, "last_activity_at": 1788300111}}
         JSON, true, 512, JSON_THROW_ON_ERROR);
     }
+
+    // ---- Event-pump stopguard integration (bridge lane, 2026-10-01) ----------
+
+    public function testDefaultFactoryWithoutPumpRejectsTheJoinPromiseLoudly(): void
+    {
+        // The end-to-end law the TUI depends on: with the production default
+        // factory and NO pump installed, the join must arrive as a loud,
+        // actionable rejection (pre-fix: an opaque TypeError at connect(),
+        // discarded with the promise).
+        $globalEventBefore = \Workerman\Worker::$globalEvent;
+        \Workerman\Worker::$globalEvent = null;
+
+        try {
+            $transport = (new FakeTransport())->json(200, self::joinEnvelope());
+            $service = new SyncPlayService(new ApiClient('https://srv', $transport));
+
+            $rejection = null;
+            $service->joinRoom('sp_cca927fbf4ba11f9')
+                ->then(null, static function (\Throwable $e) use (&$rejection): void {
+                    $rejection = $e;
+                });
+
+            self::assertInstanceOf(\RuntimeException::class, $rejection);
+            self::assertStringContainsString('React-loop event bridge', $rejection?->getMessage() ?? '');
+            self::assertStringContainsString('bypassed App boot', $rejection?->getMessage() ?? '');
+        } finally {
+            \Workerman\Worker::$globalEvent = $globalEventBefore;
+        }
+    }
+
+    public function testLadderRungWithThrowingFactoryReportsAndClimbsInsteadOfEscaping(): void
+    {
+        // A dial that throws synchronously inside a ladder rung must not
+        // escape into the loop's timer dispatch (that would kill the pump the
+        // whole TUI runs on). It reports on the error channel and the next
+        // rung arms — the ladder stays honest.
+        $transport = new FakeTransport();
+        $clock = new FakeClockLoop();
+
+        /** @var list<AsyncTcpConnection> $connections */
+        $connections = [];
+        $factoryCalls = 0;
+        $service = new SyncPlayService(
+            new ApiClient('https://srv', $transport),
+            $clock,
+            static function (string $url) use (&$connections, &$factoryCalls): AsyncTcpConnection {
+                $factoryCalls++;
+                if ($factoryCalls === 1) {
+                    $connection = new RecordingConnection();
+                    $connections[] = $connection;
+
+                    return $connection;
+                }
+
+                throw new \RuntimeException('pump vanished');
+            },
+        );
+
+        /** @var list<string> $errorCodes */
+        $errorCodes = [];
+        /** @var list<string> $errorMessages */
+        $errorMessages = [];
+        $service->onError(static function (string $code, string $message) use (&$errorCodes, &$errorMessages): void {
+            $errorCodes[] = $code;
+            $errorMessages[] = $message;
+        });
+
+        $transport->json(200, self::joinEnvelope());
+        $service->joinRoom('sp_cca927fbf4ba11f9')->then(null, static fn (): null => null);
+
+        // Drop the live socket → the ladder arms rung one (1.0s).
+        $connection = $connections[0];
+        $onClose = $connection->onClose;
+        $onClose($connection);
+        self::assertSame([1.0], $clock->oneShotDelays);
+
+        // Fire the rung: the factory throws synchronously. Pre-fix this
+        // escaped fireNextOneShot() as an uncaught RuntimeException.
+        $clock->fireNextOneShot();
+
+        self::assertSame(['websocket_connect_failed'], $errorCodes);
+        self::assertSame(
+            ['SyncPlay reconnect attempt failed: pump vanished'],
+            $errorMessages,
+            'the sync throw surfaces verbatim on the error channel',
+        );
+        self::assertSame([1.0, 2.0], $clock->oneShotDelays, 'the ladder climbs to the next rung');
+        self::assertSame(1, $clock->pendingOneShotCount());
+    }
 }

@@ -6,12 +6,15 @@ namespace Phlix\Console\Tests\Unit\Screen;
 
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\Dto\MediaItem;
+use Phlix\Console\Api\Dto\SyncPlayGroup;
 use Phlix\Console\Api\Dto\SyncPlayUser;
 use Phlix\Console\Api\SyncPlay\SyncPlayService;
 use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Msg\SyncPlayDisconnectedMsg;
+use Phlix\Console\Msg\SyncPlayFailedMsg;
 use Phlix\Console\Msg\SyncPlayGroupStateMsg;
+use Phlix\Console\Msg\SyncPlayJoinedMsg;
 use Phlix\Console\Msg\SyncPlayHostChangedMsg;
 use Phlix\Console\Msg\SyncPlayMemberJoinedMsg;
 use Phlix\Console\Msg\SyncPlayPlaybackCommandMsg;
@@ -314,5 +317,90 @@ final class PlayerScreenSyncPlayTest extends TestCase
         ]);
 
         $this->assertSame('SyncPlay: A sync error occurred.', $toast->message);
+    }
+
+    // ---- Rejection surfacing (event-loop bridge lane, 2026-10-01) ------------
+
+    public function testSocketJoinRejectionSurfacesAsSyncPlayFailedMsgViaCmd(): void
+    {
+        // The discarded joinRoom promise was the silence: a failed socket
+        // join vanished without a trace. The rejection must now ride the Cmd
+        // channel to a SyncPlayFailedMsg dispatched into the live loop.
+        // Driven end-to-end: default factory + no pump = stopguard rejection.
+        $globalEventBefore = \Workerman\Worker::$globalEvent;
+        \Workerman\Worker::$globalEvent = null;
+
+        try {
+            $transport = new FakeTransport();
+            $api = new ApiClient('https://srv', $transport);
+            $item = $this->item();
+            $playerFactory = static fn (): \SugarCraft\Reel\Player => throw new \RuntimeException('unused');
+            $screen = new PlayerScreen(
+                $item,
+                'https://srv',
+                $api,
+                $playerFactory,
+                new SyncPlayService($api),
+            );
+
+            $transport->json(200, json_decode(<<<'JSON'
+            {
+              "success": true,
+              "group": {
+                "group_id": "sp_cca927fbf4ba11f9",
+                "group_name": "Movie Night",
+                "member_count": 1,
+                "members": {
+                  "member_host": {
+                    "id": "member_host",
+                    "name": "Host One",
+                    "is_host": true,
+                    "joined_at": 1788300111
+                  }
+                },
+                "host_id": "member_host",
+                "current_media_id": null,
+                "current_media_duration": 0,
+                "playback_position": 0,
+                "playback_state": "stopped",
+                "queue": [],
+                "created_at": 1788300111,
+                "last_activity_at": 1788300111
+              }
+            }
+            JSON, true, 512, JSON_THROW_ON_ERROR));
+
+            $room = new SyncPlayGroup('sp_cca927fbf4ba11f9', 'Movie Night', true, 1);
+            [, $cmd] = $screen->update(new SyncPlayJoinedMsg($room));
+
+            $this->assertInstanceOf(\Closure::class, $cmd);
+            $async = $cmd();
+            $this->assertInstanceOf(\SugarCraft\Core\AsyncCmd::class, $async);
+
+            $settled = null;
+            $async->promise->then(static function (?\SugarCraft\Core\Msg $msg) use (&$settled): void {
+                $settled = $msg;
+            });
+
+            $this->assertInstanceOf(SyncPlayFailedMsg::class, $settled);
+            $this->assertStringContainsString('SyncPlay socket join failed:', $settled?->reason ?? '');
+            $this->assertStringContainsString('React-loop event bridge', $settled?->reason ?? '');
+        } finally {
+            \Workerman\Worker::$globalEvent = $globalEventBefore;
+        }
+    }
+
+    public function testSyncPlayFailedWithoutModalToastsesInsteadOfVanishing(): void
+    {
+        // Modal-closed failures used to return silently ("just log"); every
+        // socket error after a successful join was invisible. Now: a toast.
+        $screen = $this->createScreen();
+
+        [, $cmd] = $screen->update(new SyncPlayFailedMsg('boom'));
+
+        $this->assertInstanceOf(\Closure::class, $cmd);
+        $msg = $cmd();
+        $this->assertInstanceOf(ShowToastMsg::class, $msg);
+        $this->assertSame('SyncPlay: boom', $msg->message);
     }
 }

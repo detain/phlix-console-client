@@ -2199,9 +2199,20 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         $next->syncPlayMemberCount = $room->memberCount;
         $next->syncPlayStatus = 'Connecting...';
 
-        $this->syncPlayService->joinRoom($room->id);
-
-        return [$next, null];
+        // The socket join is async and its rejection used to be discarded —
+        // every failed join vanished silently. Route it through the Cmd
+        // channel instead of the service-callback queue: the queue writes to
+        // the instance captured at init time while update() stacks clones, so
+        // queued events can orphan after a state transition; Cmd msgs always
+        // reach the live loop.
+        return [$next, Cmd::promise(
+            fn (): PromiseInterface => $this->syncPlayService->joinRoom($room->id)->then(
+                static fn (): ?Msg => null,
+                static fn (\Throwable $e): Msg => new SyncPlayFailedMsg(
+                    'SyncPlay socket join failed: ' . $e->getMessage(),
+                ),
+            ),
+        )];
     }
 
     /** @return array{self, ?\Closure} */
@@ -2232,8 +2243,10 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
             return [$next, null];
         }
 
-        // If modal not open, just log - could show a toast here
-        return [$this, null];
+        // Modal closed (the join was kicked off from the accepted-room path):
+        // a silent drop here hid every socket failure. Toast it — App::update
+        // renders ShowToastMsg over the live player.
+        return [$this, Cmd::send(ShowToastMsg::error('SyncPlay: ' . $reason))];
     }
 
     /**
