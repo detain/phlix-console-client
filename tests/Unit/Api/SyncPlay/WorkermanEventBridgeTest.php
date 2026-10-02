@@ -267,6 +267,33 @@ final class WorkermanEventBridgeTest extends TestCase
         self::assertSame('socket exploded', $captured?->getMessage());
     }
 
+    /**
+     * No-handler baseline (review follow-up (ii), pinned as-is): a bridge
+     * constructed directly — never through installOnce — keeps the plain
+     * safeCall fallback: the throwable is logged, the pump keeps running,
+     * and nothing drains. Production installs the watchdog instead; see
+     * testInstallOnceArmsWatchdogThatLogsTheOriginalThrowableAndDrainsThePump.
+     */
+    public function testBareBridgeWithoutHandlerKeepsTheLogOnlyFallbackPumpAlive(): void
+    {
+        $fired = 0;
+        $this->bridge->repeat(0.5, static function () use (&$fired): void {
+            $fired++;
+            throw new RuntimeException('BRIDGE_FALLBACK_BOOM');
+        });
+
+        $capture = $this->captureErrorLog(fn () => $this->loop->firePeriodic(0, times: 2));
+
+        self::assertStringContainsString('BRIDGE_FALLBACK_BOOM', $capture, 'the fallback still surfaces it');
+        self::assertStringNotContainsString(
+            'watchdog',
+            $capture,
+            'the bare bridge must not claim the installOnce handler path'
+        );
+        self::assertSame(2, $fired, 'the fallback logs but never drains — Select safeCall parity');
+        self::assertSame(1, $this->bridge->getTimerCount(), 'fallback leaves the timer table intact');
+    }
+
     // ---- loop ownership ---------------------------------------------------------
 
     public function testRunRefusesToOwnTheLoop(): void
@@ -475,6 +502,133 @@ final class WorkermanEventBridgeTest extends TestCase
         self::assertNull($this->readTimerEvent(), 'standing down must not touch the Timer facade either');
     }
 
+    /**
+     * Review follow-up (i), the happy funnel: installOnce must arm the watch-path
+     * error handler (bin/phlix:479-484 parity — "logs and stops cleanly instead
+     * of escaping run() with a raw trace"). A throwing pump dispatch is
+     * error_log'd IN FULL (class, message, file:line — the diagnostics the
+     * zombie eats) and the bridge drains via the existing stop() machinery —
+     * no exit(), interactive code never ends the process from a callback.
+     */
+    public function testInstallOnceArmsWatchdogThatLogsTheOriginalThrowableAndDrainsThePump(): void
+    {
+        Worker::$globalEvent = null;
+        WorkermanEventBridge::installOnce($this->loop);
+
+        $installed = Worker::$globalEvent;
+        if (!$installed instanceof WorkermanEventBridge) {
+            self::fail('installOnce must leave its own bridge as Worker::$globalEvent');
+        }
+
+        $fired = 0;
+        $installed->repeat(0.01, static function () use (&$fired): void {
+            $fired++;
+            throw new RuntimeException('BRIDGE_WATCHDOG_ORIGINAL_BOOM');
+        });
+        $installed->delay(5.0, static function (): void {
+            // Never fires: it exists to prove the drain covers every bridge timer.
+        });
+
+        $capture = $this->captureErrorLog(fn () => $this->loop->firePeriodic(0));
+
+        self::assertStringContainsString('watchdog', $capture, 'safeCall must route to the handler installOnce armed');
+        self::assertStringContainsString(
+            'BRIDGE_WATCHDOG_ORIGINAL_BOOM',
+            $capture,
+            'the ORIGINAL message must appear — not just a vendor TypeError'
+        );
+        self::assertStringContainsString('RuntimeException', $capture, 'class is part of the full diagnostics');
+        self::assertStringContainsString(__FILE__, $capture, 'file:line diagnostics ride (string) Throwable');
+        self::assertSame(1, $fired, 'the broken repeat fired exactly once');
+        self::assertSame([], $this->loop->pendingPeriodics, 'the React loop holds nothing left to re-arm');
+        self::assertSame(0, $installed->getTimerCount(), 'stop() drained every bridge timer');
+        self::assertSame([0.01, 5.0], $this->loop->cancelledIntervals, 'the drain reached the loop for both timers');
+
+        try {
+            $this->loop->firePeriodic(0);
+            self::fail('the drained loop must hold no periodic left to fire');
+        } catch (LogicException $e) {
+            self::assertStringContainsString('no pending periodic', $e->getMessage());
+        }
+
+        try {
+            $installed->delay(1.0, static function (): void {
+                // Never fires: the refusal itself is the subject.
+            });
+            self::fail('late work after the watchdog stop() must be refused loudly');
+        } catch (LogicException $e) {
+            self::assertStringContainsString('after stop()', $e->getMessage());
+        }
+    }
+
+    /**
+     * The reviewer's exact failure mode reproduced end to end: the vendor
+     * funnel ConnectionInterface::error() (no per-connection errorHandler)
+     * routes to Worker::stopAll(250, $e); its child branch first log()s the
+     * original through safeEcho, which dies on feof(self::$outputStream)
+     * (Worker.php:2427) because runAll() never initialized the stream in an
+     * interactive process. The resulting vendor TypeError lands back in the
+     * bridge — WITHOUT the watchdog installOnce armed, safeCall's bare
+     * fallback would log it and the pump would keep ticking a
+     * STATUS_SHUTDOWN zombie. With the watchdog, the pump drains. The
+     * original's disappearance from THIS capture is asserted honestly: no
+     * loop-layer handler can resurrect what stopAll ate — the per-connection
+     * errorHandler (22faf00) is what prevents the funnel; the watchdog
+     * guarantees the drain.
+     */
+    public function testVendorStopAllFeofFunnelReachesTheWatchdogAndDrainsThePump(): void
+    {
+        $status = new \ReflectionProperty(Worker::class, 'status');
+        $statusBefore = $status->getValue();
+        $outputStreamBefore = Worker::$outputStream;
+        // Interactive truth: Worker::runAll() never ran, so the output stream is null.
+        Worker::$outputStream = null;
+        $handlerBefore = $this->currentErrorHandler();
+
+        try {
+            Worker::$globalEvent = null;
+            WorkermanEventBridge::installOnce($this->loop);
+
+            $installed = Worker::$globalEvent;
+            if (!$installed instanceof WorkermanEventBridge) {
+                self::fail('installOnce must leave its own bridge as Worker::$globalEvent');
+            }
+
+            $original = new RuntimeException('ORIGINAL_SWALLOWED_BY_ZOMBIE');
+            $installed->repeat(0.01, static function () use ($original): void {
+                // ConnectionInterface::error() :174-178 verbatim branch.
+                Worker::stopAll(250, $original);
+            });
+
+            $capture = $this->captureErrorLog(fn () => $this->loop->firePeriodic(0));
+
+            self::assertStringContainsString('watchdog', $capture, 'the vendor TypeError must reach the handler');
+            self::assertStringContainsString(
+                'feof(): Argument #1 ($stream) must be of type resource, null given',
+                $capture,
+                'the Worker.php:2427 crash is what actually escapes stopAll'
+            );
+            self::assertStringNotContainsString(
+                'ORIGINAL_SWALLOWED_BY_ZOMBIE',
+                $capture,
+                'honest pin: the loop layer cannot recover the original once safeEcho died on it'
+            );
+            self::assertSame(
+                0,
+                $installed->getTimerCount(),
+                'pump drained — nothing left re-firing inside STATUS_SHUTDOWN'
+            );
+            self::assertSame([], $this->loop->pendingPeriodics);
+        } finally {
+            // Worker::safeEcho() arms its error handler BEFORE the feof() check
+            // (Worker.php:2425-2427), so the funnel's TypeError skips the paired
+            // restore_error_handler() — undo the vendor leak before PHPUnit does.
+            $this->popToErrorHandler($handlerBefore);
+            $status->setValue(null, $statusBefore);
+            Worker::$outputStream = $outputStreamBefore;
+        }
+    }
+
     // ---- stopguard ------------------------------------------------------------------
 
     public function testPumpOrThrowRejectsNullPumpWithActionableMessage(): void
@@ -512,5 +666,65 @@ final class WorkermanEventBridgeTest extends TestCase
     {
         $property = new \ReflectionProperty(Timer::class, 'event');
         $property->setValue(null, $event);
+    }
+
+    /**
+     * Route error_log() to a temp file for the duration of $run and return
+     * everything written to it. The watchdog and the safeCall fallback both
+     * log through error_log — the only honest capture channel, since
+     * stdout/stderr are the runner's and (in production) the TUI's.
+     */
+    private function captureErrorLog(callable $run): string
+    {
+        $file = tempnam(sys_get_temp_dir(), 'phlix-bridge-errlog-');
+        self::assertIsString($file);
+        $previous = (string) ini_get('error_log');
+        ini_set('error_log', $file);
+
+        try {
+            $run();
+            clearstatcache(true, $file);
+
+            return (string) file_get_contents($file);
+        } finally {
+            ini_set('error_log', $previous);
+            unlink($file);
+        }
+    }
+
+    /**
+     * Snapshot the active error handler without leaving a probe installed.
+     * set_error_handler() returns the previous handler; immediately restoring
+     * pops the probe again, so the stack is untouched after this call.
+     */
+    private function currentErrorHandler(): callable|array|string|null
+    {
+        $probe = static fn (): bool => false;
+        $current = set_error_handler($probe);
+        restore_error_handler();
+
+        return $current;
+    }
+
+    /**
+     * Pop error handlers until the stack holds $snapshot again — the repair
+     * for callbacks that arm set_error_handler() and die before reaching the
+     * restore (Worker::safeEcho's feof site). Each probe round costs at most
+     * two pops; a bounded sweep keeps a vendor change from eating PHPUnit's
+     * own handler.
+     */
+    private function popToErrorHandler(callable|array|string|null $snapshot): void
+    {
+        $probe = static fn (): bool => false;
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            $current = set_error_handler($probe);
+            restore_error_handler();
+            if ($current === $snapshot) {
+                return;
+            }
+            restore_error_handler();
+        }
+
+        self::fail('error-handler stack never returned to its snapshot');
     }
 }

@@ -51,6 +51,11 @@ use Workerman\Worker;
  * - Callbacks are wrapped in a safeCall mirroring Select's try/catch — one
  *   throwing handler must never kill the pump — but the fallback logs via
  *   error_log() instead of Select's echo, because stdout is the TUI canvas.
+ * - installOnce() arms a watchdog error handler (watch-path parity with
+ *   bin/phlix runWatch → Select::setErrorHandler): a throwing dispatch is
+ *   error_log'd in full and the bridge stop()s, so the pump drains instead
+ *   of spinning on. A bare bridge (manual construction, unit tests) keeps
+ *   the log-only safeCall fallback.
  */
 final class WorkermanEventBridge implements EventInterface
 {
@@ -69,7 +74,7 @@ final class WorkermanEventBridge implements EventInterface
     /** @var array<int, callable> Signal listeners currently registered with React. */
     private array $signals = [];
 
-    /** @var callable(\Throwable): mixed|null Error handler kept for EventInterface parity. */
+    /** @var callable(\Throwable): mixed|null safeCall dispatch target; installOnce() arms pumpWatchdog() here. */
     private $errorHandler = null;
 
     /** @var bool Set by stop(); every later registration attempt is refused loudly. */
@@ -93,6 +98,12 @@ final class WorkermanEventBridge implements EventInterface
      * AsyncTcpConnection::reconnect) fall through to the pcntl-alarm tick
      * path — which in a no-worker process throws outright and in any case
      * would install a SIGALRM handler the React pump never services.
+     *
+     * Finally it arms the pump watchdog (setErrorHandler), completing the
+     * watch-path parity: bin/phlix gives its Select loop a handler that
+     * "logs and stops cleanly"; without one here a throwing dispatch would
+     * only reach safeCall's log-only fallback and the pump would keep
+     * ticking. See pumpWatchdog().
      */
     public static function installOnce(LoopInterface $loop): void
     {
@@ -101,8 +112,47 @@ final class WorkermanEventBridge implements EventInterface
         }
 
         $bridge = new self($loop);
+        $bridge->setErrorHandler(self::pumpWatchdog($bridge));
         Worker::$globalEvent = $bridge;
         Timer::init($bridge);
+    }
+
+    /**
+     * Watch-path error handler: log the throwable in full, then drain the
+     * bridge via the existing stop() machinery — reuse, never re-invent.
+     *
+     * Why it matters (the diagnostics the zombie eats): the vendor funnel
+     * ConnectionInterface::error() with no per-connection errorHandler calls
+     * Worker::stopAll(250, $e). In an interactive process its child branch
+     * first log()s the original through safeEcho, which dies on
+     * feof(self::$outputStream) (Worker.php:2427 — runAll() never ran, so
+     * $outputStream is null): the original exception is swallowed, stopAll
+     * aborts before arming its exit watchdog, and the TUI keeps pumping in
+     * STATUS_SHUTDOWN. Whatever finally reaches safeCall (the original on a
+     * direct throw, or the vendor TypeError on that funnel) is error_log'd
+     * here in full — class, message, file:line, stack — into error_log's
+     * configured sink rather than stdout/stderr, which are the TUI canvas.
+     *
+     * Then stop(): the bridge's cancel-everything path (22faf00 law: it
+     * detaches every timer/stream/signal and refuses late work loudly, and
+     * it never throws — so the handler cannot re-enter safeCall, and a
+     * repeated dispatch just re-logs and no-ops). The pump drains; nothing
+     * broken re-fires.
+     *
+     * No exit() from interactive code: the SugarCraft Program owns the
+     * process lifecycle and terminal teardown; a loop callback pulling the
+     * plug would strand the TUI mid-frame — the watch path stops its own
+     * loop rather than killing the process, and this mirrors that policy.
+     */
+    private static function pumpWatchdog(self $bridge): callable
+    {
+        return static function (Throwable $throwable) use ($bridge): void {
+            error_log(
+                'WorkermanEventBridge watchdog: unhandled error in pump-dispatched callback; draining the bridge. '
+                . (string) $throwable
+            );
+            $bridge->stop();
+        };
     }
 
     /**

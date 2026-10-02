@@ -5,6 +5,60 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — pump watchdog: interactive bridge gains watch-path error-handler parity — 2026-10-02
+
+- **Review follow-up (P2 close, second-pass addendum of the bridge review).**
+  `runWatch` arms its `Select` loop with an error handler that "logs and stops
+  cleanly instead of escaping run() with a raw trace" (bin/phlix:479-484);
+  `WorkermanEventBridge::installOnce()` armed none, so a throwing
+  pump-dispatched callback only reached `safeCall`'s bare `error_log()`
+  fallback and the pump kept ticking. On the vendor funnel
+  `ConnectionInterface::error()` (no per-connection `errorHandler`) →
+  `Worker::stopAll(250, $e)` the child branch first `log()`s the original
+  through `safeEcho`, which dies on `feof(self::$outputStream)`
+  (Worker.php:2427 — `runAll()` never ran interactively, the stream is null):
+  the original exception is swallowed, `stopAll` aborts before arming its
+  exit watchdog, and the TUI continues pumping in `STATUS_SHUTDOWN`.
+- **The watchdog.** `installOnce()` now arms
+  `setErrorHandler(self::pumpWatchdog($bridge))`: it `error_log`s the
+  throwable in full (class, message, file:line, stack — the diagnostics the
+  zombie eats; into `error_log`'s configured sink, never the TUI canvas),
+  then calls the existing non-throwing `stop()` — the bridge's
+  cancel-everything path — so timers/streams/signals drain and late work is
+  refused loudly. **No `exit()`:** interactive code never ends the process
+  from a loop callback — the SugarCraft Program owns shutdown; the watch
+  path likewise stops its loop rather than killing the process. A bare
+  bridge (unit tests, manual construction) keeps the log-only fallback,
+  now pinned as-is.
+- **P3 was already closed at tip; verified, not re-done.** The addendum's
+  doc-correction follow-up — the `deleteAllTimer()` "diverges from Select"
+  claim — had landed the same evening in the `stop()`-never-throws rework:
+  docblock corrected to "FAITHFUL to Select", the 2026-10-01 entry carries
+  the forward-only dated correction above, and
+  `testSelectDeleteAllTimerNeverStopsItsLoopPinningTheDocblockTruth` pins
+  the vendor truth (Select.php:376-381 resets only the scheduler/eventTimer
+  tables). Repo-wide grep: no residual divergence claim survives in
+  src/tests/docs/bin.
+- **Proof.** `WorkermanEventBridgeTest` grows 26 → 29: watchdog install via
+  `installOnce` (original message/class/file:line in `error_log`, both
+  timers drained, the periodic can never re-fire, late work refused);
+  no-handler baseline pinned (logs, never drains, pump stays alive); and
+  the reviewer's exact funnel reproduced against real vendor code —
+  dispatched callback → `Worker::stopAll(250, $original)` with
+  `Worker::$outputStream = null` — where the `feof(): Argument #1 ($stream)
+  must be of type resource, null given` TypeError escapes `stopAll` into the
+  watchdog, which logs it and drains the pump (the test's
+  `popToErrorHandler` mirrors the handler `safeEcho` leaks when its
+  pre-`feof` `set_error_handler` is skipped). The original's absence from
+  that capture is asserted honestly — no loop-layer handler can resurrect
+  what `stopAll` ate; the per-connection `errorHandler` (22faf00) prevents
+  the funnel, the watchdog guarantees the drain. Mutation proof: deleting
+  the `setErrorHandler` line from `installOnce` reddens both new watchdog
+  tests with exactly the zombie's signature (fallback log, no marker, no
+  drain). Full suite 2961/13599/9-skip (baseline 2958/13577/9 measured at
+  22faf00 +3 tests/+22 assertions, 13 pre-existing deprecations unchanged),
+  phpstan both corpora OK, phpcs PSR12 zero-new vs tip.
+
 ### Fixed — bridge `stop()` never throws: Workerman's stop-before-exit shutdown ordering — 2026-10-02
 
 - **The zombie-TUI defect (P2, adversarial review of the 2026-10-01 bridge
