@@ -5,6 +5,56 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — bridge `stop()` never throws: Workerman's stop-before-exit shutdown ordering — 2026-10-02
+
+- **The zombie-TUI defect (P2, adversarial review of the 2026-10-01 bridge
+  lane).** `WorkermanEventBridge::stop()` threw by design, mirroring `run()`.
+  But `Worker::stopAll()`'s child branch arms a `Timer::repeat(0.01, …)`
+  watchdog whose callback calls `static::$globalEvent?->stop()` **before**
+  its `try { exit($code) }` (Worker.php:2087-2090, verified on the pinned
+  v5.2.2). Every vendor callback-error funnel — `ConnectionInterface::error()`
+  with no `errorHandler` set routes to `Worker::stopAll(250, $e)`
+  (ConnectionInterface.php:174-186) — therefore passed through the throwing
+  `stop()`: the throw was caught by the bridge's own `safeCall`, `exit()`
+  became unreachable, the 0.01 s watchdog kept re-firing, and the process
+  rotted as a `STATUS_SHUTDOWN` TUI flooding `error_log` at ~100 Hz.
+  Pre-bridge, `Select::stop()` (Select.php:443-457) merely cancelled and
+  returned, so the identical path exited cleanly.
+- **New semantics (owner-sanctioned middle option).** `stop()` is now
+  non-throwing, idempotent and self-cancelling: it cancels every
+  bridge-owned timer, removes every read/write stream and signal from the
+  React loop, clears its tables and sets a stopped flag — then **late work
+  is refused loudly**: `delay()`/`repeat()`/`onReadable()`/`onWritable()`/
+  `onSignal()` after `stop()` throw `LogicException` ("… after stop() …")
+  instead of silently leaking onto a winding-down loop. `run()` keeps
+  throwing (grep-proven no vendor or console path calls it).
+  `deleteAllTimer()` and the `off*` family stay honest no-ops post-stop.
+- **Per-connection errorHandler.** `SyncPlayService::connectWebSocket()`
+  installs a logging `$conn->errorHandler` at dial so a throwing user
+  callback logs (`error_log`, stdout is the TUI canvas) instead of funnelling
+  to `Worker::stopAll(250)` — the same "one bad handler must not kill the
+  pump" law the bridge's `safeCall` already enforces. `error()` only reads
+  the property; no handshake/TLS path touches it (verified across
+  v5.2.2 vendor sources).
+- **Finding 2 (P3 doc truth).** The bridge docblock and the 2026-10-01
+  entry below both claimed `deleteAllTimer()` diverges from `Select` by not
+  stopping the loop. FALSE for v5.2.2: `Select::deleteAllTimer()`
+  (Select.php:376-381) only resets the scheduler/eventTimer tables —
+  stopping is `Select::stop()`'s job, which itself calls `deleteAllTimer()`.
+  The bridge behavior was always faithful; only the prose was wrong.
+- **Proof.** `WorkermanEventBridgeTest` grows 21 → 26: the old
+  `stop()`-throws pin converted to the new no-throw semantics (it pinned
+  the design being fixed); full-detach sweep (timers/streams/signals,
+  zero loop involvement); idempotent double-stop detaches once; the actual
+  vendor failure mode reproduced — `repeat(0.01)` callback calling
+  `Worker::$globalEvent?->stop()` then reaching the exit marker, with
+  self-cancel freezing the flood (mutation-proven red if `stop()` throws
+  again: `Failed asserting that null is identical to 250`); late-work
+  refusal across all five registration methods; and a vendor-parity pin
+  proving `Select::deleteAllTimer()` never stops its own loop.
+  `SyncPlayServiceTest` +1: dial installs the logging errorHandler and the
+  installed handler writes to `error_log` rather than funnelling.
+
 ### Fixed — interactive SyncPlay WS is alive: Workerman→React event bridge + fail-loud stopguard — 2026-10-01
 
 - **Prod-dead feature, root cause.** The interactive TUI (`bin/phlix run`)
@@ -23,9 +73,13 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `(int)$stream`, signals via `addSignal`/`removeSignal` (wrapper stored so
   React's identity contract holds), and a `safeCall` mirror — one throwing
   handler must never kill the shared pump (fallback `error_log`, not
-  `echo`: stdout is the TUI canvas). `run()`/`stop()` refuse (throw): the
-  SugarCraft Program owns the loop. `deleteAllTimer()` cancels without
-  stopping — documented divergence from Select.
+  `echo`: stdout is the TUI canvas). `run()` refuses (throws): the
+  SugarCraft Program owns the loop. (This entry originally had `stop()`
+  refusing too and `deleteAllTimer()` a "documented divergence from
+  Select" — both superseded by the 2026-10-02 entry above: `stop()` must
+  never throw per Worker.php:2087 shutdown ordering, and
+  `deleteAllTimer()` is in fact **faithful** to Select, which likewise
+  never stops its loop there — Select.php:376-381.)
 - **Boot install.** `App::openPlayer()` — the sole interactive
   `SyncPlayService` construction site — calls
   `WorkermanEventBridge::installOnce(Loop::get())` before wiring the
@@ -54,7 +108,8 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Proof.** New `WorkermanEventBridgeTest` (21 tests: exact interval
   delegation, shared id space, arg forwarding, periodic repeat/cancel,
   oneshot self-forget, stream re-registration ordering, signal listener
-  identity, safeCall routing on both timer+stream paths, run/stop refusal,
+  identity, safeCall routing on both timer+stream paths, run/stop refusal
+  (stop's pin superseded same day — see the 2026-10-02 entry above),
   installOnce set/idempotent/non-clobber + Timer-facade wiring,
   pumpOrThrow accept/reject). New `tests/Api/RecordingEventLoop.php`
   double (sibling of `FakeClockLoop`, which stays stream-strict).

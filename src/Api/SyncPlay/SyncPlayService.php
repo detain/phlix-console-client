@@ -19,6 +19,7 @@ use React\EventLoop\TimerInterface;
 use React\Promise\Deferred;
 use React\Promise\PromiseInterface;
 use SugarCraft\Core\Cmd;
+use Throwable;
 use Workerman\Connection\AsyncTcpConnection;
 
 /**
@@ -497,6 +498,18 @@ final class SyncPlayService
         // seam — S414. Production path constructs the identical object).
         $conn = ($this->connectionFactory)($wsUrl);
         $this->wsConnection = $conn;
+
+        // A throwing user callback on this connection would otherwise hit the
+        // vendor funnel: ConnectionInterface::error() with no errorHandler set
+        // calls Worker::stopAll(250) (ConnectionInterface.php:174-186) and
+        // takes the whole TUI down for one bad handler. Pinning a logging
+        // errorHandler at dial keeps the socket contract honest — the bridge's
+        // safeCall already refuses to let one handler kill the pump; the
+        // connection layer must not either. (error() only reads this property;
+        // no handshake/TLS path touches it, and destroy() nulls it on teardown.)
+        $conn->errorHandler = static function (Throwable $throwable): void {
+            error_log('SyncPlay WS callback error: ' . $throwable->getMessage());
+        };
 
         // Auth carrier (phlix-server 424c14d0 dual-carrier law, query
         // RETIRING): the JWT rides in the WS handshake as

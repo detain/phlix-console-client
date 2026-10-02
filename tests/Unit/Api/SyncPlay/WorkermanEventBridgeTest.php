@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Tests\Unit\Api\SyncPlay;
 
+use LogicException;
 use Phlix\Console\Api\SyncPlay\WorkermanEventBridge;
 use Phlix\Console\Tests\Api\RecordingEventLoop;
 use PHPUnit\Framework\TestCase;
@@ -126,9 +127,11 @@ final class WorkermanEventBridgeTest extends TestCase
         $this->bridge->repeat(3.0, static function (): void {});
         self::assertSame(3, $this->bridge->getTimerCount());
 
-        // Select would stop() its own loop here; the bridge must only cancel —
-        // stopping the shared React pump would take the TUI down (loop->run /
-        // loop->stop throw LogicException in the double, proving absence).
+        // FAITHFUL to Select: Select::deleteAllTimer() (Select.php:376-381)
+        // only resets its scheduler/eventTimer tables — it never stops the
+        // loop (stopping is Select::stop()'s job, which calls deleteAllTimer
+        // first). loop->run/loop->stop throw LogicException in the double,
+        // proving the bridge halts nothing here either.
         $this->bridge->deleteAllTimer();
 
         self::assertSame(0, $this->bridge->getTimerCount());
@@ -266,7 +269,7 @@ final class WorkermanEventBridgeTest extends TestCase
 
     // ---- loop ownership ---------------------------------------------------------
 
-    public function testRunAndStopRefuseToOwnTheLoop(): void
+    public function testRunRefusesToOwnTheLoop(): void
     {
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('does not own the event loop');
@@ -274,12 +277,168 @@ final class WorkermanEventBridgeTest extends TestCase
         $this->bridge->run();
     }
 
-    public function testStopAlsoRefuses(): void
+    /**
+     * stop() must NEVER throw. This assertion was previously the inverse
+     * ('stop also refuses') — that pinned the design the Worker.php:2087
+     * shutdown-ordering fix retires: Workerman calls globalEvent->stop()
+     * immediately before exit(), so a throw here strands the process.
+     */
+    public function testStopNeverThrowsAndDetachesOwnedTimers(): void
     {
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('does not own the event loop');
+        $noop = static function (): void {
+            // Never fires: registration is the subject, not invocation.
+        };
+        $this->bridge->repeat(0.01, $noop);
 
         $this->bridge->stop();
+        $this->bridge->stop();
+
+        self::assertSame(0, $this->bridge->getTimerCount(), 'stop() detached the bridge-owned timer');
+        self::assertSame([], $this->loop->pendingPeriodics, 'and the React loop holds nothing pending');
+    }
+
+    public function testStopCancelsEveryOwnedRegistrationWithoutTouchingTheLoop(): void
+    {
+        $read = fopen('php://temp', 'rb');
+        $write = fopen('php://temp', 'wb');
+        self::assertIsResource($read);
+        self::assertIsResource($write);
+
+        $noop = static function (): void {
+            // Never fires: stop() must detach before any callback runs.
+        };
+        $this->bridge->delay(1.0, $noop);
+        $this->bridge->repeat(0.5, $noop);
+        $this->bridge->onReadable($read, $noop);
+        $this->bridge->onWritable($write, $noop);
+        $this->bridge->onSignal(12, $noop);
+
+        $this->bridge->stop();
+
+        self::assertSame(0, $this->bridge->getTimerCount());
+        self::assertSame([1.0, 0.5], $this->loop->cancelledIntervals, 'every timer cancelled in table order');
+        self::assertSame([], $this->loop->pendingOneShots);
+        self::assertSame([], $this->loop->pendingPeriodics);
+        self::assertSame([], $this->loop->readListeners);
+        self::assertSame([], $this->loop->writeListeners);
+        self::assertSame([], $this->loop->signalListeners);
+        self::assertSame([(int) $read], $this->loop->readRemovals);
+        self::assertSame([(int) $write], $this->loop->writeRemovals);
+        self::assertCount(1, $this->loop->signalRemovals);
+        // The loop itself is untouched: run/stop on the double would throw
+        // LogicException — reaching them here would fail the test loudly.
+    }
+
+    public function testStopIsIdempotentAndDetachesOnlyOnce(): void
+    {
+        $read = fopen('php://temp', 'rb');
+        self::assertIsResource($read);
+
+        $noop = static function (): void {
+            // Never fires: only detach bookkeeping is asserted.
+        };
+        $this->bridge->repeat(0.25, $noop);
+        $this->bridge->onReadable($read, $noop);
+        $this->bridge->onSignal(15, $noop);
+
+        $this->bridge->stop();
+        $this->bridge->stop();
+
+        self::assertSame([0.25], $this->loop->cancelledIntervals, 'second stop() cancels nothing again');
+        self::assertSame([(int) $read], $this->loop->readRemovals);
+        self::assertCount(1, $this->loop->signalRemovals);
+    }
+
+    /**
+     * The actual failure mode: Worker::stopAll()'s child branch arms
+     * Timer::repeat(0.01, cb) (Worker.php:2097) whose cb calls
+     * globalEvent->stop() (Worker.php:2087) BEFORE exit (Worker.php:2088-2090).
+     * This reproduces that sequence with the exit() call replaced by an
+     * assignment marker — PHPUnit cannot exit the runner. A throwing stop()
+     * is swallowed by safeCall, the marker is never set, and the repeat keeps
+     * flooding: exactly the zombie-TUI defect, now pinned red on regression.
+     */
+    public function testStopAllChildBranchSequenceReachesExitWhenFiredThroughTheBridge(): void
+    {
+        Worker::$globalEvent = $this->bridge;
+
+        $fireCount = 0;
+        $exitCode = null;
+        $this->bridge->repeat(0.01, static function () use (&$fireCount, &$exitCode): void {
+            $fireCount++;
+            // Worker.php:2087 — stop-before-exit ordering verbatim.
+            Worker::$globalEvent?->stop();
+            // Worker.php:2088-2090 — the exit($code) this lane must keep reachable.
+            $exitCode = 250;
+        });
+
+        // One tick of the vendor's 0.01s watchdog.
+        $this->loop->firePeriodic(0);
+
+        self::assertSame(250, $exitCode, 'a throwing stop() would be swallowed by safeCall and strand exit()');
+        self::assertSame(1, $fireCount);
+        self::assertSame([], $this->loop->pendingPeriodics, 'self-cancel froze the repeat from firing again');
+        self::assertSame(0, $this->bridge->getTimerCount());
+    }
+
+    public function testLateWorkAfterStopIsRefusedLoudly(): void
+    {
+        $this->bridge->stop();
+
+        $stream = fopen('php://temp', 'rb');
+        self::assertIsResource($stream);
+
+        $noop = static function (): void {
+            // Never runs: every late registration below must throw first.
+        };
+
+        $lateCalls = [
+            'delay()' => fn () => $this->bridge->delay(1.0, $noop),
+            'repeat()' => fn () => $this->bridge->repeat(1.0, $noop),
+            'onReadable()' => fn () => $this->bridge->onReadable($stream, $noop),
+            'onWritable()' => fn () => $this->bridge->onWritable($stream, $noop),
+            'onSignal()' => fn () => $this->bridge->onSignal(12, $noop),
+        ];
+
+        foreach ($lateCalls as $label => $call) {
+            try {
+                $call();
+                self::fail("late {$label} after stop() must throw LogicException, not leak onto a dead loop");
+            } catch (LogicException $e) {
+                self::assertStringContainsString($label, $e->getMessage());
+                self::assertStringContainsString('after stop()', $e->getMessage());
+            }
+        }
+
+        self::assertSame(0, $this->bridge->getTimerCount(), 'refusals registered nothing');
+        self::assertSame([], $this->loop->readListeners);
+        self::assertSame([], $this->loop->writeListeners);
+        self::assertSame([], $this->loop->signalListeners);
+    }
+
+    /**
+     * Finding 2 vendor-truth pin: Select::deleteAllTimer() does NOT stop its
+     * loop (Select.php:376-381 resets only the scheduler/eventTimer tables);
+     * stopping belongs to Select::stop() (:443-457), which calls
+     * deleteAllTimer(). The bridge's deleteAllTimer() is faithful to this, so
+     * the old 'documented divergence' docblock claim was corrected — this test
+     * fails the moment vendor behavior changes under the pinned coordinates.
+     */
+    public function testSelectDeleteAllTimerNeverStopsItsLoopPinningTheDocblockTruth(): void
+    {
+        $select = new Select();
+        $select->repeat(10.0, static function (): void {
+            // Never fires: deleteAllTimer() runs before any tick.
+        });
+
+        $select->deleteAllTimer();
+
+        self::assertSame(0, $select->getTimerCount());
+        $running = new \ReflectionProperty(Select::class, 'running');
+        self::assertTrue(
+            $running->getValue($select),
+            'Select::deleteAllTimer() must leave the loop running (Select.php:376-381)'
+        );
     }
 
     // ---- installation -------------------------------------------------------------

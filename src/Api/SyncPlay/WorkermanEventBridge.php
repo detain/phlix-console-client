@@ -16,6 +16,7 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Api\SyncPlay;
 
+use LogicException;
 use React\EventLoop\LoopInterface;
 use React\EventLoop\TimerInterface;
 use RuntimeException;
@@ -33,14 +34,20 @@ use Workerman\Worker;
  * Events\Select so a resource may carry one readable and one writable
  * listener at a time. Signals delegate to React's addSignal/removeSignal.
  *
- * run()/stop() intentionally throw: the React loop is owned by the SugarCraft
+ * run() intentionally throws: the React loop is owned by the SugarCraft
  * Program, which calls Loop::run() itself; a socket library must never start
- * or halt the application loop from a callback.
+ * the application loop from a callback. stop() by contrast must NEVER throw:
+ * Workerman's shutdown path calls static::$globalEvent?->stop() immediately
+ * BEFORE its exit (Worker.php:2087-2090), so a throwing stop() would make
+ * exit() unreachable and strand the process in STATUS_SHUTDOWN (see stop()).
+ * It detaches every bridge-owned registration and then refuses late work
+ * loudly — it simply never halts the React loop itself.
  *
- * Known deliberate divergences from Events\Select (documented, not bugs):
- * - deleteAllTimer() cancels every tracked timer and returns; Select would
- *   stop() the whole loop. Stopping the shared React loop from a socket-layer
- *   helper would take the TUI down with it.
+ * Behavioural notes vs Events\Select (v5.2.2):
+ * - deleteAllTimer() is FAITHFUL to Select: Select::deleteAllTimer()
+ *   (Select.php:376-381) only resets its scheduler/eventTimer tables without
+ *   stopping the loop — stopping is the job of Select::stop() (:443-457),
+ *   which calls deleteAllTimer(), exactly mirroring this class.
  * - Callbacks are wrapped in a safeCall mirroring Select's try/catch — one
  *   throwing handler must never kill the pump — but the fallback logs via
  *   error_log() instead of Select's echo, because stdout is the TUI canvas.
@@ -64,6 +71,9 @@ final class WorkermanEventBridge implements EventInterface
 
     /** @var callable(\Throwable): mixed|null Error handler kept for EventInterface parity. */
     private $errorHandler = null;
+
+    /** @var bool Set by stop(); every later registration attempt is refused loudly. */
+    private bool $stopped = false;
 
     public function __construct(private readonly LoopInterface $loop)
     {
@@ -148,6 +158,8 @@ final class WorkermanEventBridge implements EventInterface
 
     public function onReadable($stream, callable $func): void
     {
+        $this->refuseLateWork('onReadable()');
+
         $key = (int) $stream;
         if (isset($this->readStreams[$key])) {
             $this->loop->removeReadStream($stream);
@@ -174,6 +186,8 @@ final class WorkermanEventBridge implements EventInterface
 
     public function onWritable($stream, callable $func): void
     {
+        $this->refuseLateWork('onWritable()');
+
         $key = (int) $stream;
         if (isset($this->writeStreams[$key])) {
             $this->loop->removeWriteStream($stream);
@@ -200,6 +214,8 @@ final class WorkermanEventBridge implements EventInterface
 
     public function onSignal(int $signal, callable $func): void
     {
+        $this->refuseLateWork('onSignal()');
+
         if (isset($this->signals[$signal])) {
             $this->loop->removeSignal($signal, $this->signals[$signal]);
         }
@@ -246,14 +262,48 @@ final class WorkermanEventBridge implements EventInterface
     }
 
     /**
-     * @throws RuntimeException Always — halting the shared React loop from a
-     *                          socket-layer callback would take the TUI down.
+     * Detaches everything the bridge owns and refuses late work — but never
+     * throws and never halts the React loop itself.
+     *
+     * Why stop() must be non-throwing: Workerman's shutdown sequence calls
+     * static::$globalEvent?->stop() (Worker.php:2087) immediately BEFORE its
+     * exit() (Worker.php:2088-2090) inside a Timer::repeat(0.01) callback
+     * armed by Worker::stopAll()'s child branch (Worker.php:2065-2098). A
+     * throw here is caught by the bridge's own safeCall and error_log'd on
+     * every 10 ms tick, exit() stays unreachable, and the process rots as a
+     * zombie STATUS_SHUTDOWN TUI flooding the log. Pre-bridge Select::stop()
+     * (Select.php:443-457) simply cancelled and returned, letting exit() run.
+     *
+     * Idempotent: a second stop() is a no-op. Any registration attempted
+     * after stop() throws LogicException — the loop is winding down, so late
+     * work fails loud instead of silently leaking onto a detached loop.
      */
     public function stop(): void
     {
-        throw new RuntimeException(
-            'WorkermanEventBridge does not own the event loop; the React loop is pumped by the application.'
-        );
+        if ($this->stopped) {
+            return;
+        }
+
+        $this->stopped = true;
+
+        foreach (array_keys($this->timers) as $timerId) {
+            $this->cancelTimer($timerId);
+        }
+
+        foreach ($this->readStreams as $stream) {
+            $this->loop->removeReadStream($stream);
+        }
+        $this->readStreams = [];
+
+        foreach ($this->writeStreams as $stream) {
+            $this->loop->removeWriteStream($stream);
+        }
+        $this->writeStreams = [];
+
+        foreach ($this->signals as $signal => $listener) {
+            $this->loop->removeSignal($signal, $listener);
+        }
+        $this->signals = [];
     }
 
     public function getTimerCount(): int
@@ -267,10 +317,28 @@ final class WorkermanEventBridge implements EventInterface
     }
 
     /**
+     * Fail-loud guard for registrations attempted after stop(): the loop is
+     * winding down, so late work would leak onto a loop nothing pumps for it
+     * anymore. Throw instead of accepting the silence.
+     *
+     * @throws LogicException When stop() has already been called.
+     */
+    private function refuseLateWork(string $what): void
+    {
+        if ($this->stopped) {
+            throw new LogicException(
+                'WorkermanEventBridge refuses late ' . $what . ' after stop(); the event loop is winding down.'
+            );
+        }
+    }
+
+    /**
      * @param list<mixed> $args
      */
     private function scheduleTimer(float $delay, callable $func, array $args, bool $periodic): int
     {
+        $this->refuseLateWork($periodic ? 'repeat()' : 'delay()');
+
         $timerId = $this->nextTimerId++;
         // React hands the Timer object to callbacks; Workerman callbacks take
         // only the stored args, so the wrapper discards React's argument.

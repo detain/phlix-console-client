@@ -464,6 +464,46 @@ final class SyncPlayServiceTest extends TestCase
         );
     }
 
+    /**
+     * Defense-in-depth pin: every dialed connection carries a logging
+     * errorHandler, so a throwing user callback is logged by
+     * ConnectionInterface::error() (ConnectionInterface.php:174-186) instead
+     * of the default funnel routing to Worker::stopAll(250).
+     */
+    public function testDialInstallsLoggingErrorHandlerOnTheConnection(): void
+    {
+        $transport = (new FakeTransport())->json(200, self::joinEnvelope());
+        $connection = new RecordingConnection();
+        $service = new SyncPlayService(
+            new ApiClient('https://srv', $transport),
+            new FakeClockLoop(),
+            static fn (string $url): AsyncTcpConnection => $connection,
+        );
+
+        $service->joinRoom('sp_cca927fbf4ba11f9')->then(null, static fn (): null => null);
+
+        self::assertIsCallable($connection->errorHandler, 'dial must install a per-connection errorHandler');
+
+        $logFile = tempnam(sys_get_temp_dir(), 'phlix-eh-');
+        self::assertIsString($logFile);
+        $previous = ini_get('error_log');
+        ini_set('error_log', $logFile);
+        try {
+            ($connection->errorHandler)(new \RuntimeException('handler bug'));
+        } finally {
+            ini_set('error_log', $previous === false ? '' : (string) $previous);
+        }
+
+        $written = (string) file_get_contents($logFile);
+        unlink($logFile);
+
+        self::assertStringContainsString(
+            'SyncPlay WS callback error: handler bug',
+            $written,
+            'the installed handler logs, it never funnels',
+        );
+    }
+
     public function testVendorShapedOnMessageInvocationDispatchesFrameData(): void
     {
         $harness = $this->createLadderHarness();
