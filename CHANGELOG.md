@@ -5,6 +5,55 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — the phpcs CI gates were structurally dead; PSR-12 backlog burned down — 2026-10-02
+
+- **The defect.** Both `ci.yml` phpcs steps had the shape
+  `output=$(./vendor/bin/phpcs ...) || true` followed by a grep for
+  `A TOTAL OF [0-9]+ ERROR`. Two independent killers: `|| true` swallowed
+  the exit code, and the grepped line exists ONLY in phpcs's `summary`
+  report — the default `full` report the steps actually ran prints
+  `FOUND n ERRORS AFFECTING m LINES` — so the grep could never fire and the
+  steps stayed green no matter what phpcs found. Same defect class as
+  phlix-server S146; the 2026-10-02 estate audit proved it with a planted
+  violation.
+- **The hidden backlog, measured at 7a1763c** (phpcs 4.0.4, the PSR-12
+  standard the steps named): `src/` **522 errors / 239 warnings** across
+  517+ files, `tests/` **25 errors / 460 warnings**. Dominated by one
+  systematic class: 524× `PSR12.Files.FileHeader.IncorrectOrder` — every
+  file's `@copyright/@license` docblock sat *below* `declare(strict_types=1);`
+  instead of directly after the opening tag (PSR-12 §4.1).
+- **The burn (fa48fe5 + 3c9a745).** Scripted docblock-above-declare swaps in
+  524 files — each verified line-multiset-identical to its parent, comments
+  moved, nothing rewritten; phpcbf for the mechanical fixes (2 end-file
+  newlines, 1 call-signature space, 12 inline empty closures in
+  WorkermanEventBridgeTest); six secondary top-level classes split into
+  PSR-4 files with no consumer import changes (same namespace):
+  `PosterLoadResult`, `AcceleratorInfo`, and the four `Parental*Msg`; and the
+  three underscore-prefixed private properties in `SyncPlayService` renamed
+  camelCase, with the Reflection lookup string in `SyncPlayServiceTest` that
+  pinned the old name.
+- **After:** `src/` **0 errors / 236 warnings**, `tests/` **0 errors /
+  460 warnings** — every residual warning is `Generic.Files.LineLength`
+  (single-line UI hint constants whose bytes are the rendered text, long
+  fluent chains, `@param` docblocks): a house-style tradeoff, resolved by
+  policy, not silence.
+- **The live gates (5740acd).** Steps now invoke phpcs and let the nonzero
+  exit code gate — no `|| true`, no prose grep. New `phpcs-tests.xml` mirrors
+  phlix-server's S128 doctrine (measure → classify → justify; warnings stay
+  printed via `ignore_warnings_on_exit`, which is exit-code policy, not `-n`
+  suppression): exactly one exclusion, `PSR1.Classes.ClassDeclaration.MultipleClasses`,
+  for the two recording doubles in `AppTest.php` kept beside their consumer.
+  `phpcs.xml` (previously dead config no CI step ever invoked) is now the src
+  gate: zero sniff exclusions, documented warning policy. Exit-code semantics
+  were read from the vendored `Util/ExitCode.php` — 4.0.4 uses a bitmask
+  (1 fixable, 2 non-fixable, 3 both) — not trusted from 3.x-era prose.
+  Falsifiability proven both directions: a planted violation reds each step;
+  removing it greens them.
+- **Behavior truth.** `phpunit` 2962 tests unchanged (the 9 PosterLoaderTest
+  "settle" errors are host-only timing flakes, present identically pre- and
+  post-, passing in isolation and in CI); `phpstan` src+tests corpora both
+  OK; both i18n guards exit 0; `php -l` clean on all 530 touched files.
+
 ### Fixed — relay dial installs the per-connection errorHandler (22faf00 idiom mirrored) — 2026-10-02
 
 - **Bridge-review advisory (ledger P3).** `HubRelayConsumer::connect()` dialed
