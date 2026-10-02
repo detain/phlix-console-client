@@ -5,6 +5,26 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — relay dial installs the per-connection errorHandler (22faf00 idiom mirrored) — 2026-10-02
+
+- **Bridge-review advisory (ledger P3).** `HubRelayConsumer::connect()` dialed
+  the relay socket without a per-connection `errorHandler`, so a throwing
+  user callback on that socket funneled through `ConnectionInterface::error()`
+  → `Worker::stopAll(250)` — whose child branch logs the original through
+  `safeEcho`, dies on `feof(null)` (Worker.php:2427) eating the original, and
+  lets the secondary TypeError reach the pump watchdog (c28395e): the bridge
+  drains and the relay lane goes down for one bad handler. The syncplay socket
+  got its attach at 22faf00; the relay socket never did.
+- **The fix.** `connect()` now sets `$socket->errorHandler` to a logging
+  closure at the dial site — same shape and register as SyncPlayService's:
+  the connection stays alive, handler bugs log instead of funneling. Placed
+  per-consumer rather than in `WebSocketDialer`: the dialer is scoped to
+  URL→socket construction translation, and every consumer test injects a
+  fake connection factory that bypasses the dialer — a dialer-level attach
+  could not be pinned by the tests that protect the behavior.
+- **The pin.** `HubRelayConsumerTest::testDialInstallsLoggingErrorHandlerOnTheConnection`
+  mirrors the syncplay-path test; mutation (attach removed) reds exactly it.
+
 ### Fixed — pump watchdog: interactive bridge gains watch-path error-handler parity — 2026-10-02
 
 - **Review follow-up (P2 close, second-pass addendum of the bridge review).**

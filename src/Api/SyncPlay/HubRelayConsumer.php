@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace Phlix\Console\Api\SyncPlay;
 
 use JsonException;
+use Throwable;
 use Workerman\Connection\AsyncTcpConnection;
 use Workerman\Timer;
 
@@ -328,6 +329,22 @@ final class HubRelayConsumer
 
         /** @var AsyncTcpConnection $socket */
         $socket = ($this->connectionFactory)($url);
+
+        // Mirror of the syncplay socket's 22faf00 pin: a throwing user callback
+        // here would otherwise hit the vendor funnel — ConnectionInterface::error()
+        // with no errorHandler set calls Worker::stopAll(250) (ConnectionInterface.php:
+        // 174-186). On the interactive bridge that funnel is doubly hostile: the
+        // child branch logs through safeEcho, whose feof(null) (Worker.php:2427)
+        // eats the ORIGINAL, and the secondary TypeError reaches the pump watchdog
+        // (c28395e) — the bridge drains and the relay lane dies for one bad handler.
+        // Pinning a logging errorHandler at dial keeps the socket contract honest:
+        // the connection stays alive, the handler bug is logged. (error() only reads
+        // this property; no handshake path touches it, and destroy() nulls it on
+        // teardown.)
+        $socket->errorHandler = static function (Throwable $throwable): void {
+            error_log('Hub relay WS callback error: ' . $throwable->getMessage());
+        };
+
         // S237/S298: the relay token travels in the upgrade request's
         // `Authorization: Bearer` header — the carrier the hub accepts and the
         // one a PHP Workerman client can set (the browser-only subprotocol

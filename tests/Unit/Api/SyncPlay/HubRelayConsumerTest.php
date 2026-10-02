@@ -6,7 +6,9 @@ namespace Phlix\Console\Tests\Unit\Api\SyncPlay;
 
 use Phlix\Console\Api\SyncPlay\HubRelayConsumer;
 use Phlix\Console\Api\SyncPlay\PendingPlayMediaCommand;
+use Phlix\Console\Tests\Api\RecordingConnection;
 use PHPUnit\Framework\TestCase;
+use Workerman\Connection\AsyncTcpConnection;
 
 /**
  * Tests the hub-relay pending-command consumer (S298 — console half).
@@ -275,6 +277,54 @@ final class HubRelayConsumerTest extends TestCase
         );
 
         $this->assertFalse($consumer->isOpen());
+    }
+
+    // ---- dial-site handler contract -----------------------------------------
+
+    /**
+     * Defense-in-depth pin mirroring SyncPlayServiceTest::
+     * testDialInstallsLoggingErrorHandlerOnTheConnection (22faf00): every dialed
+     * relay connection carries a logging errorHandler, so a throwing user
+     * callback is logged by ConnectionInterface::error()
+     * (ConnectionInterface.php:174-186) instead of the default funnel routing to
+     * Worker::stopAll(250) — which on the interactive bridge feeds the
+     * safeEcho/feof(null) swallow (Worker.php:2427) and the c28395e pump
+     * watchdog, draining the relay lane.
+     */
+    public function testDialInstallsLoggingErrorHandlerOnTheConnection(): void
+    {
+        $connection = new RecordingConnection();
+        $consumer = new HubRelayConsumer(
+            hubBaseUrl: 'http://hub.example.com',
+            serverId: 'srv-123',
+            tokenProvider: static fn (): string => 'relay-token',
+            onPendingCommand: static function (PendingPlayMediaCommand $command): void {
+            },
+            connectionFactory: static fn (string $url): AsyncTcpConnection => $connection,
+        );
+
+        $consumer->open();
+
+        self::assertIsCallable($connection->errorHandler, 'dial must install a per-connection errorHandler');
+
+        $logFile = tempnam(sys_get_temp_dir(), 'phlix-eh-');
+        self::assertIsString($logFile);
+        $previous = ini_get('error_log');
+        ini_set('error_log', $logFile);
+        try {
+            ($connection->errorHandler)(new \RuntimeException('handler bug'));
+        } finally {
+            ini_set('error_log', $previous === false ? '' : (string) $previous);
+        }
+
+        $written = (string) file_get_contents($logFile);
+        unlink($logFile);
+
+        self::assertStringContainsString(
+            'Hub relay WS callback error: handler bug',
+            $written,
+            'the installed handler logs, it never funnels',
+        );
     }
 
     /**
