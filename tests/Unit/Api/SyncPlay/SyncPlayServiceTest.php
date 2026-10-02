@@ -87,9 +87,9 @@ final class SyncPlayServiceTest extends TestCase
             $receivedMemberId = $memberId;
         });
 
-        // Access the private _onMemberLeft property and invoke it
+        // Access the private onMemberLeft property and invoke it
         $reflection = new \ReflectionClass($service);
-        $property = $reflection->getProperty('_onMemberLeft');
+        $property = $reflection->getProperty('onMemberLeft');
         $property->setAccessible(true);
         /** @var \Closure $callback */
         $callback = $property->getValue($service);

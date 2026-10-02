@@ -1,11 +1,11 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * @copyright 2026 Joe Huss <detain@interserver.net>
  * @license   MIT
  */
+
+declare(strict_types=1);
 
 namespace Phlix\Console\Screen;
 
@@ -516,8 +516,7 @@ final class DetailScreen implements Breadcrumbed, Themed
                             return new DownloadFailedMsg($mediaId, $reason);
                         },
                     );
-                })
-            )];
+                }))];
         }
 
         // Leaf: U → search for external subtitles for this media item.

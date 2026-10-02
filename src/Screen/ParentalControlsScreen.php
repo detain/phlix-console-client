@@ -1,11 +1,11 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * @copyright 2026 Joe Huss <detain@interserver.net>
  * @license   MIT
  */
+
+declare(strict_types=1);
 
 namespace Phlix\Console\Screen;
 
@@ -1040,37 +1040,5 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
         $next->crumbs = $trail;
 
         return $next;
-    }
-}
-
-// ---- message classes -------------------------------------------------
-
-final readonly class ParentalSchedulesLoadedMsg implements Msg
-{
-    /** @param list<AccessSchedule> $schedules */
-    public function __construct(public array $schedules)
-    {
-    }
-}
-
-final readonly class ParentalTagsLoadedMsg implements Msg
-{
-    /** @param list<ProfileTag> $tags */
-    public function __construct(public array $tags)
-    {
-    }
-}
-
-final readonly class ParentalStreamLimitsLoadedMsg implements Msg
-{
-    public function __construct(public ProfileStreamLimit $limit)
-    {
-    }
-}
-
-final readonly class ParentalActionDoneMsg implements Msg
-{
-    public function __construct(public string $message)
-    {
     }
 }

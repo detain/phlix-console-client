@@ -1,11 +1,11 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * @copyright 2026 Joe Huss <detain@interserver.net>
  * @license   MIT
  */
+
+declare(strict_types=1);
 
 namespace Phlix\Console\Api\SyncPlay;
 
@@ -87,10 +87,10 @@ final class SyncPlayService
     private string $playbackState = 'stopped';
     /** @internal */
     /** @phpstan-ignore-next-line property.onlyWritten */
-    private int $_playbackPosition = 0;
+    private int $playbackPosition = 0;
     /** @internal */
     /** @phpstan-ignore-next-line property.onlyWritten */
-    private string $_currentMediaId = '';
+    private string $currentMediaId = '';
 
     private bool $connected = false;
     private bool $reconnecting = false;
@@ -110,7 +110,7 @@ final class SyncPlayService
     /** @var \Closure(string): void */
     /** @internal */
     /** @phpstan-ignore-next-line property.onlyWritten */
-    private \Closure $_onMemberLeft;
+    private \Closure $onMemberLeft;
 
     /** @var \Closure(string): void */
     private \Closure $onHostChanged;
@@ -291,7 +291,7 @@ final class SyncPlayService
      */
     public function onMemberLeft(\Closure $callback): void
     {
-        $this->_onMemberLeft = $callback;
+        $this->onMemberLeft = $callback;
     }
 
     /**
@@ -393,8 +393,8 @@ final class SyncPlayService
         $this->members = [];
         $this->isHost = false;
         $this->playbackState = 'stopped';
-        $this->_playbackPosition = 0;
-        $this->_currentMediaId = '';
+        $this->playbackPosition = 0;
+        $this->currentMediaId = '';
     }
 
     /**
@@ -860,9 +860,9 @@ final class SyncPlayService
 
         // Update room info
         $currentMediaId = $group['current_media_id'] ?? '';
-        $this->_currentMediaId = is_string($currentMediaId) ? $currentMediaId : '';
+        $this->currentMediaId = is_string($currentMediaId) ? $currentMediaId : '';
         $playbackPosition = $group['playback_position'] ?? 0;
-        $this->_playbackPosition = is_int($playbackPosition) ? $playbackPosition : 0;
+        $this->playbackPosition = is_int($playbackPosition) ? $playbackPosition : 0;
         $playbackState = $group['playback_state'] ?? 'stopped';
         $this->playbackState = is_string($playbackState) ? $playbackState : 'stopped';
 
