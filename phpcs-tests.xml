@@ -1,0 +1,56 @@
+<?xml version="1.0"?>
+<ruleset name="Phlix-Console-Tests-PSR12">
+    <description>
+        PSR-12 for tests/ — the phpcs gate for the CI "Run PHPCS on tests/" step.
+        Modeled on phlix-server's phpcs-tests.xml (same doctrine: exclusions must
+        be measured, classified, and justified; warnings are reported but do not
+        block; the gate is phpcs's nonzero exit code, never a grep of report prose).
+
+        THE MEASUREMENT THAT SHAPED THIS FILE (phlix-console-client @ 7a1763c,
+        phpcs 4.0.4, `--standard=PSR12 tests/`):
+
+            A TOTAL OF 25 ERRORS AND 460 WARNINGS WERE FOUND IN 75 FILES
+
+            PSR12.Files.FileHeader.IncorrectOrder ......... 11  (FIXED: file-level
+                docblock moved above declare(strict_types=1);, scripted swap,
+                line-multiset-identical — comments moved, nothing rewritten)
+            Squiz.WhiteSpace.ScopeClosingBrace ............ 12  (FIXED by phpcbf:
+                inline empty closures `function (): void {}` split across lines,
+                whitespace-only)
+            PSR1.Classes.ClassDeclaration.MultipleClasses ..  2  (EXCLUDED below)
+            Generic.Files.LineLength ..................... 460  (warnings, kept
+                visible and non-blocking via ignore_warnings_on_exit)
+
+        Console test methods are camelCase already (zero PSR1.Methods.CamelCapsMethodName
+        violations), so unlike phlix-server there is no method-name exclusion here.
+
+        1. PSR1.Classes.ClassDeclaration.MultipleClasses — 2 errors, both in
+           tests/AppTest.php: the recording doubles SpyTeardownScreen and
+           SlashCapturingScreen live beside their only consumer, out of any
+           autoloadable namespace, exactly the pattern phlix-server's S128 gate
+           carves out for test code. Splitting doubles into files of their own
+           makes the suite harder to read, not more correct. src/ is unaffected:
+           the src gate (phpcs.xml) enforces zero exclusions and all six src
+           MultipleClasses errors were split into PSR-4 files instead.
+
+        WARNINGS ARE REPORTED AND DO NOT BLOCK — and the difference from `-n`
+        matters. phpcs exits non-zero on WARNINGS ALONE, so a gate that trusts
+        its exit code would be permanently red over 460 pre-existing long-line
+        warnings, and the next person would silence the whole step. So
+        ignore_warnings_on_exit below changes only the exit code: every warning
+        is still counted and printed in the job log. Do NOT add `-n`, do NOT
+        exclude Generic.Files.LineLength, do NOT add `|| true` to the CI step.
+    </description>
+
+    <file>tests</file>
+
+    <!--
+        Exit-code policy, NOT a suppression: phpcs exits 0 when only WARNINGS
+        were found, while still finding, counting and printing every one of them.
+    -->
+    <config name="ignore_warnings_on_exit" value="1"/>
+
+    <rule ref="PSR12">
+        <exclude name="PSR1.Classes.ClassDeclaration.MultipleClasses"/>
+    </rule>
+</ruleset>

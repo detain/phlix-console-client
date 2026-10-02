@@ -1,13 +1,13 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * Delegation and installation proofs for the Workerman→React event bridge.
  *
  * @copyright 2026 Joe Huss <detain@interserver.net>
  * @license   MIT
  */
+
+declare(strict_types=1);
 
 namespace Phlix\Console\Tests\Unit\Api\SyncPlay;
 
@@ -58,7 +58,8 @@ final class WorkermanEventBridgeTest extends TestCase
 
     public function testDelayDelegatesToAddTimerWithExactInterval(): void
     {
-        $timerId = $this->bridge->delay(2.5, static function (): void {});
+        $timerId = $this->bridge->delay(2.5, static function (): void {
+        });
 
         self::assertSame(1, $timerId, 'Workerman timer ids start at 1 (Events\Select parity)');
         self::assertSame([2.5], $this->loop->oneShotIntervals);
@@ -66,7 +67,8 @@ final class WorkermanEventBridgeTest extends TestCase
 
     public function testRepeatDelegatesToAddPeriodicTimerWithExactInterval(): void
     {
-        $timerId = $this->bridge->repeat(0.7, static function (): void {});
+        $timerId = $this->bridge->repeat(0.7, static function (): void {
+        });
 
         self::assertSame(1, $timerId);
         self::assertSame([0.7], $this->loop->periodicIntervals);
@@ -74,9 +76,12 @@ final class WorkermanEventBridgeTest extends TestCase
 
     public function testDelayAndRepeatShareOneMonotonicIdSpace(): void
     {
-        self::assertSame(1, $this->bridge->delay(1.0, static function (): void {}));
-        self::assertSame(2, $this->bridge->repeat(2.0, static function (): void {}));
-        self::assertSame(3, $this->bridge->delay(3.0, static function (): void {}));
+        self::assertSame(1, $this->bridge->delay(1.0, static function (): void {
+        }));
+        self::assertSame(2, $this->bridge->repeat(2.0, static function (): void {
+        }));
+        self::assertSame(3, $this->bridge->delay(3.0, static function (): void {
+        }));
     }
 
     public function testFiredOneShotReceivesTheStoredWorkermanArgs(): void
@@ -111,8 +116,10 @@ final class WorkermanEventBridgeTest extends TestCase
 
     public function testOffDelayOffRepeatShareOneTableAndReportTruthfully(): void
     {
-        $oneShot = $this->bridge->delay(1.0, static function (): void {});
-        $periodic = $this->bridge->repeat(2.0, static function (): void {});
+        $oneShot = $this->bridge->delay(1.0, static function (): void {
+        });
+        $periodic = $this->bridge->repeat(2.0, static function (): void {
+        });
 
         self::assertTrue($this->bridge->offDelay($oneShot));
         self::assertFalse($this->bridge->offDelay($oneShot), 'double-cancel must report false');
@@ -122,9 +129,12 @@ final class WorkermanEventBridgeTest extends TestCase
 
     public function testDeleteAllTimerCancelsEverythingWithoutStoppingTheLoop(): void
     {
-        $this->bridge->delay(1.0, static function (): void {});
-        $this->bridge->delay(2.0, static function (): void {});
-        $this->bridge->repeat(3.0, static function (): void {});
+        $this->bridge->delay(1.0, static function (): void {
+        });
+        $this->bridge->delay(2.0, static function (): void {
+        });
+        $this->bridge->repeat(3.0, static function (): void {
+        });
         self::assertSame(3, $this->bridge->getTimerCount());
 
         // FAITHFUL to Select: Select::deleteAllTimer() (Select.php:376-381)
@@ -221,8 +231,10 @@ final class WorkermanEventBridgeTest extends TestCase
 
     public function testReregisteringASignalReplacesTheReactListener(): void
     {
-        $this->bridge->onSignal(15, static function (): void {});
-        $this->bridge->onSignal(15, static function (): void {});
+        $this->bridge->onSignal(15, static function (): void {
+        });
+        $this->bridge->onSignal(15, static function (): void {
+        });
 
         self::assertCount(1, $this->loop->signalRemovals, 'replacement must detach the previous listener');
         self::assertCount(1, $this->loop->signalListeners);

@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * Full-coverage recording LoopInterface double for the Workerman→React bridge
  * delegation proofs ({@see \Phlix\Console\Api\SyncPlay\WorkermanEventBridge}).
@@ -14,6 +12,8 @@ declare(strict_types=1);
  * @copyright 2026 Joe Huss <detain@interserver.net>
  * @license   MIT
  */
+
+declare(strict_types=1);
 
 namespace Phlix\Console\Tests\Api;
 
