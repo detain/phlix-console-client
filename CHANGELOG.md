@@ -5,6 +5,19 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `phpcs-tests.xml` exit-code prose aligned to the pinned phpcs 4.0.4 bitmask — 2026-10-02
+
+- Prose-currency follow-up to the gate repair below, found by the 2026-10-02
+  estate intelligence pass. The ruleset `<description>` and its `<!-- -->`
+  comment framed exit codes in generic nonzero/zero terms (pre-4.x register),
+  unlike the already-corrected `phpcs.xml` and `ci.yml`. Not a behavioral fix —
+  the wording was not false for 4.0.4, just unpinned — so both passages now
+  state the pinned 4.0.4 bitmask (`Util/ExitCode.php`: 1 fixable / 2 non-fixable
+  / 3 both) and explicitly retire the 3.x-era "errors exit 2, warnings exit 1"
+  reading. Verification: `phpcs --standard=phpcs-tests.xml -e` loads unchanged
+  (60 sniffs); tests gate re-measured **0 errors / 460 warnings, exit 0**,
+  identical to the pre-edit run; the `ci.yml` tests step command is untouched.
+
 ### Fixed — the phpcs CI gates were structurally dead; PSR-12 backlog burned down — 2026-10-02
 
 - **The defect.** Both `ci.yml` phpcs steps had the shape

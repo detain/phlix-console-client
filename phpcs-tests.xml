@@ -34,19 +34,29 @@
            MultipleClasses errors were split into PSR-4 files instead.
 
         WARNINGS ARE REPORTED AND DO NOT BLOCK — and the difference from `-n`
-        matters. phpcs exits non-zero on WARNINGS ALONE, so a gate that trusts
-        its exit code would be permanently red over 460 pre-existing long-line
-        warnings, and the next person would silence the whole step. So
-        ignore_warnings_on_exit below changes only the exit code: every warning
-        is still counted and printed in the job log. Do NOT add `-n`, do NOT
-        exclude Generic.Files.LineLength, do NOT add `|| true` to the CI step.
+        matters. phpcs (this vendor's pinned 4.0.4) exits non-zero on WARNINGS
+        ALONE: its exit code is a BITMASK where nonzero means "issues were
+        found" — fixable bit 1, non-fixable bit 2, 3 both (Util/ExitCode.php) —
+        and warnings fold into those bits unless the ruleset says otherwise. So
+        a gate that trusts the exit code would be permanently red over 460
+        pre-existing long-line warnings, and the next person would silence the
+        whole step. ignore_warnings_on_exit below neutralizes only warnings'
+        exit-code contribution: every warning is still counted and printed in
+        the job log. (The 3.x-era framing — errors exit 2, warnings exit 1 —
+        does NOT hold on 4.0.4; the number is the fixable/non-fixable mask,
+        never an error/warning split. Read it from Util/ExitCode.php, not from
+        3.x prose.) Do NOT add `-n`, do NOT exclude Generic.Files.LineLength,
+        do NOT add `|| true` to the CI step.
     </description>
 
     <file>tests</file>
 
     <!--
-        Exit-code policy, NOT a suppression: phpcs exits 0 when only WARNINGS
-        were found, while still finding, counting and printing every one of them.
+        Exit-code policy, NOT a suppression: on pinned phpcs 4.0.4 a warnings-only
+        run still sets the bitmask exit code (Util/ExitCode.php — 1 fixable,
+        2 non-fixable, 3 both). ignore_warnings_on_exit zeroes only warnings'
+        contribution to that mask, so the run exits 0 when only WARNINGS were
+        found — while every warning stays found, counted, and printed.
     -->
     <config name="ignore_warnings_on_exit" value="1"/>
 
