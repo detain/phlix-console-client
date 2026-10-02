@@ -87,26 +87,36 @@ jobs:
           ./vendor/bin/phpcs --version
 
       - name: Run PHPCS on src/
-        run: |
-          # Capture output and exit code
-          output=$(./vendor/bin/phpcs --standard=PSR12 --colors src/ 2>&1) || true
-          echo "$output"
-          # Parse A TOTAL OF n ERRORS
-          if echo "$output" | grep -qE "A TOTAL OF [0-9]+ ERROR"; then
-            error_line=$(echo "$output" | grep -E "A TOTAL OF [0-9]+ ERROR" | head -1)
-            echo "::error::$error_line"
-            exit 1
-          fi
+        # THE GATE IS phpcs's NONZERO EXIT CODE, read directly by the runner.
+        # phpcs 4.x exit codes are a BITMASK (1 = fixable issues, 2 = non-fixable
+        # issues, 3 = both — vendor Util/ExitCode.php), so the number is not the
+        # signal; nonzero-vs-zero is. With the ruleset's ignore_warnings_on_exit
+        # policy below, only ERRORS can make it nonzero. Do NOT judge this step
+        # by grepping the log for a "A TOTAL OF n ERRORS" line: that line exists
+        # ONLY in phpcs's `summary` report, which this invocation never requests
+        # — the `full` report prints "FOUND n ERRORS AFFECTING m LINES" instead.
+        # A "repair" that adds such a grep (typically wrapped in `|| true`) is
+        # the known dead-gate pattern: it disabled exactly these steps until
+        # 2026-10-02 — the grep could never fire and `|| true` swallowed the
+        # exit code, leaving the step structurally green while hiding a
+        # 522-error/239-warning src backlog (same defect class as phlix-server
+        # S146; proven with a planted violation: old expression stayed green on
+        # "FOUND 3 ERRORS", this one exits nonzero).
+        # Warnings stay PRINTED and non-blocking via ignore_warnings_on_exit
+        # INSIDE phpcs.xml (236 Generic.Files.LineLength; see its description).
+        # Do NOT add `-n` and do NOT add `|| true`: `-n` deletes the warnings
+        # from the report, `|| true` re-arms the corpse this repair buried.
+        run: ./vendor/bin/phpcs --standard=phpcs.xml --colors src/
 
       - name: Run PHPCS on tests/
-        run: |
-          output=$(./vendor/bin/phpcs --standard=PSR12 --colors tests/ 2>&1) || true
-          echo "$output"
-          if echo "$output" | grep -qE "A TOTAL OF [0-9]+ ERROR"; then
-            error_line=$(echo "$output" | grep -E "A TOTAL OF [0-9]+ ERROR" | head -1)
-            echo "::error::$error_line"
-            exit 1
-          fi
+        # Same live-gate law as the step above: nonzero exit code is the gate,
+        # never a grep of report prose ("A TOTAL OF" is summary-only — the
+        # exact defect class of the pre-2026-10-02 steps; same pattern as
+        # phlix-server's S146).
+        # The standard is phpcs-tests.xml, NOT bare PSR12 — read that file's
+        # <description> for the measurement (25 errors / 460 warnings) and for
+        # why exactly one sniff is excluded. src/ keeps zero exclusions.
+        run: ./vendor/bin/phpcs --standard=phpcs-tests.xml --colors tests/
 
   i18n:
     runs-on: ubuntu-latest

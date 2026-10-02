@@ -1,11 +1,36 @@
 <?xml version="1.0"?>
 <ruleset name="Phlix-Console-PSR12">
     <description>
-        PSR-12 for phlix-console-client src/. Exactly the same ruleset as
-        phlix-server's PSR12 gate — maintained in parallel.
+        PSR-12 for phlix-console-client src/ — the live CI gate (ci.yml step
+        "Run PHPCS on src/"). ZERO sniff exclusions: every PSR-12 error and
+        warning is still found and printed. At the 2026-10-02 dead-gate repair
+        src/ reached 0 errors, and the only remaining violation class is
+        Generic.Files.LineLength (236 warnings: single-line UI hint constants
+        whose bytes are the rendered text, long fluent call chains, @param
+        docblocks carrying full type expressions).
+
+        ignore_warnings_on_exit is EXIT-CODE POLICY, not suppression. phpcs
+        (this vendor's 4.0.4) exits non-zero on WARNINGS ALONE — its exit code
+        is a bitmask where nonzero means "issues were found" (fixable bit 1,
+        non-fixable bit 2, Util/ExitCode.php), warnings included unless told
+        otherwise — so a step that trusts the exit code would be permanently
+        red while those 236 lines sit in the report; the config neutralizes
+        only the exit code, warnings stay counted and printed. `-n` is the
+        forbidden alternative — it deletes warnings from the log.
+
+        THE GATE IS THE NONZERO EXIT CODE. Never grep this step's output for
+        "A TOTAL OF n ERRORS": that line exists only in the `summary` report,
+        which this invocation never requests — the `full` report prints
+        "FOUND n ERRORS AFFECTING m LINES" instead. A grep for it, typically
+        wrapped in `|| true`, is the dead-gate shape that hid this backlog for
+        months. Widening scope or tightening policy here is a separate atomic
+        change; nothing in this file relaxes PSR-12 itself.
     </description>
 
     <file>src</file>
+
+    <!-- Exit-code policy, NOT a suppression: warnings stay printed, see above. -->
+    <config name="ignore_warnings_on_exit" value="1"/>
 
     <rule ref="PSR12"/>
 </ruleset>
