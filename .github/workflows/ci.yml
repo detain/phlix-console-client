@@ -7,16 +7,16 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:
         php-version: ['8.3', '8.4', '8.5']
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@4424c9aab975b57bd706ee5a39c6b4334d6e4f60
         with:
           php-version: ${{ matrix.php-version }}
           extensions: gd, pcntl, posix
@@ -35,16 +35,16 @@ jobs:
         run: vendor/bin/phpunit
 
   phpstan:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:
         php-version: ['8.3', '8.4', '8.5']
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@4424c9aab975b57bd706ee5a39c6b4334d6e4f60
         with:
           php-version: ${{ matrix.php-version }}
           extensions: gd, pcntl, posix
@@ -60,16 +60,16 @@ jobs:
         run: vendor/bin/phpstan analyse -c phpstan-tests.neon --no-progress
 
   phpcs:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:
         php-version: ['8.3', '8.4', '8.5']
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@4424c9aab975b57bd706ee5a39c6b4334d6e4f60
         with:
           php-version: ${{ matrix.php-version }}
           extensions: json
@@ -119,12 +119,12 @@ jobs:
         run: ./vendor/bin/phpcs --standard=phpcs-tests.xml --colors tests/
 
   i18n:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@4424c9aab975b57bd706ee5a39c6b4334d6e4f60
         with:
           php-version: '8.3'
           coverage: none
@@ -133,9 +133,9 @@ jobs:
         run: php scripts/check-i18n-hardcoded.php && php scripts/check-i18n-catalogs.php
 
   vendor-patches:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
 
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
@@ -158,16 +158,16 @@ jobs:
 
   smoke:
     needs: test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:
         php-version: ['8.3', '8.4', '8.5']
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@4424c9aab975b57bd706ee5a39c6b4334d6e4f60
         with:
           php-version: ${{ matrix.php-version }}
           extensions: gd, pcntl, posix
