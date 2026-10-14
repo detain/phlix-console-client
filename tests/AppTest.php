@@ -1479,8 +1479,9 @@ final class AppTest extends TestCase
         // The theme switches LIVE (the brand renders accent-wrapped now).
         self::assertSame('Midnight', $saved->theme()->name, 'the new theme applies live');
         self::assertMatchesRegularExpression('/\e\[[0-9;]*m Phlix \e\[0m/', $saved->view(), 'the live theme tints the brand');
-        // The config carries the new theme + interval.
-        self::assertSame('Midnight', $saved->config()->theme);
+        // The config carries the canonical wire id + the new interval (the display
+        // name stays a UI concern — Theme::byName() re-resolves it at boot).
+        self::assertSame('midnight', $saved->config()->theme);
         self::assertSame(12, $saved->config()->slideshowInterval);
         // The settings frame is popped — we are back on Browse.
         self::assertSame(1, $saved->stackDepth(), 'the settings frame is popped');
@@ -1489,8 +1490,54 @@ final class AppTest extends TestCase
         self::assertInstanceOf(\Closure::class, $cmd, 'server sync cmd is returned');
         // And it was persisted to disk (hermetic via the temp XDG_CONFIG_HOME).
         $onDisk = Config::load();
-        self::assertSame('Midnight', $onDisk->theme, 'the theme was saved');
+        self::assertSame('midnight', $onDisk->theme, 'the canonical theme id was saved');
         self::assertSame(12, $onDisk->slideshowInterval, 'the interval was saved');
+    }
+
+    /**
+     * The wire law (phlix-server 5072cb18): PUT /api/v1/users/me/settings must
+     * carry the canonical lowercase theme id — BuiltInThemes::IDS — never the
+     * capitalised display name the picker renders. A display name on the wire
+     * is a hard 400 since the server's strict validateThemeId shipped, so each
+     * preset's actual PUT body is asserted here, end-to-end through the
+     * transport.
+     */
+    public function testSettingsSaveSendsTheCanonicalLowercaseThemeIdToTheServer(): void
+    {
+        foreach (Theme::all() as $theme) {
+            // [0] answers the login, [1] the settings PUT.
+            $transport = (new FakeTransport())
+                ->json(200, [
+                    'access_token' => 'a', 'refresh_token' => 'r', 'token_type' => 'Bearer', 'expires_in' => 3600,
+                    'user' => ['id' => 'u1', 'username' => 'joe', 'is_admin' => 0, 'status' => 'active'],
+                ])
+                ->json(200, ['settings' => (object) []]);
+            [$app, $auth] = $this->makeApp('https://srv', $transport);
+            $this->await($auth->login('joe', 'secret'));
+            [$browse] = $app->update(new LoginSucceededMsg($auth->currentUser() ?? AuthUser::fromArray([])));
+            [$settings] = $browse->update(new OpenSettingsMsg());
+
+            [, $cmd] = $settings->update(new SettingsSavedMsg($theme->name, 10));
+            self::assertInstanceOf(\Closure::class, $cmd, "{$theme->id}: server sync cmd is returned");
+
+            // Run the background-sync generator: it yields the PUT promise.
+            $generator = $cmd();
+            self::assertInstanceOf(\Generator::class, $generator);
+            $promise = $generator->current();
+            self::assertInstanceOf(PromiseInterface::class, $promise);
+            $this->await($promise);
+
+            self::assertCount(2, $transport->requests, "{$theme->id}: exactly login + settings PUT");
+            $put = $transport->requests[1];
+            self::assertSame('PUT', $put['method']);
+            self::assertSame('https://srv/api/v1/users/me/settings', $put['url']);
+
+            $body = json_decode($put['body'], true);
+            self::assertIsArray($body, "{$theme->id}: PUT body is a JSON object");
+            self::assertArrayHasKey('theme', $body);
+            self::assertSame($theme->id, $body['theme'], 'the wire carries the canonical lowercase id');
+            self::assertSame(strtolower($theme->name), $body['theme'], 'never the capitalised display name');
+        }
     }
 
     public function testSettingsSavedKeepsTheServerUrlInThePersistedConfig(): void

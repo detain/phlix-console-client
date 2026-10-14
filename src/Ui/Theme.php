@@ -30,16 +30,32 @@ use SugarCraft\Sprinkles\Style;
  * tuned for light / dark terminals; their style factories call
  * {@see Style::resolveProfile()} so a truecolor accent downgrades to 256 / ANSI
  * per the terminal's capability.
+ *
+ * ## Name vs. id — the wire law
+ *
+ * `$name` is the human-readable label the picker renders; `$id` is the canonical
+ * lowercase wire identifier. Since phlix-server's S85-era strict theme
+ * validation (UserRepository::validateThemeId), PUT /api/v1/users/me/settings
+ * accepts ONLY an id in BuiltInThemes::IDS ('nocturne'/'daylight'/'midnight')
+ * or an enabled plugin theme slug — anything else, display names included,
+ * answers 400. Every settings sync therefore sends {@see $id} and never
+ * {@see $name}.
  */
 final readonly class Theme
 {
     /**
-     * @param string  $name   human-readable name (shown in the T2 picker)
+     * @param string  $name   human-readable name (shown in the T2 picker) — UI-only, never sent on the wire
+     * @param string  $id     canonical lowercase wire id, the ONLY theme value the
+     *                        server accepts on PUT /api/v1/users/me/settings
+     *                        (phlix-server's BuiltInThemes::IDS — 'nocturne',
+     *                        'daylight', 'midnight' — or a plugin theme slug);
+     *                        the display name is NOT a valid wire value
      * @param ?string $accent brand / emphasis colour as hex (`#rrggbb`), or null for the terminal default
      * @param ?string $muted  status-hint colour as hex, or null for the terminal default
      */
     public function __construct(
         public string $name,
+        public string $id,
         public ?string $accent = null,
         public ?string $muted = null,
     ) {
@@ -79,19 +95,19 @@ final readonly class Theme
      */
     public static function nocturne(): self
     {
-        return new self('Nocturne', null, null);
+        return new self('Nocturne', 'nocturne', null, null);
     }
 
     /** Accent + muted tuned for LIGHT terminals (deep teal on a light field). */
     public static function daylight(): self
     {
-        return new self('Daylight', '#005f87', '#6b6b6b');
+        return new self('Daylight', 'daylight', '#005f87', '#6b6b6b');
     }
 
     /** Accent + muted tuned for DARK terminals (bright blue on a dark field). */
     public static function midnight(): self
     {
-        return new self('Midnight', '#5fafff', '#6c7086');
+        return new self('Midnight', 'midnight', '#5fafff', '#6c7086');
     }
 
     /**
@@ -105,15 +121,19 @@ final readonly class Theme
     }
 
     /**
-     * Resolve a preset by name (case-insensitive). An unknown / null-ish name
-     * falls back to {@see nocturne()} so a stale or hand-edited config can never
-     * crash the boot.
+     * Resolve a preset from any persisted theme string (case-insensitive): a
+     * canonical wire id ('midnight' — what the server stores and echoes back on
+     * GET /api/v1/users/me/settings) or a legacy display name ('Midnight' — what
+     * pre-wire-id client versions wrote into the local config). An unknown /
+     * fossil / null-ish value (e.g. a pre-S85 'phlix-dark' row surviving on the
+     * server) falls back to {@see nocturne()} so a stale or hand-edited config
+     * can never crash the boot.
      */
     public static function byName(string $name): self
     {
         $needle = strtolower(trim($name));
         foreach (self::all() as $theme) {
-            if (strtolower($theme->name) === $needle) {
+            if ($theme->id === $needle || strtolower($theme->name) === $needle) {
                 return $theme;
             }
         }

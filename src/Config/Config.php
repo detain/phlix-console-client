@@ -25,8 +25,15 @@ namespace Phlix\Console\Config;
  *   - server_urls + active_server_id                   (tied to this install)
  *
  * Server-persisted (synced via GET/PUT /api/v1/me/settings):
- *   - theme                : Nocturne|Daylight|Midnight|Noir
- *   - slideshow_interval   : int (seconds, 1–300)
+ *   - theme                : canonical lowercase wire id — nocturne|daylight|
+ *                            midnight (or an enabled plugin theme slug); this is
+ *                            what the server validates and stores. Legacy local
+ *                            files may still carry display names ('Midnight')
+ *                            and the server may still return pre-S85 fossils —
+ *                            readers resolve both tolerantly via Theme::byName().
+ *   - slideshow_interval   : int (seconds, 1–300) — NOTE: the server's
+ *                            updateSettings allowedFields does NOT include this
+ *                            key, so it round-trips local-only for now.
  *   - preferred_library_ids: list<string>
  *   - parental_controls_pin: string (hashed)
  *   - ...any future cross-device preference
@@ -287,13 +294,18 @@ final class Config
         );
     }
 
-    /** Return a copy with the given theme name, preserving the server + slideshow settings. */
-    public function withTheme(string $name): self
+    /**
+     * Return a copy with the given theme wire id (canonical lowercase, e.g.
+     * 'midnight'), preserving the server + slideshow settings. Readers resolve
+     * the stored string tolerantly via Theme::byName(), so legacy display
+     * names already on disk keep working.
+     */
+    public function withTheme(string $themeId): self
     {
         return new self(
             servers: $this->servers,
             activeServerId: $this->activeServerId,
-            theme: $name,
+            theme: $themeId,
             slideshowInterval: $this->slideshowInterval,
         );
     }

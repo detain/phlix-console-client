@@ -64,9 +64,16 @@ final class SettingsScreen implements Model, Themed
 
     public static function create(?AuthStore $authStore, Config $config, int $cols = 80, int $rows = 24): self
     {
+        // The Select offers DISPLAY names, but config->theme may hold a canonical
+        // wire id ('midnight' — server-synced), a legacy display name, or a fossil
+        // the presets do not know. Normalising through Theme::byName() (which
+        // parses both forms and falls back to Nocturne) guarantees the seeded
+        // selection always matches a real option.
+        $currentTheme = Theme::byName((string) ($config->theme ?? ''))->name;
+
         return new self(
-            self::buildForm($config->theme ?? Theme::nocturne()->name, $config->slideshowInterval),
-            $config->theme ?? Theme::nocturne()->name,
+            self::buildForm($currentTheme, $config->slideshowInterval),
+            $currentTheme,
             $config->slideshowInterval,
             $authStore,
             $config,

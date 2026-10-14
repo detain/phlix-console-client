@@ -1900,12 +1900,17 @@ final class App implements Model
      * re-applies $this->theme each render; the new interval flows into future
      * {@see openPhoto()} pushes via $this->config.
      *
+     * The picker hands us a DISPLAY name ('Midnight'); the server's strict theme
+     * validation only ever accepts the canonical lowercase wire id ('midnight'),
+     * so the theme is resolved through Theme::byName() immediately and every
+     * persisted/synced value downstream is the id — local config and PUT agree.
+     *
      * @return array{App, ?\Closure}
      */
     private function saveSettings(string $themeName, int $slideshowInterval): array
     {
         $newTheme = Theme::byName($themeName);
-        $newConfig = $this->config->withTheme($themeName)->withSlideshowInterval($slideshowInterval);
+        $newConfig = $this->config->withTheme($newTheme->id)->withSlideshowInterval($slideshowInterval);
 
         // Always persist locally first — the user's change must not be lost even if
         // the server is unreachable. Config::save() throws on I/O failure, which
@@ -1923,7 +1928,9 @@ final class App implements Model
         // Best-effort sync to the server: fire the PUT and toast on failure. The
         // local write above is the source of truth; a server failure means the next
         // boot will re-fetch and reconcile the user's most recently saved values.
-        // Capture $newConfig (not $this) so we send the exact values that were saved.
+        // Capture $newConfig (not $this) so we send the exact values that were
+        // saved — its theme is the canonical lowercase wire id (see above), the
+        // only form the server's validateThemeId accepts.
         $api = $this->api;
         $serverCmd = static function () use ($newConfig, $api): \Generator {
             try {
@@ -2668,7 +2675,7 @@ final class App implements Model
     }
 
     /**
-     * A copy carrying $config (Settings save persists the new theme name +
+     * A copy carrying $config (Settings save persists the new theme wire id +
      * slideshow interval here so future {@see openPhoto()} pushes pick it up).
      * Every other field is preserved.
      */

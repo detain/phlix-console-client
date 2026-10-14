@@ -5,6 +5,49 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — settings saves send canonical lowercase theme ids to the server — 2026-10-14
+
+- **The defect.** phlix-server commit `5072cb18` made `PUT
+  /api/v1/users/me/settings` strict about `theme`: the value must be one of
+  the canonical lowercase ids `nocturne` / `daylight` / `midnight` (or an
+  enabled plugin-theme slug) or the request is rejected with a `400` before
+  anything is written. The console had always PUT the *display* names from
+  `Ui\Theme` — `Nocturne`, `Daylight`, `Midnight` — so every settings save
+  from this client began failing with the "saved locally, server sync
+  failed" toast. Per estate law the wire contract (lowercase ids) is the
+  authority and the outdated client is the side that moves; no server-side
+  normalization was added.
+- **The fix.** `Theme` now carries a second, wire-facing identity: the
+  constructor takes `(name, id)` and each factory passes its canonical id
+  (`nocturne`, `daylight`, `midnight`) while `name` stays the display label
+  for the UI. `App::saveSettings()` resolves the picker's display selection
+  through `Theme::byName()` immediately and persists/PUTs `$theme->id`, so
+  the local config and the wire payload agree on the lowercase id.
+  `byName()` — the single parse point for any incoming theme value — now
+  accepts both ids and display names case-insensitively and keeps its
+  fail-soft fallback to `nocturne` for unknown, legacy (`phlix-dark`-era
+  fossil) or absent server values. `SettingsScreen::create()` seeds the
+  picker through the same parse, so a config holding a wire id renders the
+  right human option.
+- **Read path.** `Config::withServerSettings()` already preferred the server
+  theme string when non-empty; with `byName()` id-tolerant, a GET returning
+  `midnight` (new truth), `Midnight` (stale local), `phlix-dark` (fossil row)
+  or nothing (key absent) all resolve sanely.
+- **Known local-only field (unchanged behavior, now documented).** The same
+  PUT carries `slideshow_interval`, which is *not* in the server's
+  `allowedFields` for that endpoint — it is accepted-then-dropped and never
+  echoed back, so the console's slideshow value remains local-only. The
+  server dropping it was pre-existing theater; the `Config` docblock now
+  states this honestly instead of implying persistence.
+- **Tests.** New wire-law pins: `ThemeTest` pins `Theme::all()` ids to
+  exactly `['nocturne','daylight','midnight']` and that each id is the
+  lowercase of its display name; `AppTest` drives the real save path for all
+  three themes and asserts the PUT body's `theme` is byte-exactly the
+  lowercase id; `SettingsScreenTest` pins picker-seed normalization for
+  wire ids, legacy display names, and fossils. Suite: 2962→**2969 tests**,
+  13602→**13646 assertions**, 0 failures; phpstan (src + tests), phpcs
+  (src + tests), and the i18n catalog gates all green.
+
 ### Fixed — `phpcs-tests.xml` exit-code prose aligned to the pinned phpcs 4.0.4 bitmask — 2026-10-02
 
 - Prose-currency follow-up to the gate repair below, found by the 2026-10-02

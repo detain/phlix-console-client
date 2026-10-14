@@ -90,6 +90,34 @@ final class SettingsScreenTest extends TestCase
         self::assertStringContainsString('8', $view, 'the current interval pre-fills the input');
     }
 
+    public function testCreateNormalisesWireIdsAndFossilsToADisplayOption(): void
+    {
+        // config->theme arrives as a canonical wire id after a server sync
+        // ('midnight'), as a legacy display name from an old local file
+        // ('Midnight'), or as a pre-S85 fossil the presets never knew
+        // ('phlix-dark'). The Select offers display names, so the seeded
+        // selection must be normalised through Theme::byName() — never the raw
+        // stored string, which would match no option at all.
+        self::assertSame(
+            'Midnight',
+            SettingsScreen::create($this->makeAuthStore(), $this->makeConfig('midnight', 8))->currentTheme,
+            'a lowercase wire id seeds its capitalised display option',
+        );
+        self::assertSame(
+            'Daylight',
+            SettingsScreen::create($this->makeAuthStore(), $this->makeConfig('Daylight', 8))->currentTheme,
+            'a legacy display name seeds itself unchanged',
+        );
+        self::assertSame(
+            'Nocturne',
+            SettingsScreen::create($this->makeAuthStore(), $this->makeConfig('phlix-dark', 8))->currentTheme,
+            'an unknown fossil falls back to the Nocturne default',
+        );
+        // The form carries the same normalised value (what the Select shows).
+        $screen = SettingsScreen::create($this->makeAuthStore(), $this->makeConfig('nocturne', 8));
+        self::assertSame('Nocturne', $screen->form->getString('theme'));
+    }
+
     // ---- submit --------------------------------------------------------
 
     public function testSubmitEmitsSettingsSavedWithTheCurrentValues(): void
