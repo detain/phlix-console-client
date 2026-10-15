@@ -71,7 +71,7 @@ return [
     'filter.genre_label' => 'Gêneros: ',
 
     // ---- SyncPlay errors ----------------------------------------------
-    'syncplay.not_authenticated' => 'Entre na sua conta antes de usar as sessões sincronizadas.',
+    'syncplay.not_authenticated' => 'Entre na sua conta antes de usar os grupos de exibição.',
     'syncplay.not_in_group' => 'Você não está em um grupo de exibição.',
     'syncplay.not_host' => 'Somente o anfitrião do grupo pode fazer isso.',
     'syncplay.unknown_message' => 'O servidor rejeitou uma solicitação não reconhecida.',

@@ -66,7 +66,7 @@ return [
     'filter.genre_label' => 'Generi: ',
 
     // ---- SyncPlay errors ----------------------------------------------
-    'syncplay.not_authenticated' => 'Accedi prima di usare le sale di visione.',
+    'syncplay.not_authenticated' => 'Accedi prima di usare i gruppi di visione.',
     'syncplay.not_in_group' => 'Non fai parte di un gruppo di visione.',
     'syncplay.not_host' => 'Solo l’ospite del gruppo può farlo.',
     'syncplay.unknown_message' => 'Il server ha rifiutato una richiesta non riconosciuta.',

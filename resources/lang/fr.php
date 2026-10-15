@@ -66,7 +66,7 @@ return [
     'filter.genre_label' => 'Genres : ',
 
     // ---- SyncPlay errors ----------------------------------------------
-    'syncplay.not_authenticated' => 'Connectez-vous avant d’utiliser les soirées synchronisées.',
+    'syncplay.not_authenticated' => 'Connectez-vous avant d’utiliser les groupes synchronisés.',
     'syncplay.not_in_group' => 'Vous ne faites pas partie d’un groupe synchronisé.',
     'syncplay.not_host' => 'Seul l’hôte du groupe peut faire cela.',
     'syncplay.unknown_message' => 'Le serveur a rejeté une demande non reconnue.',

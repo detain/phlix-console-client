@@ -66,7 +66,7 @@ return [
     'filter.genre_label' => 'Genre: ',
 
     // ---- SyncPlay errors ----------------------------------------------
-    'syncplay.not_authenticated' => 'Melde dich an, bevor du Watch-Parties nutzt.',
+    'syncplay.not_authenticated' => 'Melde dich an, bevor du synchronisierte Gruppen nutzt.',
     'syncplay.not_in_group' => 'Du bist in keiner synchronisierten Gruppe.',
     'syncplay.not_host' => 'Nur der Gruppenhost kann das tun.',
     'syncplay.unknown_message' => 'Der Server hat eine unbekannte Anfrage abgelehnt.',

@@ -63,7 +63,7 @@ return [
     'filter.genre_label' => 'Genres: ',
 
     // ---- SyncPlay errors ----------------------------------------------
-    'syncplay.not_authenticated' => 'Sign in before using watch parties.',
+    'syncplay.not_authenticated' => 'Sign in before using watch groups.',
     'syncplay.not_in_group' => 'You are not in a watch group.',
     'syncplay.not_host' => 'Only the group host can do that.',
     'syncplay.unknown_message' => 'The server rejected an unrecognized request.',

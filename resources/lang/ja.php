@@ -66,7 +66,7 @@ return [
     'filter.genre_label' => 'ジャンル: ',
 
     // ---- SyncPlay errors ----------------------------------------------
-    'syncplay.not_authenticated' => 'ウォッチパーティを使う前にサインインしてください。',
+    'syncplay.not_authenticated' => 'ウォッチグループを使う前にサインインしてください。',
     'syncplay.not_in_group' => '現在グループに参加していません。',
     'syncplay.not_host' => 'この操作はグループのホストだけが行えます。',
     'syncplay.unknown_message' => 'サーバーが認識できないリクエストを拒否しました。',
