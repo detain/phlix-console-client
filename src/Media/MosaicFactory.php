@@ -63,7 +63,7 @@ final class MosaicFactory
      * Resolve a mode to a Mosaic for the poster grid.
      *
      * Cell modes (half/quarter-block, ascii/ansi256/truecolor) tile as text;
-     * graphics modes (sixel/kitty/iTerm2) tile via candy-core's image overlay
+     * graphics modes (sixel/kitty/iTerm2) tile via sugar-core's image overlay
      * (the {@see PosterLoader} routes them by {@see Mosaic::isInline()}). `null` /
      * `auto` default to half-block — a safe, universal inline renderer; pass an
      * explicit `--mode=sixel` to opt into graphics.

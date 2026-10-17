@@ -194,7 +194,7 @@ use SugarCraft\Toast\Toast;
  *
  * The authenticated app is a stack of screens (Browse → Library → …) so the
  * user can drill in and back out while each screen keeps its own state — which
- * candy-core's ScreenStack cannot do (it writes back only the root's model).
+ * sugar-core's ScreenStack cannot do (it writes back only the root's model).
  * The auth flow (server wizard / loading / login) is a single-frame stack;
  * logging in replaces the whole stack with Browse. App owns the shared services
  * and runs the async login/restore Cmds. Because Program only calls init() once
@@ -2558,7 +2558,7 @@ final class App implements Model
             }
         }
 
-        // Preserve $this->bootCmd: candy-core dispatches the startup WindowSizeMsg
+        // Preserve $this->bootCmd: sugar-core dispatches the startup WindowSizeMsg
         // BEFORE calling init(), so a resize that lands first must NOT drop the
         // one-shot boot Cmd (token-restore) — else init() returns null, the
         // restore never runs, and the app hangs forever on "Connecting…".

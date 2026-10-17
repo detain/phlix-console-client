@@ -53,7 +53,7 @@ use SugarCraft\Gallery\PosterGrid;
  *
  * Stable collaborators (library id/name + stores) are readonly constructor
  * properties; the mutable view state is private and copied via clone-mutate
- * (the candy-core / sugar-gallery pattern) so the screen stays immutable without
+ * (the sugar-core / sugar-gallery pattern) so the screen stays immutable without
  * a giant positional constructor.
  */
 final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shimmering, Themed

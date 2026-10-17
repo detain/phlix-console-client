@@ -256,7 +256,7 @@ final class AppTest extends TestCase
 
     public function testBootCmdSurvivesTheStartupResizeAndStillRestores(): void
     {
-        // Regression: candy-core dispatches the startup WindowSizeMsg BEFORE it
+        // Regression: sugar-core dispatches the startup WindowSizeMsg BEFORE it
         // calls init(). resized() used to drop the one-shot boot Cmd, so init()
         // returned null, the token-restore never ran, and the app hung forever
         // on "Connecting to your Phlix server…". The resize must preserve it.

@@ -618,7 +618,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         }
 
         // Pixel-graphics modes (sixel/kitty/iTerm2) emit the whole image as one
-        // multi-row escape blob. candy-core's renderer diffs line-by-line — one
+        // multi-row escape blob. sugar-core's renderer diffs line-by-line — one
         // logical line per "\n" — so appending the chrome with newlines drops it a
         // few rows below the top, right on top of the image (the "progress bar on
         // row 3" bug). Keep the view on a SINGLE logical line and pin the transport

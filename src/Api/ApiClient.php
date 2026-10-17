@@ -52,7 +52,7 @@ use function React\Promise\reject;
 /**
  * Async, typed client for the Phlix server REST API.
  *
- * Every method returns a promise of a DTO; the App wraps these in a candy-core
+ * Every method returns a promise of a DTO; the App wraps these in a sugar-core
  * Cmd. The client carries the current {@see TokenBundle}, attaches the Bearer
  * header to authed calls, and transparently refreshes-and-retries once on a
  * 401 (a single shared refresh is reused across concurrent calls). Token
