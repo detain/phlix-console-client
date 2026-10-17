@@ -30,7 +30,7 @@
         "sugarcraft/sugar-video": "dev-master",
         "sugarcraft/sugar-table": "dev-master",
         "sugarcraft/sugar-toast": "dev-master",
-        "sugarcraft/sugar-veil": "dev-master",
+        "sugarcraft/sugar-overlay": "dev-master",
         "workerman/workerman": "^5.0"
     },
     "require-dev": {

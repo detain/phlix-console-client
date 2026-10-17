@@ -12,13 +12,13 @@ namespace Phlix\Console\Ui;
 use Phlix\Console\Api\Dto\StreamAudioTrack;
 use SugarCraft\Panels\SugarPanels;
 use SugarCraft\Style\Style;
-use SugarCraft\Veil\Position;
-use SugarCraft\Veil\Veil;
+use SugarCraft\Overlay\Position;
+use SugarCraft\Overlay\Veil;
 
 /**
  * The in-player audio track picker overlay. A small single-column menu listing
  * all available audio tracks — composited as a bordered box centred over a
- * sugar-veil dimmed backdrop, mirroring the {@see QualityMenu} overlay pattern.
+ * sugar-overlay dimmed backdrop, mirroring the {@see QualityMenu} overlay pattern.
  *
  * Immutable (clone-mutate). The cursor never leaves [0, count(tracks)-1].
  */
@@ -102,7 +102,7 @@ final class AudioTrackList
         return $this->selectedTrack()?->id;
     }
 
-    /** Composite the menu box centred over a sugar-veil dimmed background. */
+    /** Composite the menu box centred over a sugar-overlay dimmed background. */
     public function render(string $background): string
     {
         $box = SugarPanels::new()->render(

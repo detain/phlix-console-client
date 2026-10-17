@@ -12,13 +12,13 @@ namespace Phlix\Console\Ui;
 use Phlix\Console\Api\Dto\Chapter;
 use SugarCraft\Panels\SugarPanels;
 use SugarCraft\Style\Style;
-use SugarCraft\Veil\Position;
-use SugarCraft\Veil\Veil;
+use SugarCraft\Overlay\Position;
+use SugarCraft\Overlay\Veil;
 
 /**
  * The in-player chapter picker overlay. A small single-column menu listing
  * all available chapters — composited as a bordered box centred over a
- * sugar-veil dimmed backdrop, mirroring the {@see AudioTrackList} overlay pattern.
+ * sugar-overlay dimmed backdrop, mirroring the {@see AudioTrackList} overlay pattern.
  *
  * Immutable (clone-mutate). The cursor never leaves [0, count(chapters)-1].
  */
@@ -94,7 +94,7 @@ final class ChapterList
         return $this->chapters[$this->cursor] ?? null;
     }
 
-    /** Composite the menu box centred over a sugar-veil dimmed background. */
+    /** Composite the menu box centred over a sugar-overlay dimmed background. */
     public function render(string $background): string
     {
         $box = SugarPanels::new()->render(

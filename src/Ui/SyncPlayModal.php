@@ -12,8 +12,8 @@ namespace Phlix\Console\Ui;
 use Phlix\Console\Api\Dto\SyncPlayGroup;
 use SugarCraft\Panels\SugarPanels;
 use SugarCraft\Style\Style;
-use SugarCraft\Veil\Position;
-use SugarCraft\Veil\Veil;
+use SugarCraft\Overlay\Position;
+use SugarCraft\Overlay\Veil;
 
 /**
  * The SyncPlay room creation/join modal. A multi-section form that allows:
@@ -21,7 +21,7 @@ use SugarCraft\Veil\Veil;
  *   - Creating a new room
  *   - Joining an existing room
  *
- * Uses sugar-veil's composite() for a dimmed backdrop and sugar-panels's
+ * Uses sugar-overlay's composite() for a dimmed backdrop and sugar-panels's
  * bordered box for the form. Immutable (clone-mutate).
  *
  * Modal states:

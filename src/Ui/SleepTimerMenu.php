@@ -12,15 +12,15 @@ namespace Phlix\Console\Ui;
 use Phlix\Console\Ui\SleepTimer;
 use SugarCraft\Panels\SugarPanels;
 use SugarCraft\Style\Style;
-use SugarCraft\Veil\Position;
-use SugarCraft\Veil\Veil;
+use SugarCraft\Overlay\Position;
+use SugarCraft\Overlay\Veil;
 
 /**
  * The in-player sleep timer picker overlay.
  *
  * Displays preset durations (15, 30, 45, 60, 90, 120 minutes) in a single-column
  * menu, plus a "Cancel" option to dismiss without starting. Composited as a
- * bordered box centred over a sugar-veil dimmed backdrop, mirroring the
+ * bordered box centred over a sugar-overlay dimmed backdrop, mirroring the
  * {@see AudioTrackList} overlay pattern.
  *
  * Immutable (clone-mutate). The cursor never leaves [0, count(presets)].
@@ -116,7 +116,7 @@ final class SleepTimerMenu
         return $this->cursor === self::CANCEL_INDEX;
     }
 
-    /** Composite the menu box centred over a sugar-veil dimmed background. */
+    /** Composite the menu box centred over a sugar-overlay dimmed background. */
     public function render(string $background): string
     {
         $box = SugarPanels::new()->render(

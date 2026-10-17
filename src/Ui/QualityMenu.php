@@ -12,17 +12,17 @@ namespace Phlix\Console\Ui;
 use Phlix\Console\Api\Dto\Rendition;
 use SugarCraft\Panels\SugarPanels;
 use SugarCraft\Style\Style;
-use SugarCraft\Veil\Position;
-use SugarCraft\Veil\Veil;
+use SugarCraft\Overlay\Position;
+use SugarCraft\Overlay\Veil;
 
 /**
  * The in-player quality picker overlay. A small single-column menu — "Auto"
  * (server-driven ABR, the master stream) followed by each ABR-ladder
  * {@see Rendition} the current transcode exposes (highest-first) — composited as
- * a bordered box centred over a sugar-veil dimmed backdrop, mirroring the
+ * a bordered box centred over a sugar-overlay dimmed backdrop, mirroring the
  * {@see CommandPalette} overlay pattern.
  *
- * The two upstream primitives that matter — sugar-veil's `composite()` (dim +
+ * The two upstream primitives that matter — sugar-overlay's `composite()` (dim +
  * centre) and sugar-panels's bordered box — are reused verbatim; only the trivial
  * cursor and the Rendition→row mapping (the phlix-specific glue) live here.
  *
@@ -120,7 +120,7 @@ final class QualityMenu
         return $this->variants[$this->cursor - 1] ?? null;
     }
 
-    /** Composite the menu box centred over a sugar-veil dimmed background. */
+    /** Composite the menu box centred over a sugar-overlay dimmed background. */
     public function render(string $background): string
     {
         $box = SugarPanels::new()->render(

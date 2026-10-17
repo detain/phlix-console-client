@@ -11,8 +11,8 @@ namespace Phlix\Console\Ui;
 
 use SugarCraft\Panels\SugarPanels;
 use SugarCraft\Style\Style;
-use SugarCraft\Veil\Position;
-use SugarCraft\Veil\Veil;
+use SugarCraft\Overlay\Position;
+use SugarCraft\Overlay\Veil;
 
 /**
  * Interactive star rating picker overlay for the terminal.
@@ -115,7 +115,7 @@ final class UserRatingPicker
         return $this->currentUserRating === null || $this->selectedRating() !== $this->currentUserRating;
     }
 
-    /** Composite the picker box centred over a sugar-veil dimmed background. */
+    /** Composite the picker box centred over a sugar-overlay dimmed background. */
     public function render(string $background): string
     {
         $box = SugarPanels::new()->render(
