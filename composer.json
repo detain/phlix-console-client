@@ -16,7 +16,7 @@
         "react/promise": "^3.3",
         "react/promise-timer": "^1.11",
         "sugarcraft/sugar-core": "dev-master",
-        "sugarcraft/candy-focus": "dev-master",
+        "sugarcraft/sugar-focus": "dev-master",
         "sugarcraft/candy-forms": "dev-master",
         "sugarcraft/candy-fuzzy": "dev-master",
         "sugarcraft/candy-hermit": "dev-master",
