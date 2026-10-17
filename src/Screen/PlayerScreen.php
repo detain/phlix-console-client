@@ -278,14 +278,14 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     /**
      * The real factory: probe the stream and open an ffmpeg-backed player.
      *
-     * @param string|null $mode candy-mosaic protocol the app is rendering with
+     * @param string|null $mode sugar-image protocol the app is rendering with
      *                          ('sixel'/'halfblock'/'quarterblock'/…). The player
      *                          opens in the matching {@see Mode} so video plays in
      *                          the same mode as the posters; an unknown/`null`
      *                          mode (e.g. 'auto' → 'chafa') falls back to the
      *                          terminal's best auto-detected mode.
      * @param array{cellWidth:int,cellHeight:int}|null $cellSize The terminal's detected
-     *                          cell pixel size, straight from {@see \SugarCraft\Mosaic\Mosaic::fontSize()}
+     *                          cell pixel size, straight from {@see \SugarCraft\Image\Mosaic::fontSize()}
      *                          (it reports either a complete measurement or nothing at all).
      *                          Graphics modes decode video at the full pixel resolution
      *                          (cells × cell-pixel-size).

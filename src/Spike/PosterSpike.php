@@ -10,7 +10,7 @@ declare(strict_types=1);
 namespace Phlix\Console\Spike;
 
 use Phlix\Console\Media\MosaicFactory;
-use SugarCraft\Mosaic\Scale;
+use SugarCraft\Image\Scale;
 
 /**
  * Phase-0 proof: load an image from disk and render it to the terminal at a

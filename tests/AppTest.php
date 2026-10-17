@@ -113,7 +113,7 @@ use React\EventLoop\Loop;
 use React\Promise\PromiseInterface;
 use SugarCraft\Core\AsyncCmd;
 use SugarCraft\Core\BatchMsg;
-use SugarCraft\Mosaic\Mosaic;
+use SugarCraft\Image\Mosaic;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Model;
 use SugarCraft\Core\Msg;

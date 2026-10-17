@@ -7,7 +7,7 @@ namespace Phlix\Console\Tests\Media;
 use Phlix\Console\Media\MosaicFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use SugarCraft\Mosaic\Mosaic;
+use SugarCraft\Image\Mosaic;
 
 final class MosaicFactoryTest extends TestCase
 {

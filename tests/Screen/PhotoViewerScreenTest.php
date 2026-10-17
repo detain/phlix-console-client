@@ -28,7 +28,7 @@ use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
-use SugarCraft\Mosaic\Mosaic;
+use SugarCraft\Image\Mosaic;
 
 final class PhotoViewerScreenTest extends TestCase
 {

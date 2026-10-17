@@ -12,8 +12,8 @@ use React\Http\HttpServer;
 use React\Http\Message\Response;
 use React\Promise\PromiseInterface;
 use React\Socket\SocketServer;
-use SugarCraft\Mosaic\DiskCache;
-use SugarCraft\Mosaic\Mosaic;
+use SugarCraft\Image\DiskCache;
+use SugarCraft\Image\Mosaic;
 
 /**
  * End-to-end poster pipeline against an ephemeral 127.0.0.1 server serving a

@@ -12,7 +12,7 @@ namespace Phlix\Console\Tests\Graphics;
 use Phlix\Console\Media\MosaicFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use SugarCraft\Mosaic\ImageSource;
+use SugarCraft\Image\ImageSource;
 use SugarCraft\Palette\Color;
 use SugarCraft\Palette\ColorDistance;
 use SugarCraft\Palette\NearestColor;
@@ -27,7 +27,7 @@ use SugarCraft\Testing\Graphics\SixelStream;
  *
  * These replace hand-made Sixel/Kitty/Iterm2 "decoder" doubles that merely
  * implemented the sugar-reel Decoder interface over canned frames. Driving the
- * actual candy-mosaic renderer and decoding the result with sugar-testing's
+ * actual sugar-image renderer and decoding the result with sugar-testing's
  * protocol streams proves the bytes the terminal would receive are well-formed
  * and carry the intended raster — which a hand-made double never could.
  */

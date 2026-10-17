@@ -14,7 +14,7 @@ use Phlix\Console\Api\Dto\Trickplay;
 use React\Promise\PromiseInterface;
 use SugarCraft\Core\Util\LruMap;
 use SugarCraft\Core\Util\Semaphore;
-use SugarCraft\Mosaic\DiskCache;
+use SugarCraft\Image\DiskCache;
 
 use function React\Promise\resolve;
 

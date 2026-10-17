@@ -40,7 +40,7 @@ use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\QuitMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
-use SugarCraft\Mosaic\Mosaic;
+use SugarCraft\Image\Mosaic;
 
 final class BrowseScreenTest extends TestCase
 {

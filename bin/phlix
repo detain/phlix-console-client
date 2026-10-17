@@ -58,7 +58,7 @@ use Phlix\Console\Store\AuthStore;
 use Phlix\Console\Store\LibrariesStore;
 use Phlix\Console\Store\MediaStore;
 use SugarCraft\Core\Program;
-use SugarCraft\Mosaic\DiskCache;
+use SugarCraft\Image\DiskCache;
 use Workerman\Events\Select;
 use Workerman\Timer;
 use Workerman\Worker;

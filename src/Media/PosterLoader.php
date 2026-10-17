@@ -11,9 +11,9 @@ namespace Phlix\Console\Media;
 
 use React\Promise\PromiseInterface;
 use SugarCraft\Core\Util\Semaphore;
-use SugarCraft\Mosaic\DiskCache;
-use SugarCraft\Mosaic\ImageLayer;
-use SugarCraft\Mosaic\Mosaic;
+use SugarCraft\Image\DiskCache;
+use SugarCraft\Image\ImageLayer;
+use SugarCraft\Image\Mosaic;
 
 /**
  * Fetches a poster URL and renders it to ANSI at a target cell size, using a
@@ -23,7 +23,7 @@ use SugarCraft\Mosaic\Mosaic;
  * Inline renderers (half/quarter-block, ASCII) produce cell text that resolves
  * straight into the poster. Pixel-graphics renderers (sixel/kitty/iTerm2) — for
  * which {@see Mosaic::isInline()} is false — produce an opaque blob that can't be
- * stitched into a text rail, so the blob is handed to candy-mosaic's
+ * stitched into a text rail, so the blob is handed to sugar-image's
  * {@see ImageLayer}: {@see load()} resolves with a marker block and the runtime
  * paints the real bytes on top. The owning model exposes {@see imageLayer()} on
  * its {@see \SugarCraft\Core\View} so the runtime can resolve the markers.
@@ -93,7 +93,7 @@ final class PosterLoader
     /**
      * Phlix only ever loads image URLs handed back by its own configured server,
      * which for a self-hosted deployment is routinely on localhost or a LAN
-     * address. candy-mosaic's SSRF guard rejects private/reserved hosts by
+     * address. sugar-image's SSRF guard rejects private/reserved hosts by
      * default, so allow-list the URL's own host — any cross-host redirect stays
      * guarded. The host VALUES are phlix knowledge and stay here; the guarding
      * mechanism itself is upstream's.

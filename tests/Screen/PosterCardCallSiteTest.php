@@ -27,8 +27,8 @@ use SugarCraft\Core\ImagePlacement;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg;
-use SugarCraft\Mosaic\ImageLayer;
-use SugarCraft\Mosaic\Mosaic;
+use SugarCraft\Image\ImageLayer;
+use SugarCraft\Image\Mosaic;
 
 /**
  * Regression tests ensuring that {@see \SugarCraft\Gallery\PosterCard::withImage()}

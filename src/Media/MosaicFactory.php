@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Media;
 
-use SugarCraft\Mosaic\Mosaic;
+use SugarCraft\Image\Mosaic;
 
 /**
  * Builds a {@see Mosaic} for a render mode chosen on the command line
@@ -45,7 +45,7 @@ final class MosaicFactory
      * `ansi256` (256-colour chars), `truecolor` (24-bit-colour chars).
      * Graphics modes (single image only): `sixel`, `kitty`, `iterm2`.
      *
-     * The mode vocabulary itself belongs to candy-mosaic ({@see Mosaic::fromModeString()});
+     * The mode vocabulary itself belongs to sugar-image ({@see Mosaic::fromModeString()});
      * this factory only converts a null/unrecognised name into the app's policy —
      * auto-detection for `null`/`auto`, a hard error for a typo.
      */

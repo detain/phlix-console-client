@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 namespace Phlix\Console;
 
-use SugarCraft\Mosaic\Mosaic;
+use SugarCraft\Image\Mosaic;
 use SugarCraft\Palette\Probe;
 
 /**

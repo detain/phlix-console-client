@@ -15,7 +15,7 @@ use Phlix\Console\Store\FavoritesStore;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Tests\Api\FakeTransport;
 use PHPUnit\Framework\TestCase;
-use SugarCraft\Mosaic\Mosaic;
+use SugarCraft\Image\Mosaic;
 
 /**
  * Unit tests for DetailScreen ratings display.
