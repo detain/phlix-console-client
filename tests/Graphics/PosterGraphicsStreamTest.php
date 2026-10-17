@@ -27,7 +27,7 @@ use SugarCraft\Testing\Graphics\SixelStream;
  *
  * These replace hand-made Sixel/Kitty/Iterm2 "decoder" doubles that merely
  * implemented the sugar-reel Decoder interface over canned frames. Driving the
- * actual candy-mosaic renderer and decoding the result with candy-testing's
+ * actual candy-mosaic renderer and decoding the result with sugar-testing's
  * protocol streams proves the bytes the terminal would receive are well-formed
  * and carry the intended raster — which a hand-made double never could.
  */
