@@ -12,7 +12,7 @@ namespace Phlix\Console\Audio;
 use Phlix\Console\Api\Dto\Album;
 use Phlix\Console\Api\Dto\Track;
 use Phlix\Console\Ui\Clock;
-use SugarCraft\Reel\AudioPlayer;
+use SugarCraft\Video\AudioPlayer;
 
 /**
  * The App's active MUSIC session — the one track currently playing, owned by the
@@ -54,7 +54,7 @@ final class MusicSession implements NowPlayingSession
     }
 
     /**
-     * The real factory: a sugar-reel {@see AudioPlayer} over the resolved stream
+     * The real factory: a sugar-video {@see AudioPlayer} over the resolved stream
      * URL (it spawns ffplay/mpv on start(), or silently no-ops if neither is
      * installed). Lives here — the neutral audio home — rather than on a screen,
      * since the App now owns the music audio.

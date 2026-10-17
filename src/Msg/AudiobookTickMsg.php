@@ -13,7 +13,7 @@ use SugarCraft\Core\Msg;
 
 /**
  * One second elapsed during the App's audiobook playback. The
- * {@see \SugarCraft\Reel\AudioPlayer} exposes no playhead, so the App estimates
+ * {@see \SugarCraft\Video\AudioPlayer} exposes no playhead, so the App estimates
  * the elapsed position of its active {@see \Phlix\Console\Audio\AudiobookSession}
  * by counting these 1-second ticks while the book plays (re-arming each tick,
  * each adding 1000ms) — and reports/persists progress off that count.

@@ -56,7 +56,7 @@ final class PlayerScreenSyncPlayTest extends TestCase
 
         // Use a stub player factory - the factory is not called in these tests
         // since we never call init() on the screen
-        $playerFactory = static fn (string $url, int $cols, int $rows): \SugarCraft\Reel\Player => throw new \RuntimeException('Not used in this test');
+        $playerFactory = static fn (string $url, int $cols, int $rows): \SugarCraft\Video\Player => throw new \RuntimeException('Not used in this test');
 
         $syncPlayService = new SyncPlayService($api);
 
@@ -334,7 +334,7 @@ final class PlayerScreenSyncPlayTest extends TestCase
             $transport = new FakeTransport();
             $api = new ApiClient('https://srv', $transport);
             $item = $this->item();
-            $playerFactory = static fn (): \SugarCraft\Reel\Player => throw new \RuntimeException('unused');
+            $playerFactory = static fn (): \SugarCraft\Video\Player => throw new \RuntimeException('unused');
             $screen = new PlayerScreen(
                 $item,
                 'https://srv',

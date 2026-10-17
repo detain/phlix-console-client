@@ -10,7 +10,7 @@ declare(strict_types=1);
 namespace Phlix\Console\Msg;
 
 use SugarCraft\Core\Msg;
-use SugarCraft\Reel\Subtitle\WebVtt;
+use SugarCraft\Video\Subtitle\WebVtt;
 
 /**
  * The chosen subtitle track has been fetched + parsed (or null when the item has

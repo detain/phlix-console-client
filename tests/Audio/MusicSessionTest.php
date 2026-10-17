@@ -8,7 +8,7 @@ use Phlix\Console\Api\Dto\Album;
 use Phlix\Console\Audio\MusicSession;
 use Phlix\Console\Tests\Reel\FakeAudioPlayer;
 use PHPUnit\Framework\TestCase;
-use SugarCraft\Reel\AudioPlayer;
+use SugarCraft\Video\AudioPlayer;
 
 final class MusicSessionTest extends TestCase
 {

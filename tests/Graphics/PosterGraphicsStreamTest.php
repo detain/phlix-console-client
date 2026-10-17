@@ -26,7 +26,7 @@ use SugarCraft\Testing\Graphics\SixelStream;
  * Asserts the client's graphics-mode mosaics emit *real protocol bytes*.
  *
  * These replace hand-made Sixel/Kitty/Iterm2 "decoder" doubles that merely
- * implemented the sugar-reel Decoder interface over canned frames. Driving the
+ * implemented the sugar-video Decoder interface over canned frames. Driving the
  * actual sugar-image renderer and decoding the result with sugar-testing's
  * protocol streams proves the bytes the terminal would receive are well-formed
  * and carry the intended raster — which a hand-made double never could.

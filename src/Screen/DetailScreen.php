@@ -81,7 +81,7 @@ use SugarCraft\Style\Style;
  * - **Leaf** (movie / episode): a hero poster beside its metadata (title,
  *   year / rating / runtime, genres, director, cast) and a {@see Renderer
  *   sugar-markdown} rendered, ↑/↓-scrollable synopsis, plus a Play entry-point:
- *   `p` direct-plays the item's signed `stream_url` via the sugar-reel player
+ *   `p` direct-plays the item's signed `stream_url` via the sugar-video player
  *   (a {@see \Phlix\Console\Msg\PlayRequestedMsg} the App turns into a
  *   PlayerScreen). An item with no signed source shows a brief notice instead.
  * - **Container** (series / season): a header plus a 2-D virtualized grid of the

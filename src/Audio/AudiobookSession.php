@@ -12,7 +12,7 @@ namespace Phlix\Console\Audio;
 use Phlix\Console\Api\Dto\Audiobook;
 use Phlix\Console\Api\Dto\AudiobookChapter;
 use Phlix\Console\Ui\Clock;
-use SugarCraft\Reel\AudioPlayer;
+use SugarCraft\Video\AudioPlayer;
 
 /**
  * The App's active AUDIOBOOK session — the one audiobook currently playing,

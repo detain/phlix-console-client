@@ -13,7 +13,7 @@ use SugarCraft\Core\Msg;
 
 /**
  * One second elapsed during the App's music playback. The
- * {@see \SugarCraft\Reel\AudioPlayer} exposes no playhead, so the App estimates
+ * {@see \SugarCraft\Video\AudioPlayer} exposes no playhead, so the App estimates
  * the elapsed position of its active {@see \Phlix\Console\Audio\MusicSession}
  * by counting these 1-second ticks while a track plays (re-arming each tick) —
  * and auto-advances to the next track once the count reaches the track's

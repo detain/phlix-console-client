@@ -36,11 +36,11 @@ use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\TickRequest;
-use SugarCraft\Reel\Decode\RgbFrame;
-use SugarCraft\Reel\Msg\ResizeRebuildMsg;
-use SugarCraft\Reel\Msg\TickMsg as ReelTickMsg;
-use SugarCraft\Reel\Player;
-use SugarCraft\Reel\Tests\FakeDecoder;
+use SugarCraft\Video\Decode\RgbFrame;
+use SugarCraft\Video\Msg\ResizeRebuildMsg;
+use SugarCraft\Video\Msg\TickMsg as ReelTickMsg;
+use SugarCraft\Video\Player;
+use SugarCraft\Video\Tests\FakeDecoder;
 
 use function React\Promise\resolve;
 
@@ -435,7 +435,7 @@ final class PlayerScreenTest extends TestCase
     }
 
     /**
-     * Wave-13 E28: sugar-reel ≥3402cfa defers the decoder/renderer rebuild behind
+     * Wave-13 E28: sugar-video ≥3402cfa defers the decoder/renderer rebuild behind
      * a debounce — `Player::update(WindowSizeMsg)` stashes the geometry and returns
      * `Cmd::tick(0.05, ResizeRebuildMsg)`. The Program re-dispatches that fired Msg
      * to the ACTIVE MODEL (the screen, not the nested inner Player), so the screen
@@ -531,11 +531,11 @@ final class PlayerScreenTest extends TestCase
      * Live end-to-end with real ffmpeg (watchdog-guarded, skipped when absent):
      * an empty base + a local absolute path makes streamUrl() yield the path
      * verbatim, so the production factory opens the real clip — proving the whole
-     * PlayerScreen wiring drives a real sugar-reel Player (ready, playing, probed).
+     * PlayerScreen wiring drives a real sugar-video Player (ready, playing, probed).
      */
     public function testLivePlaybackOfALocalClipViaTheProductionFactory(): void
     {
-        if (!\SugarCraft\Reel\Source\Probe::hasFFmpeg()) {
+        if (!\SugarCraft\Video\Source\Probe::hasFFmpeg()) {
             $this->markTestSkipped('ffmpeg not present');
         }
 
@@ -1527,7 +1527,7 @@ final class PlayerScreenTest extends TestCase
     {
         // @see https://github.com/phlix-detail/phlix-console-client/issues/TEST-FAILS
         // PRE-EXISTING PRODUCTION CODE ISSUE (C1.3 scope limitation):
-        // The Player infrastructure (vendor/sugarcraft/sugar-reel/src/Player.php) requires
+        // The Player infrastructure (vendor/sugarcraft/sugar-video/src/Player.php) requires
         // significant changes to properly detect when seek exhausts the decoder and set
         // ended:true. Specifically, withSeek() always sets ended:false even when the
         // decoder returns null after rebuildDecoderAt(). This test is marked skip until

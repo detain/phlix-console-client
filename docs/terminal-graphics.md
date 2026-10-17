@@ -97,7 +97,7 @@ Graphics decoders are tested via test doubles in `tests/Graphics/`:
 - `Iterm2Decoder` — Test double for iTerm2 inline image decoding
 - `KittyDecoder` — Test double for Kitty protocol decoding
 
-Each decoder implements `SugarCraft\Reel\Decode\Decoder` and is tested for:
+Each decoder implements `SugarCraft\Video\Decode\Decoder` and is tested for:
 
 1. Opening with correct cell dimensions
 2. Yielding RgbFrame objects

@@ -85,13 +85,13 @@ use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\SubscriptionCapable;
 use SugarCraft\Core\Util\Ansi;
 use SugarCraft\Core\Util\Width;
-use SugarCraft\Reel\Decode\RgbFrame;
-use SugarCraft\Reel\Msg\ResizeRebuildMsg;
-use SugarCraft\Reel\Msg\TickMsg as ReelTickMsg;
-use SugarCraft\Reel\Player;
-use SugarCraft\Reel\Subtitle\WebVtt;
-use SugarCraft\Reel\Render\Mode;
-use SugarCraft\Reel\Render\RendererFactory;
+use SugarCraft\Video\Decode\RgbFrame;
+use SugarCraft\Video\Msg\ResizeRebuildMsg;
+use SugarCraft\Video\Msg\TickMsg as ReelTickMsg;
+use SugarCraft\Video\Player;
+use SugarCraft\Video\Subtitle\WebVtt;
+use SugarCraft\Video\Render\Mode;
+use SugarCraft\Video\Render\RendererFactory;
 use SugarCraft\Style\Style;
 use React\Promise\PromiseInterface;
 
@@ -101,7 +101,7 @@ use function React\Promise\resolve;
 /**
  * The in-terminal video player — the centrepiece of Phase 4.
  *
- * It hosts a sugar-reel {@see Player} (itself a TEA model) and **direct-plays**
+ * It hosts a sugar-video {@see Player} (itself a TEA model) and **direct-plays**
  * the item's signed `stream_url` by feeding it straight to ffmpeg: ffmpeg
  * decodes HEVC/MKV/AV1 natively, so the console plays containers the browser
  * cannot and bypasses the server's HLS transcode entirely. The signed URL needs
@@ -175,7 +175,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     /** Remaining seconds on the end-of-episode up-next countdown, or null when inactive. */
     private ?int $upNext = null;
     /** The parsed caption track, once fetched (null = none / not yet loaded). */
-    private ?\SugarCraft\Reel\Subtitle\WebVtt $captions = null;
+    private ?\SugarCraft\Video\Subtitle\WebVtt $captions = null;
     private bool $captionsOn = false;
     /** True once a caption fetch has been kicked off (so `c` doesn't refetch). */
     private bool $captionsFetched = false;
@@ -257,7 +257,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
 
     /**
      * @param \Closure(string $url, int $cols, int $rows): Player $playerFactory
-     *        Builds the inner sugar-reel player (injected so tests use a
+     *        Builds the inner sugar-video player (injected so tests use a
      *        fake-decoder-backed player instead of spawning real ffmpeg).
      */
     public function __construct(
@@ -992,7 +992,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
                     ->then(
                         static function (string $vttBody): Msg {
                             try {
-                                return new SubtitleVttLoadedMsg(\SugarCraft\Reel\Subtitle\WebVtt::parse($vttBody));
+                                return new SubtitleVttLoadedMsg(\SugarCraft\Video\Subtitle\WebVtt::parse($vttBody));
                             } catch (\Throwable $e) {
                                 return ShowToastMsg::error('Subtitles failed to load');
                             }

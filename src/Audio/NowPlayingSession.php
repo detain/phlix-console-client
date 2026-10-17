@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Audio;
 
-use SugarCraft\Reel\AudioPlayer;
+use SugarCraft\Video\AudioPlayer;
 
 /**
  * The App's active now-playing session — one of {@see MusicSession} (a music

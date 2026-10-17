@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Tests\Reel;
 
-use SugarCraft\Reel\AudioPlayer;
+use SugarCraft\Video\AudioPlayer;
 
 /**
- * A sugar-reel {@see AudioPlayer} double that records lifecycle calls WITHOUT
+ * A sugar-video {@see AudioPlayer} double that records lifecycle calls WITHOUT
  * spawning ffplay/mpv — so AlbumScreen audio tests assert start/stop/pause/
  * resume behaviour deterministically. Injected via the screen's audio factory.
  *

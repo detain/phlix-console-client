@@ -24,7 +24,7 @@ jobs:
 
       - name: Install ffmpeg and libsixel-bin
         run: sudo apt-get update && sudo apt-get install -y ffmpeg libsixel-bin
-        # libsixel-bin provides sixel2png which is required by sugar-reel's
+        # libsixel-bin provides sixel2png which is required by sugar-video's
         # GraphicsRenderer for SIXEL protocol encoding in tests. Without it
         # the GraphicsRenderer output is empty and tests skip gracefully.
 

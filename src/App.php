@@ -225,7 +225,7 @@ final class App implements Model
      * Builds the audio player for a resolved stream URL (music OR audiobook) —
      * injected so tests use a recording fake instead of spawning ffplay/mpv.
      *
-     * @var \Closure(string $url, ?int $startMs): \SugarCraft\Reel\AudioPlayer
+     * @var \Closure(string $url, ?int $startMs): \SugarCraft\Video\AudioPlayer
      */
     private readonly \Closure $audioFactory;
 
@@ -235,7 +235,7 @@ final class App implements Model
      * @param ?CommandPalette $palette the open command palette overlay, or null when closed
      * @param ?Theme $theme the active theme; null defaults to {@see Theme::nocturne()} (the identity look)
      * @param ?NowPlayingSession $nowPlaying the App-owned playback session (music or audiobook; persists across navigation), or null when nothing plays
-     * @param ?(\Closure(string, ?int): \SugarCraft\Reel\AudioPlayer) $audioFactory builds the player for a stream URL; null defaults to the production ffplay/mpv factory
+     * @param ?(\Closure(string, ?int): \SugarCraft\Video\AudioPlayer) $audioFactory builds the player for a stream URL; null defaults to the production ffplay/mpv factory
      * @param bool $metricsVisible whether the diagnostic metrics / HUD overlay is shown (toggled from the palette; default off)
      * @param int $shimmerPhase the current loading-skeleton animation phase, applied to a {@see Shimmering} top screen each render (advances only while a Loadable top screen is loading)
      * @param bool $shimmerTicking whether the gated shimmer animation tick is already in flight (so any update landing on a loading screen doesn't start a SECOND chain)
@@ -274,7 +274,7 @@ final class App implements Model
     /**
      * Pick the entry screen from persisted config.
      *
-     * @param ?(\Closure(string, ?int): \SugarCraft\Reel\AudioPlayer) $audioFactory the music-player factory (a recording fake in tests); null = the production ffplay/mpv factory
+     * @param ?(\Closure(string, ?int): \SugarCraft\Video\AudioPlayer) $audioFactory the music-player factory (a recording fake in tests); null = the production ffplay/mpv factory
      */
     public static function boot(
         Config $config,
@@ -2740,7 +2740,7 @@ final class App implements Model
      * tests). Every other field is preserved. The test seam for the App's
      * audio session (so AppTest can capture stream URLs without spawning ffplay).
      *
-     * @param \Closure(string, ?int): \SugarCraft\Reel\AudioPlayer $audioFactory
+     * @param \Closure(string, ?int): \SugarCraft\Video\AudioPlayer $audioFactory
      */
     public function withAudioFactory(\Closure $audioFactory): self
     {

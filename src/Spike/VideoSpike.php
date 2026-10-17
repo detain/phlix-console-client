@@ -9,10 +9,10 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Spike;
 
-use SugarCraft\Reel\Decode\DecoderFactory;
-use SugarCraft\Reel\Render\Mode;
-use SugarCraft\Reel\Render\RendererFactory;
-use SugarCraft\Reel\Source\VideoSource;
+use SugarCraft\Video\Decode\DecoderFactory;
+use SugarCraft\Video\Render\Mode;
+use SugarCraft\Video\Render\RendererFactory;
+use SugarCraft\Video\Source\VideoSource;
 
 /**
  * Phase-0 proof: probe a video/GIF and decode the first N frames, rendering

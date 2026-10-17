@@ -27,7 +27,7 @@
         "sugarcraft/sugar-panels": "dev-master",
         "sugarcraft/sugar-navstack": "dev-master",
         "sugarcraft/sugar-gallery": "dev-master",
-        "sugarcraft/sugar-reel": "dev-master",
+        "sugarcraft/sugar-video": "dev-master",
         "sugarcraft/sugar-table": "dev-master",
         "sugarcraft/sugar-toast": "dev-master",
         "sugarcraft/sugar-veil": "dev-master",
@@ -43,7 +43,7 @@
     "autoload": {
         "psr-4": {
             "Phlix\\Console\\": "src/",
-            "SugarCraft\\Reel\\Tests\\": "vendor/sugarcraft/sugar-reel/tests/"
+            "SugarCraft\\Video\\Tests\\": "vendor/sugarcraft/sugar-video/tests/"
         }
     },
     "autoload-dev": {
