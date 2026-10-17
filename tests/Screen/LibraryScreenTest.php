@@ -326,7 +326,7 @@ final class LibraryScreenTest extends TestCase
     {
         // The rail dims disabled letters (faint SGR). A screen whose index hasn't
         // loaded shows no rail, so no such styling. (Exact bytes aren't asserted —
-        // sugar-boxer re-flows the content box's ANSI.)
+        // sugar-panels re-flows the content box's ANSI.)
         $withRail = $this->loadedWithIndex()->view();
         $withoutRail = $this->loadedScreen(200)->view();
 

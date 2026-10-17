@@ -10,7 +10,7 @@ declare(strict_types=1);
 namespace Phlix\Console\Ui;
 
 use Phlix\Console\Api\Dto\StreamSubtitleTrack;
-use SugarCraft\Boxer\SugarBoxer;
+use SugarCraft\Panels\SugarPanels;
 use SugarCraft\Style\Style;
 use SugarCraft\Veil\Position;
 use SugarCraft\Veil\Veil;
@@ -116,8 +116,8 @@ final class SubtitleTrackList
     /** Composite the menu box centred over a sugar-veil dimmed background. */
     public function render(string $background): string
     {
-        $box = SugarBoxer::new()->render(
-            SugarBoxer::new()->leaf($this->body())->withBorder(true)->withPadding(0)->withTitle(' Subtitles '),
+        $box = SugarPanels::new()->render(
+            SugarPanels::new()->leaf($this->body())->withBorder(true)->withPadding(0)->withTitle(' Subtitles '),
             $this->winWidth,
             $this->winHeight,
         );

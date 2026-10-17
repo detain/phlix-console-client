@@ -10,12 +10,12 @@ declare(strict_types=1);
 namespace Phlix\Console\Ui;
 
 use Phlix\Console\Screen\Themed;
-use SugarCraft\Boxer\SugarBoxer;
+use SugarCraft\Panels\SugarPanels;
 use SugarCraft\Crumbs\Breadcrumb;
 
 /**
  * The full-window app shell: a header, a bordered content region, and a status
- * line, composed with sugar-boxer. Screens render their body into the middle.
+ * line, composed with sugar-panels. Screens render their body into the middle.
  *
  * When a breadcrumb $trail is supplied (the App threads it through the screen
  * stack), the header shows it (Home › Movies › The Matrix) instead of the bare
@@ -27,7 +27,7 @@ use SugarCraft\Crumbs\Breadcrumb;
  * both styles are plain (zero SGR), so the rendered frame is byte-identical to
  * the pre-theme output — the breadcrumb / title portion is never tinted. The
  * theme is applied per render (the App hands the top {@see Themed} screen the
- * active theme just before it renders); sugar-boxer's ANSI-aware placement keeps
+ * active theme just before it renders); sugar-panels's ANSI-aware placement keeps
  * the injected SGR aligned.
  */
 final class Chrome
@@ -44,12 +44,12 @@ final class Chrome
     public static function frame(string $title, string $body, string $hint, int $cols, int $rows, array $trail = [], ?Theme $theme = null): string
     {
         $theme ??= Theme::nocturne();
-        $b = SugarBoxer::new();
+        $b = SugarPanels::new();
 
         // header = 1 fixed line, content = FILLS (flex/grow), status = 1 fixed line.
         // The content panel keeps its border (so the body width stays cols-4); the
         // header/status are borderless single lines, and a 1-row gap separates the
-        // sections (sugar-boxer draws an inter-panel divider on a borderless leaf's
+        // sections (sugar-panels draws an inter-panel divider on a borderless leaf's
         // only row at spacing 0, so use spacing 1 — the blank line reads as
         // breathing room). The content grows to fill everything left over.
         //
@@ -78,7 +78,7 @@ final class Chrome
     /**
      * How many body lines the content panel shows at a given terminal height.
      *
-     * The content panel now FILLS the frame (sugar-boxer flex/grow), so the body
+     * The content panel now FILLS the frame (sugar-panels flex/grow), so the body
      * is a deterministic `rows - CHROME_HEIGHT` — no probing. This equals EXACTLY
      * the number of body lines {@see frame()} displays (0 when the terminal is too
      * short to fit the chrome at all). A screen that windows a scrolling body (a

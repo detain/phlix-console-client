@@ -22,7 +22,7 @@ use SugarCraft\Table\Table as SugarTable;
  * sugar-table double-bordered inside the {@see Chrome} shell, had non-deterministic
  * width, and wasn't ANSI-safe for selection. Those are fixed upstream now
  * (borderless mode, width-exact Flex columns, reverse-video selection that
- * sugar-boxer's ANSI-aware placement keeps from bleeding), so this just maps the
+ * sugar-panels's ANSI-aware placement keeps from bleeding), so this just maps the
  * caller's spec onto the library and lets it do all the rendering — no padding,
  * truncation, or windowing logic of our own.
  *

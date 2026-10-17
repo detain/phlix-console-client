@@ -10,7 +10,7 @@ declare(strict_types=1);
 namespace Phlix\Console\Ui;
 
 use Phlix\Console\Api\Dto\Rendition;
-use SugarCraft\Boxer\SugarBoxer;
+use SugarCraft\Panels\SugarPanels;
 use SugarCraft\Style\Style;
 use SugarCraft\Veil\Position;
 use SugarCraft\Veil\Veil;
@@ -23,7 +23,7 @@ use SugarCraft\Veil\Veil;
  * {@see CommandPalette} overlay pattern.
  *
  * The two upstream primitives that matter — sugar-veil's `composite()` (dim +
- * centre) and sugar-boxer's bordered box — are reused verbatim; only the trivial
+ * centre) and sugar-panels's bordered box — are reused verbatim; only the trivial
  * cursor and the Rendition→row mapping (the phlix-specific glue) live here.
  *
  * Immutable (clone-mutate). The cursor never leaves `[0, count(options)-1]`;
@@ -123,8 +123,8 @@ final class QualityMenu
     /** Composite the menu box centred over a sugar-veil dimmed background. */
     public function render(string $background): string
     {
-        $box = SugarBoxer::new()->render(
-            SugarBoxer::new()->leaf($this->body())->withBorder(true)->withPadding(0)->withTitle(' Quality '),
+        $box = SugarPanels::new()->render(
+            SugarPanels::new()->leaf($this->body())->withBorder(true)->withPadding(0)->withTitle(' Quality '),
             $this->winWidth,
             $this->winHeight,
         );

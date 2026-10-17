@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Ui;
 
-use SugarCraft\Boxer\SugarBoxer;
+use SugarCraft\Panels\SugarPanels;
 use SugarCraft\Style\Style;
 use SugarCraft\Veil\Position;
 use SugarCraft\Veil\Veil;
@@ -118,8 +118,8 @@ final class UserRatingPicker
     /** Composite the picker box centred over a sugar-veil dimmed background. */
     public function render(string $background): string
     {
-        $box = SugarBoxer::new()->render(
-            SugarBoxer::new()->leaf($this->body())->withBorder(true)->withPadding(0)->withTitle(' Rate this title '),
+        $box = SugarPanels::new()->render(
+            SugarPanels::new()->leaf($this->body())->withBorder(true)->withPadding(0)->withTitle(' Rate this title '),
             $this->winWidth,
             $this->winHeight,
         );

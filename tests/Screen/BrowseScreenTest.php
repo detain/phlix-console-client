@@ -485,7 +485,7 @@ final class BrowseScreenTest extends TestCase
     {
         $screen = $this->screen()->update(new LibrariesLoadedMsg([$this->library('lib-a', 'Movies')]))[0];
 
-        // (sugar-boxer collapses the hint's alignment spaces, so key off the
+        // (sugar-panels collapses the hint's alignment spaces, so key off the
         // distinguishing word "menu", which only the rails-focused hint shows.)
         $railsView = $screen->view();
         self::assertStringContainsString('Libraries', $railsView, 'the sidebar is shown beside the rails');

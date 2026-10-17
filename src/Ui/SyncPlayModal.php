@@ -10,7 +10,7 @@ declare(strict_types=1);
 namespace Phlix\Console\Ui;
 
 use Phlix\Console\Api\Dto\SyncPlayGroup;
-use SugarCraft\Boxer\SugarBoxer;
+use SugarCraft\Panels\SugarPanels;
 use SugarCraft\Style\Style;
 use SugarCraft\Veil\Position;
 use SugarCraft\Veil\Veil;
@@ -21,7 +21,7 @@ use SugarCraft\Veil\Veil;
  *   - Creating a new room
  *   - Joining an existing room
  *
- * Uses sugar-veil's composite() for a dimmed backdrop and sugar-boxer's
+ * Uses sugar-veil's composite() for a dimmed backdrop and sugar-panels's
  * bordered box for the form. Immutable (clone-mutate).
  *
  * Modal states:
@@ -321,8 +321,8 @@ final class SyncPlayModal
 
         $body = implode("\n", $lines);
 
-        return SugarBoxer::new()->render(
-            SugarBoxer::new()->leaf($body)->withBorder(true)->withPadding(0)->withTitle(' SyncPlay '),
+        return SugarPanels::new()->render(
+            SugarPanels::new()->leaf($body)->withBorder(true)->withPadding(0)->withTitle(' SyncPlay '),
             $this->winWidth,
             $this->winHeight,
         );
@@ -352,8 +352,8 @@ final class SyncPlayModal
 
         $body = implode("\n", $lines);
 
-        return SugarBoxer::new()->render(
-            SugarBoxer::new()->leaf($body)->withBorder(true)->withPadding(0)->withTitle(' Create Room '),
+        return SugarPanels::new()->render(
+            SugarPanels::new()->leaf($body)->withBorder(true)->withPadding(0)->withTitle(' Create Room '),
             $this->winWidth,
             $this->winHeight,
         );
@@ -368,8 +368,8 @@ final class SyncPlayModal
 
         $body = implode("\n", $lines);
 
-        return SugarBoxer::new()->render(
-            SugarBoxer::new()->leaf($body)->withBorder(true)->withPadding(0)->withTitle(' SyncPlay '),
+        return SugarPanels::new()->render(
+            SugarPanels::new()->leaf($body)->withBorder(true)->withPadding(0)->withTitle(' SyncPlay '),
             $this->winWidth,
             $this->winHeight,
         );
@@ -386,8 +386,8 @@ final class SyncPlayModal
 
         $body = implode("\n", $lines);
 
-        return SugarBoxer::new()->render(
-            SugarBoxer::new()->leaf($body)->withBorder(true)->withPadding(0)->withTitle(' SyncPlay '),
+        return SugarPanels::new()->render(
+            SugarPanels::new()->leaf($body)->withBorder(true)->withPadding(0)->withTitle(' SyncPlay '),
             $this->winWidth,
             $this->winHeight,
         );
