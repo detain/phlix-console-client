@@ -10,19 +10,19 @@ declare(strict_types=1);
 namespace Phlix\Console\Ui;
 
 use SugarCraft\Fuzzy\Matcher\SmithWatermanMatcher;
-use SugarCraft\Hermit\FilteredItem;
-use SugarCraft\Hermit\Hermit;
+use SugarCraft\QuickPick\FilteredItem;
+use SugarCraft\QuickPick\Hermit;
 use SugarCraft\Veil\Position;
 use SugarCraft\Veil\Veil;
 
 /**
- * The ⌘K-style command palette overlay. Wraps a candy-hermit {@see Hermit}
+ * The ⌘K-style command palette overlay. Wraps a sugar-quickpick {@see Hermit}
  * (configured with a sugar-fuzzy ranker so typing fuzzy-ranks the actions) over
  * an action registry, and composites the list box centered above a sugar-veil
  * dimmed backdrop.
  *
  * Immutable (clone-mutate). The box renders the fuzzy-matched characters of each
- * action in bold and pops as a bright modal over a dimmed backdrop: candy-hermit's
+ * action in bold and pops as a bright modal over a dimmed backdrop: sugar-quickpick's
  * View() and sugar-veil's composite() are both ANSI-width-aware, so the styled
  * (highlighted) item lines survive the width math and compositing intact.
  *
