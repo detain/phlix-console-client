@@ -10,7 +10,7 @@ declare(strict_types=1);
 namespace Phlix\Console;
 
 use SugarCraft\Image\Mosaic;
-use SugarCraft\Palette\Probe;
+use SugarCraft\ColorProfile\Probe;
 
 /**
  * Detects what the current terminal can render — the best image protocol
