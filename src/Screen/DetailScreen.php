@@ -71,7 +71,7 @@ use SugarCraft\Core\SubscriptionCapable;
 use SugarCraft\Core\Util\Color;
 use SugarCraft\Core\Util\Width;
 use SugarCraft\Gallery\PosterGrid;
-use SugarCraft\Shine\Renderer;
+use SugarCraft\Markdown\Renderer;
 use SugarCraft\Sprinkles\Layout;
 use SugarCraft\Sprinkles\Style;
 
@@ -80,7 +80,7 @@ use SugarCraft\Sprinkles\Style;
  *
  * - **Leaf** (movie / episode): a hero poster beside its metadata (title,
  *   year / rating / runtime, genres, director, cast) and a {@see Renderer
- *   candy-shine} rendered, ↑/↓-scrollable synopsis, plus a Play entry-point:
+ *   sugar-markdown} rendered, ↑/↓-scrollable synopsis, plus a Play entry-point:
  *   `p` direct-plays the item's signed `stream_url` via the sugar-reel player
  *   (a {@see \Phlix\Console\Msg\PlayRequestedMsg} the App turns into a
  *   PlayerScreen). An item with no signed source shows a brief notice instead.
@@ -1478,7 +1478,7 @@ final class DetailScreen implements Breadcrumbed, Themed
     }
 
     /**
-     * Render the overview as markdown→ANSI (candy-shine), word-wrapped to the
+     * Render the overview as markdown→ANSI (sugar-markdown), word-wrapped to the
      * column, and return the scrolled window of $rows lines.
      *
      * @return list<string>
