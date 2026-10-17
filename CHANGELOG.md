@@ -5,6 +5,35 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — SugarCraft dependency rename (campaign Phase 11.3) — 2026-10-17
+
+- **What.** Every `sugarcraft/*` requirement moved to its renamed package:
+  `candy-core`→`sugar-core`, `candy-focus`→`sugar-focus`, `candy-forms`→`sugar-forms`,
+  `candy-fuzzy`→`sugar-fuzzy`, `candy-hermit`→`sugar-quickpick`, `candy-mosaic`→`sugar-image`,
+  `candy-palette`→`sugar-colorprofile`, `candy-shine`→`sugar-markdown`,
+  `candy-sprinkles`→`sugar-style`, `candy-testing`→`sugar-testing` (dev),
+  `sugar-boxer`→`sugar-panels`, `sugar-crumbs`→`sugar-navstack`, `sugar-reel`→`sugar-video`,
+  `sugar-veil`→`sugar-overlay`. Namespaces follow (`SugarCraft\Reel`→`\Video`,
+  `\Mosaic`→`\Image`, `\Sprinkles`→`\Style`, `\Veil`→`\Overlay`, `\Boxer`→`\Panels`,
+  `\Palette`→`\ColorProfile`, `\Hermit`→`\QuickPick`, `\Shine`→`\Markdown`,
+  `\Crumbs`→`\NavStack`, `\Core` unchanged); require statements, `use` imports,
+  doc-comments, the CI libsixel comment and the `SugarCraft\Reel\Tests` autoload map
+  flipped accordingly. The phlix-owned `Phlix\Console\SugarCraft\Screen` traits are
+  untouched — they were never a library namespace.
+- **API follow-through.** The renamed upstream packages also drifted since the lock era:
+  `Hermit` is now the `QuickPick` class, `RendererFactory`/`DecoderFactory` expose
+  `new()` (no `create()`), and `tests/Reel/` became `tests/Video/` (namespace, phpstan
+  exclude path). The vendor `stopAll` watchdog pin in `WorkermanEventBridgeTest` is now
+  version-tolerant (asserts the crash stack names `Workerman\Worker::stopAll` instead of
+  the 5.2.2-only `feof()` message) — workerman 5.2.3's crash site differs.
+- **Deferred to campaign Phase 12 (known red window).** `composer.lock` still pins the
+  OLD package names: a `composer update` cannot resolve the new names until the
+  renamed packages' packagist `dev-master` syncs land (the 406-lag family), so the
+  lockfile and the committed `build/phlix.phar` are regenerated at the P12 batch
+  verification, together with a post-rename CI green run. Until then CI `composer
+  install` resolves old code and the renamed namespaces are absent — expected, not a
+  regression.
+
 ### Fixed — settings saves send canonical lowercase theme ids to the server — 2026-10-14
 
 - **The defect.** phlix-server commit `5072cb18` made `PUT
