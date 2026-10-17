@@ -11,7 +11,7 @@ namespace Phlix\Console\Ui;
 
 use Phlix\Console\Screen\Themed;
 use SugarCraft\Panels\SugarPanels;
-use SugarCraft\Crumbs\Breadcrumb;
+use SugarCraft\NavStack\Breadcrumb;
 
 /**
  * The full-window app shell: a header, a bordered content region, and a status
