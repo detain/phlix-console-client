@@ -17,7 +17,7 @@ use SugarCraft\Veil\Veil;
 
 /**
  * The ⌘K-style command palette overlay. Wraps a candy-hermit {@see Hermit}
- * (configured with a candy-fuzzy ranker so typing fuzzy-ranks the actions) over
+ * (configured with a sugar-fuzzy ranker so typing fuzzy-ranks the actions) over
  * an action registry, and composites the list box centered above a sugar-veil
  * dimmed backdrop.
  *
