@@ -5,7 +5,7 @@
 The console client is a terminal TUI application built in PHP 8.3+. It uses the
 [SugarCraft](https://sugarcraft.github.io/) component stack for rendering
 (posters as sixel/kitty/iTerm2/half-block Unicode cells) and the
-[SugarCraft/Reel](https://sugarcraft.github.io/) video player for in-terminal
+[SugarCraft/Video](https://sugarcraft.github.io/) video player for in-terminal
 video playback.
 
 ```

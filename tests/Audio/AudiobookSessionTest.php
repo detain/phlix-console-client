@@ -7,7 +7,7 @@ namespace Phlix\Console\Tests\Audio;
 use Phlix\Console\Api\Dto\Audiobook;
 use Phlix\Console\Api\Dto\AudiobookChapter;
 use Phlix\Console\Audio\AudiobookSession;
-use Phlix\Console\Tests\Reel\FakeAudioPlayer;
+use Phlix\Console\Tests\Video\FakeAudioPlayer;
 use PHPUnit\Framework\TestCase;
 
 final class AudiobookSessionTest extends TestCase

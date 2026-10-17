@@ -9,7 +9,7 @@ use Phlix\Console\Api\Dto\Audiobook;
 use Phlix\Console\Api\Dto\AudiobookChapter;
 use Phlix\Console\Audio\AudiobookSession;
 use Phlix\Console\Audio\MusicSession;
-use Phlix\Console\Tests\Reel\FakeAudioPlayer;
+use Phlix\Console\Tests\Video\FakeAudioPlayer;
 use Phlix\Console\Ui\NowPlayingBar;
 use Phlix\Console\Ui\Theme;
 use PHPUnit\Framework\TestCase;

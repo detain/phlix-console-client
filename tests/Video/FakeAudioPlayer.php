@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Phlix\Console\Tests\Reel;
+namespace Phlix\Console\Tests\Video;
 
 use SugarCraft\Video\AudioPlayer;
 

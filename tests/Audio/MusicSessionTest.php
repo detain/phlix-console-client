@@ -6,7 +6,7 @@ namespace Phlix\Console\Tests\Audio;
 
 use Phlix\Console\Api\Dto\Album;
 use Phlix\Console\Audio\MusicSession;
-use Phlix\Console\Tests\Reel\FakeAudioPlayer;
+use Phlix\Console\Tests\Video\FakeAudioPlayer;
 use PHPUnit\Framework\TestCase;
 use SugarCraft\Video\AudioPlayer;
 

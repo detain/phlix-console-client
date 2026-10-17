@@ -87,7 +87,7 @@ use SugarCraft\Core\Util\Ansi;
 use SugarCraft\Core\Util\Width;
 use SugarCraft\Video\Decode\RgbFrame;
 use SugarCraft\Video\Msg\ResizeRebuildMsg;
-use SugarCraft\Video\Msg\TickMsg as ReelTickMsg;
+use SugarCraft\Video\Msg\TickMsg as VideoTickMsg;
 use SugarCraft\Video\Player;
 use SugarCraft\Video\Subtitle\WebVtt;
 use SugarCraft\Video\Render\Mode;
@@ -515,7 +515,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         if ($msg instanceof KeyMsg) {
             return $this->handleKey($msg);
         }
-        if ($msg instanceof ReelTickMsg) {
+        if ($msg instanceof VideoTickMsg) {
             // The frame pump: drive the inner player's wall-clock frame advance.
             return $this->forwardToInner($msg);
         }
@@ -2519,7 +2519,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     {
         $fps = $player->fps > 0.0 ? $player->fps : 24.0;
 
-        return Cmd::tick(1.0 / $fps, static fn (): Msg => new ReelTickMsg());
+        return Cmd::tick(1.0 / $fps, static fn (): Msg => new VideoTickMsg());
     }
 
     private function withError(string $error): self

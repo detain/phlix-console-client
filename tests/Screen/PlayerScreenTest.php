@@ -38,7 +38,7 @@ use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\TickRequest;
 use SugarCraft\Video\Decode\RgbFrame;
 use SugarCraft\Video\Msg\ResizeRebuildMsg;
-use SugarCraft\Video\Msg\TickMsg as ReelTickMsg;
+use SugarCraft\Video\Msg\TickMsg as VideoTickMsg;
 use SugarCraft\Video\Player;
 use SugarCraft\Video\Tests\FakeDecoder;
 
@@ -400,7 +400,7 @@ final class PlayerScreenTest extends TestCase
     {
         $ready = $this->ready($this->screen()[0]);
 
-        [$next, $cmd] = $ready->update(new ReelTickMsg());
+        [$next, $cmd] = $ready->update(new VideoTickMsg());
 
         self::assertInstanceOf(PlayerScreen::class, $next);
         self::assertNotNull($cmd, 'a playing tick re-arms the next tick (the frame pump)');
@@ -1095,7 +1095,7 @@ final class PlayerScreenTest extends TestCase
     {
         $first = $this->readyEpisode('ep1', frameCount: 0); // empty decoder → ends on first tick
 
-        [$ended, $cmd] = $first->update(new ReelTickMsg());
+        [$ended, $cmd] = $first->update(new VideoTickMsg());
 
         self::assertSame(8, $ended->upNextCountdown());
         self::assertNotNull($cmd, 'the countdown tick is armed');
@@ -1107,7 +1107,7 @@ final class PlayerScreenTest extends TestCase
     public function testUpNextCountsDownAndAutoAdvances(): void
     {
         $cur = $this->readyEpisode('ep1', frameCount: 0);
-        [$cur] = $cur->update(new ReelTickMsg()); // upNext = 8
+        [$cur] = $cur->update(new VideoTickMsg()); // upNext = 8
         for ($i = 0; $i < 7; $i++) {
             [$cur] = $cur->update(new UpNextTickMsg());
         }
@@ -1123,7 +1123,7 @@ final class PlayerScreenTest extends TestCase
     public function testUpNextCancelsWhenScrubbedBack(): void
     {
         $first = $this->readyEpisode('ep1', frameCount: 0);
-        [$ended] = $first->update(new ReelTickMsg());
+        [$ended] = $first->update(new VideoTickMsg());
         self::assertSame(8, $ended->upNextCountdown());
 
         // ← seeks back, clearing the ended state.
@@ -1139,7 +1139,7 @@ final class PlayerScreenTest extends TestCase
     {
         $last = $this->readyEpisode('ep3', frameCount: 0);
 
-        [$ended, $cmd] = $last->update(new ReelTickMsg());
+        [$ended, $cmd] = $last->update(new VideoTickMsg());
 
         self::assertNull($ended->upNextCountdown(), 'no up-next without a next episode');
         self::assertNull($cmd, 'the ended player just stops');
@@ -1182,7 +1182,7 @@ final class PlayerScreenTest extends TestCase
         $item = MediaItem::fromArray(['id' => 'cur', 'name' => 'Current', 'type' => 'episode', 'parent_id' => 'season-1', 'stream_url' => self::STREAM]);
         $screen = $this->ready(new PlayerScreen($item, 'https://srv', $api, $factory, $syncPlayService, cols: 80, rows: 24));
 
-        [$ended] = $screen->update(new ReelTickMsg());
+        [$ended] = $screen->update(new VideoTickMsg());
 
         self::assertStringContainsString('A Special', $ended->view(), 'a numberless next episode shows its name');
     }
@@ -1718,7 +1718,7 @@ final class PlayerScreenTest extends TestCase
     {
         [$screen] = $this->screen();
 
-        [$same, $cmd] = $screen->update(new ReelTickMsg());
+        [$same, $cmd] = $screen->update(new VideoTickMsg());
 
         self::assertSame($screen, $same);
         self::assertNull($cmd);
@@ -1739,7 +1739,7 @@ final class PlayerScreenTest extends TestCase
         // Drive a tiny inner player to the ended state: an empty decoder runs out
         // on the first tick (non-loop → ended, ticking stops).
         $emptyInner = Player::fromDecoder(new FakeDecoder([]), fps: 24.0, totalFrames: 0, videoPath: '/fake', paused: false);
-        [$ended] = $emptyInner->update(new ReelTickMsg());
+        [$ended] = $emptyInner->update(new VideoTickMsg());
         self::assertInstanceOf(Player::class, $ended);
         self::assertTrue($ended->ended);
 

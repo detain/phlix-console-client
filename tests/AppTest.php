@@ -106,7 +106,7 @@ use Phlix\Console\Store\MediaRange;
 use Phlix\Console\Store\AudiobooksStore;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Tests\Api\FakeTransport;
-use Phlix\Console\Tests\Reel\FakeAudioPlayer;
+use Phlix\Console\Tests\Video\FakeAudioPlayer;
 use Phlix\Console\Ui\Theme;
 use PHPUnit\Framework\TestCase;
 use React\EventLoop\Loop;
