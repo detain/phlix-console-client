@@ -41,4 +41,4 @@ parameters:
     excludePaths:
         # Exclude test stub/fixture files that aren't under test
         - tests/stub
-        - tests/Reel/FakeAudioPlayer.php
+        - tests/Video/FakeAudioPlayer.php

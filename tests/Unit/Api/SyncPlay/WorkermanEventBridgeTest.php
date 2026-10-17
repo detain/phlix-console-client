@@ -577,9 +577,13 @@ final class WorkermanEventBridgeTest extends TestCase
      * The reviewer's exact failure mode reproduced end to end: the vendor
      * funnel ConnectionInterface::error() (no per-connection errorHandler)
      * routes to Worker::stopAll(250, $e); its child branch first log()s the
-     * original through safeEcho, which dies on feof(self::$outputStream)
-     * (Worker.php:2427) because runAll() never initialized the stream in an
-     * interactive process. The resulting vendor TypeError lands back in the
+     * original through safeEcho, which dies because runAll() never
+     * initialized the output stream in an interactive process. The exact
+     * crash site is vendor-version detail (5.2.2: TypeError from
+     * feof(null) at Worker.php:2427; 5.2.3: ValueError "Path cannot be
+     * empty" from Worker::log at :2393) — so the pin below is structural:
+     * whatever escapes stopAll, its stack names Workerman\Worker::stopAll.
+     * The resulting vendor error lands back in the
      * bridge — WITHOUT the watchdog installOnce armed, safeCall's bare
      * fallback would log it and the pump would keep ticking a
      * STATUS_SHUTDOWN zombie. With the watchdog, the pump drains. The
@@ -588,7 +592,7 @@ final class WorkermanEventBridgeTest extends TestCase
      * errorHandler (22faf00) is what prevents the funnel; the watchdog
      * guarantees the drain.
      */
-    public function testVendorStopAllFeofFunnelReachesTheWatchdogAndDrainsThePump(): void
+    public function testVendorStopAllCrashReachesTheWatchdogAndDrainsThePump(): void
     {
         $status = new \ReflectionProperty(Worker::class, 'status');
         $statusBefore = $status->getValue();
@@ -614,11 +618,11 @@ final class WorkermanEventBridgeTest extends TestCase
 
             $capture = $this->captureErrorLog(fn () => $this->loop->firePeriodic(0));
 
-            self::assertStringContainsString('watchdog', $capture, 'the vendor TypeError must reach the handler');
+            self::assertStringContainsString('watchdog', $capture, 'the vendor crash must reach the handler');
             self::assertStringContainsString(
-                'feof(): Argument #1 ($stream) must be of type resource, null given',
+                'Workerman\Worker::stopAll',
                 $capture,
-                'the Worker.php:2427 crash is what actually escapes stopAll'
+                'the crash that actually escapes stopAll must be named by the watchdog dump (version-tolerant: the crash site moved between 5.2.2 and 5.2.3)'
             );
             self::assertStringNotContainsString(
                 'ORIGINAL_SWALLOWED_BY_ZOMBIE',

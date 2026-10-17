@@ -50,8 +50,8 @@ final class VideoSpike
     public function frames(string $src, int $count = 1, int $cols = 60, int $rows = 20, ?string $mode = null): array
     {
         $m = $this->mode($mode);
-        $renderer = RendererFactory::create($m);
-        $decoder = DecoderFactory::create($src, $cols, $rows, 1.0, $m);
+        $renderer = RendererFactory::new($m);
+        $decoder = DecoderFactory::new($src, $cols, $rows, 1.0, $m);
 
         $out = [];
         try {

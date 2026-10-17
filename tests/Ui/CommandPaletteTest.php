@@ -126,7 +126,7 @@ final class CommandPaletteTest extends TestCase
         $out = $p->render($bg);
 
         // The fuzzy-matched runes of 'Music' are bold-highlighted and survive
-        // compositing now that Hermit.View() + sugar-overlay composite() are ANSI-aware.
+        // compositing now that QuickPick.view() + sugar-overlay composite() are ANSI-aware.
         self::assertStringContainsString("\e[1m", $out, 'the matched runes are highlighted (bold)');
         // The bright box still pops over a dimmed backdrop (truecolor dim, not \e[2m).
         self::assertStringContainsString("\e[38;2;153;153;153m", $out, 'the backdrop is dimmed');

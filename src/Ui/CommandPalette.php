@@ -11,12 +11,12 @@ namespace Phlix\Console\Ui;
 
 use SugarCraft\Fuzzy\Matcher\SmithWatermanMatcher;
 use SugarCraft\QuickPick\FilteredItem;
-use SugarCraft\QuickPick\Hermit;
+use SugarCraft\QuickPick\QuickPick;
 use SugarCraft\Overlay\Position;
 use SugarCraft\Overlay\Veil;
 
 /**
- * The ⌘K-style command palette overlay. Wraps a sugar-quickpick {@see Hermit}
+ * The ⌘K-style command palette overlay. Wraps a sugar-quickpick {@see QuickPick}
  * (configured with a sugar-fuzzy ranker so typing fuzzy-ranks the actions) over
  * an action registry, and composites the list box centered above a sugar-overlay
  * dimmed backdrop.
@@ -39,7 +39,7 @@ final class CommandPalette
      * @param list<PaletteAction> $actions
      */
     private function __construct(
-        private Hermit $hermit,
+        private QuickPick $quickPick,
         private array $actions,
         private int $winWidth,
         private int $winHeight,
@@ -52,9 +52,9 @@ final class CommandPalette
     public static function open(array $actions, int $cols, int $rows): self
     {
         [$w, $h] = self::dims($cols, $rows, count($actions));
-        $hermit = self::buildHermit($actions, $w, $h);
+        $quickPick = self::buildQuickPick($actions, $w, $h);
 
-        return new self($hermit, $actions, $w, $h);
+        return new self($quickPick, $actions, $w, $h);
     }
 
     /**
@@ -69,7 +69,7 @@ final class CommandPalette
         $next->actions = $actions;
         // withItems() re-applies the current filter text, so a query typed before
         // the libraries arrived is kept.
-        $next->hermit = $this->hermit->withItems(self::items($actions));
+        $next->quickPick = $this->quickPick->withItems(self::items($actions));
 
         return $next;
     }
@@ -77,7 +77,7 @@ final class CommandPalette
     public function type(string $rune): self
     {
         $next = clone $this;
-        $next->hermit = $this->hermit->type($rune);
+        $next->quickPick = $this->quickPick->type($rune);
 
         return $next;
     }
@@ -85,7 +85,7 @@ final class CommandPalette
     public function backspace(): self
     {
         $next = clone $this;
-        $next->hermit = $this->hermit->backspace();
+        $next->quickPick = $this->quickPick->backspace();
 
         return $next;
     }
@@ -93,7 +93,7 @@ final class CommandPalette
     public function up(): self
     {
         $next = clone $this;
-        $next->hermit = $this->hermit->cursorUp();
+        $next->quickPick = $this->quickPick->cursorUp();
 
         return $next;
     }
@@ -101,7 +101,7 @@ final class CommandPalette
     public function down(): self
     {
         $next = clone $this;
-        $next->hermit = $this->hermit->cursorDown();
+        $next->quickPick = $this->quickPick->cursorDown();
 
         return $next;
     }
@@ -114,7 +114,7 @@ final class CommandPalette
         $next->winWidth = $w;
         $next->winHeight = $h;
         // setWindowWidth/Height return clones that keep the filter/cursor/items.
-        $next->hermit = $this->hermit->setWindowWidth($w)->setWindowHeight($h);
+        $next->quickPick = $this->quickPick->setWindowWidth($w)->setWindowHeight($h);
 
         return $next;
     }
@@ -122,7 +122,7 @@ final class CommandPalette
     /** The action under the cursor (mapped back via the item's 1-based ordinal). */
     public function selectedAction(): ?PaletteAction
     {
-        $item = $this->hermit->selected();
+        $item = $this->quickPick->selected();
         if ($item === null) {
             return null;
         }
@@ -134,7 +134,7 @@ final class CommandPalette
     public function render(string $background): string
     {
         $blank = implode("\n", array_fill(0, $this->winHeight, str_repeat(' ', $this->winWidth)));
-        $box = $this->hermit->View($blank);
+        $box = $this->quickPick->View($blank);
 
         return Veil::new()
             ->withBackdrop(self::BACKDROP_DIM)
@@ -150,7 +150,7 @@ final class CommandPalette
     {
         $w = max(self::MIN_WIDTH, min($cols - 8, self::MAX_WIDTH));
         $visible = max(1, min($actionCount, self::MAX_VISIBLE));
-        // Hermit shows windowHeight-2 items (header + separator take two rows).
+        // QuickPick shows windowHeight-2 items (header + separator take two rows).
         $h = max(3, min($rows - 4, $visible + 2));
 
         return [$w, $h];
@@ -159,9 +159,9 @@ final class CommandPalette
     /**
      * @param list<PaletteAction> $actions
      */
-    private static function buildHermit(array $actions, int $winWidth, int $winHeight): Hermit
+    private static function buildQuickPick(array $actions, int $winWidth, int $winHeight): QuickPick
     {
-        return Hermit::new(self::items($actions))
+        return QuickPick::new(self::items($actions))
             ->setRanker(new SmithWatermanMatcher())
             ->setPrompt('› ')
             ->setMatchStyle("\e[1m") // bold the fuzzy-matched runes (ANSI-safe now)
@@ -196,7 +196,7 @@ final class CommandPalette
 
     public function filterText(): string
     {
-        return $this->hermit->filterText();
+        return $this->quickPick->filterText();
     }
 
     /**
@@ -206,6 +206,6 @@ final class CommandPalette
      */
     public function visibleLabels(): array
     {
-        return array_map(static fn ($item): string => $item->value(), $this->hermit->items());
+        return array_map(static fn ($item): string => $item->value(), $this->quickPick->items());
     }
 }

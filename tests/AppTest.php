@@ -1250,7 +1250,7 @@ final class AppTest extends TestCase
         [$typed] = $open->update(new KeyMsg(KeyType::Char, 'q')); // ranks + highlights 'Quit'
 
         // The bold-highlighted matched rune ('Q' of 'Quit') survives compositing
-        // into the App view (Hermit.View + sugar-overlay composite are ANSI-aware).
+        // into the App view (QuickPick.view + sugar-overlay composite are ANSI-aware).
         self::assertStringContainsString("\e[1mQ", $typed->view(), 'the matched rune is highlighted in the composited view');
     }
 
