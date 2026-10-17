@@ -44,8 +44,8 @@ use SugarCraft\Forms\Form;
  *     inline `y/n` confirm (it installs third-party code); on success the entry's
  *     catalog is refetched (so it flips to installed). On an ALREADY-installed entry
  *     it just shows an info toast and fires no request.
- *   - **`a`** add a catalog source: an embedded candy-forms {@see Input} for the URL
- *     (the candy-forms quit-intercept keeps the embedded `Cmd::quit()` from exiting
+ *   - **`a`** add a catalog source: an embedded sugar-forms {@see Input} for the URL
+ *     (the sugar-forms quit-intercept keeps the embedded `Cmd::quit()` from exiting
  *     the app); on submit it POSTs and refetches, on Esc it cancels.
  *   - **`x`** remove the source of the selected entry's catalog behind an inline
  *     `y/n` confirm → DELETE → refetch.
@@ -299,10 +299,10 @@ final class AdminPluginCatalogScreen implements Breadcrumbed, Themed
         return [$this, null];
     }
 
-    // ---- add-source input (embedded candy-forms) -----------------------
+    // ---- add-source input (embedded sugar-forms) -----------------------
 
     /**
-     * Drive the embedded add-source form. candy-forms' Form returns Cmd::quit() on
+     * Drive the embedded add-source form. sugar-forms' Form returns Cmd::quit() on
      * submit/abort (it's built to run standalone); we intercept that and substitute
      * our own intent: a non-empty submitted URL adds the source, an empty one
      * re-opens the input with an error, and an abort cancels.
@@ -311,7 +311,7 @@ final class AdminPluginCatalogScreen implements Breadcrumbed, Themed
      */
     private function updateAddSource(Msg $msg, Form $form): array
     {
-        /** @var array{0: Form, 1: ?\Closure} $result candy-forms' Form::update returns Model's loose `:array`; narrow it. */
+        /** @var array{0: Form, 1: ?\Closure} $result sugar-forms' Form::update returns Model's loose `:array`; narrow it. */
         $result = $form->update($msg);
         [$next, $cmd] = $result;
 

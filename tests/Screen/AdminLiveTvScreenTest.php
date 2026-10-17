@@ -1021,7 +1021,7 @@ final class AdminLiveTvScreenTest extends TestCase
         $screen = $this->loaded($transport);
 
         [$editing] = $screen->update(new KeyMsg(KeyType::Char, 'E'));
-        // Clear the pre-filled name, then submit — candy-forms' non-blank validator
+        // Clear the pre-filled name, then submit — sugar-forms' non-blank validator
         // gates the submit, so the form stays open with an inline error and no PUT.
         $cleared = $this->clearInput($editing);
         [$still, $cmd] = $this->submit($cleared);
@@ -1118,7 +1118,7 @@ final class AdminLiveTvScreenTest extends TestCase
 
         [$editing] = $screen->update(new KeyMsg(KeyType::Char, 'E'));
         // Set priority to a non-digit value (-1 has a '-' → not ctype_digit), then run
-        // ONE form-level submit (Enter through to the last field). candy-forms gates
+        // ONE form-level submit (Enter through to the last field). sugar-forms gates
         // submit on each field's validator, so the form stays open with the priority
         // field's inline error and fires no PUT.
         $bad = $this->setField($editing, 'priority', '-1');
@@ -1375,7 +1375,7 @@ final class AdminLiveTvScreenTest extends TestCase
      * Run EXACTLY one form-level submit from a known current rule-field: press Enter
      * once per remaining field (the last Enter, on the `days` field, submits).
      * Unlike {@see submit()} this fires a SINGLE submit, so a re-opened (invalid)
-     * form is NOT auto-resubmitted — exposing any wedge. candy-forms returns a
+     * form is NOT auto-resubmitted — exposing any wedge. sugar-forms returns a
      * cursor-blink tick on each advance; the submit result is the LAST press.
      *
      * @return array{AdminLiveTvScreen, ?\Closure}

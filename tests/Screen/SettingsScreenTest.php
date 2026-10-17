@@ -25,7 +25,7 @@ use SugarCraft\Forms\Field\Select;
 use SugarCraft\Forms\Form;
 
 /**
- * The embedded candy-forms Form is driven the way ServerScreenTest drives it:
+ * The embedded sugar-forms Form is driven the way ServerScreenTest drives it:
  * KeyMsgs flow through update(). The form starts focused on the Select (theme);
  * a Select consumes Up/Down (option nav), so focus is moved to the Input with
  * Tab, and Enter on that last field submits. Esc on the (non-filtering) Select

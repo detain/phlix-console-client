@@ -40,7 +40,7 @@ use SugarCraft\Forms\Form;
  * Row actions operate on the selected plugin: `e` toggles enable/disable (calling
  * enable or disable per the current state), `x` uninstalls (an inline y/n confirm
  * on the status line — the same arm-then-y mechanism the Users surface uses),
- * `r` refresh. `i` opens an inline candy-forms text input for an install URL; on
+ * `r` refresh. `i` opens an inline sugar-forms text input for an install URL; on
  * submit it installs the plugin, on Esc it cancels. On success the action's
  * message is toasted and the list refetched; on failure the server `error` is
  * toasted (e.g. "not HTTPS" / "signature invalid") and the list left unchanged;
@@ -235,10 +235,10 @@ final class AdminPluginsScreen implements Breadcrumbed, Themed
         return [$this, null];
     }
 
-    // ---- install input (embedded candy-forms) --------------------------
+    // ---- install input (embedded sugar-forms) --------------------------
 
     /**
-     * Drive the embedded install form. candy-forms' Form returns Cmd::quit() on
+     * Drive the embedded install form. sugar-forms' Form returns Cmd::quit() on
      * submit/abort (it's built to run standalone); we intercept that and
      * substitute our own intent: a non-empty submitted URL installs the plugin, an
      * empty one re-opens the input with an error, and an abort cancels.
@@ -247,7 +247,7 @@ final class AdminPluginsScreen implements Breadcrumbed, Themed
      */
     private function updateInstall(Msg $msg, Form $form): array
     {
-        /** @var array{0: Form, 1: ?\Closure} $result candy-forms' Form::update returns Model's loose `:array`; narrow it. */
+        /** @var array{0: Form, 1: ?\Closure} $result sugar-forms' Form::update returns Model's loose `:array`; narrow it. */
         $result = $form->update($msg);
         [$next, $cmd] = $result;
 

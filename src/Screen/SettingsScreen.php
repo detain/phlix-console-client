@@ -29,7 +29,7 @@ use SugarCraft\Forms\Field\Select;
 use SugarCraft\Forms\Form;
 
 /**
- * The Settings screen: a two-field candy-forms form — a theme picker
+ * The Settings screen: a two-field sugar-forms form — a theme picker
  * (Nocturne / Daylight / Midnight) and the photo-slideshow interval (seconds) —
  * both PRE-FILLED with the user's current values. On submit it emits
  * {@see SettingsSavedMsg} (the App persists + applies the theme LIVE + pops back);
@@ -126,7 +126,7 @@ final class SettingsScreen implements Model, Themed
             return [$this, Cmd::send(new OpenServersMsg())];
         }
 
-        /** @var array{0: Form, 1: ?\Closure} $result candy-forms' Form::update inherits Model's loose `:array` return, so narrow it. */
+        /** @var array{0: Form, 1: ?\Closure} $result sugar-forms' Form::update inherits Model's loose `:array` return, so narrow it. */
         $result = $this->form->update($msg);
         [$form, $cmd] = $result;
 

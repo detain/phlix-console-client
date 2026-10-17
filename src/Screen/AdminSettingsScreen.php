@@ -41,8 +41,8 @@ use SugarCraft\Forms\Form;
  * response's `types` map. Editing is type-based:
  *   - a **bool** key (`e`/Enter) toggles immediately and PUTs the flipped real
  *     bool — no form;
- *   - a **non-bool** key (int/float/string/json) opens an embedded candy-forms
- *     {@see Input} pre-filled with the current display value; the candy-forms
+ *   - a **non-bool** key (int/float/string/json) opens an embedded sugar-forms
+ *     {@see Input} pre-filled with the current display value; the sugar-forms
  *     quit-intercept (abort → cancel / submit → coerce + PUT) keeps the embedded
  *     `Cmd::quit()` from exiting the app (the Plugins/Backup pattern). The input
  *     is coerced by type BEFORE sending: int rejects a non-`^-?\d+$` value, float
@@ -216,10 +216,10 @@ final class AdminSettingsScreen implements Breadcrumbed, Themed
         return [$this->openEdit($setting), null];
     }
 
-    // ---- value-edit input (embedded candy-forms) -----------------------
+    // ---- value-edit input (embedded sugar-forms) -----------------------
 
     /**
-     * Drive the embedded value form. candy-forms' Form returns Cmd::quit() on
+     * Drive the embedded value form. sugar-forms' Form returns Cmd::quit() on
      * submit/abort; we intercept that — an abort cancels, a submit coerces the
      * raw input by the setting's type (rejecting an invalid value with an error
      * toast and re-opening, issuing no request) and PUTs the coerced value.
@@ -228,7 +228,7 @@ final class AdminSettingsScreen implements Breadcrumbed, Themed
      */
     private function updateEdit(Msg $msg, Form $form, ServerSetting $setting): array
     {
-        /** @var array{0: Form, 1: ?\Closure} $result candy-forms' Form::update returns Model's loose `:array`; narrow it. */
+        /** @var array{0: Form, 1: ?\Closure} $result sugar-forms' Form::update returns Model's loose `:array`; narrow it. */
         $result = $form->update($msg);
         [$next, $cmd] = $result;
 

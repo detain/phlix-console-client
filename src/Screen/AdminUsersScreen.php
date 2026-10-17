@@ -45,11 +45,11 @@ use SugarCraft\Forms\Form;
  * actions (delete / reject / disable / toggle-admin) arm an inline confirm shown
  * on the status line ("Delete user 'bob'? (y/n)") — `y` performs it, `n`/Esc
  * cancel. A password reset reveals the once-shown new password prominently (a
- * toast plus the status line). `c` opens an embedded candy-forms create form
+ * toast plus the status line). `c` opens an embedded sugar-forms create form
  * (username · email · password · is-admin); `E` opens a pre-filled edit form for
  * the selected user (a blank password leaves it unchanged, and only changed
  * fields are sent). Both forms client-validate before any request (so a
- * guaranteed-400 never round-trips) and intercept candy-forms' own quit so they
+ * guaranteed-400 never round-trips) and intercept sugar-forms' own quit so they
  * never exit the app. On success the server message is toasted and the list
  * refetched; on failure the server `error` is toasted and the list is left
  * unchanged; an auth failure surfaces a session expiry.
@@ -180,10 +180,10 @@ final class AdminUsersScreen implements Breadcrumbed, Themed
         };
     }
 
-    // ---- create / edit form (embedded candy-forms) ---------------------
+    // ---- create / edit form (embedded sugar-forms) ---------------------
 
     /**
-     * Drive the embedded create / edit form. candy-forms' Form returns
+     * Drive the embedded create / edit form. sugar-forms' Form returns
      * Cmd::quit() on submit/abort; we intercept that — an abort closes the form,
      * a submit client-validates (keeping the form open with an error note on a
      * failure, so a guaranteed-400 never round-trips) then fires the create / edit
@@ -193,7 +193,7 @@ final class AdminUsersScreen implements Breadcrumbed, Themed
      */
     private function updateForm(Msg $msg, Form $form): array
     {
-        /** @var array{0: Form, 1: ?\Closure} $result candy-forms' Form::update returns Model's loose `:array`; narrow it. */
+        /** @var array{0: Form, 1: ?\Closure} $result sugar-forms' Form::update returns Model's loose `:array`; narrow it. */
         $result = $form->update($msg);
         [$next, $cmd] = $result;
 

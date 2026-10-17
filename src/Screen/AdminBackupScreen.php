@@ -39,10 +39,10 @@ use SugarCraft\Forms\Form;
  * retention, next run) driven by lifecycle actions.
  *
  * Actions operate on the selected backup or the schedule: `c` create (with an
- * optional inline label via a candy-forms input — empty allowed → null), `x`
+ * optional inline label via a sugar-forms input — empty allowed → null), `x`
  * delete (a y/n confirm), `R` restore (a STRONG confirm whose prompt warns it
  * OVERWRITES current data — only `y` performs it), `s` upload to S3 (a y/n
- * confirm), `e` edit the schedule (a small two-field numeric candy-forms form,
+ * confirm), `e` edit the schedule (a small two-field numeric sugar-forms form,
  * each validated > 0), `r` refresh. On success the server `message` is toasted
  * and the list (and schedule, when changed) refetched; on failure the server
  * `error` is toasted and the list left unchanged; an auth failure surfaces a
@@ -265,10 +265,10 @@ final class AdminBackupScreen implements Breadcrumbed, Themed
         return [$this, null];
     }
 
-    // ---- create-label input (embedded candy-forms) ---------------------
+    // ---- create-label input (embedded sugar-forms) ---------------------
 
     /**
-     * Drive the embedded create-label form. candy-forms' Form returns
+     * Drive the embedded create-label form. sugar-forms' Form returns
      * Cmd::quit() on submit/abort; we intercept that — a submit (with an
      * optional, possibly-empty label) creates the backup, an abort cancels.
      *
@@ -276,7 +276,7 @@ final class AdminBackupScreen implements Breadcrumbed, Themed
      */
     private function updateLabel(Msg $msg, Form $form): array
     {
-        /** @var array{0: Form, 1: ?\Closure} $result candy-forms' Form::update returns Model's loose `:array`; narrow it. */
+        /** @var array{0: Form, 1: ?\Closure} $result sugar-forms' Form::update returns Model's loose `:array`; narrow it. */
         $result = $form->update($msg);
         [$next, $cmd] = $result;
 
@@ -305,7 +305,7 @@ final class AdminBackupScreen implements Breadcrumbed, Themed
         );
     }
 
-    // ---- schedule-edit form (embedded candy-forms) ---------------------
+    // ---- schedule-edit form (embedded sugar-forms) ---------------------
 
     /**
      * Drive the embedded schedule-edit form. On submit both numeric fields
@@ -316,7 +316,7 @@ final class AdminBackupScreen implements Breadcrumbed, Themed
      */
     private function updateSchedule(Msg $msg, Form $form): array
     {
-        /** @var array{0: Form, 1: ?\Closure} $result candy-forms' Form::update returns Model's loose `:array`; narrow it. */
+        /** @var array{0: Form, 1: ?\Closure} $result sugar-forms' Form::update returns Model's loose `:array`; narrow it. */
         $result = $form->update($msg);
         [$next, $cmd] = $result;
 
@@ -325,7 +325,7 @@ final class AdminBackupScreen implements Breadcrumbed, Themed
         }
 
         if ($next->isSubmitted()) {
-            // candy-forms gates submit on field validation, so both fields are
+            // sugar-forms gates submit on field validation, so both fields are
             // guaranteed whole numbers > 0 here (see their isPositiveInt
             // validators): an invalid value keeps the form open with an inline
             // error and never reaches this branch.

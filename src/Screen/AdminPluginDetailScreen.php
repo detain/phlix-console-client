@@ -41,8 +41,8 @@ use SugarCraft\Forms\Form;
  * keys); editing mirrors the Server-Settings P8.6 typed editor:
  *   - a **bool** field (`e`/Enter) toggles immediately and PUTs the flipped real
  *     bool — no form;
- *   - any **non-bool** field opens an embedded candy-forms {@see Input}; the
- *     candy-forms quit-intercept (abort → cancel / submit → coerce + PUT) keeps
+ *   - any **non-bool** field opens an embedded sugar-forms {@see Input}; the
+ *     sugar-forms quit-intercept (abort → cancel / submit → coerce + PUT) keeps
  *     the embedded `Cmd::quit()` from exiting the app. The input is coerced by the
  *     field type BEFORE sending: int rejects a non-`^-?\d+$` value, float a
  *     non-numeric one, json must decode to an array — an invalid value re-opens
@@ -221,10 +221,10 @@ final class AdminPluginDetailScreen implements Breadcrumbed, Themed
         return [$this->openEdit($field), null];
     }
 
-    // ---- value-edit input (embedded candy-forms) -----------------------
+    // ---- value-edit input (embedded sugar-forms) -----------------------
 
     /**
-     * Drive the embedded value form. candy-forms' Form returns Cmd::quit() on
+     * Drive the embedded value form. sugar-forms' Form returns Cmd::quit() on
      * submit/abort; we intercept that — an abort cancels, a submit coerces the raw
      * input by the field's type (rejecting an invalid value with an error toast and
      * re-opening, issuing no request) and PUTs the coerced value. A blank secret
@@ -234,7 +234,7 @@ final class AdminPluginDetailScreen implements Breadcrumbed, Themed
      */
     private function updateEdit(Msg $msg, Form $form, PluginSettingField $field): array
     {
-        /** @var array{0: Form, 1: ?\Closure} $result candy-forms' Form::update returns Model's loose `:array`; narrow it. */
+        /** @var array{0: Form, 1: ?\Closure} $result sugar-forms' Form::update returns Model's loose `:array`; narrow it. */
         $result = $form->update($msg);
         [$next, $cmd] = $result;
 

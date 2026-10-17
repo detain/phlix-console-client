@@ -78,7 +78,7 @@ final class LoginScreen implements Model, Themed, CapturesSlash
             return [$this, null];
         }
 
-        /** @var array{0: Form, 1: ?\Closure} $result candy-forms' Form::update inherits Model's loose `:array` return, so narrow it. */
+        /** @var array{0: Form, 1: ?\Closure} $result sugar-forms' Form::update inherits Model's loose `:array` return, so narrow it. */
         $result = $this->form->update($msg);
         [$form, $cmd] = $result;
 

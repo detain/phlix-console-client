@@ -54,7 +54,7 @@ use SugarCraft\Forms\Form;
  *
  * `r` refreshes the active section. `Esc` / `q` → NavigateBack.
  *
- * Every form intercepts candy-forms' own quit (abort → cancel / submit →
+ * Every form intercepts sugar-forms' own quit (abort → cancel / submit →
  * validate then act) so it never exits the app. On success the server
  * message is toasted and the list refetched; on failure the server
  * `error` is toasted and the list is left unchanged; an auth failure

@@ -379,7 +379,7 @@ final class AdminPluginsScreenTest extends TestCase
 
     public function testInstallEmptyUrlIsRejectedAtTheBoundary(): void
     {
-        // candy-forms' Input is `required()`, so an empty submit does not fire the
+        // sugar-forms' Input is `required()`, so an empty submit does not fire the
         // form's submit; but if it ever did, the boundary guard re-opens the input
         // with an error toast and installs nothing. Submit with no typed value.
         $screen = $this->loaded((new FakeTransport())->json(200, $this->pluginsPayload()));

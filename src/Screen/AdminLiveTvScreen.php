@@ -59,12 +59,12 @@ use SugarCraft\Forms\Form;
  *   channel/start/end/title/program_id), `S` record the whole series (y/n confirm →
  *   createSeriesRule; armed ONLY when the program carries a `series_id`).
  * - Recordings: `x` delete (y/n confirm), `u` toggle an upcoming-only view ↔ all.
- * - Series Rules: `E` edit a rule (a multi-field candy-forms form — title, priority,
+ * - Series Rules: `E` edit a rule (a multi-field sugar-forms form — title, priority,
  *   pre/post padding, max-recordings, days-ahead, each numeric field client-validated
  *   as a non-negative int → PUT only the provided fields), `x` delete (y/n confirm).
  *
  * CREATE-from-guide (R / S) and the EDIT forms (rule-edit, tuner/channel rename) use
- * the established candy-forms quit-intercept + inline-confirm patterns. On success
+ * the established sugar-forms quit-intercept + inline-confirm patterns. On success
  * the action toasts and refetches the active section; on failure it toasts the
  * (friendly, per LT1) server message and leaves the list unchanged; an auth failure
  * surfaces a session expiry.
@@ -491,13 +491,13 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
         return $this->admin->createRecording($program->channelId, $program->startTime, $program->endTime, $program->title, $program->programId, null);
     }
 
-    // ---- edit / rename forms (embedded candy-forms) --------------------
+    // ---- edit / rename forms (embedded sugar-forms) --------------------
 
     /**
-     * Drive the embedded edit/rename form. candy-forms' Form returns Cmd::quit()
+     * Drive the embedded edit/rename form. sugar-forms' Form returns Cmd::quit()
      * on submit/abort; we intercept that — an abort cancels, a submit pushes only
      * the provided fields (rename → PUT {name}; rule-edit → PUT the changed fields).
-     * candy-forms gates submit on each field's validator, so a submitted form is
+     * sugar-forms gates submit on each field's validator, so a submitted form is
      * always valid: an invalid value keeps the form open with an inline error and
      * `isSubmitted()` stays false, so an invalid form never round-trips.
      *
@@ -505,7 +505,7 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
      */
     private function updateEditForm(Msg $msg, LiveTvEditSession $edit): array
     {
-        /** @var array{0: Form, 1: ?\Closure} $result candy-forms' Form::update returns Model's loose `:array`; narrow it. */
+        /** @var array{0: Form, 1: ?\Closure} $result sugar-forms' Form::update returns Model's loose `:array`; narrow it. */
         $result = $edit->form->update($msg);
         [$next, $cmd] = $result;
 
@@ -520,7 +520,7 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
     }
 
     /**
-     * Map a submitted edit form to its PUT command. candy-forms gates submit on
+     * Map a submitted edit form to its PUT command. sugar-forms gates submit on
      * each field's validator, so by the time we get here every field is valid: a
      * rename's name is non-blank, and each rule numeric is blank (→ kept) or a
      * non-negative int (→ sent). An invalid value never reaches this method — the

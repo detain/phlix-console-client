@@ -530,7 +530,7 @@ final class AdminBackupScreenTest extends TestCase
 
     public function testScheduleEditRejectsAnInvalidZeroValueAtTheBoundary(): void
     {
-        // candy-forms gates submit on each field's validator: interval = 0 fails
+        // sugar-forms gates submit on each field's validator: interval = 0 fails
         // isPositiveInt, so Enter on the last field does NOT submit — the form
         // stays open showing the field's inline error, and no request is made.
         $transport = $this->loadTransport();

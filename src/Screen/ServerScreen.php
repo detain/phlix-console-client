@@ -23,7 +23,7 @@ use SugarCraft\Forms\Field\Input;
 use SugarCraft\Forms\Form;
 
 /**
- * First-run wizard: a one-field candy-forms form asking for the Phlix server
+ * First-run wizard: a one-field sugar-forms form asking for the Phlix server
  * URL. On submit it emits {@see SubmitServerMsg} (the App persists + proceeds);
  * Esc quits.
  *
@@ -70,7 +70,7 @@ final class ServerScreen implements Model, Themed, CapturesSlash
             return [new self($this->form, $this->error, $msg->cols, $msg->rows), null];
         }
 
-        /** @var array{0: Form, 1: ?\Closure} $result candy-forms' Form::update inherits Model's loose `:array` return, so narrow it. */
+        /** @var array{0: Form, 1: ?\Closure} $result sugar-forms' Form::update inherits Model's loose `:array` return, so narrow it. */
         $result = $this->form->update($msg);
         [$form, $cmd] = $result;
 

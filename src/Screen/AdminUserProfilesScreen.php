@@ -38,7 +38,7 @@ use SugarCraft\Forms\Form;
  * (`P` on a selected user): a windowed {@see Table} of that user's profiles
  * (Name · Rating · Active ✓/– · PIN-for-admin ✓/–), driven by per-row actions.
  *
- * `c` opens an embedded candy-forms create form (a name {@see Input} + a rating
+ * `c` opens an embedded sugar-forms create form (a name {@see Input} + a rating
  * {@see Select} of the seven content-rating ENUM labels, defaulting to `R`); on
  * submit the name is client-validated (1–50) and the SELECTED rating index is sent
  * as `rating`. `E` opens a pre-filled edit form (the current name + the rating
@@ -48,7 +48,7 @@ use SugarCraft\Forms\Form;
  * error and issues NO request) then POSTed. `k` arms an inline (y/n) clear-PIN
  * confirm (DELETE). `r` refreshes; ↑/↓ select; Esc/q → NavigateBack.
  *
- * Every form intercepts candy-forms' own quit (abort → cancel / submit → validate
+ * Every form intercepts sugar-forms' own quit (abort → cancel / submit → validate
  * then act) so it never exits the app. On success the server message is toasted
  * and the list refetched; on failure the server `error` is toasted and the list is
  * left unchanged; an auth failure surfaces a session expiry.
@@ -271,10 +271,10 @@ final class AdminUserProfilesScreen implements Breadcrumbed, Themed
         return [$this, null];
     }
 
-    // ---- create / edit form (embedded candy-forms) ---------------------
+    // ---- create / edit form (embedded sugar-forms) ---------------------
 
     /**
-     * Drive the embedded create / edit form. candy-forms' Form returns Cmd::quit()
+     * Drive the embedded create / edit form. sugar-forms' Form returns Cmd::quit()
      * on submit/abort; we intercept that — an abort closes the form, a submit
      * client-validates (keeping the form open with an error note on a failure, so a
      * guaranteed-400 never round-trips) then fires the create / edit request.
@@ -283,7 +283,7 @@ final class AdminUserProfilesScreen implements Breadcrumbed, Themed
      */
     private function updateForm(Msg $msg, Form $form): array
     {
-        /** @var array{0: Form, 1: ?\Closure} $result candy-forms' Form::update returns Model's loose `:array`; narrow it. */
+        /** @var array{0: Form, 1: ?\Closure} $result sugar-forms' Form::update returns Model's loose `:array`; narrow it. */
         $result = $form->update($msg);
         [$next, $cmd] = $result;
 
@@ -405,7 +405,7 @@ final class AdminUserProfilesScreen implements Breadcrumbed, Themed
         return null;
     }
 
-    // ---- set-PIN input (embedded candy-forms) --------------------------
+    // ---- set-PIN input (embedded sugar-forms) --------------------------
 
     /**
      * Drive the embedded PIN input. An abort cancels; a submit client-validates the
@@ -416,7 +416,7 @@ final class AdminUserProfilesScreen implements Breadcrumbed, Themed
      */
     private function updatePin(Msg $msg, Form $form, Profile $profile): array
     {
-        /** @var array{0: Form, 1: ?\Closure} $result candy-forms' Form::update returns Model's loose `:array`; narrow it. */
+        /** @var array{0: Form, 1: ?\Closure} $result sugar-forms' Form::update returns Model's loose `:array`; narrow it. */
         $result = $form->update($msg);
         [$next, $cmd] = $result;
 
