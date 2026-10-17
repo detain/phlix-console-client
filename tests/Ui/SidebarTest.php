@@ -7,7 +7,7 @@ namespace Phlix\Console\Tests\Ui;
 use Phlix\Console\Ui\Sidebar;
 use PHPUnit\Framework\TestCase;
 use SugarCraft\Core\Util\Ansi;
-use SugarCraft\Sprinkles\Style;
+use SugarCraft\Style\Style;
 
 final class SidebarTest extends TestCase
 {

@@ -11,7 +11,7 @@ namespace Phlix\Console\Ui;
 
 use Phlix\Console\Api\Dto\Chapter;
 use SugarCraft\Boxer\SugarBoxer;
-use SugarCraft\Sprinkles\Style;
+use SugarCraft\Style\Style;
 use SugarCraft\Veil\Position;
 use SugarCraft\Veil\Veil;
 

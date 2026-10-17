@@ -10,7 +10,7 @@ declare(strict_types=1);
 namespace Phlix\Console\Ui;
 
 use SugarCraft\Core\Util\Width;
-use SugarCraft\Sprinkles\Style;
+use SugarCraft\Style\Style;
 
 /**
  * The libraries left-nav: a fixed-width vertical list of library entries with a

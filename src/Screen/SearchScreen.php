@@ -34,7 +34,7 @@ use SugarCraft\Core\SubscriptionCapable;
 use SugarCraft\Fuzzy\Highlighter;
 use SugarCraft\Fuzzy\Matcher\SmithWatermanMatcher;
 use SugarCraft\Gallery\PosterGrid;
-use SugarCraft\Sprinkles\Style;
+use SugarCraft\Style\Style;
 
 /**
  * Global search: a persistent debounced query box over a 2-D virtualized

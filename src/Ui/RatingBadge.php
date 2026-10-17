@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Ui;
 
-use SugarCraft\Sprinkles\Style;
+use SugarCraft\Style\Style;
 
 /**
  * Renders a star-based rating badge for display in the terminal.

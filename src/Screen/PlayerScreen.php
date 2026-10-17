@@ -92,7 +92,7 @@ use SugarCraft\Reel\Player;
 use SugarCraft\Reel\Subtitle\WebVtt;
 use SugarCraft\Reel\Render\Mode;
 use SugarCraft\Reel\Render\RendererFactory;
-use SugarCraft\Sprinkles\Style;
+use SugarCraft\Style\Style;
 use React\Promise\PromiseInterface;
 
 use function React\Promise\reject;

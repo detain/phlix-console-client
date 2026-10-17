@@ -7,7 +7,7 @@ namespace Phlix\Console\Tests\Ui;
 use Phlix\Console\Api\Dto\LetterIndex;
 use Phlix\Console\Ui\LetterRail;
 use PHPUnit\Framework\TestCase;
-use SugarCraft\Sprinkles\Layout;
+use SugarCraft\Style\Layout;
 
 final class LetterRailTest extends TestCase
 {

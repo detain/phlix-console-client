@@ -50,7 +50,7 @@ use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\SubscriptionCapable;
 use SugarCraft\Focus\FocusRing;
 use SugarCraft\Gallery\Rail;
-use SugarCraft\Sprinkles\Layout;
+use SugarCraft\Style\Layout;
 
 /**
  * Browse home. Loads Continue Watching plus one rail per library and renders

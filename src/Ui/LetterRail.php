@@ -10,7 +10,7 @@ declare(strict_types=1);
 namespace Phlix\Console\Ui;
 
 use Phlix\Console\Api\Dto\LetterIndex;
-use SugarCraft\Sprinkles\Style;
+use SugarCraft\Style\Style;
 
 /**
  * A one-row A–Z jump bar bound to a {@see LetterIndex}: `#` then `A`–`Z`, with

@@ -72,8 +72,8 @@ use SugarCraft\Core\Util\Color;
 use SugarCraft\Core\Util\Width;
 use SugarCraft\Gallery\PosterGrid;
 use SugarCraft\Markdown\Renderer;
-use SugarCraft\Sprinkles\Layout;
-use SugarCraft\Sprinkles\Style;
+use SugarCraft\Style\Layout;
+use SugarCraft\Style\Style;
 
 /**
  * A single item's detail, in one of two modes decided by the loaded item:

@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Ui;
 
-use SugarCraft\Sprinkles\Style;
+use SugarCraft\Style\Style;
 
 /**
  * Renders a recommendation card in the terminal.

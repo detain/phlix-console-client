@@ -27,8 +27,8 @@ use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\SubscriptionCapable;
 use SugarCraft\Core\Util\Width;
-use SugarCraft\Sprinkles\Layout;
-use SugarCraft\Sprinkles\Style;
+use SugarCraft\Style\Layout;
+use SugarCraft\Style\Style;
 
 /**
  * A single book's detail: a hero cover beside a metadata column (title,

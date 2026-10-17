@@ -11,7 +11,7 @@ namespace Phlix\Console\Ui;
 
 use Phlix\Console\Api\Dto\Chapter;
 use SugarCraft\Core\Util\Width;
-use SugarCraft\Sprinkles\Style;
+use SugarCraft\Style\Style;
 
 /**
  * The player's progress bar: `m:ss [████████│░░░░░░░] h:mm:ss`.

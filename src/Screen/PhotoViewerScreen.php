@@ -29,8 +29,8 @@ use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\SubscriptionCapable;
 use SugarCraft\Core\Util\Width;
-use SugarCraft\Sprinkles\Layout;
-use SugarCraft\Sprinkles\Style;
+use SugarCraft\Style\Layout;
+use SugarCraft\Style\Style;
 
 /**
  * The fullscreen photo viewer: the current photo's full image fills the body,

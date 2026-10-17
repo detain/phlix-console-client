@@ -10,7 +10,7 @@ declare(strict_types=1);
 namespace Phlix\Console\Ui;
 
 use SugarCraft\Boxer\SugarBoxer;
-use SugarCraft\Sprinkles\Style;
+use SugarCraft\Style\Style;
 use SugarCraft\Veil\Position;
 use SugarCraft\Veil\Veil;
 

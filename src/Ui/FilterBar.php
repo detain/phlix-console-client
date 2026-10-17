@@ -12,7 +12,7 @@ namespace Phlix\Console\Ui;
 use Phlix\Console\I18n\Lang;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Msg\KeyMsg;
-use SugarCraft\Sprinkles\Style;
+use SugarCraft\Style\Style;
 
 /**
  * The library filter/sort controls, shown as one row in "filter mode": a search

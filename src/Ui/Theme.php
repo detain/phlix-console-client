@@ -10,7 +10,7 @@ declare(strict_types=1);
 namespace Phlix\Console\Ui;
 
 use SugarCraft\Core\Util\Color;
-use SugarCraft\Sprinkles\Style;
+use SugarCraft\Style\Style;
 
 /**
  * A named colour theme for the app shell. T1 keeps it to two colour tokens:
