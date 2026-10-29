@@ -5,6 +5,49 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — admin tables degrade by dropping named columns; the primary column never vanishes (review console__uxdesign, M-CONSOLE-46) — 2026-10-29
+
+- **The defect.** `Table::render` passed the caller's column spec straight to
+  sugar-table, whose width solver deducts every named column AND a 1-cell gap
+  per column boundary before the `width: 0` flex column gets what remains —
+  on narrow terminals the remainder went negative and the PRIMARY SILENTLY
+  VANISHED (measured at HEAD on AdminUsersScreen's 68-col spec rendered into
+  `cols - 4`: Username was a 4-cell stub at 76 content cols — 80-col terminal,
+  the app's most common venue — deleted with its header at ≤72, and at 60 the
+  clip ate even the last fixed header). No priority or degrade policy existed
+  anywhere in the stack; ~31 call sites shared the pattern.
+- **The cure.** One budget pre-pass at the same choke point:
+  `Table::reservePrimaryColumns()` drops the RIGHTMOST named column until
+  every kept column can show its own header (primary floor = its header's
+  DISPLAY width via `Width::string`, grapheme/East-Asian aware, additionally
+  floored at 4 cells for degenerate empty-title specs), spending the same
+  gap-cell currency the vendored solver charges. Declaration order IS
+  priority — every screen already lists its identifier first and its
+  trailing metadata last. The primary is never dropped: at worst it renders
+  at its own floor with sugar-table's honest `…`-marked truncation. Tables
+  that fit (every wide-terminal render) and tables with no primary at all
+  pass through byte-identical. No caller specs changed; no display strings,
+  so the 7-locale catalogs are untouched.
+- **Pins.** `tests/Ui/TableTest.php` +6 tests (red-on-parent: the 80-col-band
+  stub test, the never-deleted sweep, and the ladder test — the other three
+  are overreach guards); the sweep asserts the Username header and a full
+  `alice` cell survive every content width 8..120 with every line exactly
+  the requested width; the ladder pins the exact drop boundaries (Last login
+  below 80, Status below 59, Role below 48, Email below 39); a 1..7 sweep
+  pins the primary shrinking to its honest truncation instead of being
+  deleted; the width-100 header line is pinned BYTE-IDENTICAL to the
+  pre-cure render. Mutation probes: charging no gap cells reddens 3 tests;
+  removing the pre-pass reddens 3; letting the ladder eat the primary itself
+  reddens the degenerate-width pin (the first two law tests alone were
+  blind to it — the sweep floor was lowered to expose it).
+- **Verification.** Suite 3219→3225 tests / 17793→18501 assertions (both
+  sides measured serial at this head; 14 deprecations / 9 skips unchanged),
+  0 failures. phpstan src unchanged at the one pre-existing inherited
+  `AdminClient::alternatePosters()` red (owner-reel-tracked, not this file);
+  phpstan-tests clean. phpcs `phpcs.xml`/`phpcs-tests.xml` exit 0; bare PSR12
+  shows only the signature-line warning inherited from HEAD. i18n hardcoded
+  + catalogs gates green.
+
 ### Changed — Servers-screen `a` key wired to a real inline add-server form (review console__tuiarch, M-CONSOLE-40) — 2026-10-29
 
 - **The defect.** The class docblock promised "'a' add a server manually (URL +

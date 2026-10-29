@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Ui;
 
+use SugarCraft\Core\Util\Width;
 use SugarCraft\Table\Column;
 use SugarCraft\Table\ColumnWidth;
 use SugarCraft\Table\Row;
@@ -29,9 +30,30 @@ use SugarCraft\Table\Table as SugarTable;
  * Borderless so it nests in Chrome's content box without a double border;
  * width-exact so the table is precisely the given content width; the selected row
  * renders real reverse-video spanning the full row.
+ *
+ * When the caller's width cannot pay for the declared columns, the layout
+ * degrades GRACEFULLY instead of silently deleting its primary column: named
+ * (fixed-width) columns are dropped right-to-left until the `width: 0` primary
+ * has room to show its own header — {@see reservePrimaryColumns()}.
  */
 final class Table
 {
+    /**
+     * Cells sugar-table reserves between adjacent columns. Measured from the
+     * vendored width solver (it deducts `count - 1` gap cells before dividing
+     * the remainder among flex columns), so the budget law below spends the
+     * same currency the renderer will.
+     */
+    private const COLUMN_GAP = 1;
+
+    /**
+     * The floor the primary column gets even when its header is shorter (an
+     * empty or tiny title must not re-open the zero-width vanishing act this
+     * cures — four cells is the narrowest honest cell: a cluster plus the
+     * truncation marker).
+     */
+    private const PRIMARY_MIN_WIDTH = 4;
+
     /**
      * Render the table to `\n`-joined lines: a header, a rule, then the data rows
      * windowed to $viewportRows around $selected (the library handles the window
@@ -39,7 +61,8 @@ final class Table
      *
      * @param list<array{title: string, width: int, align?: string}> $columns each column's
      *        header title, fixed width (0 = the single flex column, filling the remainder), and
-     *        optional 'right' alignment (default left)
+     *        optional 'right' alignment (default left). When the budget cannot fit the table,
+     *        named columns drop right-to-left; the primary (width 0) never vanishes silently.
      * @param list<list<string>> $rows each row = one cell string per column, in column order
      * @param int $selected index into $rows of the selected (cursor) row
      * @param int $totalWidth the available content width (caller passes `cols - 4`)
@@ -51,9 +74,10 @@ final class Table
     {
         $count = count($rows);
         $viewport = max(1, $viewportRows);
+        $kept = self::reservePrimaryColumns($columns, $totalWidth);
 
-        return SugarTable::fromColumns(self::columns($columns))
-            ->withRows(self::rows($columns, $rows))
+        return SugarTable::fromColumns(self::columns($kept))
+            ->withRows(self::rows($kept, $rows))
             ->withBorderless()
             ->withWidth(max(1, $totalWidth))
             ->withCellPadding(0)
@@ -65,7 +89,83 @@ final class Table
     }
 
     /**
+     * Degrade a table whose declared columns do not fit (M-CONSOLE-46).
+     *
+     * The `width: 0` column is the table's primary — sugar-table solves it as
+     * "whatever remains after every named column and its gap cell", so on a
+     * narrow terminal the remainder went NEGATIVE and the primary silently
+     * vanished: AdminUsersScreen's Username column rendered as a 4-cell stub
+     * at 80 terminal cols (76 content) and as zero cells — deleted, header
+     * included — at 76 terminal cols. Measured at HEAD before this cure.
+     *
+     * The law: declaration order IS priority. Every screen declares its
+     * identifier first and its trailing metadata last, so when the budget
+     * cannot fit the table the RIGHTMOST named column yields, one at a time,
+     * until every kept column can show at least its own header (the primary
+     * additionally floored at {@see PRIMARY_MIN_WIDTH}). The primary is never
+     * dropped; at worst it keeps a sugar-table `…`-marked truncation, which
+     * is honest, instead of silent deletion. A table that fits — every
+     * wide-terminal render — passes through untouched, byte-identical, and so
+     * does a table with no primary at all (nothing to protect).
+     *
      * @param list<array{title: string, width: int, align?: string}> $columns
+     * @return array<int, array{title: string, width: int, align?: string}> kept
+     *         columns with their ORIGINAL keys, so {@see rows()} still reads
+     *         cell `$i` of each row for the kept column `$i`
+     */
+    private static function reservePrimaryColumns(array $columns, int $totalWidth): array
+    {
+        $hasPrimary = false;
+        foreach ($columns as $column) {
+            if ($column['width'] === 0) {
+                $hasPrimary = true;
+                break;
+            }
+        }
+        if (!$hasPrimary) {
+            return $columns;
+        }
+
+        $kept = $columns;
+        while (self::minimumWidth($kept) > $totalWidth) {
+            $rightmostNamed = null;
+            foreach ($kept as $index => $column) {
+                if ($column['width'] !== 0) {
+                    $rightmostNamed = $index;
+                }
+            }
+            if ($rightmostNamed === null) {
+                break;
+            }
+            unset($kept[$rightmostNamed]);
+        }
+
+        return $kept;
+    }
+
+    /**
+     * The narrowest width at which every column can show its own header: each
+     * named column's declared width, each primary's header width (floored),
+     * plus sugar-table's gap cell between every adjacent pair.
+     *
+     * @param array<int, array{title: string, width: int, align?: string}> $columns
+     */
+    private static function minimumWidth(array $columns): int
+    {
+        $width = max(0, count($columns) - 1) * self::COLUMN_GAP;
+        foreach ($columns as $column) {
+            $width += $column['width'] === 0
+                ? max(self::PRIMARY_MIN_WIDTH, Width::string($column['title']))
+                : max(0, $column['width']);
+        }
+
+        return $width;
+    }
+
+    /**
+     * @param array<int, array{title: string, width: int, align?: string}> $columns
+     *        original keys allowed (the drop ladder leaves gaps); each entry
+     *        appends to the true list sugar-table is handed
      * @return list<Column>
      */
     private static function columns(array $columns): array
@@ -85,7 +185,9 @@ final class Table
     }
 
     /**
-     * @param list<array{title: string, width: int, align?: string}> $columns
+     * @param array<int, array{title: string, width: int, align?: string}> $columns
+     *        original keys allowed; each row's cell at index `$i` feeds the
+     *        kept column `$i`
      * @param list<list<string>> $rows
      * @return list<Row>
      */
