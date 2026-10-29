@@ -5,6 +5,33 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — truncation honors display cells at the shared choke; the codepoint-counting admin family is extinct (review console__uxdesign, M-CONSOLE-47) — 2026-10-29
+
+- **The defect.** `AdminDuplicatesScreen`, `AdminWatchHistoryScreen` and
+  `AdminWebhooksScreen` each carried a byte-identical private `truncate()`
+  counting CODEPOINTS (`mb_strlen`/`mb_substr`) where the terminal bills
+  CELLS: the review measured `怪物映画の非常に長いタイトル` (28 cells, 14
+  codepoints) coming back 19 columns wide on a 10-cell budget — every CJK or
+  emoji media title blew its table column ~2×. The same codepoint cut can
+  split a ZWJ family emoji or orphan a combining mark, and
+  `ExceptionSentences::clamp()` shared that weakness via `mb_strimwidth`.
+- **The choke.** New `Ui\Truncate::withEllipsis(string $text, int $maxCells)`
+  over the vendor's grapheme + east-asian-width `Width` splitter (the same
+  helper Sidebar/DetailScreen/Playlists already call directly): result never
+  exceeds the budget, surviving clusters are always whole, the ellipsis
+  appears exactly when a cut happened, `$maxCells <= 0` yields `''`.
+  All three screens' cells and the exception-sentence clamp now route through
+  it; the private copies are deleted and the `ScreenConcernSingleSourceTest`
+  ratchet baseline drops its `truncate:189b1d7818ff => 3` row.
+- **Pins.** +2 files / +13 tests / +1027 assertions (suite 3264 → 3277,
+  deprecation and skip counters unchanged): width tables (CJK 28-at-10, ZWJ
+  never severed, no lone trailing combining mark at any budget, invariant
+  sweep over a mixed corpus at budgets 1..40), per-screen cell pins driven
+  through the public `update(LoadedMsg)` seam (red on the old helpers:
+  46 vs 28 and 52 vs 40 cells measured), and an extinction + caller-route
+  census over `src/`. Mutation probe: reverting one caller reddens exactly
+  its three named pins.
+
 ### Fixed — compositor honors single-logical-line graphics frames; overlays measure display width, not blob lines (review console__tuispec, M-CONSOLE-42) — 2026-10-29
 
 - **The defect.** `PlayerScreen::renderBase()` deliberately keeps a graphics-mode

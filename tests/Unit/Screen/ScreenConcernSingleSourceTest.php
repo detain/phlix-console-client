@@ -139,7 +139,6 @@ final class ScreenConcernSingleSourceTest extends TestCase
         'teardown:145ee1b308bc' => 5,
         'theme:61420ee16bc0' => 2,
         'total:86673e3933c3' => 3,
-        'truncate:189b1d7818ff' => 3,
         'update:1bbbc8158a55' => 2,
         'update:b40497285a79' => 2,
         'updateForm:4d71c619238d' => 2,

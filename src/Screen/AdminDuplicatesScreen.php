@@ -19,6 +19,7 @@ use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\Table;
+use Phlix\Console\Ui\Truncate;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Msg;
@@ -404,7 +405,7 @@ final class AdminDuplicatesScreen implements Breadcrumbed, Themed
             $dupLabel = $dupCount === 1 ? '1 item' : "{$dupCount} items";
 
             $rows[] = [
-                $this->truncate($primaryName, $this->cols - 32),
+                Truncate::withEllipsis($primaryName, $this->cols - 32),
                 $type,
                 $dupLabel,
             ];
@@ -445,7 +446,7 @@ final class AdminDuplicatesScreen implements Breadcrumbed, Themed
                 if ($dupName === '') {
                     $dupName = '(unknown)';
                 }
-                $rows[] = [$this->truncate($dupName, $this->cols - 8)];
+                $rows[] = [Truncate::withEllipsis($dupName, $this->cols - 8)];
             }
 
             $table = Table::render(
@@ -468,18 +469,6 @@ final class AdminDuplicatesScreen implements Breadcrumbed, Themed
         }
 
         return "\n" . implode("\n", $lines);
-    }
-
-    private function truncate(string $text, int $maxWidth): string
-    {
-        if ($maxWidth <= 0) {
-            return '';
-        }
-        if (mb_strlen($text, 'UTF-8') <= $maxWidth) {
-            return $text;
-        }
-
-        return mb_substr($text, 0, $maxWidth - 1, 'UTF-8') . '…';
     }
 
     // ---- breadcrumb ----------------------------------------------------

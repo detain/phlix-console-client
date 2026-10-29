@@ -18,6 +18,7 @@ use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\Table;
+use Phlix\Console\Ui\Truncate;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Msg;
@@ -215,7 +216,7 @@ final class AdminWebhooksScreen implements Breadcrumbed, Themed
             $enabled = !empty($webhook['enabled']) ? 'Yes' : 'No';
 
             $rows[] = [
-                $this->truncate($url, $this->cols - 40),
+                Truncate::withEllipsis($url, $this->cols - 40),
                 $events,
                 $enabled,
             ];
@@ -241,18 +242,6 @@ final class AdminWebhooksScreen implements Breadcrumbed, Themed
         $suffix = count($events) > 3 ? ' …' : '';
 
         return implode(', ', $labels) . $suffix;
-    }
-
-    private function truncate(string $text, int $maxWidth): string
-    {
-        if ($maxWidth <= 0) {
-            return '';
-        }
-        if (mb_strlen($text, 'UTF-8') <= $maxWidth) {
-            return $text;
-        }
-
-        return mb_substr($text, 0, $maxWidth - 1, 'UTF-8') . '…';
     }
 
     // ---- breadcrumb ----------------------------------------------------

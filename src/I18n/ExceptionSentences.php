@@ -11,6 +11,7 @@ namespace Phlix\Console\I18n;
 
 use Phlix\Console\Api\ApiError;
 use Phlix\Console\Api\NetworkError;
+use Phlix\Console\Ui\Truncate;
 
 /**
  * Turns a {@see \Throwable} into a single end-user-safe sentence.
@@ -122,11 +123,8 @@ final class ExceptionSentences
     private static function clamp(string $text): string
     {
         $flat = trim((string) preg_replace('/\s+/u', ' ', $text));
-        if (mb_strwidth($flat, 'UTF-8') <= self::REASON_MAX_CELLS) {
-            return $flat;
-        }
 
-        return rtrim(mb_strimwidth($flat, 0, self::REASON_MAX_CELLS - 1, '', 'UTF-8')) . '…';
+        return Truncate::withEllipsis($flat, self::REASON_MAX_CELLS);
     }
 
     private static function terminate(string $sentence): string

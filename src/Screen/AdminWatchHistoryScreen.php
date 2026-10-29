@@ -19,6 +19,7 @@ use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\Table;
+use Phlix\Console\Ui\Truncate;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Msg;
@@ -260,7 +261,7 @@ final class AdminWatchHistoryScreen implements Breadcrumbed, Themed
             $rows[] = [
                 $entry->username,
                 $entry->profileName,
-                $this->truncate($entry->mediaName, $this->cols - 72),
+                Truncate::withEllipsis($entry->mediaName, $this->cols - 72),
                 $progress,
                 $status,
                 $lastWatched,
@@ -292,18 +293,6 @@ final class AdminWatchHistoryScreen implements Breadcrumbed, Themed
         } catch (\Throwable) {
             return $ts;
         }
-    }
-
-    private function truncate(string $text, int $maxWidth): string
-    {
-        if ($maxWidth <= 0) {
-            return '';
-        }
-        if (mb_strlen($text, 'UTF-8') <= $maxWidth) {
-            return $text;
-        }
-
-        return mb_substr($text, 0, $maxWidth - 1, 'UTF-8') . '…';
     }
 
     // ---- breadcrumb ----------------------------------------------------
