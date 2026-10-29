@@ -5,6 +5,34 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — six shipped player keys documented in both key tables + a token-pinned docs guard (review console__a11y, M-CONSOLE-02) — 2026-10-29
+
+- **What.** `a`/`A` (audio-track picker), `S` (subtitle-track picker),
+  `C` (chapter picker), `w`/`W` ("For You" recommendations), `y`/`Y`
+  (SyncPlay room modal) and `z`/`Z` (sleep timer) are handled by
+  `src/Screen/PlayerScreen.php` (arms at `:1449`/`:1454`/`:1459`/`:1491`/
+  `:1496`/`:1501` as of `8854648`) yet appeared in NO documentation table:
+  the README "**In the player:**" line and the `docs/clients/console.md`
+  "Media playback" table both stopped at the eight siblings. The shift
+  semantics are also non-obvious — `S`/`C` are picker-only arms that
+  consume the shift rune before the unshifted `s` skip / `c` captions
+  arms can see them.
+- **Cure.** Truth read off the code, into both tables: all six arms with
+  their preconditions (the three pickers open only when the item actually
+  has audio tracks / subtitle tracks / chapters; `z` presets are
+  15/30/45/60/90/120 min and pause playback at expiry; `y`'s modal toggles
+  public/private with `p` while naming a new room; every player key is
+  inert until the stream is up; an open picker/modal captures keystrokes).
+  New `tests/Docs/PlayerKeyDocsTest.php` parses the handler's single-letter
+  `$msg->rune` arms from the token stream (census pin: 14 keys — `q f v a
+  S C s o c n p w y z`) and requires each in both tables, failing loudly
+  when a section marker moves. Red-on-old proof: against the `8854648` doc
+  blobs it reports missing exactly `[a, S, C, w, y, z]`. Suite
+  3061→3064 tests / 14068→14071 assertions (+3/+3 exact; skips 9 and the
+  13 pre-existing deprecations held); phpstan-tests, both phpcs standards
+  and the i18n checks green; `src/` untouched (the lone phpstan-prod red at
+  `AdminClient::alternatePosters` pre-dates this change, fix lane owed).
+
 ### Changed — CI baseline doc re-anchored to the commands the workflows actually run (review console__writer, M-CONSOLE-53) — 2026-10-29
 
 - **What.** `docs/steps/ci-baseline-C9.md` had drifted against `ci.yml`/

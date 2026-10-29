@@ -243,10 +243,21 @@ bin/phlix poster /path/to/poster.jpg 40
 | `s` | Skip intro/outro (if markers are set) |
 | `o` | Start over |
 | `c` | Toggle captions |
+| `a` | Audio-track picker (when the item exposes audio tracks) |
+| `S` | Subtitle-track picker (shift; when the item has subtitle tracks — lowercase `s` stays skip intro/outro) |
+| `C` | Chapter picker (shift; when the item has chapters — lowercase `c` stays toggle captions) |
 | `v` | Quality selector (only shown during transcoded playback) |
 | `n` / `p` | Next / previous episode |
+| `w` | "For You" recommendations (opens the recommendations screen) |
+| `y` | SyncPlay modal (create or join a room; while naming a new room, `p` toggles public/private) |
+| `z` | Sleep-timer picker (presets 15/30/45/60/90/120 min; playback pauses when the countdown expires) |
 | `f` | Toggle player chrome |
 | `q` or `Esc` | Back / close player |
+
+All player keys are inert until the stream is up. While a picker or modal is
+open it captures every keystroke: `↑`/`↓` move, `Enter` picks (or confirms),
+`q`/`Esc` dismisses (the SyncPlay modal steps back to the room list before
+closing when you are mid-creation).
 
 #### Media detail
 
