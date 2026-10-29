@@ -5,6 +5,38 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — detail-screen manual promises to rendered truth; new claims-pin guard (review console__enduser, M-CONSOLE-23) — 2026-10-29
+
+- **The defect.** The Overview bullet promised a "Media detail
+  screen with cast, chapters, and recommendations" and the Screens
+  row "Hero poster, metadata, synopsis, cast, chapters,
+  recommendations" — but `src/Screen/DetailScreen.php` renders
+  neither: chapters are the player's `C` overlay
+  (`PlayerScreen::openChapterMenu()`) and "For You" recommendations
+  are a separate screen opened only from the player's `w`
+  (`OpenRecommendationsMsg` → `App`'s `RecommendationsScreen`). The
+  two `cured-by` queue marks (C24/C25) were verified to belong to
+  other items — `a96ae71` fixed the `detail.loading_hint` i18n key
+  and `5e33c84` docs token naming — neither touched these lines.
+  A third false site: the `docs/dev/client-console.md` file-tree
+  comment listing "chapters" under DetailScreen.
+- **Cure.** Bullet and Screens row reworded to what the column
+  actually draws — hero, metadata, genres, crew, cast, a scrollable
+  synopsis, and the conditional "More Like This" rail (`fetchSimilar()`
+  → `GET /api/v1/media/{id}/similar`, rendered only when the server
+  returns a non-empty list); the dev-doc comment now names the rail.
+  The true chapter/`w` player story (M-CONSOLE-22-era rows) was left
+  untouched.
+- **Guard.** New `tests/Docs/DetailScreenClaimsDocsTest.php` (5
+  tests/15 assertions): banned-vocabulary check on both detail-side
+  promises, verbatim pins of the two sentences, a promised-noun →
+  DetailScreen producer-regex map, the rail label pinned to
+  `Lang::t('detail.more_like_this')` + the `en.php` string, and
+  anti-erasure pins that the player `C`/`w` rows and their producers
+  stay documented. Mutation-proven: parent's row re-added → 2 reds;
+  `appendCastLines` renamed → 1 red; the `C` key row deleted → 1 red.
+  Suite 3174 tests/16884 assertions (+5/+15 exact), 0 failures.
+
 ### Fixed — three manual screen rows to their handlers' exact truth (review console__enduser, M-CONSOLE-22 follow-through) — 2026-10-29
 
 - **The defect.** The freshly added rows overstated or omitted key

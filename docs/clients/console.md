@@ -16,7 +16,8 @@ terminal via Unicode/ANSI cell rendering.
 - Browse all library types: movies, TV shows, music, books, audiobooks, photos
 - Poster grid with virtualized scrolling, filtering, and A–Z jump
 - Series → season → episode drill-down with a breadcrumb trail
-- Media detail screen with cast, chapters, and recommendations
+- Media detail screen with cast, a scrollable synopsis, and a "More Like This"
+  rail of similar titles
 - In-terminal video player with subtitle support and chapter markers
 - In-player track pickers for the audio, subtitle, and chapter tracks an item
   exposes, plus a quality selector during transcoded playback
@@ -320,7 +321,7 @@ show yet, the screen says so.
 | --- | --- |
 | **Home** | Library rails + sidebar, tab between them |
 | **Library** | Virtualized poster grid for a single library |
-| **Detail** | Hero poster, metadata, synopsis, cast, chapters, recommendations |
+| **Detail** | Hero poster, metadata, genres, crew, cast, and a scrollable synopsis; a "More Like This" rail of similar titles loads in the background and appears when the server has them |
 | **Series** | Season list → episode list with breadcrumbs |
 | **Music** | Album list → track table; Enter plays |
 | **Music Artists** | Artist list → that artist's albums; Enter opens (palette → Music Artists) |

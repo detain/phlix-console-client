@@ -87,7 +87,7 @@ src/
 │   ├── BrowseScreen.php    # Home: poster rails + sidebar (Tab / Shift-Tab focus)
 │   ├── LibraryScreen.php   # Virtualized poster grid for one library
 │   ├── LoginScreen.php, RegisterScreen.php, ServerScreen.php
-│   ├── DetailScreen.php    # Media detail: poster, metadata, cast, chapters
+│   ├── DetailScreen.php    # Media detail: poster, metadata, cast, "More Like This"
 │   ├── PlayerScreen.php    # In-terminal video player
 │   ├── SearchScreen.php    # Global search results grid
 │   ├── MusicScreen.php, AlbumScreen.php
