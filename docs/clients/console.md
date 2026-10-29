@@ -322,7 +322,7 @@ show yet, the screen says so.
 | **Home** | Library rails + sidebar, tab between them |
 | **Library** | Virtualized poster grid for a single library |
 | **Detail** | Hero poster, metadata, genres, crew, cast, and a scrollable synopsis; a "More Like This" rail of similar titles loads in the background and appears when the server has them |
-| **Series** | Season list → episode list with breadcrumbs |
+| **Series** | Not a screen of its own — `Enter` on a series opens nested **Detail** screens in container mode: a seasons grid, then each season's episodes grid, with breadcrumbs tracking the drill-down |
 | **Music** | Album list → track table; Enter plays |
 | **Music Artists** | Artist list → that artist's albums; Enter opens (palette → Music Artists) |
 | **Audiobooks** | List → chapter table; Enter plays, `r` resumes |
@@ -334,12 +334,12 @@ show yet, the screen says so.
 | **Command palette** | Fuzzy-ranked actions: Search, Home, Settings, Stats, Watch History, Favorites, Photos, Music Artists, Playlists, Collections, Servers, Shared With Me, Invite Links, Federation Shares, Show metrics / Hide metrics, Log out, Quit — plus a `Go to <library>` jump per library, Admin when signed in as an admin, and Resume playback / Pause playback and Stop playback while a music or audiobook session is live |
 | **Admin** | Admin menu over the server: dashboard, users, auth providers, backups, plugins (install / catalog / edit / updates), logs, metrics, server settings, transcoding, libraries, filesystem, DLNA, port-forward candidates, server restart, live TV, parental profiles and controls, watch history, webhooks, duplicates |
 | **Settings** | Theme selection, photo slideshow interval; `s` opens **Servers**, `l` logs out |
-| **Stats** | Diagnostic metrics HUD |
+| **Stats** | Read-only server statistics screen — counts and health reported by the server via the admin API; the live metrics HUD is separate, toggled by the palette's Show/Hide metrics actions |
 | **Server Setup** | The first-run server-URL form — `Enter` connects, `Esc` quits |
 | **Login** | Sign-in form — `Tab` moves fields, `Enter` signs in, `s` opens **Register**, `Esc` quits |
 | **Register** | Sign-up form (username, email, password); on success you are signed straight in |
-| **Collections** | Your collections; `Enter` opens one, `d` deletes it (typed `delete` confirms); items are added/removed from the collection's detail screen |
-| **Playlists** | Your playlists — the same server-side list as Collections (`GET /api/v1/collections`), with the same keys |
+| **Collections** | Your collections; `Enter` opens one, `d` deletes it (typed `delete` confirms); `a`/`r` show a notice only — item add/remove is NOT implemented in the console (the notice's "collection detail screen" is a mislabel: the detail screen has no membership surface; collection contents are managed on the server's web portal) |
+| **Playlists** | Your playlists — the same server-side list as Collections (`GET /api/v1/collections`), with the same keys including the notice-only `a`/`r` pair |
 | **Favorites** | Everything you favorited (`F` toggles on a detail screen); `Enter` opens |
 | **Recently Watched** | Your watch history — `H` on the home sidebar or the palette's Watch History action; `Enter` opens the recorded item's detail screen |
 | **Recommendations** | "For You" — personal suggestions built from your watching (`GET /api/v1/me/recommendations`); opened with `w` in the player, `Enter` opens, `x` dismisses a suggestion |

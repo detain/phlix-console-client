@@ -5,6 +5,37 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Collections/Playlists rows to shipped membership truth; Series/Stats row attribution (review console__enduser, M-CONSOLE-22 round 2) — 2026-10-29
+
+- **The defect.** The r1 review proved the Collections row ("items are
+  added/removed from the collection's detail screen") a phantom:
+  `DetailScreen.php` carries zero membership surface, the `a`/`r` keys on
+  CollectionsScreen/PlaylistsScreen only raise the
+  `ADD_ITEM_NOT_IMPLEMENTED` notice, and ApiClient's
+  `addPlaylistItem`/`removePlaylistItem`/`createPlaylist` have no caller
+  anywhere in `src/`. The notice string itself points at that detail
+  screen — an in-code mislabel (ledger-noted; fixing the app's own toast
+  text is out of this docs scope). The Playlists row inherited the claim
+  through "with the same keys". Sweeping the same manual pass for
+  sibling attribution phantoms caught two more: the **Series** row named
+  a screen that does not exist (the seasons→episodes drill-down is
+  nested Detail screens in container mode, breadcrumbs via the
+  `Breadcrumbed` trait), and the **Stats** row claimed the metrics HUD
+  (StatsScreen is a read-only server-statistics view; the HUD is the
+  palette's Show/Hide metrics overlay).
+- **Cure.** All four rows reworded to handler-walked truth — membership
+  is managed on the server's web portal, not in the console. New
+  `tests/Docs/CollectionsClaimsDocsTest` (7 tests / 20 assertions) pins
+  the four row texts verbatim, bans the phantom sentence across the
+  table, re-derives the notice + `a`/`r` producers on both list
+  screens, fails loud the moment DetailScreen wording or a src/ caller
+  contradicts "not implemented", and pins the row-label set so an orphan
+  row (the Series failure mode) cannot reappear unannounced. Mutation
+  probes measured: re-planting the phantom reddens exactly the pin +
+  ban tests; a planted caller reddens the tripwire.
+- **Also r1's MINOR-1** (Recently Watched "opens where you left off")
+  was already cured forward in a2ae65d.
+
 ### Fixed — detail-screen manual promises to rendered truth; new claims-pin guard (review console__enduser, M-CONSOLE-23) — 2026-10-29
 
 - **The defect.** The Overview bullet promised a "Media detail
