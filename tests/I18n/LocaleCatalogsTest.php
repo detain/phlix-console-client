@@ -122,6 +122,48 @@ final class LocaleCatalogsTest extends TestCase
         'ja' => '/未視聴/u',
     ];
 
+    /**
+     * The established "group" family term per catalog, taken from the
+     * majority sibling usage across each syncplay.* key cluster
+     * (review console__copywriter M-CONSOLE-10: group_limit_reached
+     * invented a sixth synonym for the group in EVERY non-en catalog —
+     * de 'Watch-Parties' vs 'synchronisierte Gruppe', es 'salas de
+     * visionado' vs 'grupo de visionado', fr 'soirées synchronisées' vs
+     * 'groupe synchronisé', it 'sale di visione' vs 'gruppo di visione',
+     * ja 'ウォッチパーティ' vs 'ウォッチグループ', pt-br 'sessões
+     * sincronizadas' vs 'grupo de exibição').
+     *
+     * @var array<string, string>
+     */
+    private const GROUP_FAMILY_TERMS = [
+        'es' => '/\bgrupos?\s+de\s+visionado/iu',
+        'fr' => '/\bgroupes?\s+synchronis[ée]/iu',
+        'de' => '/\bsynchronisierte[nr]?\s+Gruppen?/iu',
+        'it' => '/\bgrupp[oi]\s+di\s+visione/iu',
+        'pt-br' => '/\bgrupos?\s+de\s+exibi[cç][aã]o/iu',
+        'ja' => '/ウォッチグループ/u',
+    ];
+
+    /**
+     * The invented outlier synonyms from the same census — each family is
+     * bound to group_limit_reached alone and has zero legitimate use
+     * anywhere in its catalog (pt-br's net is deliberately the compound
+     * 'sessões sincronizadas': the bare 'sessão' stem is the legitimate
+     * 'session' term in auth.session_expired and 'sincronização' the
+     * 'sync server' term in syncplay.handler_error, both probed at the
+     * parent catalogs; it's bare 'sala' likewise appears nowhere else).
+     *
+     * @var array<string, string>
+     */
+    private const GROUP_OUTLIER_TERMS = [
+        'es' => '/\bsalas?\s+de\s+visionado/iu',
+        'fr' => '/\bsoir[ée]e/iu',
+        'de' => '/watch[\s-]*parti/iu',
+        'it' => '/\bsale?\s+di\s+visione/iu',
+        'pt-br' => '/sess[õo]es?\s+sincronizad/iu',
+        'ja' => '/ウォッチパーティ/u',
+    ];
+
     /** @var array<string, array<string, string>> locale => catalog, lazily loaded */
     private array $catalogs = [];
 
@@ -307,6 +349,47 @@ final class LocaleCatalogsTest extends TestCase
                     "$locale: $key uses an unwatched term where English says nothing unwatched"
                 );
             }
+        }
+    }
+
+    /**
+     * Group-family guard for the M-CONSOLE-10 outlier key:
+     * syncplay.group_limit_reached must carry the catalog's own
+     * established group term, and the invented synonym family must
+     * appear nowhere in that catalog at all. The present-side is pinned
+     * to this one key rather than derived en-wide because several
+     * sibling keys use legitimate anaphoric shortening (ja
+     * not_in_group 'グループ', de join_failed 'Der Gruppe', fr not_host
+     * 'du groupe') — broadening the family to every mention would be a
+     * rename of established terms, which is the owner-gated room-vs-
+     * watch-group ruling (CON-07), not this cure.
+     */
+    #[DataProvider('localeRows')]
+    public function testGroupLimitReachedUsesTheCatalogsOwnGroupTerm(string $locale): void
+    {
+        $value = $this->catalog($locale)['syncplay.group_limit_reached'];
+
+        self::assertMatchesRegularExpression(
+            self::GROUP_FAMILY_TERMS[$locale],
+            $value,
+            "$locale: syncplay.group_limit_reached does not carry the catalog's established group term"
+        );
+    }
+
+    /**
+     * Absolute tripwire: no value in any catalog may carry that locale's
+     * invented group synonym (the family M-CONSOLE-10 cured; it belongs
+     * to no key).
+     */
+    #[DataProvider('localeRows')]
+    public function testInventedGroupSynonymsAppearNowhereInCatalog(string $locale): void
+    {
+        foreach ($this->catalog($locale) as $key => $value) {
+            self::assertDoesNotMatchRegularExpression(
+                self::GROUP_OUTLIER_TERMS[$locale],
+                $value,
+                "$locale: $key uses an invented group synonym for the watch group"
+            );
         }
     }
 

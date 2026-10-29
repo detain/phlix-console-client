@@ -79,7 +79,7 @@ return [
     'syncplay.create_failed' => 'ウォッチグループを作成できませんでした。',
     'syncplay.join_failed' => 'ウォッチグループに参加できませんでした。',
     'syncplay.leave_failed' => 'ウォッチグループから退出できませんでした。',
-    'syncplay.group_limit_reached' => 'ホストのウォッチパーティが上限に達しました。',
+    'syncplay.group_limit_reached' => 'ホストのウォッチグループが上限に達しました。',
     'syncplay.group_not_found' => 'そのウォッチグループは存在しません。',
     'syncplay.invalid_password' => 'パスワードが正しくありません。',
     'syncplay.group_full' => 'そのウォッチグループは満員です。',

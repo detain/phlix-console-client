@@ -5,6 +5,51 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — group_limit_reached invented a sixth group synonym in every non-en catalog; family pin added (review console__copywriter, M-CONSOLE-10) — 2026-10-29
+
+- **What.** `syncplay.group_limit_reached` was the lone key in each of the
+  six non-en catalogs naming the group with a term no sibling key uses —
+  per-locale census of the `syncplay.*` cluster (family term ← invented
+  outlier at `:82`, pt-br `:87`): de *synchronisierte Gruppe* ←
+  "Watch-Parties"; es *grupo de visionado* ← "salas de visionado"; fr
+  *groupe synchronisé* ← "soirées synchronisées"; it *gruppo di visione*
+  ← "sale di visione"; ja *ウォッチグループ* ← "ウォッチパーティ"; pt-br
+  *grupo de exibição* ← "sessões sincronizadas". en itself is consistent
+  ("watch groups") and stays untouched; the CON-07 room-vs-watch-group IA
+  ruling is owner-gated, so no established family was renamed — the
+  outlier keys were aligned TO their own catalogs' majority usage.
+- **Cure.** de → 'Der Host hat die maximale Anzahl an synchronisierten
+  Gruppen erreicht.'; es → 'El anfitrión alcanzó el límite de grupos de
+  visionado.'; fr → 'L’hôte a atteint la limite de groupes
+  synchronisés.'; it → 'L’host ha raggiunto il limite di gruppi di
+  visione.'; ja → 'ホストのウォッチグループが上限に達しました。'; pt-br →
+  'O anfitrião atingiu o limite de grupos de exibição.' — every locale's
+  host term (the M-CONSOLE-08 `HOST_ROLE_TERMS` guard) and the typographic
+  U+2019 apostrophes preserved; no placeholders in play. The two byte-pins
+  of the old outlier text in `SyncPlayErrorsLocalizationTest` (es/ja rows
+  of `group_limit_reached`) rode the cure to the new strings.
+- **Pin.** New `LocaleCatalogsTest::testGroupLimitReachedUsesTheCatalogsOwnGroupTerm`
+  (family term PRESENT in the key, one regex per locale) and
+  `::testInventedGroupSynonymsAppearNowhereInCatalog` (absolute tripwire:
+  the outlier family appears in NO value — pt-br's net is the compound
+  'sessões sincronizadas' because bare 'sessão'/'sincronização' are
+  legitimate elsewhere; probed at the parent catalogs). Deliberately not
+  derived en-wide: siblings like ja not_in_group 'グループ' and de
+  join_failed 'Der Gruppe' are legitimate anaphoric shortening, and
+  broadening the family to every mention would be the owner-gated rename.
+  Red-on-parent measured: all 12 new rows (2 × 6 locales) fail at `fc1611c`
+  catalogs, exact reds `de/fr/es/it/ja/pt-br` quoted in the fixlog;
+  mutation-toothed: reverting just the es string reddens exactly its 2
+  rows, all 10 others stay green.
+- **Gates.** Suite 3079→3091 tests / 15956→16316 assertions (+12/+360
+  exact: 12 data rows; 6 family rows × 1 + 6 tripwire rows × 59 keys);
+  Skipped 9, PHPUnit deprecations 13 held. `check-i18n-catalogs.php`
+  (59 keys, placeholders in sync) and `check-i18n-hardcoded.php` green;
+  phpstan prod + tests [OK] 0; phpcs `phpcs-tests.xml` and bare `PSR12`
+  both exit 0 on the changed test files (`resources/` is outside both CI
+  phpcs paths). Maybe-cured check: `0846107` (WS-ingest) and `5e33c84`
+  (docs) touch no lang file — item was live.
+
 ### Fixed — Spanish missing-episodes warning said "sin ver" (unwatched); semantic missing/unwatched guard added (review console__copywriter, M-CONSOLE-09) — 2026-10-29
 
 - **What.** `resources/lang/es.php:56–57` rendered the detail-screen

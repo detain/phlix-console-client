@@ -85,8 +85,8 @@ final class SyncPlayErrorsLocalizationTest extends TestCase
             'prose' => 'Maximum group limit reached',
             'texts' => [
                 'en' => 'The host has reached the limit for watch groups.',
-                'es' => 'El anfitrión alcanzó el límite de salas de visionado.',
-                'ja' => 'ホストのウォッチパーティが上限に達しました。',
+                'es' => 'El anfitrión alcanzó el límite de grupos de visionado.',
+                'ja' => 'ホストのウォッチグループが上限に達しました。',
             ],
         ],
         'group_not_found' => [
