@@ -5,6 +5,26 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — CI baseline doc re-anchored to the commands the workflows actually run (review console__writer, M-CONSOLE-53) — 2026-10-29
+
+- **What.** `docs/steps/ci-baseline-C9.md` had drifted against `ci.yml`/
+  `build.yml`/`deps.yml`: the phpcs gate was described as bare `--standard=
+  PSR12` on both trees when the live gate is `phpcs.xml` on `src/` plus
+  `phpcs-tests.xml` on `tests/` (the 2026-10-02 split); the 66%/70% coverage
+  floors were still stated as "enforced" though PHPUnit 11 schema rejection
+  removed them on 2026-08-22 (`09b4228`/`0e3dbce`); the vendor-patches marker
+  list still named bare `ORIGINAL` (deliberately dropped — legitimate vendor
+  constants match it) and missed the ANSI-red `PATCH` marker; the phar smoke
+  step claimed a `help` invocation that does not exist (actual: `--version`,
+  unknown-command exit-2 probe, stub-server `run --selftest`); and the job
+  inventory missed the phpstan-tests, i18n, composer-audit and release-latest
+  gates that postdate C9, while the deps bullet still implied the workflow
+  could land `composer.lock` on master (it opens a PR since `6fba622`).
+- **Cure.** Docs follow code: every command claim restated to the workflow
+  text at `759d7c5` with `path:line` citations so the next drift is catchable
+  by reading the citation; historically-true records (20-run table, C9.1
+  coverage snapshot) kept verbatim with dated notes. Workflow files untouched.
+
 ### Fixed — nested event-loop drains on the share/invite screens (review console__srphp, M-CONSOLE-36) — 2026-10-29
 
 - **What.** `SharedWithMeScreen` and `InviteLinksScreen` each carried a
