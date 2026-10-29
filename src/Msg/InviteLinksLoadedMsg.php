@@ -15,7 +15,11 @@ use SugarCraft\Core\Msg;
 final readonly class InviteLinksLoadedMsg implements Msg
 {
     /**
-     * @param list<array{id:string,code:string,label:string,uses:int,max_uses:int|null,expires_at:string|null}> $links
+     * Wire rows pass through HubClient::inviteLinks() unvalidated, so the
+     * honest boundary type is a loose row map (consumers guard per-field,
+     * e.g. the screen's is_string($link['id']) check).
+     *
+     * @param list<array<string, mixed>> $links
      */
     public function __construct(
         public array $links,

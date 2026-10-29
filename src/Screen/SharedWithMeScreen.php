@@ -11,6 +11,7 @@ use Phlix\Console\Msg\SharedWithMeActionDoneMsg;
 use Phlix\Console\Msg\SharedWithMeFailedMsg;
 use Phlix\Console\Msg\SharedWithMeLoadedMsg;
 use Phlix\Console\Route;
+use React\Promise\PromiseInterface;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg as KeyMessage;
@@ -39,37 +40,28 @@ final class SharedWithMeScreen implements Model, Breadcrumbed, Themed
     }
 
     /**
+     * Kick off the hub fetch and hand the Program an async command carrying
+     * the promise. Resolution rides the OUTER event loop (the one Program
+     * pumps) and comes back through {@see update()} as
+     * SharedWithMeLoadedMsg/SharedWithMeFailedMsg.
+     *
+     * M-CONSOLE-36: this previously returned a closure that re-entered
+     * `Loop::get()->run()` and drained the promise with `Loop::stop()`.
+     * Program::scheduleCmd() invokes cmd closures inside that same global
+     * loop and StreamSelectLoop has no re-entry guard — the nested drain's
+     * stop() cleared the shared running flag, killing the app pump mid-frame.
+     *
      * @return \Closure
      */
     private function fetchCmd(): \Closure
     {
         $promise = $this->hub->sharedWithMe()->then(
             /** @param list<array<string, mixed>> $items */
-            fn (array $items): array => $this->fetchSucceeded($items),
-            fn (\Throwable $e): array => $this->fetchFailed($e->getMessage()),
+            static fn (array $items): Msg => new SharedWithMeLoadedMsg($items),
+            static fn (\Throwable $e): Msg => new SharedWithMeFailedMsg($e->getMessage()),
         );
 
-        return function () use ($promise): array {
-            $loop = \React\EventLoop\Loop::get();
-            $result = null;
-            $exception = null;
-            $promise->then(
-                static function ($v) use (&$result, $loop): void {
-                    $result = $v;
-                    $loop->stop();
-                },
-                static function (\Throwable $e) use (&$exception, $loop): void {
-                    $exception = $e;
-                    $loop->stop();
-                }
-            );
-            $loop->run();
-            if ($exception !== null) {
-                throw $exception;
-            }
-            /** @var array{0: self, 1: \Closure|null} */
-            return $result;
-        };
+        return Cmd::promise(static fn (): PromiseInterface => $promise);
     }
 
     /**
@@ -129,31 +121,11 @@ final class SharedWithMeScreen implements Model, Breadcrumbed, Themed
         /** @var string $id */
         $id = $item['id'];
         $promise = $this->hub->acceptShare($id)->then(
-            fn (): SharedWithMeActionDoneMsg => new SharedWithMeActionDoneMsg('accepted'),
-            fn (\Throwable $e): SharedWithMeFailedMsg => new SharedWithMeFailedMsg($e->getMessage()),
+            static fn (): SharedWithMeActionDoneMsg => new SharedWithMeActionDoneMsg('accepted'),
+            static fn (\Throwable $e): SharedWithMeFailedMsg => new SharedWithMeFailedMsg($e->getMessage()),
         );
 
-        return [$this, function () use ($promise): SharedWithMeActionDoneMsg|SharedWithMeFailedMsg {
-            $loop = \React\EventLoop\Loop::get();
-            $result = null;
-            $exception = null;
-            $promise->then(
-                static function ($v) use (&$result, $loop): void {
-                    $result = $v;
-                    $loop->stop();
-                },
-                static function (\Throwable $e) use (&$exception, $loop): void {
-                    $exception = $e;
-                    $loop->stop();
-                }
-            );
-            $loop->run();
-            if ($exception !== null) {
-                throw $exception;
-            }
-            /** @var SharedWithMeActionDoneMsg|SharedWithMeFailedMsg */
-            return $result;
-        }];
+        return [$this, Cmd::promise(static fn (): PromiseInterface => $promise)];
     }
 
     /**
@@ -168,31 +140,11 @@ final class SharedWithMeScreen implements Model, Breadcrumbed, Themed
         /** @var string $id */
         $id = $item['id'];
         $promise = $this->hub->rejectShare($id)->then(
-            fn (): SharedWithMeActionDoneMsg => new SharedWithMeActionDoneMsg('rejected'),
-            fn (\Throwable $e): SharedWithMeFailedMsg => new SharedWithMeFailedMsg($e->getMessage()),
+            static fn (): SharedWithMeActionDoneMsg => new SharedWithMeActionDoneMsg('rejected'),
+            static fn (\Throwable $e): SharedWithMeFailedMsg => new SharedWithMeFailedMsg($e->getMessage()),
         );
 
-        return [$this, function () use ($promise): SharedWithMeActionDoneMsg|SharedWithMeFailedMsg {
-            $loop = \React\EventLoop\Loop::get();
-            $result = null;
-            $exception = null;
-            $promise->then(
-                static function ($v) use (&$result, $loop): void {
-                    $result = $v;
-                    $loop->stop();
-                },
-                static function (\Throwable $e) use (&$exception, $loop): void {
-                    $exception = $e;
-                    $loop->stop();
-                }
-            );
-            $loop->run();
-            if ($exception !== null) {
-                throw $exception;
-            }
-            /** @var SharedWithMeActionDoneMsg|SharedWithMeFailedMsg */
-            return $result;
-        }];
+        return [$this, Cmd::promise(static fn (): PromiseInterface => $promise)];
     }
 
     /**

@@ -5,6 +5,46 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — nested event-loop drains on the share/invite screens (review console__srphp, M-CONSOLE-36) — 2026-10-29
+
+- **What.** `SharedWithMeScreen` and `InviteLinksScreen` each carried a
+  ~28-line near-identical triplicate of a blocking drain: the command
+  closures re-entered `Loop::get()->run()` and called `Loop::stop()` to wait
+  synchronously on a hub promise. Program::scheduleCmd() invokes command
+  closures from a tick INSIDE that same already-running global loop, and the
+  shared StreamSelectLoop has no re-entry guard — the drain's `stop()` clears
+  the single running flag and the app's event pump exits early, hijacking or
+  killing the UI mid-frame. The drained closures then returned raw
+  `array{0: self, 1: ?Closure}` values that Program's Msg dispatch can never
+  consume, so every fetch and action was dead on arrival regardless.
+- **Cure.** All six drain sites (init fetch + two key actions per screen)
+  now use the estate idiom the other 30+ async UI sites already prove safe:
+  the promise resolves to a `Loaded/Failed/ActionDone/Created/Revoked` Msg
+  and is handed to the Program as an `AsyncCmd` via `Cmd::promise(...)`
+  (`AdminUsersScreen` action pattern), riding the OUTER loop with the
+  runtime-generation teardown guard. `src/Screen/` now contains zero
+  references to `React\EventLoop` outside comments; `InviteLinksLoadedMsg`'s
+  aspirational tuple `@param` was restated to the honest wire-passthrough
+  `list<array<string, mixed>>` (the sibling `SharedWithMeLoadedMsg` already
+  documented loose rows; consumers guard per-field as before).
+- **Tests.** +15 tests / +66 assertions: `tests/Screen/SharedWithMeScreenTest`
+  and `tests/Screen/InviteLinksScreenTest` assert every command yields an
+  `AsyncCmd` (never a drained array) resolving to the right Msg, request
+  routes, failure mapping, and no-op guards; each carries a `run()`-re-entry
+  tripwire (`tests/Support/RunCountingLoopSpy` installed via `Loop::set()`)
+  proving the command closure never re-enters the loop from a live tick.
+  `tests/Unit/Screen/ScreensNeverReferenceEventLoopTest` is the class gate: a
+  `token_get_all` walk forbidding any non-comment `EventLoop` reference in
+  `src/Screen/`. Red-on-parent measured at 93c2ad4: 11 of the 15 new tests
+  fail (8 AsyncCmd contract, 2 tripwires, 1 gate — gate names all six drain
+  sites); all 15 green on the cure.
+- **Gates.** Full serial suite 3046→3061 tests, 14002→14068 assertions,
+  skipped 9→9, exit 0; phpstan CI-faithful shows only the pre-existing
+  `AdminClient::alternatePosters` return-shape red (disclosed by the
+  CONSOLE-34 review, not this lane); phpcs PSR12 + repo `phpcs.xml` on
+  changed src and `phpcs-tests.xml` on all new tests: 0/0; i18n hardcoded +
+  catalogs gates: exit 0 (no user-visible strings added).
+
 ### Security — `watch` bearer/JWT secrets pushed out of process argv (review console__secaudit, M-CONSOLE-35) — 2026-10-29
 
 - **What.** `phlix watch --hub-token JWT --relay-token TOKEN` accepted live

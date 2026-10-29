@@ -12,6 +12,7 @@ use Phlix\Console\Msg\InviteLinksLoadedMsg;
 use Phlix\Console\Msg\InviteLinkRevokedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Route;
+use React\Promise\PromiseInterface;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg as KeyMessage;
@@ -40,37 +41,28 @@ final class InviteLinksScreen implements Model, Breadcrumbed, Themed
     }
 
     /**
+     * Kick off the hub fetch and hand the Program an async command carrying
+     * the promise. Resolution rides the OUTER event loop (the one Program
+     * pumps) and comes back through {@see update()} as
+     * InviteLinksLoadedMsg/InviteLinksFailedMsg.
+     *
+     * M-CONSOLE-36: this previously returned a closure that re-entered
+     * `Loop::get()->run()` and drained the promise with `Loop::stop()`.
+     * Program::scheduleCmd() invokes cmd closures inside that same global
+     * loop and StreamSelectLoop has no re-entry guard — the nested drain's
+     * stop() cleared the shared running flag, killing the app pump mid-frame.
+     *
      * @return \Closure
      */
     private function fetchCmd(): \Closure
     {
         $promise = $this->hub->inviteLinks()->then(
             /** @param list<array<string, mixed>> $links */
-            fn (array $links): array => $this->fetchSucceeded($links),
-            fn (\Throwable $e): array => $this->fetchFailed($e->getMessage()),
+            static fn (array $links): Msg => new InviteLinksLoadedMsg($links),
+            static fn (\Throwable $e): Msg => new InviteLinksFailedMsg($e->getMessage()),
         );
 
-        return function () use ($promise): array {
-            $loop = \React\EventLoop\Loop::get();
-            $result = null;
-            $exception = null;
-            $promise->then(
-                static function ($v) use (&$result, $loop): void {
-                    $result = $v;
-                    $loop->stop();
-                },
-                static function (\Throwable $e) use (&$exception, $loop): void {
-                    $exception = $e;
-                    $loop->stop();
-                }
-            );
-            $loop->run();
-            if ($exception !== null) {
-                throw $exception;
-            }
-            /** @var array{0: self, 1: \Closure|null} */
-            return $result;
-        };
+        return Cmd::promise(static fn (): PromiseInterface => $promise);
     }
 
     /**
@@ -125,31 +117,15 @@ final class InviteLinksScreen implements Model, Breadcrumbed, Themed
     {
         $promise = $this->hub->createInvite('Invitation')->then(
             /** @param string $message */
-            fn (string $message): InviteLinkCreatedMsg => new InviteLinkCreatedMsg(['id' => '', 'code' => '', 'url' => '']),
-            fn (\Throwable $e): InviteLinksFailedMsg => new InviteLinksFailedMsg($e->getMessage()),
+            static fn (string $message): InviteLinkCreatedMsg => new InviteLinkCreatedMsg([
+                'id' => '',
+                'code' => '',
+                'url' => '',
+            ]),
+            static fn (\Throwable $e): InviteLinksFailedMsg => new InviteLinksFailedMsg($e->getMessage()),
         );
 
-        return [$this, function () use ($promise): InviteLinkCreatedMsg|InviteLinksFailedMsg {
-            $loop = \React\EventLoop\Loop::get();
-            $result = null;
-            $exception = null;
-            $promise->then(
-                static function ($v) use (&$result, $loop): void {
-                    $result = $v;
-                    $loop->stop();
-                },
-                static function (\Throwable $e) use (&$exception, $loop): void {
-                    $exception = $e;
-                    $loop->stop();
-                }
-            );
-            $loop->run();
-            if ($exception !== null) {
-                throw $exception;
-            }
-            /** @var InviteLinkCreatedMsg|InviteLinksFailedMsg */
-            return $result;
-        }];
+        return [$this, Cmd::promise(static fn (): PromiseInterface => $promise)];
     }
 
     /**
@@ -165,31 +141,11 @@ final class InviteLinksScreen implements Model, Breadcrumbed, Themed
             return [$this, null];
         }
         $promise = $this->hub->revokeInvite($link['id'])->then(
-            fn (): InviteLinkRevokedMsg => new InviteLinkRevokedMsg(),
-            fn (\Throwable $e): InviteLinksFailedMsg => new InviteLinksFailedMsg($e->getMessage()),
+            static fn (): InviteLinkRevokedMsg => new InviteLinkRevokedMsg(),
+            static fn (\Throwable $e): InviteLinksFailedMsg => new InviteLinksFailedMsg($e->getMessage()),
         );
 
-        return [$this, function () use ($promise): InviteLinkRevokedMsg|InviteLinksFailedMsg {
-            $loop = \React\EventLoop\Loop::get();
-            $result = null;
-            $exception = null;
-            $promise->then(
-                static function ($v) use (&$result, $loop): void {
-                    $result = $v;
-                    $loop->stop();
-                },
-                static function (\Throwable $e) use (&$exception, $loop): void {
-                    $exception = $e;
-                    $loop->stop();
-                }
-            );
-            $loop->run();
-            if ($exception !== null) {
-                throw $exception;
-            }
-            /** @var InviteLinkRevokedMsg|InviteLinksFailedMsg */
-            return $result;
-        }];
+        return [$this, Cmd::promise(static fn (): PromiseInterface => $promise)];
     }
 
     /**
