@@ -5,6 +5,56 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — paste-replay prose to reviewer-exact truth: CapturesSlash enumeration completed, per-PasteMsg chunk law stated, mutation-teeth header measured; the M44 landed-parent absolutes folded and the OSC-52 channel note faded (review console__tuispec, M-CONSOLE-44 r4) — 2026-10-29
+
+- **The defect.** r2's SHIP verdict queued four prose minors on the M44
+  paste twin; r3 re-confirmed all four live at tip after adjudicating the
+  previously-claimed fix pass a zero-footprint phantom. The `pasteAsKeys`
+  docblock enumerated six CapturesSlash surfaces where the tree has eight
+  (RecommendationsScreen was already missing from the r1 list; ServersScreen
+  gained the interface post-8793a43 via CON-40 `19b2d3e`); the
+  `MAX_PASTE_REPLAY_KEYS` docblock said "per paste" where the framework
+  delivers per chunk; the `AppPasteTest` header repeated r1's "drop the
+  dispatch branch → tests 1/3/4" while r2's re-measurement showed all
+  seven consumption pins red (and the entry-pin insertion had drifted the
+  surviving ordinals — a named method, not an ordinal, carries each law);
+  and 8793a43's immutable entry carries stale-inherited suite absolutes
+  plus the OSC-52 channel mischaracterization.
+- **The cure.** Docblock enumerates all eight implementers (ServerScreen/
+  ServersScreen/Login/Register/Search/Library/Player/Recommendations); the
+  cap docblock states the chunk law — InputReader splits pastes larger
+  than its `MAX_PASTE_BYTES` 1MiB buffer (InputReader.php:57, surfaced by
+  `surfaceOversizePaste` at :467) into several `PasteMsg`s, so the 4096
+  replay cap binds per chunk: proportional total, each dispatch bounded.
+  The test header restates the measured teeth: drop the dispatch branch →
+  all 7 consumption pins red / the entry-pin green; the newline→Enter, cap
+  and space-as-Char probes now name their methods
+  (`testPasteNeverProducesEnterOrTab`, `testPasteReplayIsCapped`,
+  `testPasteSpaceBecomesSpaceKeyType`).
+- **The fold.** 8793a43's entry states "Full serial run 3210→3217 tests,
+  17248→17340 assertions" — figures inherited from the fix lane's scratch
+  baseline, not its landed parent. Measured at the real parent `2156f59`
+  (r1 round): 3219 tests / 17,793 assertions → 3226 / 17,885 at 8793a43.
+  The +7/+92 delta the entry itself claims stays exact; these are the
+  landed absolutes (the shipped entry remains verbatim — history is
+  verbatim, corrections fold forward).
+- **The fade.** The same entry's "(or any OSC52 paste) was a silent no-op
+  estate-wide" mischaracterizes the channel, faded here for the record:
+  OSC-52 operates through the `ClipboardMsg` request/reply channel
+  (InputReader.php:808-817); `PasteMsg` originates solely from the
+  bracketed-paste mode-2004 CSI envelope (`ESC[200~`…`ESC[201~`); with
+  2004 off — the default at every terminal before c272cad enabled it —
+  pastes typed straight through as raw keys, which is what kept the
+  replay seam inert.
+- **Suite.** Comment-only change; full serial run held at the tip
+  baseline measured this pass: 3302 tests / 20,028 assertions,
+  deprecations 14, skips 9, exit 0; `--filter AppPasteTest` 8/8 green.
+  phpstan src = the one inherited `AdminClient.php:2697` finding
+  unchanged, phpstan-tests clean; phpcs `phpcs.xml` / `phpcs-tests.xml`
+  and bare PSR12 add zero new findings (the same 18 long-line warnings in
+  `App.php`, none on touched lines). i18n catalogs inert (61 keys,
+  parity check green).
+
 ### Changed — vendor-patches doc reconciled with the workflow, .gitignore and the filesystem; the fictional patch pipeline purged with a runtime-derived pin (review console__writer, M-CONSOLE-51) — 2026-10-29
 
 - **The defect.** `docs/vendor-patches.md` contradicted itself and the

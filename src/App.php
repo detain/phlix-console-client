@@ -1061,9 +1061,14 @@ final class App implements Model
     }
 
     /**
-     * Cap on characters replayed per paste: a hostile multi-megabyte clipboard
-     * must not become megabytes of dispatch+render cycles. Legit text-surface
-     * pastes (URLs, tokens, queries) stay far below this; the tail is dropped.
+     * Cap on characters replayed per PasteMsg — not per physical paste. The
+     * framework chunker splits anything larger than its 1MiB paste buffer
+     * (InputReader MAX_PASTE_BYTES, InputReader.php:57, surfaced by
+     * surfaceOversizePaste at :467) into several PasteMsgs, so a hostile
+     * multi-megabyte clipboard replays at most this many keys per chunk: the
+     * total stays proportional to the paste, each dispatch bounded. Legit
+     * text-surface pastes (URLs, tokens, queries) never reach one chunk's
+     * cap; the tail of each chunk that does is dropped.
      */
     private const MAX_PASTE_REPLAY_KEYS = 4096;
 
@@ -1079,8 +1084,9 @@ final class App implements Model
      * InputReader emits for a typed 0x20 (InputReader.php:499); everything
      * else printable is KeyType::Char. Consequence: paste behavior is key-
      * for-key identical to typing, including every capture gate — '/' and ':'
-     * search/palette hijacks skip screens implementing CapturesSlash (the
-     * ServerScreen/Login/Register/Search/Library/Player surfaces), so pasting
+     * search/palette hijacks skip screens implementing CapturesSlash (all
+     * eight implementers: the ServerScreen/ServersScreen/Login/Register/
+     * Search/Library/Player/Recommendations surfaces), so pasting
      * "https://…" into the server field types it char-by-char into the field.
      */
     private static function pasteAsKeys(string $content): ?\Closure

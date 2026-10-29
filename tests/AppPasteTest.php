@@ -54,9 +54,12 @@ use SugarCraft\Image\Mosaic;
  *  - the MAX_PASTE_REPLAY_KEYS=4096 cap (hostile-clipboard DoS valve);
  *  - an all-filtered paste produces no Cmd churn at all.
  *
- * Mutation teeth: drop the dispatch branch → tests 1/3/4 red (PasteMsg falls
- * through, filterText stays ''); flip newline to Enter → test 3 red; drop the
- * cap → test 6 red; space-as-Char → test 2 red.
+ * Mutation teeth, measured: drop the dispatch branch → all 7 consumption
+ * pins red / the entry-pin green (PasteMsg falls through to the catch-all,
+ * filterText stays '' on every surface); flip newline to Enter →
+ * testPasteNeverProducesEnterOrTab red; drop the cap →
+ * testPasteReplayIsCapped red; space-as-Char →
+ * testPasteSpaceBecomesSpaceKeyType red.
  */
 final class AppPasteTest extends TestCase
 {
