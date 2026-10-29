@@ -5,6 +5,33 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — ci-baseline-C9 gate coordinates re-anchored to workflows on disk; claims pin (review console__ipd, M-CONSOLE-27) — 2026-10-29
+
+- **The defect.** The four phantom gates this item originally filed (coverage
+  floors, uniform bare-PSR12 phpcs, the `ORIGINAL` grep, a `help` smoke leg)
+  were cured by the M-CONSOLE-53 currency pass (`8854648`, anchored at
+  `759d7c5`) — but the pass's own `path:line` contract then broke: `7b08db5`
+  expanded the two phar release-body texts in `build.yml`, shifting lines by
+  +2 (from old `:126`) and +4 (from old `:212`), leaving five release-job
+  coordinates stale at HEAD (`build.yml:76-135`→`:76-137`, `:137-218`→
+  `:139-222`, `:170-174`→`:172-176`, `:176-199`→`:178-201`, `:201-216`→
+  `:203-220`). The line-4 blanket header "All items below are enforced in CI"
+  also sat over sections the doc itself labels historical.
+- **Cure.** The five coordinates re-anchored to `65f5f23`, the header scoped
+  to "gate claims cited to disk; labelled sections are point-in-time records",
+  and the currency note records pass 2 naming the drift cause. New
+  `tests/Docs/CiBaselineClaimsDocsTest.php` (family shape) makes the doc's
+  promise executable: gate headings must equal the ci.yml/build.yml job-key
+  inventory (phantom or missing gates go red), and every `path:line` citation
+  in the anchor table is re-derived from the file on disk — stale coordinates
+  fail CI. Proven red-on-parent: three assertions trip on the pre-fix doc.
+- **Non-attribution.** Zero workflow/src files touched; the phpstan prod
+  suite carries exactly the inherited `AdminClient:2697 return.type` red
+  (byte-ident at parent — this change adds no src). Suite census: 3190 at
+  `65f5f23` → 3193 after the concurrently landed M-CONSOLE-29 (+3) → **3198
+  here (+5 mine, assertions +61)**; 0 failures, Skipped 9, same 13
+  pre-existing deprecation notices.
+
 ### Fixed — README feature intro to the shipped registry surface; coverage pin (review console__newcomer, M-CONSOLE-29) — 2026-10-29
 
 - **The defect.** The intro undersold the product. The palette sentence

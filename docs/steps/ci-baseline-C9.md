@@ -1,7 +1,10 @@
 # CI Baseline — Phase C9
 
 This document records the CI baseline established during Phase C9 completion.
-All items below are enforced in CI and must remain green.
+Every gate claim below is cited to the workflow files as they exist on disk and
+is enforced there. Sections explicitly labelled historical ("20-Run CI
+History", "Baseline Coverage (as of C9.1)") are point-in-time records, not
+live gates.
 
 > **Currency pass (2026-10-29, review console__writer M-CONSOLE-53).** Every
 > command claim below was re-anchored to the workflow files as they exist at
@@ -10,6 +13,14 @@ All items below are enforced in CI and must remain green.
 > historical records ("20-Run CI History", "Baseline Coverage (as of C9.1)")
 > are kept verbatim; where a value recorded there is no longer enforced, that
 > is stated rather than quietly rewritten.
+>
+> **Currency pass 2 (2026-10-29, review console__ipd M-CONSOLE-27 r2).** The
+> drift the note above anticipated arrived: `7b08db5` expanded the two phar
+> release-body texts in `build.yml`, shifting every line from old `:126` down
+> by 2 (and from old `:212` by 4). The five release-job coordinates were
+> re-anchored to `65f5f23` and `tests/Docs/CiBaselineClaimsDocsTest.php` now
+> pins every gate heading, job range, and step command in this file to the
+> workflow files on disk — stale coordinates in this doc fail CI.
 
 ## Current CI Gates (`.github/workflows/ci.yml`)
 
@@ -137,19 +148,19 @@ neutering wrap (`ci.yml:207-212`).
    `build.yml:55-60`)
 4. Uploads `phlix.phar` and `SHA256SUMS` as artifacts (`build.yml:62-74`)
 
-### release-latest job (`build.yml:76-135`, on master push only)
+### release-latest job (`build.yml:76-137`, on master push only)
 
 Overwrites the rolling `latest` **prerelease** with the raw, directly
 downloadable `phlix.phar` + `SHA256SUMS` (GitHub artifacts are always served
 zipped; a Release is the only way to ship a bare runnable phar). Deletes and
 recreates the tag so it points at this commit. Skipped on PRs and tag pushes.
 
-### release-tag job (`build.yml:137-218`, on tag push `v*.*.*`)
+### release-tag job (`build.yml:139-222`, on tag push `v*.*.*`)
 
-1. Verifies `SHA256SUMS` integrity (`build.yml:170-174`)
+1. Verifies `SHA256SUMS` integrity (`build.yml:172-176`)
 2. Extracts version from tag and compares against `PHLIX_VERSION` in the PHAR
-   (`build.yml:176-199`)
-3. Publishes release with `phlix.phar` + `SHA256SUMS` (`build.yml:201-216`)
+   (`build.yml:178-201`)
+3. Publishes release with `phlix.phar` + `SHA256SUMS` (`build.yml:203-220`)
 
 **Failure means:** Version number mismatch between tag and built artifact.
 
