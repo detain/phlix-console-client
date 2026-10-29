@@ -5,6 +5,47 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `phlix run` refuses non-TTY stdin with a clean exit instead of freezing (review console__qa M-1) — 2026-10-29
+
+- **What.** With stdin a pipe, a file, or `/dev/null`, `phlix run` never
+  exited: the SugarCraft `Program` painted roughly 14KB of terminal escape
+  sequences into the pipe while the input reader spun forever against a dead
+  stream, and the process ended only when something external killed it
+  (`timeout 10` → exit 124). The help text and README had always promised
+  "needs a TTY" — but neither `bin/phlix` nor the vendored `Program` guarded
+  it (vendor defaults `input = STDIN` unconditionally; its `openTty` option
+  ships off).
+- **Cure.** A guard at the boundary in `bin/phlix` — the only
+  `new Program(...)->run()` launch site; the repo carries no composer-patches
+  idiom, so the app layer holds the check instead of a vendor edit. When
+  `stream_isatty(STDIN)` is false, the entrypoint prints a two-line usage
+  error to STDERR mirroring the existing unknown-command/bad-watch-flag idiom
+  and exits 2 — the code already reserved for that class of problem. The
+  check sits after the `run --selftest` branch (the headless check stays
+  eligible by design) and before container construction, so the refusal has
+  zero config side effects. No fake headless run was shipped.
+- **Proof.** `tests/BinPhlixTest.php` +3 tests / +11 assertions driving the
+  real binary through `proc_open`: bare `run` on non-TTY stdin under a 10s
+  deadline (SIGKILL past it) — red-before is an honest freeze catch (the
+  deadline fires; pre-fix probe exited 124), green-after is exit 2, zero
+  stdout bytes, and the "needs a TTY" refusal (the freeze leaked 14KB of
+  escapes to stdout); `run --selftest` stays headless under the same
+  non-TTY stdin with a quarantine HOME that stays empty; and a pin that the
+  help-text promise matches the refusal wording. CI runners are non-TTY;
+  the suite never spawned a bare `run` before, so the freeze was CI-invisible
+  — the new test exercises that exact path and can only ever fail at CI,
+  never hang it. Full suite 2996→2999 tests / 13756→13767 assertions
+  (+3/+11 exact, measured in-lane at the clean tip and at head; 13
+  pre-existing deprecations and 9 skips unchanged); phpstan tests corpus
+  `[OK]`, prod count unchanged (the sole pre-existing
+  `AdminClient::alternatePosters()` error, byte-ident to the CI red at
+  `48385e7`); phpcs `phpcs-tests.xml` and strict `PSR12` on the changed test
+  file 0 errors 0 warnings (the five long-line warnings from the first
+  draft were wrapped); `bin/phlix` untouched pre-existing long lines, all
+  guard lines ≤120; i18n catalogs untouched — the plain-ASCII STDERR error
+  follows `bin/phlix`'s existing untranslated usage-error precedent and lies
+  outside the pinned `check-i18n-hardcoded.php` file list.
+
 ### Fixed — SyncPlay WebSocket ingest sanitized at the parse boundary; vacuous C1 decode test rebuilt (fix campaign C22 r2) — 2026-10-29
 
 - **What.** The r1 review (console__tuispec) found the C22 sanitize law

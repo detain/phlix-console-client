@@ -597,6 +597,21 @@ try {
                 $result = runSelftest($mode);
                 exit($result ? 0 : 1);
             }
+            // The full-window app reads keystrokes from STDIN in raw mode.
+            // A piped, file-redirected, or otherwise non-terminal stdin is
+            // never a keyboard: the input reader spins against a dead stream
+            // while the renderer paints escape sequences into the pipe, and
+            // the process only dies when something external kills it (the
+            // non-TTY freeze). Refuse at the boundary instead — exit 2 is the
+            // usage-error code this entrypoint already reserves for the same
+            // class of problem (unknown command, bad watch flags). The help
+            // text has always promised "needs a TTY"; now the code enforces
+            // it. `run --selftest` above stays headless-safe by design.
+            if (!stream_isatty(STDIN)) {
+                fwrite(STDERR, "Error: phlix run needs a TTY (stdin is not a terminal)\n");
+                fwrite(STDERR, "headless check? use: phlix run --selftest\n");
+                exit(2);
+            }
             $container = buildContainer($mode);
             (new Program(App::boot(
                 $container['config'],
