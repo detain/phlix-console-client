@@ -6,9 +6,13 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![PHP](https://img.shields.io/badge/PHP-8.3%2B-777bb4?logo=php&logoColor=white)](https://www.php.net/)
 
-A full-window **terminal (TUI) client for Phlix** — browse libraries, poster
-grids, carousels, media detail, series/season/episode drill-down, search, a
-command palette, and an in-terminal video player. Posters and video render as
+**Phlix is an open-source media server you run yourself** — your own movies,
+shows and music on your own hardware, streamed to your devices. The server is a
+separate project, [`phlix-server`](https://github.com/detain/phlix-server);
+this repository is its full-window **terminal (TUI) client**: browse libraries,
+poster grids, carousels, media detail, series/season/episode drill-down,
+search, a command palette, and an in-terminal video player that direct-plays
+HEVC/AV1 the browser can't. Posters and video render as
 **sixel / kitty / iTerm2 / half-block ANSI** via the
 [SugarCraft](https://sugarcraft.github.io/) stack.
 
@@ -144,6 +148,9 @@ compatibility.
 
 ## Requirements
 
+- **A running Phlix media server** — without one this client has nothing to
+  connect to. The server is a separate project you run yourself:
+  [`phlix-server`](https://github.com/detain/phlix-server).
 - **PHP ≥ 8.3** with `ext-gd` (image decode), `ext-mbstring` (multibyte text
   width — src/ and sugar-image), `ext-intl` (sugar-core), `ext-ffi` (PTY
   control via sugar-pty) and `ext-json` (required by workerman; bundled in

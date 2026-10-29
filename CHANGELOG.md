@@ -5,6 +5,40 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — README answers "What is Phlix?" and states the server prerequisite; claims pin (review console__newcomer, M-CONSOLE-28) — 2026-10-29
+
+- **The defect.** The README introduced itself as "A full-window terminal
+  (TUI) client for Phlix" and never answered what Phlix is; the
+  "## Requirements" list named PHP, ffmpeg and a terminal but not the one
+  thing this client cannot run without — a running Phlix server — and no
+  link to the server project appeared anywhere in the file (grep for
+  `phlix-server`: zero hits at tip 72096b8; the review-era :132-138 block
+  had drifted, the gap stayed).
+- **Cure.** The opening paragraph now leads with the definition — an
+  open-source media server you run yourself — names
+  [`phlix-server`](https://github.com/detain/phlix-server) as the separate
+  project, and surfaces the already-true "direct-plays HEVC/AV1 the
+  browser can't" (previously buried in the Status block); the Requirements
+  list leads with the server prerequisite and its link. All claims are
+  estate-true (server README "Phlix Media Server", MPL-2.0; the client is a
+  pure remote HTTP client — every screen reads through
+  `src/Api/ApiClient.php`'s configured `baseUrl`, no local-library mode).
+- **Pin.** New `tests/Docs/WhatIsPhlixDocsTest` (4 tests / 7 assertions):
+  the opening block must carry the media-server definition, the
+  run-it-yourself statement and the canonical server URL; the Requirements
+  section's first bullet must state the server prerequisite with the link;
+  the URL census is pinned at exactly its two sites. Red-on-parent proven
+  (4/4 failures against the pristine 72096b8 README); mutation probes
+  M1 strip opening link → 2 red, M2 strip definition → 1 red, M3 drop the
+  bullet → 2 red; all restored green.
+- **Measured gates.** Full suite 3186 → 3190 tests / 16928 → 16935
+  assertions (+4/+7 = the new pin exact), Skipped 9 and the 13 pre-existing
+  PHPUnit XML-deprecation notices unchanged on both sides; phpstan prod
+  holds the byte-identical inherited AdminClient.php:2697 `return.type` red
+  at parent and tip (zero src/ touched), phpstan-tests `[OK]`; phpcs clean
+  under `phpcs.xml`, PSR12 and `phpcs-tests.xml`; i18n checks untouched and
+  green (README is not a converted file).
+
 ### Fixed — README static-analysis posture to the measured suppression census; claims pin (review console__docmaint, M-CONSOLE-26) — 2026-10-29
 
 - **The defect.** README.md claimed "**no baseline and no
