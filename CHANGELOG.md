@@ -5,6 +5,44 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — the manual now covers every live screen, pinned to the App registry (review console__enduser, M-CONSOLE-22) — 2026-10-29
+
+- **The defect.** The "Screens" table in `docs/clients/console.md`
+  stopped at fourteen rows while `src/App.php` instantiated 55 screen
+  classes: ten live, reachable screens had no row anywhere in the manual
+  — Collections, Playlists, Favorites, the watch-history screen
+  (Recently Watched), Recommendations ("For You"), Servers, Shared With
+  Me, Invite Links, Federation Shares, and Register (`s` at the login
+  prompt) — plus Server Setup, Music Artists, and Cast as adjacent
+  casualties. The Command palette row still advertised the Phase-5-era
+  "search, jump, settings, stats, admin" shortlist while
+  `staticActions()` ships 23 labels, and the Admin row named nine admin
+  surfaces while the family is 23 screens deep.
+- **Cure.** `docs/clients/console.md` gains honest rows for every
+  missing screen — each describing only shipped behavior walked from the
+  screen's own key handlers and endpoints (Collections/Playlists as the
+  `GET /api/v1/collections` twins with `d` + typed-`delete` removal;
+  Recommendations reached solely by the player's `w`; Servers'
+  `Enter`/`h`/`r` switcher; Shared With Me, Invite Links and Federation
+  Shares truthfully flagged as placeholder views whose handlers act
+  without a rendered list) — rewrites the palette and Admin rows to the
+  real inventories, teaches `s`-to-register in the first-run paragraph,
+  and points Settings at Servers. README.md's palette sentence now
+  enumerates the actual action set and defers to the manual's Screens
+  table.
+- **Pin.** `tests/Docs/ScreenInventoryDocsTest` (8 tests/10 assertions;
+  red-on-parent 4 failures): the live registry is re-derived AT TEST
+  RUNTIME from App's `new XScreen(` / `XScreen::create(` instantiation
+  points via `token_get_all`, the palette census from its
+  `PaletteAction` literals, and both pinned against the table — a screen
+  or action added without its manual row reddens the suite (the
+  PlayerKeyDocsTest / WatchStateLoopDocsTest doctrine).
+- **Suite.** 3159 → 3167 tests, 16848 → 16858 assertions (+8/+10; local
+  PHP 8.3, serial). phpstan unchanged (the one pre-existing
+  `AdminClient::alternatePosters` return.type error is untouched — no
+  src changes); phpcs clean under both standards; docs/tests-only commit,
+  i18n gates inert.
+
 ### Added — the manual teaches the watch-state core daily loop, pinned to the shipped keys (review console__enduser, M-CONSOLE-21) — 2026-10-29
 
 - **The defect.** `docs/clients/console.md` documented

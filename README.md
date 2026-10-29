@@ -55,8 +55,9 @@ compatibility.
 >
 > Phase 5 adds **global search** (`/` from anywhere → a debounced query over a
 > virtualized poster grid of `/media?search=` results), a **command palette**
-> (Ctrl-K or `:` → fuzzy-ranked actions: search, jump to any library, log out,
-> quit), and **toasts** — transient top-right notifications that surface errors
+> (Ctrl-K or `:` → fuzzy-ranked actions — search, jump to any library, open any
+> screen, log out, quit; the full list is under *Controls* below), and **toasts**
+> — transient top-right notifications that surface errors
 > which used to fail silently.
 >
 > Phase 6 makes **every library type browsable** and audio + photos fully usable —
@@ -264,9 +265,16 @@ All → Watched → Unwatched → ♥ Favorites, and `H` / `P` open your watch h
 and playlists. The manual (`docs/clients/console.md`, "Watching & ratings")
 covers the loop in full.
 
-The command palette also opens **Settings** (theme + slideshow interval) and the
-read-only **Stats** screen, toggles the **metrics HUD**, and — when you're signed
-in as an admin — exposes the **Admin** menu (see *Status* above).
+The command palette (`Ctrl-K` or `:`) is the universal navigator: **Search**,
+**Home**, **Settings** (theme + slideshow interval), the read-only **Stats**
+screen, **Watch History**, **Favorites**, **Photos**, **Music Artists**,
+**Playlists**, **Collections**, **Servers**, **Shared With Me**, **Invite
+Links**, **Federation Shares**, **Show/Hide metrics**, **Log out**, **Quit** —
+plus a `Go to <library>` jump per library, the **Admin** menu when you're
+signed in as an admin (see *Status* above), and **Resume/Pause** and **Stop
+playback** while a music or audiobook session is live. Every live screen is
+listed with how to reach it in the manual (`docs/clients/console.md`,
+"Screens").
 
 **In the player:** `Space` play/pause · `←`/`→` seek ±10s · `0`–`9` seek to % ·
 `[` / `]` speed · `m` cycle render mode · `s` skip intro/outro · `o` start over ·

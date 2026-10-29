@@ -154,7 +154,11 @@ bin/phlix run --mode=sixel
 ```
 
 The first run asks for your Phlix server URL, then presents a login prompt.
-On subsequent runs the stored tokens are used automatically.
+On subsequent runs the stored tokens are used automatically. If you don't have
+an account on that server yet, press `s` at the login prompt to open the
+**Register** form and sign up in place (username, email, password — sent to
+`POST /api/v1/auth/register`); a server that requires approval reports your
+account as pending, and one with signups disabled says so.
 
 ### Hub relay consumer (`watch`)
 
@@ -319,15 +323,29 @@ show yet, the screen says so.
 | **Detail** | Hero poster, metadata, synopsis, cast, chapters, recommendations |
 | **Series** | Season list → episode list with breadcrumbs |
 | **Music** | Album list → track table; Enter plays |
+| **Music Artists** | Artist list → that artist's albums; Enter opens (palette → Music Artists) |
 | **Audiobooks** | List → chapter table; Enter plays, `r` resumes |
 | **Books** | Cover grid → detail with download URL |
 | **Photos** | Album covers → thumbnail grid → fullscreen viewer |
 | **Player** | In-terminal video player with scrubber and controls |
+| **Cast** | Casting target list — Chromecast/DLNA/AirPlay/Roku — opened with `C` on a detail screen |
 | **Search** | Global debounced search over virtualized results grid |
-| **Command palette** | Fuzzy-ranked actions: search, jump, settings, stats, admin |
-| **Admin** | Dashboard, users, plugins, logs, backups, server settings, libraries, DLNA, remote access, live TV |
-| **Settings** | Theme selection, photo slideshow interval |
+| **Command palette** | Fuzzy-ranked actions: Search, Home, Settings, Stats, Watch History, Favorites, Photos, Music Artists, Playlists, Collections, Servers, Shared With Me, Invite Links, Federation Shares, Show metrics / Hide metrics, Log out, Quit — plus a `Go to <library>` jump per library, Admin when signed in as an admin, and Resume playback / Pause playback and Stop playback while a music or audiobook session is live |
+| **Admin** | Admin menu over the server: dashboard, users, auth providers, backups, plugins (install / catalog / edit / updates), logs, metrics, server settings, transcoding, libraries, filesystem, DLNA, port-forward candidates, server restart, live TV, parental profiles and controls, watch history, webhooks, duplicates |
+| **Settings** | Theme selection, photo slideshow interval; `s` opens **Servers** |
 | **Stats** | Diagnostic metrics HUD |
+| **Server Setup** | The first-run server-URL form — `Enter` connects, `Esc` quits |
+| **Login** | Sign-in form — `Tab` moves fields, `Enter` signs in, `s` opens **Register**, `Esc` quits |
+| **Register** | Sign-up form (username, email, password); on success you are signed straight in |
+| **Collections** | Your collections; `Enter` opens one, `d` deletes it (typed `delete` confirms); items are added/removed from the collection's detail screen |
+| **Playlists** | Your playlists — the same server-side list as Collections (`GET /api/v1/collections`), with the same keys |
+| **Favorites** | Everything you favorited (`F` toggles on a detail screen); `Enter` opens |
+| **Recently Watched** | Your watch history — `H` on the home sidebar or the palette's Watch History action; `Enter` opens where you left off |
+| **Recommendations** | "For You" — personal suggestions built from your watching (`GET /api/v1/me/recommendations`); opened with `w` in the player, `Enter` opens, `x` dismisses a suggestion |
+| **Servers** | Multi-server switcher — `Enter` switches the active server, `h` imports from your hub, `r` removes; opened from the palette or Settings |
+| **Shared With Me** | Incoming hub shares — currently a placeholder view (it fetches the shares but lists nothing on screen; `a`/`r` still act on the first entry) |
+| **Invite Links** | Hub invite links — currently a placeholder view (no list rendered; `c` creates a link, `r` revokes the first entry) |
+| **Federation Shares** | Outgoing federation shares — a title-only placeholder; the list is not implemented yet |
 
 ## Troubleshooting
 
