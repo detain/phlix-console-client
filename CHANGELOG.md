@@ -5,6 +5,60 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — README feature intro to the shipped registry surface; coverage pin (review console__newcomer, M-CONSOLE-29) — 2026-10-29
+
+- **The defect.** The intro undersold the product. The palette sentence
+  still carried a Phase-5-era shortlist ("fuzzy-ranked actions — search,
+  jump to any library, open any screen, log out, quit") while
+  `App::staticActions()` registers twenty-three labels across the whole
+  screen registry — fifteen of them appeared nowhere in the feature intro
+  (measured at 65f5f23: Collections, Favorites, Federation Shares, Go to,
+  Hide metrics, Home, Invite Links, Music Artists, Pause playback,
+  Playlists, Resume playback, Servers, Shared With Me, Show metrics,
+  Stop playback) — and the sentence deferred "the full list" to
+  "*Controls* below", a section the README never had (heading census:
+  Render modes / Requirements / Install / Run it / Test / Static
+  analysis / License). The opening pitch omitted shipped subsystems
+  outright: SyncPlay watch parties (`src/Api/SyncPlay/SyncPlayService.php`,
+  `y`), casting (`CastScreen`), item downloads
+  (`src/Download/DownloadService.php`, `d` on DetailScreen), the admin
+  client (twenty-three `Admin*` screens, palette action gated on
+  `isAdmin`), and trickplay scrub previews (`src/Media/TrickplayCache.php`
+  + the lazy first-scrub fetch in `PlayerScreen`) — "trickplay" appeared
+  zero times in the README. The *Run it* census also split four registry
+  labels into non-literal forms ("Show/Hide metrics", "Resume/Pause").
+- **Cure (docs-truth, every named feature cited).** The opening pitch now
+  names the full subsystem set; the palette sentence enumerates all
+  twenty-three registry labels verbatim — both ternary arms included
+  (**Show metrics** / **Hide metrics**, **Resume playback** / **Pause
+  playback**) — with the admin and playback-session gates stated honestly,
+  the dynamic `Go to <library>` jump, and the dead *Controls* pointer
+  replaced by its real targets (*Run it* + the manual's "Screens" table);
+  the player paragraph gains its trickplay sprite thumbnails, scoped to
+  "where the server publishes them" (the fetch is lazy and resolves null
+  when absent); *Run it* labels un-split to match the registry.
+- **Pin.** New `tests/Docs/ReadmeFeatureIntroDocsTest` (3 tests /
+  3 assertions), sibling of `ScreenInventoryDocsTest` (which pins the
+  same live `PaletteAction` census against the manual): the token walker
+  re-derives every registered label from `src/App.php` and requires it in
+  the README feature intro (H1 → "## Requirements"); the intro must name
+  the shipped subsystems (command palette / direct-play / SyncPlay /
+  watch party / trickplay / download / cast / admin); and every
+  "under *X* below"-style pointer must resolve to a real README heading —
+  the dead-pointer class itself is what that leg kills. Red-on-parent
+  proven 3/3 at 65f5f23 (15-label gap; `trickplay` missing; `Controls`
+  dead); tooth probe: deleting **Favorites** from the new enumeration
+  reddens leg one, restore greens.
+- **Measured gates.** Full suite 3190 → 3193 tests / 16935 → 16938
+  assertions (+3/+3 = the new pin exact; isolated HEAD worktree + this
+  change, skips 9 and the 13 pre-existing PHPUnit XML-deprecation notices
+  unchanged on both sides); phpstan prod holds the byte-identical
+  inherited AdminClient.php:2697 `return.type` red at parent and tip
+  (zero src/ touched), phpstan-tests `[OK]`; phpcs clean under
+  `phpcs.xml` (src), `phpcs-tests.xml` (tests) and PSR12 on the new test
+  file; i18n checks untouched and green (no catalog or PHP string
+  surface changed).
+
 ### Fixed — README answers "What is Phlix?" and states the server prerequisite; claims pin (review console__newcomer, M-CONSOLE-28) — 2026-10-29
 
 - **The defect.** The README introduced itself as "A full-window terminal

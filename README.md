@@ -9,10 +9,15 @@
 **Phlix is an open-source media server you run yourself** — your own movies,
 shows and music on your own hardware, streamed to your devices. The server is a
 separate project, [`phlix-server`](https://github.com/detain/phlix-server);
-this repository is its full-window **terminal (TUI) client**: browse libraries,
-poster grids, carousels, media detail, series/season/episode drill-down,
-search, a command palette, and an in-terminal video player that direct-plays
-HEVC/AV1 the browser can't. Posters and video render as
+this repository is its full-window **terminal (TUI) client**: browse libraries
+as poster rails and virtualized grids, drill media detail and
+series → season → episode, open music, book, audiobook and photo libraries in
+browsers built for each; global search; a command palette wired to every
+screen in the client (its full shipped census is under **Run it** below);
+**SyncPlay watch parties**; casting to **Chromecast / Roku / AirPlay / DLNA**;
+item **downloads**; a **full admin client** — and an in-terminal video player
+that **direct-plays** HEVC/AV1 the browser can't, with **trickplay** sprite
+thumbnails previewing while you scrub. Posters and video render as
 **sixel / kitty / iTerm2 / half-block ANSI** via the
 [SugarCraft](https://sugarcraft.github.io/) stack.
 
@@ -53,16 +58,27 @@ compatibility.
 > Press `p` to launch the **in-terminal player** (Phase 4): it **direct-plays**
 > the item's signed stream straight through ffmpeg — decoding HEVC/MKV/AV1 the
 > browser can't and bypassing the server transcode — with a **scrubber** (chapter
-> ticks + intro/outro skip), **resume** from where you left off, **progress
-> reporting**, **up-next** auto-advance between episodes, on-demand **subtitles**,
+> ticks + intro/outro skip + **trickplay** sprite thumbnails previewing while
+> you drag, where the server publishes them for the item), **resume** from
+> where you left off, **progress reporting**, **up-next** auto-advance
+> between episodes, on-demand **subtitles**,
 > and a **transcode fallback** when a file can't be direct-played.
 >
 > Phase 5 adds **global search** (`/` from anywhere → a debounced query over a
 > virtualized poster grid of `/media?search=` results), a **command palette**
-> (Ctrl-K or `:` → fuzzy-ranked actions — search, jump to any library, open any
-> screen, log out, quit; the full list is under *Controls* below), and **toasts**
+> (Ctrl-K or `:` → fuzzy-ranked actions), and **toasts**
 > — transient top-right notifications that surface errors
-> which used to fail silently.
+> which used to fail silently. The palette has since grown into the client's
+> universal navigator, registered screen-by-screen in `src/App.php`: **Search**,
+> **Home**, **Settings**, **Stats**, **Watch History**, **Favorites**,
+> **Photos**, **Music Artists**, **Playlists**, **Collections**, **Servers**,
+> **Shared With Me**, **Invite Links**, **Federation Shares**, **Show metrics**
+> / **Hide metrics**, **Admin** (offered only while signed in as an admin),
+> **Resume playback** / **Pause playback** and **Stop playback** (while a music
+> or audiobook session is live), **Log out**, and **Quit** — plus a `Go to
+> <library>` jump per library. The same census with what each action opens is
+> under **Run it** below and in the manual (`docs/clients/console.md`,
+> "Screens").
 >
 > Phase 6 makes **every library type browsable** and audio + photos fully usable —
 > opening a library now routes to a browser built for its type:
@@ -276,12 +292,12 @@ The command palette (`Ctrl-K` or `:`) is the universal navigator: **Search**,
 **Home**, **Settings** (theme + slideshow interval), the read-only **Stats**
 screen, **Watch History**, **Favorites**, **Photos**, **Music Artists**,
 **Playlists**, **Collections**, **Servers**, **Shared With Me**, **Invite
-Links**, **Federation Shares**, **Show/Hide metrics**, **Log out**, **Quit** —
-plus a `Go to <library>` jump per library, the **Admin** menu when you're
-signed in as an admin (see *Status* above), and **Resume/Pause** and **Stop
-playback** while a music or audiobook session is live. Every live screen is
-listed with how to reach it in the manual (`docs/clients/console.md`,
-"Screens").
+Links**, **Federation Shares**, **Show metrics** / **Hide metrics**, **Log out**,
+**Quit** — plus a `Go to <library>` jump per library, the **Admin** menu
+when you're signed in as an admin (see *Status* above), and **Resume
+playback** / **Pause playback** and **Stop playback** while a music or
+audiobook session is live. Every live screen is listed with how to reach
+it in the manual (`docs/clients/console.md`, "Screens").
 
 **In the player:** `Space` play/pause · `←`/`→` seek ±10s · `0`–`9` seek to % ·
 `[` / `]` speed · `m` cycle render mode · `s` skip intro/outro · `o` start over ·
