@@ -30,6 +30,7 @@ use Phlix\Console\Ui\AudioTrackList;
 use Phlix\Console\Ui\ChapterList;
 use Phlix\Console\Ui\CommandPalette;
 use Phlix\Console\Ui\MetricsOverlay;
+use Phlix\Console\Ui\NowPlayingBar;
 use Phlix\Console\Ui\PaletteAction;
 use Phlix\Console\Ui\SyncPlayOverlay;
 use Phlix\Console\App;
@@ -96,14 +97,27 @@ final class GraphicsFrameCompositingTest extends TestCase
     public function testNowPlayingBarIsWrittenToTheLastScreenRowInsteadOfReplacingTheFrame(): void
     {
         $frame = $this->opaqueFrame();
-        $app = $this->appWith(new OpaqueFrameScreen($frame), nowPlaying: $this->musicSession());
+        $session = $this->musicSession();
+        $app = $this->appWith(new OpaqueFrameScreen($frame), nowPlaying: $session);
         $rendered = $app->view();
+
+        // The bar the App composited, byte-ident: same session, App's default
+        // cols (80) and theme (Nocturne — render()'s null-default is the same).
+        $bar = NowPlayingBar::render($session, 80);
 
         // Parent: `$lines[last] = $bar` replaced the SINGLE line — the whole
         // video+chrome — with the bar. Now the bar rides cursorTo(rows, 1).
         self::assertStringStartsWith($frame, $rendered);
         self::assertStringContainsString('Come Together', $rendered);
-        self::assertStringContainsString(Ansi::cursorTo(24, 1) . Ansi::eraseLine(), $rendered);
+        // r2 mutation probe found the bare cursorTo(24,1)+eraseLine needle was
+        // shadowed by opaqueFrame()'s own chrome (its last row opens with the
+        // same prefix), so a `"\n" . $bar` sink stayed green. Pin the bar's
+        // RIDE instead: its text sits DIRECTLY against its absolute-move +
+        // erase prefix — chrome's tail ('[space] play  [q] quit') can't fake it.
+        self::assertStringContainsString(Ansi::cursorTo(24, 1) . Ansi::eraseLine() . $bar, $rendered);
+        // The menu-graft idiom, applied to the bar sink: whatever is appended
+        // after the frame is pure CSI movement — no raw newline may ride.
+        self::assertStringNotContainsString("\n", substr($rendered, strlen($frame)));
         // The bar emits AFTER the chrome's own bottom-row write → it wins the row.
         self::assertGreaterThan(
             strpos($rendered, '4:56'),
