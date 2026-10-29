@@ -1,8 +1,11 @@
 # Vendor Patches
 
-This directory captures hand-patched vendor files that have been modified from
-their original Composer-distributed versions. These patches are applied as part
-of the CI pipeline to ensure reproducible builds.
+This document describes the project's **policy** on hand-patching vendor files —
+which the project forbids — and the CI check that enforces it. There is no
+patches directory to "capture" anything: `vendor/` is Composer-managed and
+untracked (`.gitignore` carries `/vendor/`), so a locally patched vendor file
+has nowhere to be committed here and is silently overwritten by the next
+`composer install` — one of the reasons the policy below exists.
 
 ## Policy
 
@@ -18,32 +21,48 @@ makes dependency updates dangerous.
 
 ## Current Patches
 
-At present, **no vendor files are hand-patched** in this project. The `patches/`
-directory exists as a placeholder in case a patch becomes necessary in the future,
-and the CI check (`vendor-patches-check`) confirms this remains true.
-
-If a patch IS added, it should be named `{package-name}-{original-file}.patch`
-(e.g., `sugar-gallery-PosterCard.php.patch`) and the CI check should be updated
-to verify the patch applies cleanly.
+At present, **no vendor files are hand-patched** in this project. There is no
+`patches/` directory — none has ever existed in this repository's history — and
+there is no patch-applier tooling: `composer.json` requires no patch plugin and
+its `extra` section has no `patches` key (which would be inert without one).
+The CI check (the `vendor-patches` job) confirms this remains true on every
+build.
 
 ## CI Check
 
-The `vendor-patches-check` job in CI scans vendor/ for signs of hand-patching:
+The `vendor-patches` job in `.github/workflows/ci.yml` installs dependencies
+with a plain `composer install` and then scans the resulting `vendor/` tree for
+signs of hand-patching. It **applies nothing** — it only detects and fails.
+The live detection step (quoted verbatim from the workflow):
 
 ```bash
-# Look for common patch markers left in source
-grep -rE '(ORIGINAL|FIXED-BY|PATCH{|// PATCH|/\* PATCH)' vendor/ --include='*.php' && exit 1 || exit 0
+PATCHED=$(grep -rEl '(FIXED-BY|PATCH{|// PATCH|/\* PATCH|\x1b\[1;31mPATCH)' vendor/ --include='*.php' 2>/dev/null || true)
 ```
 
-This check will fail (blocking the build) if any PHP file in vendor/ contains
-a pattern that suggests manual modification.
+If the list is non-empty the step prints the offending files and exits 1,
+failing the build. The marker set is the alternation above: `FIXED-BY`,
+`PATCH{`, `// PATCH`, `/* PATCH`, and an ANSI-red `PATCH`. Note that bare
+`ORIGINAL` is deliberately **not** matched — vendor packages legitimately
+contain constants and comments such as `COMPOSER_ORIGINAL_INIS` or
+`ORIGINAL_NODE` (see the in-step comment in the workflow, and the same law
+recorded in `docs/steps/ci-baseline-C9.md`).
 
 ## When a Patch Is Unavoidable
 
-If an upstream bug is blocking and a fork+PR is not fast enough:
+The sanctioned ladder is always the one under **Policy** above (fork +
+`repositories`, upstream PR, version bump). There is no supported local-patch
+pipeline in this repository: no `patches/` directory and no patch-applier
+tooling exist today. If an upstream bug is blocking and a fork is not fast
+enough, the only honest options are:
 
-1. Create the patch file in `patches/`
-2. Document the reason, the upstream issue URL, and the expected resolution
-3. Add a comment in `composer.json` under `extra.patches` explaining the patch
-4. Update this document with the patch details
-5. Set a calendar reminder to remove the patch when the upstream fix is released
+1. Point `composer.json` `repositories` at a patched fork (a normal Composer
+   dependency on forked code — reproducible via the lock file), or
+2. Carry the change as an upstream PR and wait.
+
+Should the project ever adopt a real patch pipeline, it must land the tooling
+(a `patches/` directory plus a CI step that applies and verifies the patches —
+distinct from the marker grep above) in the same change that updates this
+document. `tests/Docs/VendorPatchesDocsTest.php` pins the current state — no
+patches, no tooling, grep-only enforcement — by deriving it from the workflow,
+`composer.json`, `.gitignore`, and the filesystem at runtime, and reddens when
+the world moves without the prose.

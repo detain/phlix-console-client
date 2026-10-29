@@ -5,6 +5,44 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — vendor-patches doc reconciled with the workflow, .gitignore and the filesystem; the fictional patch pipeline purged with a runtime-derived pin (review console__writer, M-CONSOLE-51) — 2026-10-29
+
+- **The defect.** `docs/vendor-patches.md` contradicted itself and the
+  repository. Its header called the file "this directory" that "captures
+  hand-patched vendor files" whose patches "are applied as part of the CI
+  pipeline" — while a few lines below the policy reads "**Do not hand-patch
+  vendor files.**" The CI job neither applies nor is named as written: the
+  doc says `vendor-patches-check`, the workflow says `vendor-patches`, and
+  its step is a tamper grep over a plain `composer install` tree. The
+  "`patches/` directory exists as a placeholder" was false — no such
+  directory has ever existed in the repository's history (`git log --all --
+  patches/` is empty) — and the `extra.patches` instruction was inert
+  decoration: no patch plugin in `require`/`require-dev`, `extra` empty.
+  The quoted grep block had drifted from the live one on three axes
+  (still listing bare `ORIGINAL`, which `09b4228` deliberately dropped
+  because packages ship `COMPOSER_ORIGINAL_INIS`; missing the ANSI-red
+  `PATCH` marker; wrong command shape). Meanwhile `vendor/` is untracked
+  (`.gitignore`: `/vendor/`), so the whole "capture" premise had nowhere
+  to live.
+- **The cure.** The doc now states the executed truth: a policy document,
+  not a directory; `vendor/` Composer-managed and untracked; the
+  `vendor-patches` job **applies nothing — it only detects and fails**;
+  the live detection step quoted verbatim from `.github/workflows/ci.yml`;
+  the marker set and the `ORIGINAL` exclusion told honestly; the
+  unavoidable-patch section reduced to the sanctioned ladder (fork +
+  `repositories` / upstream PR) with any future real pipeline required to
+  land tooling, prose and pin in one change. Sibling docs swept: the only
+  other teller of this story, `docs/steps/ci-baseline-C9.md`, was already
+  cured by the M-CONSOLE-53 pass; README carries no mention.
+- **The pin.** `tests/Docs/VendorPatchesDocsTest.php` (8 tests, 91
+  assertions, tests/Docs tradition): job name, detection line, marker
+  alternation, `patches/` absence, untracked-vendor posture and
+  patch-tooling absence all DERIVED from ci.yml, .gitignore, composer.json
+  and disk; the prose fossils may never return to any README/docs markdown
+  (CHANGELOG history exempt). Red-on-parent measured (8 failures against
+  the pre-cure doc); mutation probes planted: a marker swap in the
+  workflow reddens exactly the verbatim-quote law, restored green.
+
 ### Changed — terminal-graphics doc to the real pipeline and the real test harness; retired decoder doubles purged from prose with a runtime-derived pin (review console__writer, M-CONSOLE-49) — 2026-10-29
 
 - **The defect.** `docs/terminal-graphics.md` still narrated a removed
