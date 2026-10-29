@@ -328,11 +328,11 @@ show yet, the screen says so.
 | **Books** | Cover grid → detail with download URL |
 | **Photos** | Album covers → thumbnail grid → fullscreen viewer |
 | **Player** | In-terminal video player with scrubber and controls |
-| **Cast** | Casting target list — Chromecast/DLNA/AirPlay/Roku — opened with `C` on a detail screen |
+| **Cast** | Casting target list — Chromecast/DLNA/AirPlay/Roku — opened with `C` on a detail screen (works on streamable items) |
 | **Search** | Global debounced search over virtualized results grid |
 | **Command palette** | Fuzzy-ranked actions: Search, Home, Settings, Stats, Watch History, Favorites, Photos, Music Artists, Playlists, Collections, Servers, Shared With Me, Invite Links, Federation Shares, Show metrics / Hide metrics, Log out, Quit — plus a `Go to <library>` jump per library, Admin when signed in as an admin, and Resume playback / Pause playback and Stop playback while a music or audiobook session is live |
 | **Admin** | Admin menu over the server: dashboard, users, auth providers, backups, plugins (install / catalog / edit / updates), logs, metrics, server settings, transcoding, libraries, filesystem, DLNA, port-forward candidates, server restart, live TV, parental profiles and controls, watch history, webhooks, duplicates |
-| **Settings** | Theme selection, photo slideshow interval; `s` opens **Servers** |
+| **Settings** | Theme selection, photo slideshow interval; `s` opens **Servers**, `l` logs out |
 | **Stats** | Diagnostic metrics HUD |
 | **Server Setup** | The first-run server-URL form — `Enter` connects, `Esc` quits |
 | **Login** | Sign-in form — `Tab` moves fields, `Enter` signs in, `s` opens **Register**, `Esc` quits |
@@ -340,7 +340,7 @@ show yet, the screen says so.
 | **Collections** | Your collections; `Enter` opens one, `d` deletes it (typed `delete` confirms); items are added/removed from the collection's detail screen |
 | **Playlists** | Your playlists — the same server-side list as Collections (`GET /api/v1/collections`), with the same keys |
 | **Favorites** | Everything you favorited (`F` toggles on a detail screen); `Enter` opens |
-| **Recently Watched** | Your watch history — `H` on the home sidebar or the palette's Watch History action; `Enter` opens where you left off |
+| **Recently Watched** | Your watch history — `H` on the home sidebar or the palette's Watch History action; `Enter` opens the recorded item's detail screen |
 | **Recommendations** | "For You" — personal suggestions built from your watching (`GET /api/v1/me/recommendations`); opened with `w` in the player, `Enter` opens, `x` dismisses a suggestion |
 | **Servers** | Multi-server switcher — `Enter` switches the active server, `h` imports from your hub, `r` removes; opened from the palette or Settings |
 | **Shared With Me** | Incoming hub shares — currently a placeholder view (it fetches the shares but lists nothing on screen; `a`/`r` still act on the first entry) |

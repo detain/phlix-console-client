@@ -5,6 +5,18 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — three manual screen rows to their handlers' exact truth (review console__enduser, M-CONSOLE-22 follow-through) — 2026-10-29
+
+- **The defect.** The freshly added rows overstated or omitted key
+  arms in three places: Recently Watched claimed `Enter` "opens where
+  you left off" while the handler sends `OpenDetailMsg` (the recorded
+  item's detail screen, not direct playback); Settings documented `s`
+  to Servers but omitted its own `l` log-out arm (`SettingsScreen`
+  dispatches `LogoutMsg`); and the Cast row hid that `C` on Detail is
+  gated on the item having a stream URL.
+- **Cure.** The three rows reworded to the code truth; no test pins
+  moved (the strings were unpinned — verified by grep before editing).
+
 ### Fixed — env-var guide covers the real shipped inventory; poster/frame mode lists pinned to the entrypoint arms (review console__docmaint, M-CONSOLE-17 round 3) — 2026-10-29
 
 - **The defect.** r2 left two r1 asks open. (a) `ScreenGuideDocsTest` still
