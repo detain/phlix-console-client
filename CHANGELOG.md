@@ -5,6 +5,43 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Spanish missing-episodes warning said "sin ver" (unwatched); semantic missing/unwatched guard added (review console__copywriter, M-CONSOLE-09) — 2026-10-29
+
+- **What.** `resources/lang/es.php:56–57` rendered the detail-screen
+  missing-episodes warning as "episodio(s) sin ver" — literally "episode(s)
+  left to watch" — where en says "episode(s) missing" (`en.php:53–54`): the
+  opposite diagnostic for a gap-in-your-library alert, and contradicting
+  es's own correct term for the same feature one section above (`:35` "No se
+  pudieron cargar los episodios que faltan."). Sibling census, this key
+  family only (`missing_episodes_one`/`_many`/`_load_failed`, both sides
+  quoted): `de:56–57` "Folge fehlt"/"Folgen fehlen" ✓, `fr:56–57` "épisode
+  manquant"/"épisodes manquants" ✓, `it:56–57` "episodio mancante"/"episodi
+  mancanti" ✓, `ja:56–57` "欠落エピソード" ✓, `pt-br:61–62` "episódio
+  faltante"/"episódios faltantes" ✓ — es the sole defect; nothing else to
+  cure.
+- **Cure.** es `sin ver` → the catalog's own established term: `'⚠  {count}
+  episodio que falta'` / `'⚠  {count} episodios que faltan'` (`{count}`
+  token and `⚠  ` double-space prefix preserved exactly; placeholder-parity
+  check green). New
+  `LocaleCatalogsTest::testMissingEpisodeStringsSayMissingAndNeverUnwatched`
+  — the M-CONSOLE-08 host/guest idiom applied to this family, derived from
+  en.php both directions: values whose English says "missing" must carry the
+  locale's missing term (`que falt|faltante` / `manquant` / `fehl` /
+  `mancant` / `faltant` / `欠落`); unwatched ("left to watch") stems may
+  appear only where English itself says "unwatched" (en never does —
+  absolute tripwires). pt-br's loose "a assistir" form deliberately excluded
+  from the ban set: it collides with the benign "comece a assistir" copy in
+  `recommendations.empty` (probed at `0ea9bdf`). Red→green proven (es red on
+  the parent catalog at `0ea9bdf`, 5 siblings green = non-vacuous);
+  mutation-toothed (reverting just `_many` reddens exactly the es row).
+  Suite 3073→3079 tests / 15584→15956 assertions (+6/+372 exact, one row
+  per locale), Skipped 9 and deprecations 13 held; phpstan-tests [OK] 0;
+  phpcs BOTH standards 0E/0W on the changed test file (`resources/` is
+  outside both CI phpcs paths); `check-i18n-catalogs.php` all 6 locales in
+  sync (59 keys); `check-i18n-hardcoded` both legs pass. Pre-existing and
+  untouched: phpstan src leg red at `src/Api/Admin/AdminClient.php:2697`
+  (same error as recorded by the M-CONSOLE-08 entry).
+
 ### Fixed — Italian SyncPlay host-role strings said "ospite" (guest); semantic host/guest guard added (review console__copywriter, M-CONSOLE-08) — 2026-10-29
 
 - **What.** All four host-role values in `resources/lang/it.php` used

@@ -53,8 +53,8 @@ return [
     'detail.episode_plural' => 'episodios',
     'detail.item' => 'elemento',
     'detail.item_plural' => 'elementos',
-    'detail.missing_episodes_one' => '⚠  {count} episodio sin ver',
-    'detail.missing_episodes_many' => '⚠  {count} episodios sin ver',
+    'detail.missing_episodes_one' => '⚠  {count} episodio que falta',
+    'detail.missing_episodes_many' => '⚠  {count} episodios que faltan',
     'detail.loading_content' => 'Cargando…',
 
     // ---- FilterBar ----------------------------------------------------

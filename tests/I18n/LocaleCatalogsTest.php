@@ -85,6 +85,43 @@ final class LocaleCatalogsTest extends TestCase
         'ja' => '/ゲスト/u',
     ];
 
+    /**
+     * The established "missing" term per catalog (morphological nets: de
+     * fehlt/fehlen/Fehlende, es que falta/que faltan/faltante ...). Every
+     * value whose English says "missing" must carry it — review
+     * console__copywriter M-CONSOLE-09 found es.php inverting the term.
+     *
+     * @var array<string, string>
+     */
+    private const MISSING_TERMS = [
+        'es' => '/que falt|faltante/iu',
+        'fr' => '/manquant/iu',
+        'de' => '/fehl/iu',
+        'it' => '/mancant/iu',
+        'pt-br' => '/faltant/iu',
+        'ja' => '/欠落/u',
+    ];
+
+    /**
+     * Each catalog's stems for UNWATCHED ("left to watch") — the inversion
+     * M-CONSOLE-09 cured. None may appear in a value whose English
+     * counterpart does not say "unwatched"; en.php currently never does, so
+     * these are absolute tripwires. The loose pt-br '[aà] assistir' form is
+     * deliberately absent: it collides with the benign 'comece a assistir'
+     * copy in recommendations.empty (probed at 0ea9bdf), so pt-br pins its
+     * explicit não-assistido/por-assistir phrasings only.
+     *
+     * @var array<string, string>
+     */
+    private const UNWATCHED_TERMS = [
+        'es' => '/sin\s+ver|no\s+visto/iu',
+        'fr' => '/non\s+vu|[àa]\s+voir/iu',
+        'de' => '/ungesehen|nicht\s+gesehen/iu',
+        'it' => '/non\s+visto|da\s+vedere/iu',
+        'pt-br' => '/n[ãa]o\s+assistido|por\s+assistir/iu',
+        'ja' => '/未視聴/u',
+    ];
+
     /** @var array<string, array<string, string>> locale => catalog, lazily loaded */
     private array $catalogs = [];
 
@@ -234,6 +271,40 @@ final class LocaleCatalogsTest extends TestCase
                     self::GUEST_ROLE_TERMS[$locale],
                     $value,
                     "$locale: $key uses a guest term where English says no guest"
+                );
+            }
+        }
+    }
+
+    /**
+     * Both-directions missing/unwatched semantic guard derived from en.php
+     * (review console__copywriter M-CONSOLE-09):
+     * (1) every value whose English says "missing" must carry that locale's
+     * established missing term — es had rendered the missing-episodes
+     * warning as 'episodio sin ver' ('episode left to watch'), contradicting
+     * its own correct 'los episodios que faltan' one section above;
+     * (2) a locale's unwatched term may only appear where the English value
+     * itself says "unwatched".
+     */
+    #[DataProvider('localeRows')]
+    public function testMissingEpisodeStringsSayMissingAndNeverUnwatched(string $locale): void
+    {
+        foreach ($this->catalog('en') as $key => $enValue) {
+            $value = $this->catalog($locale)[$key];
+
+            if (preg_match('/\bmissing\b/i', $enValue) === 1) {
+                self::assertMatchesRegularExpression(
+                    self::MISSING_TERMS[$locale],
+                    $value,
+                    "$locale: $key says 'missing' in English but not in $locale"
+                );
+            }
+
+            if (preg_match('/\bunwatched\b/i', $enValue) !== 1) {
+                self::assertDoesNotMatchRegularExpression(
+                    self::UNWATCHED_TERMS[$locale],
+                    $value,
+                    "$locale: $key uses an unwatched term where English says nothing unwatched"
                 );
             }
         }
