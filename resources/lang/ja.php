@@ -20,6 +20,10 @@ return [
     // ---- Auth (session expiry — shared by every surface) ---------
     'auth.session_expired' => 'セッションの有効期限が切れました。もう一度ログインしてください。',
 
+    // ---- Errors (shared failure surface — ExceptionSentences) ------
+    'errors.network' => 'サーバーに接続できませんでした。URL と接続を確認してください。',
+    'errors.unexpected' => '問題が発生しました。詳細はログを確認してください。',
+
     // ---- RecommendationsScreen ----------------------------------------
     'recommendations.title' => 'おすすめ',
     'recommendations.hint' => 'Q: 戻る  ↑↓: 移動  Enter: 開く  X: 非表示',

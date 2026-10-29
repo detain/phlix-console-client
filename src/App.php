@@ -25,11 +25,11 @@ use Phlix\Console\Api\Dto\Library;
 use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\Dto\PhotoAlbum;
 use Phlix\Console\Api\ApiError;
-use Phlix\Console\Api\NetworkError;
 use Phlix\Console\Audio\AudiobookSession;
 use Phlix\Console\Audio\MusicSession;
 use Phlix\Console\Audio\NowPlayingSession;
 use Phlix\Console\Config\Config;
+use Phlix\Console\I18n\ExceptionSentences;
 use Phlix\Console\I18n\Lang;
 use Phlix\Console\I18n\Locale;
 use Phlix\Console\Media\TrickplayCache;
@@ -1084,8 +1084,11 @@ final class App implements Model
             $newConfig = $this->config->withServerUrl($url);
             $newConfig->save();
         } catch (\Throwable $e) {
-            $path = Config::path();
-            $toast = ShowToastMsg::warning("Could not save server URL to {$path}: " . $e->getMessage());
+            $toast = ShowToastMsg::warning(ExceptionSentences::contextOnly(
+                'Could not save server URL',
+                $e,
+                'save server URL to ' . Config::path(),
+            ));
             $this->api->setBaseUrl($url);
 
             return [$this->withStack([]), Cmd::batch(Cmd::send($toast), self::restoreCmd($this->auth, $this->api, $this->config))];
@@ -1596,7 +1599,7 @@ final class App implements Model
         try {
             $newConfig->save();
         } catch (\Throwable $e) {
-            $toast = ShowToastMsg::warning('Could not save server selection: ' . $e->getMessage());
+            $toast = ShowToastMsg::warning(ExceptionSentences::contextOnly('Could not save server selection', $e));
 
             return [$this, Cmd::send($toast)];
         }
@@ -1665,7 +1668,7 @@ final class App implements Model
 
             return [$this->withConfig($newConfig), null];
         } catch (\Throwable $e) {
-            $toast = ShowToastMsg::warning('Could not add server: ' . $e->getMessage());
+            $toast = ShowToastMsg::warning(ExceptionSentences::contextOnly('Could not add server', $e));
 
             return [$this, Cmd::send($toast)];
         }
@@ -1698,7 +1701,7 @@ final class App implements Model
 
             return [$this->withConfig($newConfig), Cmd::send($toast)];
         } catch (\Throwable $e) {
-            $toast = ShowToastMsg::warning('Could not remove server: ' . $e->getMessage());
+            $toast = ShowToastMsg::warning(ExceptionSentences::contextOnly('Could not remove server', $e));
 
             return [$this, Cmd::send($toast)];
         }
@@ -1919,8 +1922,11 @@ final class App implements Model
         try {
             $newConfig->save();
         } catch (\Throwable $e) {
-            $path = Config::path();
-            $toast = ShowToastMsg::warning("Could not save settings to {$path}: " . $e->getMessage());
+            $toast = ShowToastMsg::warning(ExceptionSentences::contextOnly(
+                'Could not save settings',
+                $e,
+                'save settings to ' . Config::path(),
+            ));
 
             // Pop the Settings frame, then apply the new config + theme to that copy.
             return [$this->popScreen()->withConfig($newConfig)->withTheme($newTheme), Cmd::send($toast)];
@@ -1941,7 +1947,7 @@ final class App implements Model
                 ]);
             } catch (\Throwable $e) {
                 yield Cmd::send(ShowToastMsg::warning(
-                    'Settings saved locally, but server sync failed: ' . $e->getMessage()
+                    ExceptionSentences::contextOnly('Settings saved locally, but server sync failed', $e)
                 ));
             }
         };
@@ -2359,7 +2365,7 @@ final class App implements Model
                             // and surface a toast so the user understands why server values
                             // were ignored.
                             $toast = ShowToastMsg::warning(
-                                'Could not merge server settings, using local config: ' . $e->getMessage(),
+                                ExceptionSentences::contextOnly('Could not merge server settings, using local config', $e),
                             );
 
                             return new BootResolvedMsg($user, $config, $toast);
@@ -2368,7 +2374,7 @@ final class App implements Model
                     static function (\Throwable $e) use ($user, $config): BootResolvedMsg {
                         // Network/fetch failure → fall back to local config and warn.
                         $toast = ShowToastMsg::warning(
-                            'Could not fetch server settings, using local config: ' . $e->getMessage(),
+                            ExceptionSentences::contextOnly('Could not fetch server settings, using local config', $e),
                         );
 
                         return new BootResolvedMsg($user, $config, $toast);
@@ -2383,13 +2389,7 @@ final class App implements Model
 
     private function friendlyError(\Throwable $error): string
     {
-        if ($error instanceof NetworkError) {
-            return 'Could not reach the server. Check the URL and your connection.';
-        }
-
-        $message = $error->getMessage();
-
-        return $message !== '' ? $message : 'Login failed. Please try again.';
+        return ExceptionSentences::sentence($error, 'login', 'Login failed. Please try again.');
     }
 
     private function isInterrupt(KeyMsg $msg): bool

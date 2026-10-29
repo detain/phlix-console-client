@@ -27,6 +27,7 @@ use Phlix\Console\Api\Dto\Trickplay;
 use Phlix\Console\Api\MediaQuery;
 use Phlix\Console\Api\SyncPlay\SyncPlayService;
 use Phlix\Console\Config\Config;
+use Phlix\Console\I18n\ExceptionSentences;
 use Phlix\Console\I18n\Lang;
 use Phlix\Console\I18n\SyncPlayErrors;
 use Phlix\Console\Media\TrickplayCache;
@@ -676,7 +677,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
 
             return resolve(new PlayerReadyMsg($player));
         } catch (\Throwable $e) {
-            return resolve(new PlayerPrepareFailedMsg('Could not start playback: ' . $e->getMessage()));
+            return resolve(new PlayerPrepareFailedMsg(ExceptionSentences::contextOnly('Could not start playback', $e)));
         }
     }
 
@@ -2028,7 +2029,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         $loadRooms = Cmd::promise(
             fn (): PromiseInterface => $this->api->listSyncPlayGroups()->then(
                 static fn (array $rooms): Msg => new SyncPlayGroupsLoadedMsg($rooms),
-                static fn (\Throwable $e): Msg => new SyncPlayFailedMsg('Failed to load rooms: ' . $e->getMessage()),
+                static fn (\Throwable $e): Msg => new SyncPlayFailedMsg(ExceptionSentences::composed('Failed to load rooms', $e)),
             ),
         );
 
@@ -2115,7 +2116,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
                                 1,
                             ));
                         },
-                        static fn (\Throwable $e): Msg => new SyncPlayFailedMsg('Failed to create room: ' . $e->getMessage()),
+                        static fn (\Throwable $e): Msg => new SyncPlayFailedMsg(ExceptionSentences::composed('Failed to create room', $e)),
                     ),
                 );
 
@@ -2133,7 +2134,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
                             1,
                         ));
                     },
-                    static fn (\Throwable $e): Msg => new SyncPlayFailedMsg('Failed to join room: ' . $e->getMessage()),
+                    static fn (\Throwable $e): Msg => new SyncPlayFailedMsg(ExceptionSentences::composed('Failed to join room', $e)),
                 ),
             );
 
@@ -2210,7 +2211,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
             fn (): PromiseInterface => $this->syncPlayService->joinRoom($room->id)->then(
                 static fn (): ?Msg => null,
                 static fn (\Throwable $e): Msg => new SyncPlayFailedMsg(
-                    'SyncPlay socket join failed: ' . $e->getMessage(),
+                    ExceptionSentences::composed('SyncPlay socket join failed', $e),
                 ),
             ),
         )];

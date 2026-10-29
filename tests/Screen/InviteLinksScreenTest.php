@@ -98,7 +98,12 @@ final class InviteLinksScreenTest extends TestCase
         $msg = $this->runCmd($screen->init());
 
         self::assertInstanceOf(InviteLinksFailedMsg::class, $msg);
-        self::assertStringContainsString('boom', $msg->message);
+        // M11 cure flip (console__copywriter M6): pre-fix, the raw transport
+        // tail rode the NetworkError message into this display arm. Post-cure
+        // the screen shows the curated network sentence; internals reach the
+        // log surface only (ApiClientTest::testTransportFailureBecomesNetworkError).
+        self::assertStringContainsString('Could not reach the server', $msg->message);
+        self::assertStringNotContainsString('boom', $msg->message);
     }
 
     // ---- create / revoke ---------------------------------------------------
@@ -138,7 +143,9 @@ final class InviteLinksScreenTest extends TestCase
         [, $failCmd] = $retryScreen->update(new KeyMsg(KeyType::Char, 'r'));
         $failed = $this->runCmd($failCmd);
         self::assertInstanceOf(InviteLinksFailedMsg::class, $failed);
-        self::assertStringContainsString('gone', $failed->message);
+        // M11 cure flip: raw revoke-failure tail no longer crosses into display.
+        self::assertStringContainsString('Could not reach the server', $failed->message);
+        self::assertStringNotContainsString('gone', $failed->message);
     }
 
     public function testRevokeWithoutLoadedLinksIsANoop(): void

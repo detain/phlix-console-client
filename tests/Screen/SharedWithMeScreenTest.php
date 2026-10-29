@@ -98,7 +98,9 @@ final class SharedWithMeScreenTest extends TestCase
         $msg = $this->runCmd($screen->init());
 
         self::assertInstanceOf(SharedWithMeFailedMsg::class, $msg);
-        self::assertStringContainsString('boom', $msg->message);
+        // M11 cure flip: raw transport tail replaced by the curated sentence.
+        self::assertStringContainsString('Could not reach the server', $msg->message);
+        self::assertStringNotContainsString('boom', $msg->message);
     }
 
     // ---- accept / reject ---------------------------------------------------
@@ -140,7 +142,9 @@ final class SharedWithMeScreenTest extends TestCase
         [, $failCmd] = $retryScreen->update(new KeyMsg(KeyType::Char, 'r'));
         $failed = $this->runCmd($failCmd);
         self::assertInstanceOf(SharedWithMeFailedMsg::class, $failed);
-        self::assertStringContainsString('denied', $failed->message);
+        // M11 cure flip: raw reject-failure tail no longer crosses into display.
+        self::assertStringContainsString('Could not reach the server', $failed->message);
+        self::assertStringNotContainsString('denied', $failed->message);
     }
 
     public function testActionKeysWithoutLoadedSharesAreNoops(): void

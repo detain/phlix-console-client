@@ -14,6 +14,7 @@ use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Admin\Parental\AccessSchedule;
 use Phlix\Console\Api\Dto\Admin\Parental\ProfileStreamLimit;
 use Phlix\Console\Api\Dto\Admin\Parental\ProfileTag;
+use Phlix\Console\I18n\ExceptionSentences;
 use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
@@ -145,12 +146,11 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
     /** Build the fetch command for one section, mapped to a toast on failure. */
     private function fetchCmd(string $section): \Closure
     {
-        $apiErrorClass = \Phlix\Console\Api\ApiError::class;
         $loadFailed = self::LOAD_FAILED;
         $admin = $this->admin;
         $profileId = $this->profileId;
 
-        $doFetch = static function () use ($section, $apiErrorClass, $loadFailed, $admin, $profileId): PromiseInterface {
+        $doFetch = static function () use ($section, $loadFailed, $admin, $profileId): PromiseInterface {
             $promise = match ($section) {
                 'schedules' => $admin->profileSchedules($profileId)->then(
                     static fn (array $rows): Msg => new ParentalSchedulesLoadedMsg($rows),
@@ -166,11 +166,11 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
 
             return $promise->then(
                 static fn (Msg $msg): Msg => $msg,
-                static function (\Throwable $e) use ($apiErrorClass, $loadFailed): Msg {
+                static function (\Throwable $e) use ($loadFailed): Msg {
                     if ($e instanceof AuthError) {
                         return new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY));
                     }
-                    $msg = $e instanceof $apiErrorClass ? $e->getMessage() : $loadFailed;
+                    $msg = ExceptionSentences::sentence($e, 'parental controls load', $loadFailed);
 
                     return ShowToastMsg::error($msg);
                 },
@@ -192,7 +192,7 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
             static fn (mixed $message): Msg => new ParentalActionDoneMsg(is_string($message) ? ($message === '' ? $fallback : $message) : $fallback),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
-                : ShowToastMsg::error(($e instanceof \Phlix\Console\Api\ApiError) ? $e->getMessage() : 'Action failed.'),
+                : ShowToastMsg::error(ExceptionSentences::sentence($e, 'parental controls action', 'Action failed.')),
         ))];
     }
 

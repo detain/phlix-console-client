@@ -758,11 +758,19 @@ final class SyncPlayServiceTest extends TestCase
         $clock->fireNextOneShot();
 
         self::assertSame(['websocket_connect_failed'], $errorCodes);
+        // M11 cure flip: the ladder still REPORTS the sync throw on the
+        // error channel (code + non-empty message — the intent of this test),
+        // but the raw 'pump vanished' internal is no longer baked into the
+        // message. It reaches the log via ExceptionSentences::composed; the
+        // error-channel message is the curated context sentence, which is
+        // what PlayerScreen's localize('websocket_connect_failed', …) (code
+        // absent from CODE_KEYS) would pass straight to the toast.
         self::assertSame(
-            ['SyncPlay reconnect attempt failed: pump vanished'],
+            ['SyncPlay reconnect attempt failed.'],
             $errorMessages,
-            'the sync throw surfaces verbatim on the error channel',
+            'the sync throw is reported on the error channel without raw internals',
         );
+        self::assertStringNotContainsString('pump vanished', $errorMessages[0]);
         self::assertSame([1.0, 2.0], $clock->oneShotDelays, 'the ladder climbs to the next rung');
         self::assertSame(1, $clock->pendingOneShotCount());
     }

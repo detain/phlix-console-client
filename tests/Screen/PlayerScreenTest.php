@@ -353,7 +353,11 @@ final class PlayerScreenTest extends TestCase
         $msg = $this->firstOfType($this->runBatch($screen->init()), PlayerPrepareFailedMsg::class);
 
         self::assertInstanceOf(PlayerPrepareFailedMsg::class, $msg);
-        self::assertStringContainsString('ffmpeg missing', $msg->reason);
+        // M11 cure flip: the player factory throw is a non-API internal
+        // (mpv/proc prose); it now reaches the log, and the user sees the
+        // curated context sentence only (App/PlayerScreen contextOnly site).
+        self::assertSame('Could not start playback.', $msg->reason);
+        self::assertStringNotContainsString('ffmpeg missing', $msg->reason);
     }
 
     public function testPreparingViewBeforeReady(): void

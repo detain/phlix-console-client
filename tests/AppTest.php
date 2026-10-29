@@ -334,6 +334,38 @@ final class AppTest extends TestCase
         self::assertStringContainsString('Could not reach the server', $result->reason);
     }
 
+    public function testLoginSubmittedNeverSurfacesTransportInternals(): void
+    {
+        // review console__copywriter M11 mutation pin: reverting the
+        // ApiClient NetworkError source fix (raw prose appended to the
+        // message) or the friendlyError delegation reddens this test.
+        $hostile = "cURL error 7: Failed to connect to 192.168.1.50 port 8097 /home/deploy/.netrc SQLSTATE[HY000]";
+        [$app] = $this->makeApp('https://srv', (new FakeTransport())->fail(new \RuntimeException($hostile)));
+
+        [, $cmd] = $app->update(new SubmitLoginMsg('joe', 'pw'));
+        $result = $this->runCmd($cmd);
+
+        self::assertInstanceOf(LoginFailedMsg::class, $result);
+        self::assertSame('Could not reach the server. Check the URL and your connection.', $result->reason);
+        foreach (['cURL error', '192.168.1.50', '/home/deploy', 'SQLSTATE'] as $token) {
+            self::assertStringNotContainsString($token, $result->reason, "internal detail {$token} leaked into the login headline");
+        }
+    }
+
+    public function testFriendlyErrorNeverEchoesUnknownThrowableInternals(): void
+    {
+        // M11 mutation pin for the ladder itself: reverting friendlyError()
+        // to the pre-fix verbatim getMessage() echo reddens this test —
+        // a non-API throw (DTO mapping TypeError, JSON parse prose) reaches
+        // the login headline with raw internals under the old shape.
+        [$app] = $this->makeApp('https://srv', new FakeTransport());
+        $method = new \ReflectionMethod(App::class, 'friendlyError');
+
+        $text = $method->invoke($app, new \RuntimeException('SQLSTATE[HY000] [1045] /home/deploy/.phlix/keys.json'));
+
+        self::assertSame('Login failed. Please try again.', $text);
+    }
+
     public function testLoginSucceededRoutesToBrowse(): void
     {
         [$app] = $this->makeApp('https://srv', new FakeTransport());

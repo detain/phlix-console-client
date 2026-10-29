@@ -167,7 +167,11 @@ final class StatsScreenTest extends TestCase
         $msg = $this->runCmd($screen->init());
 
         self::assertInstanceOf(ShowToastMsg::class, $msg);
-        self::assertStringContainsString('connection refused', $msg->message);
+        // M11 cure flip: the transport failure is wrapped to NetworkError whose
+        // message is now the curated sentence (source fix) — the raw
+        // 'connection refused' tail reaches the log, not the toast.
+        self::assertStringContainsString('Could not reach the server', $msg->message);
+        self::assertStringNotContainsString('connection refused', $msg->message);
     }
 
     public function testEscapeKeyReturnsToPreviousScreen(): void

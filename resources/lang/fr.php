@@ -20,6 +20,10 @@ return [
     // ---- Auth (session expiry — shared by every surface) ---------
     'auth.session_expired' => 'Votre session a expiré. Veuillez vous reconnecter.',
 
+    // ---- Errors (shared failure surface — ExceptionSentences) ------
+    'errors.network' => 'Impossible de joindre le serveur. Vérifiez l’URL et votre connexion.',
+    'errors.unexpected' => 'Une erreur est survenue. Consultez le journal pour plus de détails.',
+
     // ---- RecommendationsScreen ----------------------------------------
     'recommendations.title' => 'Pour vous',
     'recommendations.hint' => 'Q : Retour  ↑↓ : Naviguer  Entrée : Ouvrir  X : Ignorer',

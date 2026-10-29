@@ -43,6 +43,7 @@ use Phlix\Console\Api\Dto\Track;
 use Phlix\Console\Api\Dto\TranscodeJob;
 use Phlix\Console\Api\Dto\Trickplay;
 use Phlix\Console\Config\TokenBundle;
+use Phlix\Console\I18n\ExceptionSentences;
 use Phlix\Console\I18n\Lang;
 use Psr\Http\Message\ResponseInterface;
 use React\Promise\Deferred;
@@ -768,7 +769,7 @@ final class ApiClient
             },
             static fn (\Throwable $error): never => throw $error instanceof ApiError
                 ? $error
-                : new NetworkError('Could not reach the server: ' . $error->getMessage(), 0, null, $error),
+                : new NetworkError(ExceptionSentences::network(), 0, null, $error),
         );
     }
 
@@ -1391,7 +1392,7 @@ final class ApiClient
             static fn (ResponseInterface $response): array => self::decode($response),
             static fn (\Throwable $error): never => throw $error instanceof ApiError
                 ? $error
-                : new NetworkError('Could not reach the server: ' . $error->getMessage(), 0, null, $error),
+                : new NetworkError(ExceptionSentences::network(), 0, null, $error),
         );
     }
 

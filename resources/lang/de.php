@@ -20,6 +20,10 @@ return [
     // ---- Auth (session expiry — shared by every surface) ---------
     'auth.session_expired' => 'Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.',
 
+    // ---- Errors (shared failure surface — ExceptionSentences) ------
+    'errors.network' => 'Der Server ist nicht erreichbar. Prüfe die URL und deine Netzwerkverbindung.',
+    'errors.unexpected' => 'Etwas ist schiefgelaufen. Details stehen im Protokoll.',
+
     // ---- RecommendationsScreen ----------------------------------------
     'recommendations.title' => 'Für dich',
     'recommendations.hint' => 'Q: Zurück  ↑↓: Navigieren  Enter: Öffnen  X: Verwerfen',

@@ -14,6 +14,7 @@ use Phlix\Console\Api\Dto\SyncPlayGroup;
 use Phlix\Console\Api\Dto\SyncPlaySession;
 use Phlix\Console\Api\Dto\SyncPlayPlaybackCommand;
 use Phlix\Console\Api\Dto\SyncPlayUser;
+use Phlix\Console\I18n\ExceptionSentences;
 use React\EventLoop\LoopInterface;
 use React\EventLoop\TimerInterface;
 use React\Promise\Deferred;
@@ -727,7 +728,7 @@ final class SyncPlayService
             } catch (\Throwable $throwable) {
                 ($this->onError ?? static fn (): null => null)(
                     'websocket_connect_failed',
-                    'SyncPlay reconnect attempt failed: ' . $throwable->getMessage(),
+                    ExceptionSentences::composed('SyncPlay reconnect attempt failed', $throwable),
                 );
                 $this->attemptReconnect();
             }

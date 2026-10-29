@@ -5,6 +5,62 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — exception→toast internals leak cured via typed sentences + prefix dedup (review console__copywriter, M-CONSOLE-11) — 2026-10-29
+
+- **What.** `friendlyError()` echoed any throwable's raw `getMessage()` into
+  the LoginScreen headline (PHP/socket/JSON prose under "Sign in to Phlix."),
+  `ApiClient` minted `NetworkError('Could not reach the server: ' . raw)` —
+  and because `NetworkError extends ApiError`, every `instanceof ApiError`
+  display arm re-echoed that cURL/socket tail. Composition sites then nested
+  two sentence prefixes ("Could not add server: Could not reach the server:
+  cURL error 7…"), and two toasts embedded the config file path.
+- **Cure.** New `src/I18n/ExceptionSentences.php` (150 lines, beside the
+  `SyncPlayErrors` error→copy precedent): `sentence()` typed ladder —
+  NetworkError → curated `errors.network` house sentence; ApiError wire prose
+  (server-authored, boundary-sanitized by the C22 `untrustedForDisplay`
+  lineage) passes through flattened and capped at 160 cells; any other
+  throwable → generic `errors.unexpected` / screen-supplied curated fallback.
+  `composed()` enforces never-nest-two-prefixes (network → curated sentence
+  alone); `contextOnly()` parks local-throw prose in `error_log()` (with the
+  `previous`-chain unwrap) and renders the context sentence alone.
+- **Sites.** App.php: `friendlyError` delegation + 8 toasts (server URL/
+  selection/add/remove saves — config path moved to the log context; boot
+  merge/fetch fallbacks; settings sync notice). ApiClient :771/:1394 mint the
+  curated message, raw tail rides `previous` only. PlayerScreen: playback
+  start + 4 watch-room sites (load/create/join/socket-join) via `composed`/
+  `contextOnly`. ParentalControlsScreen :173/:195 routed through the ladder
+  (the `instanceof ApiError` guard let NetworkError through — NetworkError
+  IS-A ApiError). SyncPlayService :730 producer fix: the
+  `websocket_connect_failed` error-channel message is now composed-safe
+  (code absent from `SyncPlayErrors::CODE_KEYS` → `localize()` passthrough
+  made it a visible toast). Catalog: `errors.network` + `errors.unexpected`
+  × 7 locales (61 keys, parity green).
+- **Tests.** `tests/I18n/ExceptionSentencesTest.php` (14 tests): SQLSTATE /
+  home-path / cURL / mpv hostile payload asserted absent from ladder output
+  and from a `Chrome::frame` render capture; nested-prefix regex pin; wire
+  prose byte-identity + 160-cell cap; 2 new AppTest pins (login headline
+  integration + reflection-pinned `friendlyError`). 8 pre-fix pins flipped to
+  the sanitized truth with rationale comments (red-flip-then-update, none
+  deleted): 2× InviteLinks, 2× SharedWithMe, Stats, PlayerScreen factory,
+  SyncPlay socket-join, SyncPlayService ladder-rung. Mutation matrix: M1
+  friendlyError reversion → 1 named red; M2 source-fix reversion → 1 named
+  red (exact-shape mint pin); M3 dedup removal → 1 named red; M4
+  contextOnly-leak reintroduction → 3 named reds incl. the render probe.
+- **Measured.** Suite 3091 → 3107 tests (+16), 16316 → 16507 assertions;
+  0 failures, 9 skips held, 13 pre-existing deprecations held. Tracked diff
+  +145/−41 across the 20 changed code/catalog/test files plus two new files
+  (380 lines); this entry rides the same commit. phpstan (both configs):
+  touched files 0 errors (`AdminClient.php` `return.type` red is
+  pre-existing HEAD-state, non-attributed); phpcs src 0 errors / tests exit
+  0; i18n catalogs + hardcoded-string gates pass.
+- **Boundary.** Server wire prose stays (intentional, envelope-sanitized);
+  the WS-inbound control-char path was already C22/C23/C24-cured and was not
+  re-touched. The ~40 unguarded bare `new XFailedMsg($e->getMessage())` arms
+  and the DetailScreen/DownloadService double-prefix composition are
+  follow-up sweep input (their raw tails are now curated at the
+  NetworkError source for the transport family; non-Api throwables remain
+  raw there) — full derivation in `.reviews/fixlog/` (lane-C census).
+
 ### Fixed — group_limit_reached invented a sixth group synonym in every non-en catalog; family pin added (review console__copywriter, M-CONSOLE-10) — 2026-10-29
 
 - **What.** `syncplay.group_limit_reached` was the lone key in each of the

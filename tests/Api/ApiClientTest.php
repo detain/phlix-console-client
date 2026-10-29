@@ -31,6 +31,7 @@ use Phlix\Console\Api\Dto\SubtitleTrack;
 use Phlix\Console\Api\Dto\TranscodeJob;
 use Phlix\Console\Api\Dto\Trickplay;
 use Phlix\Console\Config\TokenBundle;
+use Phlix\Console\I18n\ExceptionSentences;
 use PHPUnit\Framework\TestCase;
 use React\EventLoop\Loop;
 use React\Promise\PromiseInterface;
@@ -1602,6 +1603,13 @@ final class ApiClientTest extends TestCase
 
         self::assertInstanceOf(NetworkError::class, $error);
         self::assertStringContainsString('Could not reach the server', $error->getMessage());
+        // M11 source fix: the minted message is the curated sentence EXACTLY —
+        // raw transport prose rides the previous chain only, never the
+        // message every bare catch arm echoes.
+        self::assertSame(ExceptionSentences::network(), $error->getMessage());
+        self::assertStringNotContainsString('Connection refused', $error->getMessage());
+        self::assertInstanceOf(\RuntimeException::class, $error->getPrevious());
+        self::assertSame('Connection refused', $error->getPrevious()?->getMessage());
     }
 
     public function testServerErrorBecomesApiError(): void

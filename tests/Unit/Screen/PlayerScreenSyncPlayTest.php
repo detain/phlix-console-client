@@ -383,8 +383,14 @@ final class PlayerScreenSyncPlayTest extends TestCase
             });
 
             $this->assertInstanceOf(SyncPlayFailedMsg::class, $settled);
-            $this->assertStringContainsString('SyncPlay socket join failed:', $settled?->reason ?? '');
-            $this->assertStringContainsString('React-loop event bridge', $settled?->reason ?? '');
+            // M11 cure flip (console__copywriter M6): the bridge stopguard
+            // throw is program-internal prose — under the old shape it rode
+            // verbatim into the visible toast ('SyncPlay socket join failed:
+            // React-loop event bridge …'). Post-cure the user sees the
+            // context sentence alone; the bridge detail reaches the log
+            // (ExceptionSentences::composed non-API arm).
+            $this->assertSame('SyncPlay socket join failed.', $settled?->reason ?? '');
+            $this->assertStringNotContainsString('React-loop event bridge', $settled?->reason ?? '');
         } finally {
             \Workerman\Worker::$globalEvent = $globalEventBefore;
         }
