@@ -247,9 +247,10 @@ chapters — `c` stays captions) · `v` quality (only shown when the active
 transcode advertises an ABR ladder — direct-play and legacy items skip it) ·
 `n` / `p` next / previous episode · `w` "For You" recommendations ·
 `y` SyncPlay room (create/join) · `z` sleep timer (pause playback after a
-15–120 min preset) · `f` toggle chrome · `q`/`Esc` back. Player keys are inert
-until the stream is up; while a picker or modal is open it captures every
-keystroke (`↑`/`↓` move, `Enter` picks, `q`/`Esc` dismisses).
+15–120 min preset) · `f` toggle chrome · `q`/`Esc` back. Transport keys are
+inert until the stream is up (`q`/`Esc` always close the player); while a
+picker or modal is open it captures every keystroke (`↑`/`↓` move, `Enter`
+picks, `q`/`Esc` dismisses).
 
 **Cast** — on a media **detail** screen, `C` opens a device picker (Chromecast /
 Roku / AirPlay / DLNA discovered on the network); pick one to send the item, then

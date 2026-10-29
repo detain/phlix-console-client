@@ -5,6 +5,22 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — the player-keys-inert prose now matches the code: TRANSPORT keys are inert, `q`/`Esc` always close (follow-up to M-CONSOLE-02) — 2026-10-29
+
+- **What.** The prose shipped beside the six-key tables read "All player
+  keys are inert until the stream is up" (`docs/clients/console.md`) /
+  "Player keys are inert until the stream is up" (README). Overbroad:
+  in `PlayerScreen::handleKey()` the `Escape`/`q`/`Q` exit arm (`:1411`–
+  `:1423`) precedes the `if ($this->inner === null) return` guard
+  (`:1424`, whose own comment reads "transport keys do nothing until the
+  player is ready") — so `q`/`Esc` close the player even before the
+  stream is up.
+- **Cure.** Prose-only, both files, code's own vocabulary: "Transport
+  keys are inert until the stream is up (`q`/`Esc` always close …)".
+  `tests/Docs/PlayerKeyDocsTest.php` untouched and still green — the
+  edit adds no census key and removes none (`q` was already listed in
+  both tables); no `src/` change.
+
 ### Added — six shipped player keys documented in both key tables + a token-pinned docs guard (review console__a11y, M-CONSOLE-02) — 2026-10-29
 
 - **What.** `a`/`A` (audio-track picker), `S` (subtitle-track picker),

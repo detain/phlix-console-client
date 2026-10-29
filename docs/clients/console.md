@@ -254,10 +254,10 @@ bin/phlix poster /path/to/poster.jpg 40
 | `f` | Toggle player chrome |
 | `q` or `Esc` | Back / close player |
 
-All player keys are inert until the stream is up. While a picker or modal is
-open it captures every keystroke: `↑`/`↓` move, `Enter` picks (or confirms),
-`q`/`Esc` dismisses (the SyncPlay modal steps back to the room list before
-closing when you are mid-creation).
+Transport keys are inert until the stream is up — `q`/`Esc` always close the
+player. While a picker or modal is open it captures every keystroke:
+`↑`/`↓` move, `Enter` picks (or confirms), `q`/`Esc` dismisses (the SyncPlay
+modal steps back to the room list before closing when you are mid-creation).
 
 #### Media detail
 
