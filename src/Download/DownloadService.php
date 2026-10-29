@@ -228,6 +228,15 @@ final class DownloadService
 
     /**
      * Extract a filename from the signed URL's Content-Disposition header or URL path.
+     *
+     * Trust-boundary note (M-CONSOLE-33 census): $signedUrl has exactly one
+     * producer — {@see \Phlix\Console\Api\ApiClient::downloadMedia()} parses
+     * the wire `url` through {@see \Phlix\Console\Api\Dto\Coerce::str()}, i.e.
+     * Sanitize::untrustedForDisplay at the DTO boundary. parse_url/basename of
+     * sanitized text cannot reconstitute an ESC sequence, so the filename that
+     * reaches the DetailScreen toast and the on-disk path is terminal-inert by
+     * construction; $mediaId is likewise Coerce-sanitized. (No OSC-8 `file://`
+     * hyperlink producer exists in this repo — grep ']8;' is empty.)
      */
     private function extractFilename(string $signedUrl, string $mediaId): string
     {

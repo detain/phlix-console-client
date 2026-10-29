@@ -5,6 +5,38 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — escape-sequence trust boundary completed per tuispec census (review console__tuispec) — 2026-10-29
+
+- **What.** The C22 WS-sanitize chain closed the big ingest holes; this lane
+  re-verified every site the review cites and finished the remaining
+  same-class ones. At HEAD the three cited sites are NOT gaps:
+  `I18n/Locale.php:102` reads env locale vars (terminal-owner, never server
+  data) and `resolve()` returns only a SUPPORTED whitelist member — hostile
+  bytes structurally cannot exit; `Download/DownloadService.php` filenames
+  derive solely from a `Coerce::str`-sanitized URL through
+  parse_url/basename (which cannot reconstitute an ESC), and the repo has no
+  OSC-8 `file://` hyperlink producer at all; `Ui/Chrome.php` BRAND/BRAND_SEP
+  are app constants feeding a sink the repo law deliberately does not
+  re-escape. Each rationale is now documented at the site.
+- **Cure (two real same-class gaps).** `SyncPlayService::handleGroupState()`
+  stored WS `current_media_id`/`playback_state` as raw wire bytes — today
+  they only feed `===` comparisons and `getSyncStatus()` literal arms, but
+  ingest law says no raw server string enters state, so both now pass
+  `Sanitize::untrustedForDisplay()` at parse. `Dto/Trickplay::fromArray()`
+  and `ApiClient::trickplay()` parsed the two server URLs with a bare
+  `is_string` — the only DTO bypassing the Coerce law — and those values
+  round-trip the on-disk TrickplayCache blob; both parse sites collapsed
+  into the one `fromArray` choke routed through `Coerce::nstr` (an empty or
+  all-noise URL now folds to null, exactly the "unavailable" contract).
+- **Proof.** `ServerTextControlInjectionTest` +2 tests / +14 assertions
+  driving the REAL paths (private `handleMessage` GROUP_STATE dispatch, real
+  `trickplay()` promise through `FakeTransport`); mutations: stripping the
+  `playback_state` sanitizer or restoring the raw URL parse reddens exactly
+  the new pins. Full suite 3001 tests / 13781 assertions / 9 skipped, OK;
+  phpstan unchanged (sole pre-existing AdminClient return.type); phpcs
+  src/tests standards and bare PSR12 on changed files 0 new findings; i18n
+  untouched (catalogs + hardcoded checks pass).
+
 ### Fixed — `phlix run` refuses non-TTY stdin with a clean exit instead of freezing (review console__qa M-1) — 2026-10-29
 
 - **What.** With stdin a pipe, a file, or `/dev/null`, `phlix run` never

@@ -16,14 +16,17 @@ use Phlix\Console\Api\Dto\Coerce;
 use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\Dto\SyncPlayGroup;
 use Phlix\Console\Api\Dto\SyncPlayUser;
+use Phlix\Console\Api\Dto\Trickplay;
 use Phlix\Console\Api\SyncPlay\HubRelayConsumer;
 use Phlix\Console\Api\SyncPlay\SyncPlayService;
+use Phlix\Console\Config\TokenBundle;
 use Phlix\Console\I18n\SyncPlayErrors;
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\SyncPlayOverlay;
 use PHPUnit\Framework\TestCase;
 use React\Http\Message\Response;
 use ReflectionMethod;
+use ReflectionProperty;
 
 /**
  * Regression tests for review console__tuispec [critical]: server-/hub-controlled
@@ -381,5 +384,95 @@ final class ServerTextControlInjectionTest extends TestCase
         self::assertSame($httpBuilt->sessionId, $joined->sessionId);
         self::assertSame($httpBuilt->displayName, $joined->displayName);
         self::assertSame([$joined], $service->getMembers(), 'member list carries the neutralized DTO');
+    }
+
+    // ---- Remaining WS group-state string fields → service state (M-CONSOLE-33) ----
+
+    /**
+     * Read the private service property the GROUP_STATE ingest stores — the
+     * REAL sink of the fix: hostile wire bytes must be neutralized at the
+     * moment they enter service state, not at each downstream comparison.
+     */
+    private function groupStateProperty(SyncPlayService $service, string $name): string
+    {
+        $ref = new ReflectionProperty($service, $name);
+        $ref->setAccessible(true);
+
+        $value = $ref->getValue($service);
+        self::assertIsString($value);
+
+        return $value;
+    }
+
+    public function testGroupStateFrameStoresMediaIdAndPlaybackStateTerminalInert(): void
+    {
+        $service = new SyncPlayService(new ApiClient('https://srv', new FakeTransport()));
+
+        $handle = new ReflectionMethod($service, 'handleMessage');
+        $handle->setAccessible(true);
+        $handle->invoke($service, json_encode([
+            'type' => 'syncplay_group_state',
+            'group' => [
+                'group_id' => 'g1',
+                'current_media_id' => self::HOSTILE,
+                'playback_state' => "\x1b[31mplaying",
+                'playback_position' => 42,
+                'members' => [],
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        // Both WS-sourced string fields land sanitized: the terminal-executable
+        // payload is gone while the visible words survive (non-vacuity — the
+        // frame really reached the ingest branch and really carried the text).
+        $mediaId = $this->groupStateProperty($service, 'currentMediaId');
+        self::assertTerminalInert($mediaId, 'GROUP_STATE current_media_id');
+        self::assertStringContainsString('Red', $mediaId);
+
+        $state = $this->groupStateProperty($service, 'playbackState');
+        self::assertTerminalInert($state, 'GROUP_STATE playback_state');
+        // The SGR prefix is stripped, leaving the honest comparison value —
+        // the state machine can never be steered by an ANSI-decorated enum.
+        self::assertSame('playing', $state);
+    }
+
+    // ---- Trickplay URL parse boundary → DTO (M-CONSOLE-33 census) ----
+
+    /**
+     * The trickplay response URLs are server strings and now pass through the
+     * Coerce DTO law at parse ({@see Trickplay::fromArray()}). The only reader
+     * today null-checks them, but the values also round-trip the on-disk
+     * TrickplayCache blob — hostile bytes must not persist anywhere.
+     */
+    public function testTrickplayUrlsAreNeutralisedAtTheParseBoundary(): void
+    {
+        $hostileSprite = 'https://srv/sprites/' . self::HOSTILE . '.png';
+        $transport = (new FakeTransport())->json(200, [
+            'sprite_url' => $hostileSprite,
+            'timeline_url' => "\x1b[2Jhttps://srv/t.json",
+        ]);
+        $client = new ApiClient('https://srv.example', $transport);
+        $client->setToken(new TokenBundle('tok-abc', 'ref', 'Bearer', null));
+
+        $captured = null;
+        $client->trickplay('m1')->then(static function (Trickplay $tp) use (&$captured): void {
+            $captured = $tp;
+        });
+
+        self::assertInstanceOf(
+            Trickplay::class,
+            $captured,
+            'resolved value must reach synchronously through the fake transport',
+        );
+        self::assertTerminalInert((string) $captured->spriteUrl, 'trickplay sprite_url');
+        self::assertTerminalInert((string) $captured->timelineUrl, 'trickplay timeline_url');
+        // Non-vacuity: the honest path and words survive the sanitizer.
+        self::assertStringStartsWith('https://srv/sprites/', (string) $captured->spriteUrl);
+        self::assertStringContainsString('Red', (string) $captured->spriteUrl);
+        self::assertSame('https://srv/t.json', $captured->timelineUrl);
+
+        // Empty noise folds to null — "unavailable", matching the null contract.
+        $noise = Trickplay::fromArray(['sprite_url' => "\x1b[31m\x07\x7f", 'timeline_url' => '']);
+        self::assertNull($noise->spriteUrl);
+        self::assertNull($noise->timelineUrl);
     }
 }

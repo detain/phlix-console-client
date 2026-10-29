@@ -859,13 +859,23 @@ final class SyncPlayService
             return;
         }
 
-        // Update room info
+        // Update room info.
+        //
+        // Ingest law (C22 lineage, M-CONSOLE-33): every server-sourced string
+        // is terminal-sanitized when the frame is PARSED. `current_media_id`
+        // and `playback_state` are WS bytes; today they only feed string
+        // comparisons (`getSyncStatus()`'s === 'playing'/'paused' arms) and the
+        // media id has no display reader at all — but the comparisons' INPUT is
+        // still hostile-wire bytes, and the day any status line or future sink
+        // embeds either field, this parse boundary is the only place left that
+        // can defuse it. Sanitizing now keeps the whole WS ingest uniform: no
+        // raw server string is ever stored in service state.
         $currentMediaId = $group['current_media_id'] ?? '';
-        $this->currentMediaId = is_string($currentMediaId) ? $currentMediaId : '';
+        $this->currentMediaId = is_string($currentMediaId) ? Sanitize::untrustedForDisplay($currentMediaId) : '';
         $playbackPosition = $group['playback_position'] ?? 0;
         $this->playbackPosition = is_int($playbackPosition) ? $playbackPosition : 0;
         $playbackState = $group['playback_state'] ?? 'stopped';
-        $this->playbackState = is_string($playbackState) ? $playbackState : 'stopped';
+        $this->playbackState = is_string($playbackState) ? Sanitize::untrustedForDisplay($playbackState) : 'stopped';
 
         // Update members
         $membersData = $group['members'] ?? [];

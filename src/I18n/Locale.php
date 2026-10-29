@@ -96,6 +96,13 @@ final class Locale
      * Lowercase, hyphens only, no encoding/modifier suffix:
      * 'pt_BR.UTF-8@euro' → 'pt-br'. Same shape the vendor loader derives
      * internally, restated here so resolve() can match against SUPPORTED.
+     *
+     * Trust-boundary note (M-CONSOLE-33 census): the input chain is ENV vars
+     * (LC_ALL/LC_MESSAGES/LANG — terminal-owner controlled, never server
+     * data), and resolve() returns ONLY a SUPPORTED whitelist member or 'en',
+     * so no non-enumerable byte can exit this class into the terminal. The
+     * review's cite on the preg_replace here predates that reading; nothing to
+     * sanitize — arbitrary bytes structurally cannot reach a sink.
      */
     private static function normalize(string $raw): string
     {

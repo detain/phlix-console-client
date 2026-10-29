@@ -904,11 +904,10 @@ final class ApiClient
     {
         return $this->authed('GET', '/api/v1/media/' . rawurlencode($id) . '/trickplay')
             ->then(static function (array $data): Trickplay {
-                // The server response is {sprite_url, timeline_url}, each possibly null.
-                $spriteUrl = is_string($data['sprite_url'] ?? null) ? $data['sprite_url'] : null;
-                $timelineUrl = is_string($data['timeline_url'] ?? null) ? $data['timeline_url'] : null;
-
-                return new Trickplay($spriteUrl, $timelineUrl);
+                // The server response is {sprite_url, timeline_url}, each possibly
+                // null. ONE parse choke: the DTO boundary sanitizer (Coerce) runs
+                // inside fromArray — hostile wire bytes never enter the DTO.
+                return Trickplay::fromArray($data);
             });
     }
 

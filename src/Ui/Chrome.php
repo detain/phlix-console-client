@@ -56,6 +56,11 @@ final class Chrome
         // The accent colours ONLY the brand token; the separator + title/breadcrumb
         // stay plain. Under Nocturne brandStyle()/statusStyle() add no SGR, so this
         // concatenation reproduces the old ' Phlix  ·  ' . label header byte-for-byte.
+        //
+        // Sink law (M-CONSOLE-33 census): BRAND/BRAND_SEP are app constants and
+        // $title/$trail are app literals or server text already sanitized at
+        // DTO parse (Coerce::str law) — Chrome renders the app's OWN intentional
+        // escapes and is deliberately not a re-escaping boundary.
         $headerText = $theme->brandStyle()->render(self::BRAND)
             . self::BRAND_SEP
             . self::headerLabel($title, $trail, $cols);
