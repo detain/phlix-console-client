@@ -5,6 +5,46 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — the manual teaches the watch-state core daily loop, pinned to the shipped keys (review console__enduser, M-CONSOLE-21) — 2026-10-29
+
+- **The defect.** `docs/clients/console.md` documented
+  arrows/Enter/Esc/Tab/Ctrl-C/A–Z/`/`/Ctrl-K plus the player keys, and
+  nothing for the watch-state layer: `r` rate, `F` favorite, `w` watched,
+  `l` thumbs up, `j` thumbs down (`src/Screen/DetailScreen.php:457,461,465,
+  470,475`), the home watch-filter cycle `a` All → Watched → Unwatched →
+  ♥ Favorites (`src/Screen/BrowseScreen.php:620-642`) or the sidebar `H`
+  history / `P` playlists jumps (`src/Screen/BrowseScreen.php:570-577`).
+  The app itself teaches every one of them in its footers (`detail.hint`,
+  `SIDEBAR_HINT`, `railsHint()`) — the product's self-documented help had
+  outgrown the manual. README.md's global Keys line taught the sibling
+  detail keys `p`/`C`/`d` while omitting the same loop.
+- **Cure.** `docs/clients/console.md` gains a "Watching & ratings"
+  section: the per-key table in footer case, the optimistic flip /
+  revert-on-failed-save semantics (`DetailScreen` failure handlers,
+  :222-301), the per-user server writes each key performs (favorite /
+  watched / unwatched / like −2…+2 / ratings + singular-`/rating` clear —
+  cross-read against the server's route registrations), and where the
+  state surfaces back: Continue Watching and Up Next rails read your own
+  positions, the ♥ Favorites filter rail serves from
+  `/api/v1/users/me/favorites`, `H` opens the `recently-watched` history
+  screen; **Most Watched** is named as the server-wide trending rail it
+  is, not a personal one. README.md gains the matching "**Watch state**"
+  paragraph.
+- **Pin.** `tests/Docs/WatchStateLoopDocsTest` (8 tests/18 assertions;
+  red-on-parent 4 errors): the loop key set is parsed from the
+  `$msg->rune ===` handler arms via `token_get_all` and from the real
+  footer strings — never restated from prose — and pinned against both
+  docs surfaces; dropping a shipped key from a handler, a hint, either
+  doc, or the pinned census reddens its row (the PlayerKeyDocsTest /
+  TokenFileNameDocsTest doctrine).
+- **Suite.** 3150 → 3158 tests, 16824 → 16842 assertions (local PHP 8.3,
+  exact +8/+18 from the new class); Skipped 9 and the 13 pre-existing
+  suite-wide PHPUnit deprecations held. Foreign reds present at the tip
+  and untouched here: the `phpstan` prod leg
+  (`AdminClient::alternatePosters` return.type, all three CI PHP legs) and
+  `ScreenGuideDocsTest::testBootSignatureIsPinnedVerbatimToTheGuide`
+  (CI 8.5 only).
+
 ### Fixed — dev-guide worked-example attribution corrected; boot-return pin made PHP 8.5-stable (review console__docmaint, M-CONSOLE-17 follow-through) — 2026-10-29
 
 - **The defect.** Two residuals survived the landing commit above. (1) The

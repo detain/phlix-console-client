@@ -256,6 +256,14 @@ command palette · A–Z jump · `p` play · `C` cast (on a detail screen) · `d
 download (on a detail screen) · `Tab` switch focus on the home screen · `Esc`
 back · `Ctrl-C` quit.
 
+**Watch state** — on a media detail screen: `r` rate (a star picker, 1–5 stars =
+ratings 2–10), `F` favorite, `w` watched, `l` / `j` thumbs up / down (every one
+of these persists to your account on the server, and the screen reverts if the
+save fails); on home, `a` cycles the watch filter
+All → Watched → Unwatched → ♥ Favorites, and `H` / `P` open your watch history
+and playlists. The manual (`docs/clients/console.md`, "Watching & ratings")
+covers the loop in full.
+
 The command palette also opens **Settings** (theme + slideshow interval) and the
 read-only **Stats** screen, toggles the **metrics HUD**, and — when you're signed
 in as an admin — exposes the **Admin** menu (see *Status* above).

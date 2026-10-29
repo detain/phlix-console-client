@@ -276,6 +276,40 @@ modal steps back to the room list before closing when you are mid-creation).
 | `Space` | Play / pause (for music/audiobook) |
 | `r` | Resume audiobook from saved position |
 
+#### Watching & ratings
+
+The core daily loop — rate, favorite, mark watched, thumbs — lives in the
+detail screen footer (`detail.hint`) and the home hints. All of it is written
+to your account on the server; nothing stays device-local.
+
+| Key | Action |
+| --- | --- |
+| `r` | Rate — opens the star picker: `←`/`→` or `1`–`6` choose (`1` clears, `2`–`6` give 1–5 stars = ratings 2/4/6/8/10), `Enter` confirms, `Esc` cancels |
+| `F` | Toggle favorite (detail screen; the footer spells it shift-case) |
+| `w` | Toggle watched — the manual completion mark (on the detail screen; in the player `w` opens "For You" recommendations) |
+| `l` | Thumbs up — like level +2; pressing again at +2 clears it to 0 |
+| `j` | Thumbs down — like level −2; pressing again at −2 clears it to 0 |
+| `a` | Home rails — cycle the watch filter All → Watched → Unwatched → ♥ Favorites; the current mode shows in the rails hint as `filter(…)` |
+| `H` | Home sidebar — open watch history |
+| `P` | Home sidebar — open playlists |
+
+The detail-screen toggles and the rating are optimistic: the screen flips
+immediately and reverts if the server round-trip fails. What the server
+stores per user: `POST`/`DELETE /api/v1/media/{id}/favorite`,
+`POST /api/v1/media/{id}/watched` and `/unwatched`,
+`PUT /api/v1/media/{id}/like` (a signed level from −2 to +2), and
+`POST /api/v1/media/{id}/ratings` (clear via `DELETE` on the singular
+`/rating`).
+
+Where it surfaces back: the home **Continue Watching** and **Up Next** rails
+read your own positions (the player reports progress while you watch); the
+♥ Favorites rail the `a` filter swaps in is served from
+`GET /api/v1/users/me/favorites`; the history screen that `H` opens reads
+`GET /api/v1/users/me/recently-watched`. **Most Watched** is a server-wide
+trending rail, not a personal one. The "For You" recommendations (`GET
+/api/v1/me/recommendations`) build from your watching — with nothing to
+show yet, the screen says so.
+
 ### Screens
 
 | Screen | Description |
