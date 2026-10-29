@@ -10,12 +10,12 @@ declare(strict_types=1);
 namespace Phlix\Console\Screen;
 
 use Phlix\Console\Api\ApiClient;
+use Phlix\Console\Config\Config;
 use Phlix\Console\Config\ServerEntry;
 use Phlix\Console\Msg\AddServerMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenServersMsg;
 use Phlix\Console\Msg\RemoveServerMsg;
-use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Msg\SwitchServerMsg;
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\Theme;
@@ -27,6 +27,8 @@ use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\SubscriptionCapable;
 use SugarCraft\Core\KeyType;
+use SugarCraft\Forms\Field\Input;
+use SugarCraft\Forms\Form;
 
 use function trim;
 
@@ -34,19 +36,29 @@ use function trim;
  * Server list screen — shows all configured servers, highlights the active one,
  * and lets the user:
  *   - 'h'   import servers from the hub via myServers()
- *   - 'a'   add a server manually (URL + label, via form that submits AddServerMsg)
+ *   - 'a'   add a server manually (URL + label, via an inline form that submits
+ *           AddServerMsg, then reopens the list from the saved config)
  *   - 'r'   remove the selected server (submits RemoveServerMsg)
  *   - Enter  switch to the selected server (submits SwitchServerMsg)
- *   - Esc    pop back
+ *   - Esc    pop back (or cancel the add-server form while it is open)
  *
  * The hub-imported servers carry a hub_id; locally-added ones have null hub_id.
+ *
+ * Implements {@see CapturesSlash} for the same reason {@see ServerScreen} does:
+ * while the add-server form is open the user types URLs full of `:` and `/`,
+ * and the App must not hijack those keys into the palette/global search.
+ * Ctrl-K still opens the command palette from this screen.
  */
-final class ServersScreen implements Model, Themed
+final class ServersScreen implements Model, Themed, CapturesSlash
 {
     use SubscriptionCapable;
     use ThemedScreen;
 
-    /** @param array<ServerEntry> $servers */
+    /**
+     * @param array<ServerEntry> $servers
+     * @param ?Form $addForm the inline add-server form, or null in list mode;
+     *                       while set, every key routes to {@see handleFormKey()}
+     */
     public function __construct(
         public readonly array $servers,
         public readonly ?string $activeServerId,
@@ -55,6 +67,7 @@ final class ServersScreen implements Model, Themed
         public readonly ?string $error = null,
         public readonly int $cols = 80,
         public readonly int $rows = 24,
+        public readonly ?Form $addForm = null,
     ) {
     }
 
@@ -86,6 +99,7 @@ final class ServersScreen implements Model, Themed
                 $this->error,
                 $msg->cols,
                 $msg->rows,
+                $this->addForm,
             ), null];
         }
 
@@ -99,6 +113,12 @@ final class ServersScreen implements Model, Themed
     /** @return array{self, ?\Closure} */
     private function handleKey(KeyMsg $msg): array
     {
+        // While the add-server form is open it owns every keystroke —
+        // including Esc, which cancels the form instead of popping the screen.
+        if ($this->addForm !== null) {
+            return $this->handleFormKey($msg, $this->addForm);
+        }
+
         // Esc → navigate back
         if ($msg->type === KeyType::Escape) {
             return [$this, Cmd::send(new NavigateBackMsg())];
@@ -168,9 +188,24 @@ final class ServersScreen implements Model, Themed
             ), Cmd::send(new OpenServersMsg())];
         }
 
-        // 'a' → add server manually — signal via toast (the App provides a way via palette/other screen)
+        // 'a' → open the inline add-server form (URL + label). The form owns
+        // subsequent keys until submit or cancel; see handleFormKey().
         if ($msg->type === KeyType::Char && $msg->rune === 'a' && !$msg->ctrl) {
-            return [$this, Cmd::send(ShowToastMsg::info('Use the palette "Add server" action to add manually.'))];
+            $form = self::buildAddForm();
+
+            return [
+                new self(
+                    $this->servers,
+                    $this->activeServerId,
+                    $this->selectedIndex,
+                    false,
+                    null,
+                    $this->cols,
+                    $this->rows,
+                    $form,
+                ),
+                $form->init(),
+            ];
         }
 
         // 'r' → remove selected server (only if not the active one, and only if there are servers)
@@ -208,8 +243,134 @@ final class ServersScreen implements Model, Themed
         return [$this, null];
     }
 
+    /**
+     * The inline add-server form: URL is required, label optional (blank falls
+     * back to the URL's host). Submitting sends {@see AddServerMsg} — the App's
+     * onServerAdd persists it — followed by {@see OpenServersMsg} so the list
+     * re-renders from the saved config. Esc aborts back to list mode.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function handleFormKey(KeyMsg $msg, Form $form): array
+    {
+        /** @var array{0: Form, 1: ?\Closure} $formResult sugar-forms' Form::update inherits Model's loose `:array` return, so narrow it. */
+        $formResult = $form->update($msg);
+        [$form, $cmd] = $formResult;
+
+        if ($form->isAborted()) {
+            return [$this->listMode(), null];
+        }
+
+        if ($form->isSubmitted()) {
+            $url = Config::normalizeUrl($form->getString('server_url'));
+            if ($url === '') {
+                return $this->formWithError();
+            }
+
+            $label = trim($form->getString('label'));
+            if ($label === '') {
+                $host = parse_url($url, PHP_URL_HOST);
+                $label = is_string($host) && $host !== '' ? $host : 'Server';
+            }
+
+            return [
+                $this->listMode(),
+                Cmd::batch(
+                    Cmd::send(new AddServerMsg($url, $label)),
+                    Cmd::send(new OpenServersMsg()),
+                ),
+            ];
+        }
+
+        // When Enter is pressed on a never-touched required field the form
+        // leaves isSubmitted() false (nothing to validate yet). Catch it so the
+        // submit attempt surfaces the error instead of silently ignoring keys.
+        if ($msg->type === KeyType::Enter && trim($form->getString('server_url')) === '') {
+            return $this->formWithError();
+        }
+
+        return [
+            new self(
+                $this->servers,
+                $this->activeServerId,
+                $this->selectedIndex,
+                $this->loading,
+                $this->error,
+                $this->cols,
+                $this->rows,
+                $form,
+            ),
+            $cmd,
+        ];
+    }
+
+    /** @return array{self, ?\Closure} fresh form (prior input cannot be re-injected cleanly) + its init command */
+    private function formWithError(): array
+    {
+        $fresh = self::buildAddForm();
+
+        return [
+            new self(
+                $this->servers,
+                $this->activeServerId,
+                $this->selectedIndex,
+                false,
+                'Please enter a server URL.',
+                $this->cols,
+                $this->rows,
+                $fresh,
+            ),
+            $fresh->init(),
+        ];
+    }
+
+    /** @return self the same list state with the add form closed */
+    private function listMode(): self
+    {
+        return new self(
+            $this->servers,
+            $this->activeServerId,
+            $this->selectedIndex,
+            false,
+            null,
+            $this->cols,
+            $this->rows,
+        );
+    }
+
+    private static function buildAddForm(): Form
+    {
+        return Form::new(
+            Input::new('server_url')
+                ->withTitle('Server URL')
+                ->withPlaceholder('https://host:8096')
+                ->required(),
+            Input::new('label')
+                ->withTitle('Label')
+                ->withPlaceholder('blank = host'),
+        );
+    }
+
     public function view(): string
     {
+        if ($this->addForm !== null) {
+            $lines = ['Add a server', ''];
+            if ($this->error !== null) {
+                $lines[] = '  ' . $this->error;
+                $lines[] = '';
+            }
+            $formBody = implode("\n", $lines) . $this->addForm->view();
+
+            return Chrome::frame(
+                'Servers',
+                $formBody,
+                'Enter  next field      Enter  on label = add      Esc  cancel',
+                $this->cols,
+                $this->rows,
+                theme: $this->theme(),
+            );
+        }
+
         $lines = ['Servers', ''];
 
         if ($this->loading) {
@@ -224,7 +385,7 @@ final class ServersScreen implements Model, Themed
 
         if ($this->servers === []) {
             $lines[] = '  No servers configured.';
-            $lines[] = '  Press h to import from hub, or use the palette to add one.';
+            $lines[] = '  Press h to import from the hub, or a to add one manually.';
             $lines[] = '';
         } else {
             foreach ($this->servers as $index => $server) {
@@ -249,7 +410,7 @@ final class ServersScreen implements Model, Themed
         return Chrome::frame(
             'Servers',
             $body,
-            'Enter  switch      h  import from hub      r  remove      Esc  back',
+            'Enter  switch      a  add      h  import from hub      r  remove      Esc  back',
             $this->cols,
             $this->rows,
             theme: $this->theme(),

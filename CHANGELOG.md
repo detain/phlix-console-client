@@ -5,6 +5,31 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Servers-screen `a` key wired to a real inline add-server form (review console__tuiarch, M-CONSOLE-40) — 2026-10-29
+
+- **The defect.** The class docblock promised "'a' add a server manually (URL +
+  label, via form that submits AddServerMsg)", but the handler toasted "Use the
+  palette 'Add server' action to add manually." — and `staticActions()` contains
+  no such palette action. The empty-state copy pointed at the same phantom, the
+  footer never advertised `a`, and `AddServerMsg` → `App::onServerAdd()` was dead
+  wiring nothing in the UI ever produced. The documented manual multi-server flow
+  was broken end to end.
+- **The cure (inline form per the docblock; a working form mechanism exists in
+  the action system — the sugar-forms machinery ServerScreen already embeds).**
+  `a` now opens an inline two-field form (URL required, label optional) owned by
+  ServersScreen; while it is open every key routes to it, and Esc cancels back to
+  the list instead of popping the screen. Submitting normalizes the URL via
+  `Config::normalizeUrl` (blank → error + fresh form, mirroring ServerScreen's
+  never-touched-Enter belt), falls a blank label back to the URL host, and emits
+  `Cmd::batch(AddServerMsg, OpenServersMsg)` — persisting through the live
+  `onServerAdd` path and re-rendering the list from the saved config. The toast
+  dead-end is deleted; the empty-state copy and footer now advertise `a`
+  truthfully. The screen gains `CapturesSlash` (same law ServerScreen carries for
+  URL typing: the App must not hijack `:`/`/` — Ctrl-K still opens the palette).
+- **Tests.** New `ServersScreenAddServerTest`: 9 tests / 24 assertions — all red
+  on parent, green after (incl. the regression pin that `a` must not return a
+  `ShowToastMsg`). phpstan src/tests, phpcs (both standards) and the i18n checks
+  green; the one phpstan src error (AdminClient return.type) is pre-existing.
 ### Fixed — SyncPlayModal room-name backspace cuts a codepoint, not a byte (review console__tuispec, M-CONSOLE-43) — 2026-10-29
 
 - **The defect.** `SyncPlayModal::backspace()` sliced the room name with
