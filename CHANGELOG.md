@@ -26,10 +26,20 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   dead-end is deleted; the empty-state copy and footer now advertise `a`
   truthfully. The screen gains `CapturesSlash` (same law ServerScreen carries for
   URL typing: the App must not hijack `:`/`/` — Ctrl-K still opens the palette).
+<<<<<<< HEAD
+=======
+- **Docs.** The manual's Screens-table Servers row now advertises the `a` add
+  key with the same one-sentence story as the footer and docblock (the row
+  previously listed only Enter/h/r).
+>>>>>>> b35b76c (fix(tui): Servers-screen add-server key to one true story [review console__tuiarch M40])
 - **Tests.** New `ServersScreenAddServerTest`: 9 tests / 24 assertions — all red
   on parent, green after (incl. the regression pin that `a` must not return a
   `ShowToastMsg`). phpstan src/tests, phpcs (both standards) and the i18n checks
   green; the one phpstan src error (AdminClient return.type) is pre-existing.
+<<<<<<< HEAD
+=======
+
+>>>>>>> b35b76c (fix(tui): Servers-screen add-server key to one true story [review console__tuiarch M40])
 ### Fixed — SyncPlayModal room-name backspace cuts a codepoint, not a byte (review console__tuispec, M-CONSOLE-43) — 2026-10-29
 
 - **The defect.** `SyncPlayModal::backspace()` sliced the room name with
