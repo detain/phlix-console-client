@@ -5,6 +5,48 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — dead config vocabulary purged; manual & dev guide to persisted-key truth with runtime-derived pins (review console__tuiarch, M-CONSOLE-38) — 2026-10-29
+
+- **The defect.** `Config` carried a wholly invented vocabulary:
+  `DEVICE_LOCAL_KEYS` (`terminal_render_mode`, `colour_palette`, `cell_size` —
+  with fabricated value sets that matched no real mode list) was declared
+  public and read by zero code anywhere; the class docblock also advertised
+  `preferred_library_ids` and `parental_controls_pin` as "server-persisted"
+  although no client path sends, receives, or parses them. Meanwhile the
+  manual told users `config.json` holds "render mode preferences" (it never
+  did — the mode is a per-invocation `--mode` choice) and the dev guide
+  re-listed the dead device-local keys. Two docblock cites named the settings
+  endpoint as `/api/v1/me/settings`; the live path is
+  `/api/v1/users/me/settings` (ApiClient's own literals). A queue
+  `cured-by` note claiming a prior fix (5e33c84) was verified false — that
+  commit cured the token.json filename, a different item.
+- **The cure (docs/vocabulary arm of the review's two options; wiring a
+  persisted-mode ladder is a behavior decision outside a docs lane).**
+  `DEVICE_LOCAL_KEYS` deleted; the SETTING PERSISTENCE SPLIT docblock
+  rewritten to the provable buckets (device-local: `servers` +
+  `active_server_id`; server-synced: `theme` + `slideshow_interval`, honest
+  allowedFields NOTE kept) with corrected endpoint cites and an explicit
+  "render mode is not persisted" statement; `withServerSettings()` docblock
+  rewritten; the manual's `config.json` row and Render modes section, and the
+  dev guide's Config split, all moved to runtime truth.
+- **New pin.** `tests/Docs/ConfigVocabularyDocsTest.php` (5 tests,
+  9 assertions), each RED on parent 9cd33c2 (measured): code and prose scans
+  for the dead vocabulary (src/bin/docs/README), a config.json row that must
+  match the persisted-key set DERIVED by running `Config::save()` into a
+  scratch file, the manual's never-persisted render-mode statement, and
+  settings-endpoint cites verified against the paths derived from
+  `ApiClient.php` itself. Mutation teeth measured: planting a dead key into
+  the dev guide reddens the docs pin; sneaking a fifth key into `save()`
+  reddens the runtime-derived set with it named.
+- **Verification.** Suite 3205→3210 tests / 17239→17248 assertions,
+  0 failures; 9 skips and 14 deprecations held. PHPStan src corpus: the one
+  pre-existing `AdminClient.php` return.type error is byte-identical at
+  parent and tip (non-attributed); phpstan-tests.neon [OK]. phpcs: repo src
+  and tests standards exit 0; plain PSR12 clean on the new test file (the
+  lone 122-char Config.php warning pre-exists at parent, untouched). i18n
+  hardcoded + catalogs checks exit 0 (no lang surface touched). No tags, no
+  branches.
+
 ### Changed — byte-identical screen helper families single-sourced into concern traits; drift ratchet pin (review console__srphp, M-CONSOLE-37) — 2026-10-29
 
 - **The defect.** A token census (visibility + signature + body, comments

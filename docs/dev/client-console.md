@@ -195,8 +195,14 @@ App configuration, persisted to `config.json` under `Config::dir()`
   plugin theme slug; unknown falls back to Nocturne via `Theme::byName()`)
 - `slideshowInterval` — photo/album slideshow seconds
 
-Device-local keys (kept out of server-persisted settings):
-`terminal_render_mode`, `colour_palette`, `cell_size`.
+`servers` and `activeServerId` are device-local — the roster is never sent to
+or received from the server. The only keys in the server round-trip are
+`theme` and `slideshow_interval`: `withServerSettings()` merges the GET
+`/api/v1/users/me/settings` response over the local values at boot, and
+`App::saveSettings()` fires the best-effort PUT of exactly those two keys.
+(The server's `updateSettings` allowedFields currently omits
+`slideshow_interval`, so that one round-trips local-only; the local JSON
+always holds the full union.)
 
 ### `TokenStore` (`src/Config/TokenStore.php`)
 

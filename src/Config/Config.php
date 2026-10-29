@@ -18,29 +18,31 @@ namespace Phlix\Console\Config;
  *
  * SETTING PERSISTENCE SPLIT
  * -------------------------
+ * Exactly two buckets exist, and every key below is a key this class (and
+ * only this class) parses and persists — review M-CONSOLE-38 purged a whole
+ * invented vocabulary (hardware "device-local" keys, extra "synced" keys)
+ * that was declared here but read by no code path.
+ *
  * Device-local (never sent to server):
- *   - terminal_render_mode  : ansi|halfblock|braille  (hardware-dependent)
- *   - colour_palette        : 16|256|truecolor        (terminal capability)
- *   - cell_size             : small|medium|large       (DPI scaling preference)
- *   - server_urls + active_server_id                   (tied to this install)
+ *   - servers + active_server_id : the per-install server roster.
  *
- * Server-persisted (synced via GET/PUT /api/v1/me/settings):
- *   - theme                : canonical lowercase wire id — nocturne|daylight|
- *                            midnight (or an enabled plugin theme slug); this is
- *                            what the server validates and stores. Legacy local
- *                            files may still carry display names ('Midnight')
- *                            and the server may still return pre-S85 fossils —
- *                            readers resolve both tolerantly via Theme::byName().
- *   - slideshow_interval   : int (seconds, 1–300) — NOTE: the server's
- *                            updateSettings allowedFields does NOT include this
- *                            key, so it round-trips local-only for now.
- *   - preferred_library_ids: list<string>
- *   - parental_controls_pin: string (hashed)
- *   - ...any future cross-device preference
+ * Server-synced (GET/PUT /api/v1/users/me/settings):
+ *   - theme              : canonical lowercase wire id — nocturne|daylight|
+ *                          midnight (or an enabled plugin theme slug); this is
+ *                          what the server validates and stores. Legacy local
+ *                          files may still carry display names ('Midnight')
+ *                          and the server may still return pre-S85 fossils —
+ *                          readers resolve both tolerantly via Theme::byName().
+ *   - slideshow_interval : int (seconds, 1–300) — NOTE: the server's
+ *                          updateSettings allowedFields does NOT include this
+ *                          key, so it round-trips local-only for now.
  *
- * The local JSON file always holds the union of both; server values are
- * merged over local defaults at boot so device-local keys are preserved
- * even when the server has never been contacted.
+ * The render mode is deliberately NOT a persisted setting: it is chosen per
+ * invocation on the command line (bin/phlix `--mode`), never stored here.
+ *
+ * The local JSON file always holds the union of both buckets; server values
+ * are merged over local defaults at boot so the device-local roster is
+ * preserved even when the server has never been contacted.
  */
 final class Config
 {
@@ -48,23 +50,6 @@ final class Config
     private const SLIDESHOW_MIN = 1;
     private const SLIDESHOW_MAX = 300;
     private const SLIDESHOW_DEFAULT = 4;
-
-    /**
-     * Settings keys that live ONLY in the local JSON file and are NEVER sent
-     * to or received from the server. These represent hardware/OS-specific
-     * preferences that would make no sense on a different device.
-     *
-     * @var array<string, true>
-     */
-    public const DEVICE_LOCAL_KEYS = [
-        'terminal_render_mode' => true,
-        'colour_palette' => true,
-        'cell_size' => true,
-        // server_urls and active_server_id are also device-local by nature
-        // (they point to per-install server installations) but they are
-        // stored under the 'servers' array and 'active_server_id' top-level
-        // key, not as a flat settings sub-map.
-    ];
 
     /**
      * @param array<int, ServerEntry>|list<ServerEntry> $servers
@@ -221,12 +206,12 @@ final class Config
     }
 
     /**
-     * Return a new Config with server-persisted settings merged over the local
-     * values. Device-local keys (terminal_render_mode, colour_palette, cell_size)
-     * are NOT taken from $serverSettings — they stay as-is from $this so that
-     * hardware-specific preferences are never overwritten by the server.
+     * Return a new Config with the server-synced settings (theme,
+     * slideshow_interval) merged over the local values. Keys the server
+     * response carries beyond these two are ignored; the device-local server
+     * roster stays as-is from $this and is never overwritten by the server.
      *
-     * @param array<string, mixed> $serverSettings server response from GET /api/v1/me/settings
+     * @param array<string, mixed> $serverSettings server response from GET /api/v1/users/me/settings
      */
     public function withServerSettings(array $serverSettings): self
     {

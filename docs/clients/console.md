@@ -118,7 +118,7 @@ Within that directory:
 
 | File | Purpose |
 | --- | --- |
-| `config.json` | Server URL, theme, render mode preferences |
+| `config.json` | Server entries, active server, theme, slideshow interval — render mode is NOT stored here; it is chosen per invocation with `--mode` (see Render modes) |
 | `token.json` | Auth tokens (access + refresh, keyed by server id) |
 | `posters/` | Poster image cache (tiled per render mode) |
 
@@ -197,7 +197,9 @@ whole of STDIN as the token, trailing newline trimmed.)
 
 ### Render modes
 
-Render modes control how posters and images are displayed:
+Render modes control how posters and images are displayed. The mode is a
+per-invocation choice — the `--mode` flag at launch (see Usage). It is never
+stored in `config.json` and does not persist across launches:
 
 **Cell modes** (tile as coloured text — work in any terminal):
 
