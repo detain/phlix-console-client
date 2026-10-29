@@ -389,7 +389,7 @@ final class DetailScreen implements Breadcrumbed, Themed
             return Chrome::frame($this->headerTitle(), "\n  {$this->error}", Lang::t(self::LOADING_HINT_KEY), $this->cols, $this->rows, $this->crumbs, $this->theme());
         }
         if (!$this->loaded || $this->item === null) {
-            return Chrome::frame($this->headerTitle(), "\n  " . Lang::t('detail.loading'), self::LOADING_HINT_KEY, $this->cols, $this->rows, $this->crumbs, $this->theme());
+            return Chrome::frame($this->headerTitle(), "\n  " . Lang::t('detail.loading'), Lang::t(self::LOADING_HINT_KEY), $this->cols, $this->rows, $this->crumbs, $this->theme());
         }
         if ($this->childGrid !== null) {
             return $this->containerView($this->item, $this->childGrid);

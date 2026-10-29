@@ -251,6 +251,39 @@ final class DetailScreenTest extends TestCase
         self::assertStringContainsString('Could not load', (string) $failed->error());
     }
 
+    public function testLoadingFrameShowsTheTranslatedHintNotTheRawCatalogKey(): void
+    {
+        // Before the detail response lands, view() renders the loading frame.
+        // Its status hint must be the translated 'detail.loading_hint' string,
+        // never the raw snake_case catalog key (review console__copywriter C1:
+        // the constant was passed to Chrome::frame() without Lang::t()).
+        $screen = $this->screenWith(new FakeTransport());
+
+        $view = $screen->view();
+
+        self::assertStringNotContainsString('detail.loading_hint', $view, 'raw catalog key leaked to the status bar');
+        self::assertStringContainsString('Esc  back', $view, 'English fallback of the loading hint');
+    }
+
+    public function testLoadingHintKeyIsPresentInEveryLocaleCatalog(): void
+    {
+        // The fix only renders text if the key exists in all seven catalogs;
+        // LocaleCatalogsTest pins parity/order, this pins THIS key's presence.
+        $files = glob(__DIR__ . '/../../resources/lang/*.php');
+        self::assertIsArray($files);
+        self::assertCount(7, $files, 'seven locale catalogs expected');
+
+        foreach ($files as $file) {
+            $catalog = require $file;
+            self::assertIsArray($catalog);
+            self::assertArrayHasKey('detail.loading_hint', $catalog, basename($file) . ' misses the loading hint');
+            $value = $catalog['detail.loading_hint'];
+            self::assertIsString($value);
+            self::assertNotSame('', $value);
+            self::assertStringNotContainsString('.', $value, basename($file) . ' stores a key-shaped value');
+        }
+    }
+
     public function testUnhandledKeyAndMessageAreNoOps(): void
     {
         $loaded = $this->loaded();
