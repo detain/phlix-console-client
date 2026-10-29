@@ -6,6 +6,7 @@ namespace Phlix\Console\Tests\Ui;
 
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\Theme;
+use SugarCraft\Core\Util\Width;
 use PHPUnit\Framework\TestCase;
 
 final class ChromeTest extends TestCase
@@ -138,5 +139,131 @@ final class ChromeTest extends TestCase
         // …and one cell more is clipped (proves the inset is exactly 4, not less).
         $outOver = Chrome::frame('T', str_repeat('y', $cols - 3), 'hint', $cols, 24);
         self::assertStringNotContainsString(str_repeat('y', $cols - 3), $outOver, 'a cols-3 body line does not fit');
+    }
+
+    /**
+     * The worst-case hint as shipped on `src/Screen/AdminLibrariesScreen.php:95`
+     * (width 135 cells). Restated literally, not reached through reflection, so
+     * rotating the screen's hint cannot silently retire these pins (M-CONSOLE-45).
+     */
+    private const ADMIN_HINT = 'c create   u update   d delete   p prune   M clear-metadata   A clear-artwork   D delete-all   s scan   R rescan   m match   h history   r refresh   Esc back';
+
+    private const LIBRARY_HINT = '↑↓←→  move      A–Z  jump      /  filter      c  clear      s  shuffle      R  refresh      Esc  back';
+
+    public function testFitHintReturnsByteIdenticalWhenTheHintFits(): void
+    {
+        // The wide-terminal case must be a no-op — existing renders and the
+        // Docs key-table pins read the shipped hints unchanged.
+        self::assertSame('Esc  back', Chrome::fitHint('Esc  back', 80));
+
+        // The measured leaf capacity is exactly cols - 2 (HINT_INSET): a hint
+        // of precisely 78 cells is whole at cols=80, one cell more elides.
+        $exact = str_repeat('x', 78);
+        self::assertSame($exact, Chrome::fitHint($exact, 80));
+        self::assertNotSame(str_repeat('x', 79), Chrome::fitHint(str_repeat('x', 79), 80));
+    }
+
+    public function testFitHintKeepsTheTrailingSafetyKeyWhenClipped(): void
+    {
+        // Every hint in the app parks its escape hatch at the END; right-clipping
+        // deleted exactly that (the review's "Esc … among the first tokens lost").
+        foreach ([60, 80] as $cols) {
+            self::assertStringEndsWith(
+                'Esc back',
+                Chrome::fitHint(self::ADMIN_HINT, $cols),
+                "admin hint at cols={$cols}"
+            );
+            self::assertStringEndsWith(
+                'Esc  back',
+                Chrome::fitHint(self::LIBRARY_HINT, $cols),
+                "library hint at cols={$cols}"
+            );
+        }
+    }
+
+    public function testFitHintSignalsTheOmissionWithTheMarker(): void
+    {
+        $fitted = Chrome::fitHint(self::ADMIN_HINT, 80);
+
+        // The old clip was silent ("no `…` or any signal that text was cut").
+        self::assertStringContainsString(' … ', $fitted);
+        // The head is kept too — the first documented keys stay discoverable.
+        self::assertStringStartsWith('c create', $fitted);
+    }
+
+    public function testFitHintNeverExceedsTheLeafWidth(): void
+    {
+        // Sweep every plausible terminal width: the fitted hint must always fit
+        // the borderless leaf (cols - 2 cells) or collapse honestly at degenerate
+        // widths (cols ≤ 3 leaves no room for two runs plus the marker).
+        foreach ([self::ADMIN_HINT, self::LIBRARY_HINT] as $hint) {
+            for ($cols = 1; $cols <= 120; $cols++) {
+                $width = Width::string(Chrome::fitHint($hint, $cols));
+                self::assertLessThanOrEqual(max(0, $cols - 2), $width, "overflow at cols={$cols}");
+            }
+        }
+    }
+
+    public function testFitHintElidesWholeWordsOnly(): void
+    {
+        $words = static fn (string $s): array => array_values(array_filter(
+            preg_split('/\s+/u', trim($s)) ?: [],
+            static fn (string $w): bool => $w !== '…'
+        ));
+
+        $source = $words(self::ADMIN_HINT);
+        foreach ([40, 60, 80] as $cols) {
+            foreach ($words(Chrome::fitHint(self::ADMIN_HINT, $cols)) as $word) {
+                self::assertContains($word, $source, "fit at cols={$cols} invented or cut a word: {$word}");
+            }
+        }
+    }
+
+    public function testFitHintMeasuresDisplayCellsNotCodepoints(): void
+    {
+        // Wide (East-Asian) glyphs cost 2 cells; a codepoint-counting helper
+        // would overflow the leaf ~2x — the same law this review's third finding
+        // states for the canonical Width helper.
+        $hint = 'メニュー   作成   更新   削除   設定   詳細   並替   更新   読込   履歴   破棄   全选   Esc  back';
+        $fitted = Chrome::fitHint($hint, 80);
+
+        self::assertLessThanOrEqual(78, Width::string($fitted));
+        self::assertStringEndsWith('Esc  back', $fitted, 'the tail survives wide-char elision');
+    }
+
+    public function testFitHintHandlesDegenerateWidthsWithoutCrashing(): void
+    {
+        // No room for head + marker + tail at all: the canonical
+        // Width::truncateMiddle fallback takes over and never exceeds the leaf.
+        self::assertSame('', Chrome::fitHint(self::ADMIN_HINT, 1));
+        self::assertSame('', Chrome::fitHint(self::ADMIN_HINT, 2));
+
+        foreach ([3, 4, 5, 6] as $cols) {
+            $fitted = Chrome::fitHint(self::ADMIN_HINT, $cols);
+            self::assertLessThanOrEqual(max(0, $cols - 2), Width::string($fitted), "cols={$cols}");
+            self::assertNotSame(self::ADMIN_HINT, $fitted, "the hint must not overflow at cols={$cols}");
+        }
+
+        self::assertSame('', Chrome::fitHint('', 80), 'an empty hint stays empty at any width');
+    }
+
+    public function testFrameShowsTheEscKeyOnAn80ColumnAdminScreen(): void
+    {
+        // Integration pin, red-on-parent: at HEAD~ the 80-col probe rendered
+        // "c create … D clear-artwork D" and lost everything past it, including
+        // 'Esc back'. The status row must carry the safety key AND the marker.
+        $out = Chrome::frame('Admin · Libraries', 'body', self::ADMIN_HINT, 80, 24);
+
+        $statusRow = null;
+        foreach (explode("\n", $out) as $line) {
+            if (str_contains($line, 'create')) {
+                $statusRow = $line;
+                break;
+            }
+        }
+
+        self::assertNotNull($statusRow, 'the hint still renders on the status row');
+        self::assertStringContainsString('Esc back', $statusRow);
+        self::assertStringContainsString(' … ', $statusRow);
     }
 }

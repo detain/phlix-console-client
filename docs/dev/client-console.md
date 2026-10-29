@@ -179,7 +179,12 @@ Every screen renders through a `view()` method returning the frame (an ANSI
 string, or a `View` for cursor control). The runtime line-diffs each frame and
 repaints only the changed rows (`Program::renderFrame`). Screens compose their
 output through `Chrome::frame($title, $body, $hint, $cols, $rows, $trail, $theme)`
-for the shared header/body-frame/hint layout.
+for the shared header/body-frame/hint layout. The frame fits the hint to the
+terminal width itself (`Chrome::fitHint`): past the borderless status leaf's
+capacity (`cols - 2` cells) whole words from both ends are kept and the dropped
+middle is marked ` … `, so the trailing safety keys (`Esc  back`, `q  quit`)
+stay readable on narrow terminals — screens pass their full hint and never
+pre-truncate (M-CONSOLE-45).
 
 ### `Config` (`src/Config/Config.php`)
 

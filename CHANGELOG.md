@@ -5,6 +5,46 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — status-line hints fit the terminal width by whole-word middle elision with an omission marker (review console__uxdesign, M-CONSOLE-45) — 2026-10-29
+
+- **The defect.** `Chrome::frame()` put the hint on a borderless 1-row leaf
+  that clips silently at `cols - 2` (measured at HEAD: cols=60 showed 58 hint
+  cells; at 80 the worst case, `AdminLibrariesScreen`'s 135-col hint, rendered
+  through "D clear-artwork D" and "elete-all s scan R rescan m match h history
+  r refresh Esc back" was gone — right-clipping deletes exactly the tail
+  tokens, and every hint in the app parks its safety key (`Esc  back`,
+  `q  quit`) at the END. No `…`, no signal, on the 80-col default of most
+  terminals.
+- **The cure.** One helper at the choke point every ~25 `Chrome::frame` call
+  sites already pass through: `Chrome::fitHint(string $hint, int $cols)` keeps
+  a run of whole whitespace-delimited words from the front and from the back
+  (tail capped at half the usable budget so the safety key always survives),
+  joined by ` … ` — the omission signal. A hint that fits is returned
+  BYTE-IDENTICAL (wide-terminal renders and the Docs key-table pins that read
+  the shipped hint constants are untouched); degenerate widths and
+  no-whitespace hints fall back to the canonical display-width
+  `Width::truncateMiddle` (grapheme + East-Asian aware — no codepoint
+  counting, per the same review's helper law). Hint constants across the
+  screens stay verbatim; the fit happens at render time.
+- **Pins.** `tests/Ui/ChromeTest.php` +8 tests (byte-identity incl the exact
+  `cols - 2` capacity boundary, tail-safety-key at 60/80, marker + head-kept,
+  width-invariant sweep cols 1..120 for both quoted hints, whole-words-only
+  invariant, wide-CJK cell budget, degenerate widths, frame integration —
+  red-on-parent: the probe lost `Esc` at both 60 and 80 before the cure);
+  `tests/Docs/ScreenGuideDocsTest.php` +1 (the guide now teaches
+  `Chrome::fitHint` and the ` … ` law; red-on-parent: neither string nor
+  method existed). Mutation probes: dropping the frame's fit call reddens the
+  integration pin; always-passthrough reddens 2; right-truncation reddens 5.
+- **Verification.** Suite 3210→3219 tests / 17248→17793 assertions (both sides
+  measured serial at this head; the sibling M-CONSOLE-38 lane landed `1d42d37`
+  mid-lane and its 331-test file is inside both counts), 0 failures, 9 skips
+  and 14 deprecations held. phpcs: src corpus unchanged (one inherited
+  LineLength warning; the new multi-line status call is clean), tests corpus +2
+  warnings — the two verbatim long hint literals restating the review's quote,
+  deliberate. phpstan src: only the known pre-existing `AdminClient:2697`
+  return-type red (not this file's); phpstan-tests corpus [OK]. i18n: catalogs
+  untouched; both checks pass (61 keys, parity held).
+
 ### Changed — dead config vocabulary purged; manual & dev guide to persisted-key truth with runtime-derived pins (review console__tuiarch, M-CONSOLE-38) — 2026-10-29
 
 - **The defect.** `Config` carried a wholly invented vocabulary:

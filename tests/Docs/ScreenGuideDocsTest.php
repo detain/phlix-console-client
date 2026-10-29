@@ -192,6 +192,28 @@ final class ScreenGuideDocsTest extends TestCase
         );
     }
 
+    public function testTheGuideStatesTheFrameFitsTheStatusHint(): void
+    {
+        // M-CONSOLE-45: the frame adapts the hint itself; a screen author who
+        // reads the guide must learn to pass the FULL hint and never pre-clip.
+        self::assertTrue(
+            method_exists(Chrome::class, 'fitHint'),
+            'Chrome::fitHint() was renamed or removed — move the guide sentence and this pin together.'
+        );
+
+        $guide = self::readDoc();
+        self::assertStringContainsString(
+            '`Chrome::fitHint`',
+            $guide,
+            'The guide no longer teaches that Chrome::frame() fits the status hint to the width.'
+        );
+        self::assertStringContainsString(
+            'marked ` … `',
+            $guide,
+            'The guide stopped naming the omission marker the fit inserts (the silent-clip law).'
+        );
+    }
+
     public function testScreenContractsAreClassifiedAsPhpSays(): void
     {
         $guide = self::readDoc();

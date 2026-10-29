@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace Phlix\Console\Ui;
 
 use Phlix\Console\Screen\Themed;
+use SugarCraft\Core\Util\Width;
 use SugarCraft\Panels\SugarPanels;
 use SugarCraft\NavStack\Breadcrumb;
 
@@ -29,6 +30,12 @@ use SugarCraft\NavStack\Breadcrumb;
  * theme is applied per render (the App hands the top {@see Themed} screen the
  * active theme just before it renders); sugar-panels's ANSI-aware placement keeps
  * the injected SGR aligned.
+ *
+ * The borderless status leaf CLIPS (it does not wrap), so a hint longer than
+ * the leaf would vanish silently from the right — exactly where every hint in
+ * the app parks its safety key (`Esc  back`, `q  quit`). {@see fitHint()}
+ * adapts the hint to the width before it is rendered, keeping whole words at
+ * both ends and marking the elision with ` … ` (M-CONSOLE-45).
  */
 final class Chrome
 {
@@ -66,7 +73,9 @@ final class Chrome
             . self::headerLabel($title, $trail, $cols);
         $header = $b->leaf($headerText)->withBorder(false)->withMinHeight(1);
         $content = $b->leaf($body)->withBorder(true)->withGrow();
-        $status = $b->leaf($theme->statusStyle()->render(' ' . $hint))->withBorder(false)->withMinHeight(1);
+        $status = $b->leaf(
+            $theme->statusStyle()->render(' ' . self::fitHint($hint, $cols))
+        )->withBorder(false)->withMinHeight(1);
 
         $root = $b->vertical($header, $content, $status)->withSpacing(1);
 
@@ -83,8 +92,8 @@ final class Chrome
     /**
      * How many body lines the content panel shows at a given terminal height.
      *
-     * The content panel now FILLS the frame (sugar-panels flex/grow), so the body
-     * is a deterministic `rows - CHROME_HEIGHT` — no probing. This equals EXACTLY
+     * The content panel now FILLS the frame (sugar-panels flex/grow), so the
+     * body is a deterministic `rows - CHROME_HEIGHT` — no probing. This equals EXACTLY
      * the number of body lines {@see frame()} displays (0 when the terminal is too
      * short to fit the chrome at all). A screen that windows a scrolling body (a
      * grid, a table viewport) sizes it to THIS value (less any in-content header
@@ -94,6 +103,86 @@ final class Chrome
     public static function bodyHeight(int $rows): int
     {
         return max(0, $rows - self::CHROME_HEIGHT);
+    }
+
+    /**
+     * Cells a hint loses to the frame's outer border (1 per side) — measured at
+     * HEAD (M-CONSOLE-45): the borderless status leaf shows exactly `cols - 2`
+     * hint cells; the 60-col probe rendered 58 and clipped the rest silently.
+     */
+    private const HINT_INSET = 2;
+
+    /** Padded marker left where middle words were elided — the omission signal. */
+    private const HINT_GAP = ' … ';
+
+    /**
+     * Fit a status hint to the terminal width by dropping WHOLE whitespace-run
+     * delimited words from the middle (M-CONSOLE-45).
+     *
+     * Every hint in the app parks its safety-relevant key at the END
+     * (`Esc  back`, `q  quit`, `Esc cancel`, `Esc done`), and the borderless
+     * status leaf right-clips — so the old behavior deleted exactly the tokens
+     * a stuck user needs, with no signal. The fit keeps a run of whole words
+     * from the front and a run of whole words from the back (the tail capped at
+     * half the usable budget, so both ends keep a share) joined by
+     * {@see HINT_GAP}. A hint that already fits is returned BYTE-IDENTICAL, so
+     * wide-terminal rendering — and the Docs pins that read the shipped hint
+     * constants for their key tables — is untouched. Widths too degenerate for
+     * two word-runs plus the marker fall back to the canonical display-width
+     * {@see Width::truncateMiddle()} (grapheme + East-Asian aware; never this
+     * repo's forbidden codepoint counting). A hint with no whitespace to elide
+     * at all takes the same fallback: word granularity is undefined for it.
+     */
+    public static function fitHint(string $hint, int $cols): string
+    {
+        $budget = $cols - self::HINT_INSET;
+        if ($hint === '' || Width::string($hint) <= $budget) {
+            return $hint;
+        }
+
+        $gapWidth = Width::string(self::HINT_GAP);
+        if ($budget <= $gapWidth) {
+            return Width::truncateMiddle($hint, $budget);
+        }
+
+        /** @var list<string> $parts words at even indices, whitespace runs at odd */
+        $parts = preg_split('/(\s+)/', $hint, -1, PREG_SPLIT_DELIM_CAPTURE);
+        if (count($parts) < 3) {
+            return Width::truncateMiddle($hint, $budget);
+        }
+
+        $usable = $budget - $gapWidth;
+        $tailBudget = intdiv($usable, 2);
+
+        // Tail: whole words from the end, so the safety key always survives.
+        $tail = $parts[count($parts) - 1];
+        $tailWidth = Width::string($tail);
+        if ($tailWidth > $usable) {
+            return Width::truncateMiddle($hint, $budget);
+        }
+        for ($k = count($parts) - 3; $k >= 0; $k -= 2) {
+            $width = $tailWidth + Width::string($parts[$k]) + Width::string($parts[$k + 1]);
+            if ($width > $tailBudget) {
+                break;
+            }
+            $tail = $parts[$k] . $parts[$k + 1] . $tail;
+            $tailWidth = $width;
+        }
+
+        // Head: whole words from the front with whatever budget the tail left.
+        $headBudget = $usable - $tailWidth;
+        $head = '';
+        $headWidth = 0;
+        for ($k = 0; $k <= count($parts) - 2; $k += 2) {
+            $width = $headWidth + Width::string($parts[$k]) + ($head === '' ? 0 : Width::string($parts[$k - 1]));
+            if ($width > $headBudget) {
+                break;
+            }
+            $head .= ($head === '' ? '' : $parts[$k - 1]) . $parts[$k];
+            $headWidth = $width;
+        }
+
+        return $head . self::HINT_GAP . $tail;
     }
 
     /**
