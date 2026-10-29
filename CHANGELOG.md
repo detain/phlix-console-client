@@ -5,6 +5,42 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — bracketed paste replays as typed keys into every text surface (review console__tuispec, M-CONSOLE-44) — 2026-10-29
+
+- **The defect.** sugar-core's InputReader delivers a bracketed paste as ONE
+  `PasteMsg` (InputReader.php:124), while every text surface in this app —
+  the command palette, Search, FilterBar, the SyncPlay room name, the
+  sugar-forms fields — consumes only Char/Space `KeyMsg`s. `App::dispatch()`
+  had no `PasteMsg` arm at all: the message fell through to the catch-all,
+  each screen's model returned itself untouched, and Ctrl+Shift+V (or any
+  OSC52 paste) was a silent no-op estate-wide. `grep -rn PasteMsg src/`
+  returned zero hits at 1d42d37.
+- **The cure.** A `PasteMsg` branch (after the `WindowSizeMsg` guard) hands
+  the payload to `App::pasteAsKeys()`: line endings and tabs are FLATTENED
+  (never replayed as Enter/Tab — a paste must not submit a half-filled form
+  or jump focus), malformed UTF-8 is repaired before the Unicode sweep (the
+  framework sanitizer keeps `\t\n\r`, so `/u` patterns would null-fail
+  open on hostile bytes), invisible format chars (`\p{C}`: ZWSP, bidi
+  overrides) are stripped, and the replay is capped at
+  `MAX_PASTE_REPLAY_KEYS` 4096 (hostile-clipboard DoS valve). Surviving
+  runes replay one `Cmd::send` per key — space as `KeyType::Space`, exactly
+  what InputReader.php:499 emits for a typed 0x20, everything else
+  `KeyType::Char` — batched via `Cmd::batch` (children are pure sends;
+  Program.php:679-684 drains the batch FIFO, so order is preserved). State
+  folds through the NORMAL dispatch path, so every capture gate keeps its
+  teeth: palette modal capture, `CapturesSlash` skip-screens, `s`-arm. An
+  all-filtered paste produces no Cmd at all.
+- **New pins.** `tests/AppPasteTest.php` (7 tests, 92 assertions), every one
+  RED on parent 1d42d37 measured (7/7 behavioral failures). Mutation teeth
+  measured: dropping the 4096 cap reddens exactly the cap pin; replaying
+  space as `Char` reddens exactly the Space-type pin; skipping the
+  newline-flatten reddens the never-Enter/Tab and empty-noop pins (2).
+- **Suite.** Full serial run 3210→3217 tests, 17248→17340 assertions
+  (+7/+92 exact), deprecations 14 and skips 9 held. phpstan src level 9
+  unchanged (the 1 inherited `AdminClient.php:2697` finding is present at
+  pristine tip — measured); phpstan-tests level 2 clean; phpcs
+  `phpcs.xml`/`phpcs-tests.xml` exit 0. i18n guards green, catalogs inert
+  (61 keys; key-handling adds no user-facing strings).
 ### Fixed — status-line hints fit the terminal width by whole-word middle elision with an omission marker (review console__uxdesign, M-CONSOLE-45) — 2026-10-29
 
 - **The defect.** `Chrome::frame()` put the hint on a borderless 1-row leaf

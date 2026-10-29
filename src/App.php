@@ -183,6 +183,7 @@ use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Model;
 use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg;
+use SugarCraft\Core\Msg\PasteMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\SubscriptionCapable;
 use SugarCraft\Core\Util\Width;
@@ -342,6 +343,16 @@ final class App implements Model
     {
         if ($msg instanceof WindowSizeMsg) {
             return $this->resized($msg->cols, $msg->rows);
+        }
+
+        // A bracketed paste arrives as ONE PasteMsg (sugar-core InputReader.php:124)
+        // while every text surface in this app — palette, Search, FilterBar, the
+        // SyncPlay room name, the sugar-forms fields — consumes only Char/Space
+        // KeyMsgs, so an untranslated PasteMsg is a silent no-op [review
+        // console__tuispec M44]. Replay it as the same key sequence the terminal
+        // emits for the identical characters typed.
+        if ($msg instanceof PasteMsg) {
+            return [$this, self::pasteAsKeys($msg->content)];
         }
 
         // While the command palette is open it captures all keystrokes (it is a
@@ -1013,6 +1024,53 @@ final class App implements Model
             && $msg->rune === '/'
             && !$msg->ctrl
             && !($this->topScreen() instanceof CapturesSlash);
+    }
+
+    /**
+     * Cap on characters replayed per paste: a hostile multi-megabyte clipboard
+     * must not become megabytes of dispatch+render cycles. Legit text-surface
+     * pastes (URLs, tokens, queries) stay far below this; the tail is dropped.
+     */
+    private const MAX_PASTE_REPLAY_KEYS = 4096;
+
+    /**
+     * Translate a bracketed-paste payload into the KeyMsg stream an identical
+     * typed input produces.
+     *
+     * Line endings are FLATTENED (never replayed as Enter — a clipboard blob
+     * ending in \n must not submit a half-filled form), tabs dropped (never a
+     * focus jump), and every remaining control/invisible format char (bidi
+     * overrides, zero-width) stripped — secrets and URLs must not carry them
+     * silently. The space rune becomes KeyType::Space, mirroring exactly what
+     * InputReader emits for a typed 0x20 (InputReader.php:499); everything
+     * else printable is KeyType::Char. Consequence: paste behavior is key-
+     * for-key identical to typing, including every capture gate — '/' and ':'
+     * search/palette hijacks skip screens implementing CapturesSlash (the
+     * ServerScreen/Login/Register/Search/Library/Player surfaces), so pasting
+     * "https://…" into the server field types it char-by-char into the field.
+     */
+    private static function pasteAsKeys(string $content): ?\Closure
+    {
+        // Byte-level pass first: the framework's default sanitizer keeps
+        // \t \n \r (Sanitize::untrusted), and str_replace needs no /u.
+        $flat = str_replace(["\r\n", "\n", "\r", "\t"], '', $content);
+        if (preg_match('//u', $flat) !== 1) {
+            // Malformed UTF-8 makes every /u pattern fail to null — repair to
+            // U+FFFD placeholders before the Unicode sweep (fail-closed, never
+            // fall back to the hostile bytes).
+            $flat = mb_convert_encoding($flat, 'UTF-8', 'UTF-8');
+        }
+        $printable = preg_replace('/\p{C}/u', '', $flat) ?? '';
+        $runes = array_slice(mb_str_split($printable), 0, self::MAX_PASTE_REPLAY_KEYS);
+
+        $cmds = [];
+        foreach ($runes as $rune) {
+            $cmds[] = Cmd::send($rune === ' '
+                ? new KeyMsg(KeyType::Space, rune: ' ')
+                : new KeyMsg(KeyType::Char, rune: $rune));
+        }
+
+        return $cmds === [] ? null : Cmd::batch(...$cmds);
     }
 
     private function fetchPaletteLibraries(): \Closure
