@@ -5,6 +5,45 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Security — `dev-master` supply chain put under human review + whole-lock audit gate (review console__devops, M-CONSOLE-34) — 2026-10-29
+
+- **What.** All 26 `sugarcraft/*` packages resolve to `dev-master`, and the
+  weekly `Dependencies` workflow ran `composer update` and pushed the refreshed
+  `composer.lock` **straight to `master`** whenever its gates were green — a
+  recurring, unreviewed auto-merge of tens of upstream commits into mainline.
+  This repository also had **no security audit gate at all**: nothing in CI
+  ever asked whether a locked dependency carried a published advisory.
+- **Tag investigation (measured 2026-10-29, read-only `git ls-remote` +
+  ancestry over all 26 upstreams).** No upstream exposes a single semantic
+  version tag; 23 carry one cosmetic `candy-*-final`-style tag each and
+  `sugar-gallery`/`sugar-table`/`sugar-toast` carry none; **all 23 tags are
+  non-ancestors of their repository's current `master`** (histories rewritten
+  after tagging) and lag it by 4–85 commits, while **every locked ref sits on
+  `master`**. Pinning a tag would freeze upstream-abandoned, off-mainline code
+  and cannot interoperate with the remaining moving-dev-master siblings — the
+  route is structurally impossible, so the constraint stays `dev-master` as a
+  documented, measured exception (`docs/dev/dependencies.md`, per-package
+  table). A coordinated upstream retag cascade is out of scope for this repo.
+- **Cure (the two review points that were missing, now added).**
+  `.github/workflows/deps.yml` no longer writes `master`: all gates run
+  in-workflow against the proposed lock (a `Security Audit` step added) and the
+  result is published as a **pull request** for human diff-review — the weekly
+  refresh can propose, never merge. `.github/workflows/ci.yml` gained the
+  estate-standard S246 whole-lock gate as its last job (`composer-audit:` →
+  `php scripts/security-audit-check.php`): blocks on any advisory in runtime
+  *or* development dependencies, prints and floors the audited corpus
+  (129 locked = 101 require + 28 require-dev, floors 100/24), and fails loudly
+  when it cannot measure (missing/unparseable lock or payload, unreachable
+  advisory source, composer < 2.4). The script and its 30-test guard suite
+  `tests/Unit/SecurityAuditCheckTest.php` (lane token
+  `S440CONSOLEGUARDW9T4`) are ported from the hardened family template
+  (phlix-plugin-trakt), with only floors and repository narrative adapted.
+- **Evidence.** Gate live-green on the committed lock (`composer audit
+  --locked`: 0 advisories, 0 abandoned, corpus line printed); mutation probes
+  all killed — planted `continue-on-error` / `|| true` on the audit step and an
+  inline-argv spawn each redden exactly their guard test, floor-lowering
+  reddens `testFloorsMatchTheScript`, restored tree 30/30 green.
+
 ### Fixed — four admin-DTO render-boundary bypassers Coerce-routed (review console__tuispec, M-CONSOLE-33 r3) — 2026-10-29
 
 - **What.** The r1 review proved (live `Input::view()` probes at 4608a92) that

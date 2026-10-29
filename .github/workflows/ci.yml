@@ -190,3 +190,41 @@ jobs:
           done
           PHLIX_SERVER_URL=http://127.0.0.1:8099 php bin/phlix run --selftest
         working-directory: ${{ github.workspace }}
+
+  # S246 whole-lock security audit gate (see the header of
+  # scripts/security-audit-check.php for the full policy and its reasoning).
+  #
+  # Earlier audit shapes in this estate audited only runtime dependencies
+  # (`composer audit --no-dev`), so a HIGH advisory in a development tool the CI
+  # runner itself executes was invisible — and "invisible" is indistinguishable
+  # from "clean". This job audits the WHOLE lock — runtime and development —
+  # and prints the corpus it examined. For this repository the gate matters
+  # doubly: the sugarcraft/* chain rides `dev-master` (upstream carries no
+  # mainline tags — docs/dev/dependencies.md), so lock refreshes are a live
+  # supply-chain surface that the weekly Dependencies workflow can no longer
+  # push to master unreviewed.
+  #
+  # Do NOT add a development-dependency exclusion, do NOT add continue-on-error
+  # to the step below, and do NOT wrap it in a conditional: the guard test
+  # tests/Unit/SecurityAuditCheckTest.php parses this file and fails on each of those edits.
+  #
+  # Keep this job LAST in the file — that guard test slices the workflow from
+  # `composer-audit:` to the end and asserts the slice is not neutered.
+  composer-audit:
+    name: Security Audit
+    runs-on: ubuntu-26.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@4424c9aab975b57bd706ee5a39c6b4334d6e4f60
+        with:
+          php-version: '8.3'
+          tools: composer:v2
+
+      # `--locked` audits composer.lock and needs no vendor/, so there is
+      # deliberately no `composer install` step here.
+      - name: Run Security Audit (runtime AND development dependencies)
+        run: php scripts/security-audit-check.php

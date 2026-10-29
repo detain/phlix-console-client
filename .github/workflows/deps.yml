@@ -1,5 +1,30 @@
 name: Dependencies
 
+# Weekly `composer update` proposal — opens a PULL REQUEST, never a master push.
+#
+# Until 2026-10-29 this workflow ran `composer update`, and if its gates were
+# green it committed `composer.lock` and `git push origin master` — straight
+# onto mainline, no human in the loop. That is a supply-chain auto-merge: every
+# `sugarcraft/*` dependency of this terminal client rides `dev-master` (the
+# upstreams expose no semantic-version tags, and the non-semver tags that exist
+# all sit off their current mainline — per-upstream proof in
+# docs/dev/dependencies.md), so each weekly refresh re-pointed the released TUI
+# at tens of upstream commits chosen by nobody in this repository. A single
+# compromised upstream commit (or an upstream account takeover) landed on
+# `master` automatically, and the `chore(deps): refresh composer.lock from
+# dev-master` commits in this repository's history are that chain executing as
+# designed.
+#
+# The refresh keeps running — pinning the lock to frozen upstream commits would
+# only hide the exposure — but its verdict is now a PROPOSAL. All gates
+# (phpstan, phpstan-tests, phpunit, whole-lock security audit) run in this job
+# against the proposed lock before anything is published, and a PR is opened
+# for a human to diff-review and merge. A GITHUB_TOKEN-authored PR does not
+# re-trigger ci.yml (GitHub's anti-recursion rule), which is exactly why the
+# gates must run HERE, on the proposed lock, and why their results are linked
+# in the PR body.
+#
+# Do not restore a path that writes master from this workflow.
 on:
   schedule:
     - cron: '0 6 * * 1'
@@ -7,6 +32,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   update:
@@ -33,12 +59,32 @@ jobs:
       - name: Run tests
         run: vendor/bin/phpunit
 
-      - name: Commit updated lock
+      - name: Run Security Audit (proposed lock, runtime AND development)
+        run: php scripts/security-audit-check.php
+
+      - name: Open pull request for the proposed lock
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if ! git diff --quiet composer.lock; then
-            git config user.name  "phlix-bot"
-            git config user.email "bot@phlix.local"
-            git add composer.lock
-            git commit -m "chore(deps): refresh composer.lock from dev-master"
-            git push origin master
+          if git diff --quiet composer.lock; then
+            echo "composer.lock unchanged — nothing to propose."
+            exit 0
+          fi
+          BRANCH="chore/deps-refresh-$(date -u +%Y-%m-%d)"
+          git config user.name  "phlix-bot"
+          git config user.email "bot@phlix.local"
+          git switch -c "$BRANCH"
+          git add composer.lock
+          git commit -m "chore(deps): refresh composer.lock from dev-master"
+          # Force-with-lease on the dated bot branch only: a same-day re-run
+          # replaces its own proposal. Nothing here can touch master.
+          git push --force-with-lease origin "HEAD:refs/heads/$BRANCH"
+          if [ "$(gh pr list --head "$BRANCH" --state open --json number | jq 'length')" -eq 0 ]; then
+            gh pr create --head "$BRANCH" --base master \
+              --title "chore(deps): weekly composer.lock refresh — review before merge" \
+              --body "Weekly \`composer update\` proposal from the Dependencies workflow (run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
+
+          All repository gates (phpstan, phpstan-tests, phpunit, whole-lock security audit) ran in-workflow against THIS lock before this PR opened and passed.
+
+          The \`sugarcraft/*\` chain rides \`dev-master\` — upstream exposes no mainline tags (see docs/dev/dependencies.md) — so every refresh here is a supply-chain change. Review the lock diff, inspect the upstream commits the new refs point at, and merge only on purpose."
           fi
