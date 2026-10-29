@@ -66,6 +66,7 @@ use Phlix\Console\Store\AuthStore;
 use Phlix\Console\Store\LibrariesStore;
 use Phlix\Console\Store\MediaStore;
 use SugarCraft\Core\Program;
+use SugarCraft\Core\ProgramOptions;
 use SugarCraft\Image\DiskCache;
 use Workerman\Events\Select;
 use Workerman\Timer;
@@ -718,6 +719,12 @@ try {
                 exit(2);
             }
             $container = buildContainer($mode);
+            // Enable bracketed paste (terminal mode 2004): the terminal then
+            // wraps a paste in ESC[200~…ESC[201~ and sugar-core surfaces it as
+            // ONE PasteMsg, which App::dispatch() replays as the equivalent
+            // key sequence [review console__tuispec M44]. Without this half
+            // there is no envelope to consume: raw pasted newlines would keep
+            // auto-submitting half-filled forms.
             (new Program(App::boot(
                 $container['config'],
                 $container['auth'],
@@ -725,7 +732,7 @@ try {
                 $container['libraries'],
                 $container['media'],
                 $container['posters'],
-            )))->run();
+            ), new ProgramOptions(bracketedPaste: true)))->run();
             break;
 
         case 'watch':

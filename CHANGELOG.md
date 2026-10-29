@@ -5,6 +5,32 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — run entrypoint enables bracketed-paste terminal mode 2004 so the M44 replay actually fires (review console__tuispec, M-CONSOLE-44) — 2026-10-29
+
+- **The missing half.** `8793a43` shipped the consumption seam (`App::dispatch()`
+  PasteMsg → typed-key replay, sanitizer law, 4096 cap) but the shipped app
+  never entered it: `bin/phlix` constructed `Program` with the default
+  `ProgramOptions` (`bracketedPaste = false`), and Program writes `ESC[?2004h`
+  only when the option is set — terminals never wrapped pastes, InputReader
+  never emitted a `PasteMsg`, and the replay seam stayed inert (raw pasted
+  newlines also keep auto-submitting half-filled forms without mode 2004).
+- **The cure.** The `run` case now passes `new ProgramOptions(bracketedPaste: true)`
+  as Program's second argument, with a rationale docblock; the consumption
+  law is untouched.
+- **New pin.** `tests/AppPasteTest.php` +1:
+  `testBracketedPasteModeIsEnabledAtTheEntrypoint` — a source-content regex on
+  `bin/phlix` (precedent: `UpgradeGuideV1DocsTest` parses the same entrypoint).
+  Red-on-parent measured at `19b2d3e` (1/1); mutation: deleting the option
+  reddens exactly this pin while the 7 consumption pins stay green.
+- **Verification.** Suite 3248→3249 tests / 18649→18650 assertions (+1/+1
+  exact, both sides measured serial at this head), 0 failures, 9 skips,
+  14 PHPUnit deprecations held. phpstan src config = the pre-existing
+  `AdminClient.php:2697` inherited finding only (measured at parent; separately
+  owed); phpstan-tests clean; phpcs `phpcs.xml` src + `phpcs-tests.xml` tests
+  exit 0 with zero new findings (`bin/phlix` bare-PSR12 delta 9→9, all
+  pre-existing); i18n catalogs (61 keys) + hardcoded scanner green — no
+  user-facing strings added.
+
 ### Fixed — admin tables degrade by dropping named columns; the primary column never vanishes (review console__uxdesign, M-CONSOLE-46) — 2026-10-29
 
 - **The defect.** `Table::render` passed the caller's column spec straight to

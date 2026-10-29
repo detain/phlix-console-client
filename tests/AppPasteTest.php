@@ -35,11 +35,15 @@ use SugarCraft\Image\Mosaic;
  * sugar-forms fields — consumes only Char/Space KeyMsgs, so an untranslated
  * paste was a silent no-op on all of them.
  *
- * The cure is the dispatch() PasteMsg branch + App::pasteAsKeys(): the paste
- * is replayed as the SAME key sequence the terminal emits for the identical
- * characters typed (space → KeyType::Space per InputReader.php:499 parity).
- * These pins lock the behavior class:
+ * The cure is TWO halves: bin/phlix now constructs Program with
+ * ProgramOptions(bracketedPaste: true) — terminal mode 2004, without which
+ * no paste is ever wrapped/emitted — plus the dispatch() PasteMsg branch +
+ * App::pasteAsKeys(): the paste is replayed as the SAME key sequence the
+ * terminal emits for the identical characters typed (space → KeyType::Space
+ * per InputReader.php:499 parity). These pins lock the behavior class:
  *
+ *  - the entrypoint enable of mode 2004 (consumption without enablement is
+ *    half a cure);
  *  - palette capture of a replayed paste (structural + end-state + typed
  *    parity — the design law itself asserted);
  *  - Space keeps KeyType::Space (focus-safe, matches typing);
@@ -251,6 +255,20 @@ final class AppPasteTest extends TestCase
         }
         self::assertSame($reference->palette()->visibleLabels(), $typed->palette()->visibleLabels());
         self::assertSame($reference->palette()->selectedAction()?->label, $typed->palette()->selectedAction()?->label);
+    }
+
+    public function testBracketedPasteModeIsEnabledAtTheEntrypoint(): void
+    {
+        // Consumption without enablement is half a cure: unless the app asks
+        // the terminal for mode 2004, pastes never arrive wrapped in
+        // ESC[200~…ESC[201~ and InputReader surfaces no PasteMsg to replay.
+        // The `run` entrypoint must construct Program with bracketedPaste on.
+        $bin = (string) file_get_contents(dirname(__DIR__) . '/bin/phlix');
+        self::assertMatchesRegularExpression(
+            '/new ProgramOptions\(\s*bracketedPaste:\s*true\s*\)/',
+            $bin,
+            'bin/phlix must enable bracketed paste (terminal mode 2004)',
+        );
     }
 
     public function testPasteSpaceBecomesSpaceKeyType(): void
