@@ -9,6 +9,8 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Api\Dto\Admin;
 
+use Phlix\Console\Api\Dto\Coerce;
+
 /**
  * One editable plugin setting field — one entry of a plugin's `settings_schema`
  * (the authoritative key set) paired with its current value from `settings`.
@@ -56,17 +58,28 @@ final readonly class PluginSettingField
         return new self($key, $type, $label, $description, $required, $secret, self::render($value));
     }
 
-    /** Render a loosely-typed current value to a stable display string. */
+    /**
+     * Render a loosely-typed current value to a stable display string.
+     *
+     * Every arm neutralises at ingest (C22 law): the plugin screen prefills
+     * this string into a sugar-forms `Input::withValue()`, and Input carries NO
+     * render-boundary sanitizer (review console__tuispec, M-CONSOLE-33__r1
+     * reproduced control sequences landing verbatim through `Input::view()`).
+     * The json arm deep-sanitises the structure BEFORE encoding so the result
+     * is both inert terminal text and valid JSON for the editor round-trip.
+     * A secret's MASKED string still round-trips unchanged (mask text is
+     * app-safe), preserving the "never sends it back unchanged" contract.
+     */
     private static function render(mixed $value): string
     {
         if (is_bool($value)) {
             return $value ? 'true' : 'false';
         }
         if (is_array($value)) {
-            return (string) json_encode($value);
+            return (string) json_encode(Coerce::sanitizedTree($value));
         }
         if (is_scalar($value)) {
-            return (string) $value;
+            return Coerce::str($value);
         }
 
         return '';

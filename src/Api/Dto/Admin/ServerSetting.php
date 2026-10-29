@@ -9,6 +9,8 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Api\Dto\Admin;
 
+use Phlix\Console\Api\Dto\Coerce;
+
 /**
  * One server setting (one key of `GET /api/v1/admin/settings` →
  * `{success, data:{settings, overridden, types}}`). The
@@ -44,17 +46,26 @@ final readonly class ServerSetting
         return new self($key, self::render($value), $type, $overridden);
     }
 
-    /** Render a loosely-typed effective value to a stable display string. */
+    /**
+     * Render a loosely-typed effective value to a stable display string.
+     *
+     * Every arm neutralises at ingest (C22 law): the settings screen prefills
+     * this string into a sugar-forms `Input::withValue()`, and Input carries NO
+     * render-boundary sanitizer (review console__tuispec, M-CONSOLE-33__r1
+     * reproduced control sequences landing verbatim through `Input::view()`).
+     * The json arm deep-sanitises the structure BEFORE encoding so the result
+     * is both inert terminal text and valid JSON for the editor round-trip.
+     */
     private static function render(mixed $value): string
     {
         if (is_bool($value)) {
             return $value ? 'true' : 'false';
         }
         if (is_array($value)) {
-            return (string) json_encode($value);
+            return (string) json_encode(Coerce::sanitizedTree($value));
         }
         if (is_scalar($value)) {
-            return (string) $value;
+            return Coerce::str($value);
         }
 
         return '';

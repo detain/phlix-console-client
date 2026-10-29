@@ -103,6 +103,35 @@ final class Coerce
     }
 
     /**
+     * Neutralise every string leaf (and string key) of a loosely-typed
+     * structure at ingest — the json-arm companion to {@see str()}.
+     *
+     * `json_encode` escapes control bytes below 0x20 as `\uXXXX` text but
+     * leaves DEL (0x7F) and NUL verbatim, and rejects malformed UTF-8
+     * outright (returning false), so a raw `(string) json_encode($value)` of
+     * server data is NOT a safe display string. Walking the structure through
+     * this helper before encoding means the result is inert terminal text AND
+     * valid JSON — the settings editor round-trips it without type drift on
+     * non-string leaves (ints, bools, nulls pass through untouched).
+     *
+     * @param mixed $value
+     * @return mixed the same shape with every string run through {@see str()}
+     */
+    public static function sanitizedTree(mixed $value): mixed
+    {
+        if (is_array($value)) {
+            $out = [];
+            foreach ($value as $key => $item) {
+                $out[is_string($key) ? self::str($key) : $key] = self::sanitizedTree($item);
+            }
+
+            return $out;
+        }
+
+        return is_string($value) ? self::str($value) : $value;
+    }
+
+    /**
      * Coerce a value to a list of non-empty strings (e.g. genres, paths).
      *
      * @return list<string>

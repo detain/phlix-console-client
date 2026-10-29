@@ -5,6 +5,47 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — four admin-DTO render-boundary bypassers Coerce-routed (review console__tuispec, M-CONSOLE-33 r3) — 2026-10-29
+
+- **What.** The r1 review proved (live `Input::view()` probes at 4608a92) that
+  sugar-forms `Input` has NO render-boundary sanitizer — unlike sugar-table
+  cells — so four DTO parse boundaries still painted server-sourced control
+  sequences verbatim into admin edit prefills: `AccessSchedule::fromArray()`
+  (raw `is_string` days loop → ParentalControlsScreen days field),
+  `ServerSetting::render()` and the identical `PluginSettingField::render()`
+  (`(string) json_encode($value)` / `(string) $value` raw → the two settings
+  screens' `Input::withValue` arms), and `MusicArtist::fromArray()` albums
+  (raw after `Coerce::map`, which is only an is_array gate). This entry also
+  corrects the 2026-10-29 entry's "the only DTO bypassing the Coerce law"
+  claim — it was not the only one (old entry kept verbatim per house law).
+- **Cure (ingest, C22 law).** All four route through the `Coerce` SSOT: days
+  and albums via `Coerce::stringList()`; the render arms via `Coerce::str()`
+  plus a new `Coerce::sanitizedTree()` that neutralises every string key/leaf
+  of json-typed values BEFORE encoding — required because `json_encode`
+  leaves DEL/NUL raw and returns false on malformed UTF-8 (folding the whole
+  display to `''`), while the deep-sanitised result is inert terminal text
+  AND valid JSON for the editor round-trip (non-string leaves keep their
+  types). Law note: `stringList` coerces scalars (int 7 → `'7'` survives;
+  null/false fold), so the pre-existing `testFromArrayFiltersNonStringDays`
+  contract legitimately changed and is renamed and re-pinned accordingly.
+- **Proof.** `ServerTextControlInjectionTest` +6 tests / +51 assertions:
+  hostile-payload-in-through-the-real-`Input::view()`-assert-inert pins for
+  all four named chains (four carried from the r2 lane, their two exact-list
+  expectations corrected to measured Sanitize behavior: raw-C1 residue
+  `'2Jsat'`/`'31mNeon'`, `'7'` kept) plus a family guard that token-scans
+  `src/Api/Dto/` and registry-pins every remaining `is_string` site per file
+  with counts (the three table-cleared classes r1 re-probed inert through
+  sugar-table's render boundary, and the two decode guards) — new sites,
+  count drift, stale exemptions, and cured-class regressions all fail loud.
+  Red measured with the src cures stashed: 4 bypasser pins + guard + helper
+  = 5 failures + 1 error; green restored. Full suite 3007 tests / 13832
+  assertions / 9 skipped, OK (13 PHPUnit deprecations identical to the
+  worktree-measured 4608a92 baseline); phpstan unchanged (sole pre-existing
+  AdminClient return.type) + tests config clean; phpcs src 0E/236W and tests
+  0E/461W exactly at baseline; bare PSR12 on changed files 0 errors (the one
+  >120 line is a pre-existing AccessSchedule docblock); i18n untouched
+  (catalogs + hardcoded checks pass).
+
 ### Fixed — escape-sequence trust boundary completed per tuispec census (review console__tuispec) — 2026-10-29
 
 - **What.** The C22 WS-sanitize chain closed the big ingest holes; this lane

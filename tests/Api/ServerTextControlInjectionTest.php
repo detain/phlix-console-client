@@ -12,8 +12,12 @@ namespace Phlix\Console\Tests\Api;
 use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\ApiError;
+use Phlix\Console\Api\Dto\Admin\Parental\AccessSchedule;
+use Phlix\Console\Api\Dto\Admin\PluginSettingField;
+use Phlix\Console\Api\Dto\Admin\ServerSetting;
 use Phlix\Console\Api\Dto\Coerce;
 use Phlix\Console\Api\Dto\MediaItem;
+use Phlix\Console\Api\Dto\MusicArtist;
 use Phlix\Console\Api\Dto\SyncPlayGroup;
 use Phlix\Console\Api\Dto\SyncPlayUser;
 use Phlix\Console\Api\Dto\Trickplay;
@@ -27,6 +31,7 @@ use PHPUnit\Framework\TestCase;
 use React\Http\Message\Response;
 use ReflectionMethod;
 use ReflectionProperty;
+use SugarCraft\Forms\Field\Input;
 
 /**
  * Regression tests for review console__tuispec [critical]: server-/hub-controlled
@@ -474,5 +479,270 @@ final class ServerTextControlInjectionTest extends TestCase
         $noise = Trickplay::fromArray(['sprite_url' => "\x1b[31m\x07\x7f", 'timeline_url' => '']);
         self::assertNull($noise->spriteUrl);
         self::assertNull($noise->timelineUrl);
+    }
+
+    // ---- Admin DTO parse boundaries (M-CONSOLE-33 r2 census) ----
+
+    /**
+     * r2 review issue 1: AccessSchedule kept raw `is_string`-gated wire days.
+     * The LIVE chain is ParentalControlsScreen:498→513 —
+     * `Input::withValue(implode(',', $daysOfWeek))` — and sugar-forms has NO
+     * render-boundary sanitizer, so the DTO parse is the only door: the days
+     * must be inert in DTO state AND in the real Input::view() echo.
+     */
+    public function testAccessScheduleDaysAreInertInStateAndInputEcho(): void
+    {
+        $schedule = AccessSchedule::fromArray([
+            'id' => 1,
+            'profile_id' => 'p1',
+            'name' => 'Evenings',
+            'start_time' => '18:00:00',
+            'end_time' => '22:00:00',
+            'days_of_week' => ["mon\x1b[31mTUE\x07wed", 'thu', "\x9b[2Jsat", 7, ''],
+            'is_active' => true,
+        ]);
+
+        // Inert list state with the honest text surviving — non-vacuity: the
+        // payload really reached the parse. Measured Coerce::stringList
+        // semantics: int 7 is scalar, so it survives as the string '7'; the
+        // raw-C1 entry "\x9b[2Jsat" neutralises to inert residue '2Jsat'
+        // (Sanitize consumes the C1 introducer form, digits stay as text);
+        // the empty entry folds away.
+        self::assertSame(['monTUEwed', 'thu', '2Jsat', '7'], $schedule->daysOfWeek);
+        self::assertSame($schedule->daysOfWeek, $schedule->toArray()['days_of_week']);
+
+        // The screen's real echo chain, reviewer-proven to emit values
+        // verbatim (Input::view() has no sanitizer of its own).
+        $echo = Input::new('daysOfWeek')
+            ->withValue(implode(',', $schedule->daysOfWeek))
+            ->view();
+        self::assertTerminalInert($echo, 'ParentalControlsScreen days Input::view()');
+        self::assertStringContainsString('monTUEwed', $echo);
+    }
+
+    /**
+     * r2 review issue 2: ServerSetting::render() stringified the effective
+     * value raw → AdminSettingsScreen buildEditForm `Input::withValue` arm
+     * (its Table arm is framework-sanitized, the Input arm is not).
+     */
+    public function testServerSettingDisplayValueIsInertInStateAndEditFormEcho(): void
+    {
+        $setting = ServerSetting::fromParts('api.note', "\x1b]0;pwned\x07real-value", 'string', false);
+
+        self::assertTerminalInert($setting->displayValue, 'ServerSetting displayValue');
+        self::assertStringContainsString('real-value', $setting->displayValue);
+
+        $json = ServerSetting::fromParts('meta.map', ['k' => self::HOSTILE], 'json', true);
+        self::assertTerminalInert($json->displayValue, 'ServerSetting json displayValue');
+        self::assertStringContainsString('Red', $json->displayValue);
+
+        // The AdminSettingsScreen openEdit chain verbatim.
+        $echo = Input::new('value')->withValue($setting->displayValue)->view();
+        self::assertTerminalInert($echo, 'AdminSettingsScreen buildEditForm Input::view()');
+        self::assertStringContainsString('real-value', $echo);
+    }
+
+    /**
+     * r2 review issue 3: PluginSettingField carries the identical raw
+     * `render()` — AdminPluginDetailScreen:406 prefill → buildEditForm:321-325
+     * `Input::withValue($value)` → same live echo chain.
+     */
+    public function testPluginSettingFieldValueIsInertInStateAndEditFormEcho(): void
+    {
+        $field = PluginSettingField::fromParts(
+            key: 'trakt.token_note',
+            type: 'string',
+            label: 'Note',
+            description: '',
+            required: false,
+            secret: false,
+            value: "keep\x1b[2Jthis\x07",
+        );
+
+        self::assertTerminalInert($field->value, 'PluginSettingField value');
+        self::assertStringContainsString('keepthis', $field->value);
+
+        $json = PluginSettingField::fromParts(
+            key: 'meta.map',
+            type: 'json',
+            label: 'Map',
+            description: '',
+            required: false,
+            secret: false,
+            value: ['k' => self::HOSTILE_C1],
+        );
+        self::assertTerminalInert($json->value, 'PluginSettingField json value');
+        self::assertStringContainsString('hi', $json->value);
+
+        // The AdminPluginDetailScreen prefill chain for a NON-secret field.
+        $prefill = $field->secret ? '' : $field->value;
+        $echo = Input::new('value')->withTitle('New value')->withValue($prefill)->view();
+        self::assertTerminalInert($echo, 'AdminPluginDetailScreen buildEditForm Input::view()');
+        self::assertStringContainsString('keepthis', $echo);
+    }
+
+    /**
+     * r2 review issue 4: MusicArtist stored `Coerce::map`-guarded rows raw
+     * (Coerce::map is an is_array gate, not a sanitizer). No reader today —
+     * pinned DTO-state-inert so the ingest law holds when a reader arrives.
+     */
+    public function testMusicArtistAlbumsAreInertAtTheParseBoundary(): void
+    {
+        $artist = MusicArtist::fromArray([
+            'name' => 'Hostile Artist',
+            'albums' => ["Best\x1b[2JOf", "\x9b[31mNeon\x07", 7, ''],
+        ]);
+
+        // Inert state, honest titles surviving — measured Coerce::stringList
+        // semantics: scalar 7 survives as the string '7'; the raw-C1 entry
+        // "\x9b[31mNeon\x07" neutralises to inert residue '31mNeon'; the
+        // empty entry folds away (non-vacuity: the payload reached the parse).
+        self::assertSame(['BestOf', '31mNeon', '7'], $artist->albums);
+        foreach ($artist->albums as $album) {
+            self::assertTerminalInert($album, 'MusicArtist album title');
+        }
+    }
+
+    /**
+     * Coerce::sanitizedTree (new ingest helper): every string key and leaf is
+     * neutralised while non-string leaves keep their JSON type — so the json-
+     * typed admin values render as inert display text that is STILL valid JSON
+     * for the editor round-trip (raw `\x9b` would otherwise make json_encode
+     * fail and fold the whole display to '').
+     */
+    public function testCoerceSanitizedTreeNeutralisesStringsAndPreservesJsonTypes(): void
+    {
+        $tree = Coerce::sanitizedTree([
+            "map\x07key" => [
+                'count' => 7,
+                'label' => "\x1b[31mRed\x1b[0m",
+                'flag' => true,
+                'none' => null,
+            ],
+            "nested\x1b]0;x\x07" => ['deep' => self::HOSTILE_C1],
+        ]);
+
+        self::assertSame(
+            [
+                'mapkey' => ['count' => 7, 'label' => 'Red', 'flag' => true, 'none' => null],
+                'nested' => ['deep' => '2Jhi2Jho'],
+            ],
+            $tree,
+        );
+
+        $json = json_encode($tree);
+        self::assertIsString($json, 'pre-encode sanitize keeps json_encode from failing on malformed UTF-8');
+        self::assertSame(
+            '{"mapkey":{"count":7,"label":"Red","flag":true,"none":null},"nested":{"deep":"2Jhi2Jho"}}',
+            $json,
+            'inert text AND type-faithful JSON (7 stays a number, true stays a bool)',
+        );
+    }
+
+    /**
+     * Family guard for the M-CONSOLE-33 render-boundary finding: the Dto/
+     * parse layer's raw-`is_string` pass-through shape is registry-pinned per
+     * file (site counts included). The four bypassers the r1 reviewer proved
+     * (AccessSchedule days, ServerSetting/PluginSettingField render arms,
+     * MusicArtist albums) are Coerce-routed and assert-present here; a NEW
+     * raw `is_string` gate in the parse layer fails this test until it is
+     * either Coerce-routed or registered with the sink-proof that clears it
+     * (stale registry entries fail too — the list is re-blessed from truth).
+     *
+     * Why ingest is the choke: sugar-FORMS `Input::view()` has no render-time
+     * sanitizer (r1 reproduced ESC+BEL landing verbatim), so every value that
+     * can reach an Input prefill must carry neutralised bytes from birth
+     * (C22 "neutralize at ingest" law, estate precedent: the same rule the
+     * C22 sweep established for WS-ingest strings).
+     */
+    public function testDtoParseLayerHasNoUnregisteredRawIsStringPassThroughs(): void
+    {
+        // file => [measured is_string token count, why the site is cleared]
+        $registry = [
+            'Admin/TranscodingAccelerators.php' => [
+                2,
+                'table-only fields; app Ui\Table::render → sugar-table Column::renderCell'
+                    . ' → Sanitize::value neutralises at render (r1 re-probe)',
+            ],
+            'Admin/AcceleratorInfo.php' => [
+                2,
+                'table-only fields; sugar-table render boundary (r1 re-probe)',
+            ],
+            'Admin/ToneMappingSettings.php' => [
+                1,
+                'table-only field; sugar-table render boundary (r1 re-probe)',
+            ],
+            'MediaItem.php' => [
+                1,
+                'numeric decode guard (!is_int && !is_float && !is_string), not a string pass-through',
+            ],
+            'RecentlyWatchedItem.php' => [
+                1,
+                'json_decode input guard, not a string pass-through',
+            ],
+        ];
+
+        // The cured classes: no is_string left in the parse path, and Coerce
+        // must be positively present (guards against "fix by deletion").
+        $cured = [
+            'Admin/Parental/AccessSchedule.php',
+            'Admin/ServerSetting.php',
+            'Admin/PluginSettingField.php',
+            'MusicArtist.php',
+        ];
+
+        $root = dirname(__DIR__, 2) . '/src/Api/Dto';
+        $found = [];
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS),
+        );
+        self::assertDirectoryExists($root);
+        foreach ($iterator as $file) {
+            if (!$file instanceof \SplFileInfo || $file->getExtension() !== 'php') {
+                continue;
+            }
+            $relative = substr($file->getPathname(), strlen($root) + 1);
+            if ($relative === 'Coerce.php') {
+                continue; // the sanitizer SSOT itself legitimately uses is_string
+            }
+            $code = (string) file_get_contents($file->getPathname());
+            foreach (token_get_all($code) as $token) {
+                if (is_array($token) && $token[0] === T_STRING && strtolower($token[1]) === 'is_string') {
+                    $found[$relative] = ($found[$relative] ?? 0) + 1;
+                }
+            }
+        }
+
+        foreach ($found as $file => $count) {
+            self::assertArrayHasKey(
+                $file,
+                $registry,
+                "src/Api/Dto/$file carries a raw is_string gate — route it through Coerce"
+                    . " (C22 ingest law) or register an exemption with the render-boundary proof that clears it",
+            );
+            self::assertSame(
+                $registry[$file][0],
+                $count,
+                "is_string site count moved in src/Api/Dto/$file — re-bless the registry from measured truth",
+            );
+        }
+        foreach ($registry as $file => [$count, $reason]) {
+            self::assertArrayHasKey(
+                $file,
+                $found,
+                "stale exemption src/Api/Dto/$file (no is_string sites left) — trim the registry, reason was: $reason",
+            );
+        }
+        foreach ($cured as $file) {
+            $path = $root . '/' . $file;
+            self::assertFileExists($path);
+            $code = (string) file_get_contents($path);
+            self::assertStringContainsString('Coerce::', $code, "cured parse boundary $file must stay Coerce-routed");
+            self::assertStringNotContainsString(
+                'is_string',
+                $code,
+                "cured parse boundary $file must not regain a raw is_string gate",
+            );
+        }
     }
 }

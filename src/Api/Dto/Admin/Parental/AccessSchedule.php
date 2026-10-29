@@ -13,6 +13,14 @@ use Phlix\Console\Api\Dto\Coerce;
 
 /**
  * Days of the week used in access schedules.
+ *
+ * `days_of_week` is server-sourced text, so it is neutralised at parse via
+ * {@see Coerce::stringList()} (C22 "neutralize at ingest" law): the parental
+ * screen echoes the list into a sugar-forms `Input::withValue()` prefill, and
+ * sugar-forms Input has NO render-boundary sanitizer (unlike sugar-table
+ * cells) — a raw day string carrying ESC/CSI sequences paints straight
+ * through `Input::view()` (reproduced live in review console__tuispec,
+ * M-CONSOLE-33__r1).
  */
 final readonly class AccessSchedule
 {
@@ -39,21 +47,13 @@ final readonly class AccessSchedule
      */
     public static function fromArray(array $data): self
     {
-        $daysRaw = $data['days_of_week'] ?? [];
-        $days = [];
-        foreach (is_array($daysRaw) ? $daysRaw : [] as $day) {
-            if (is_string($day)) {
-                $days[] = $day;
-            }
-        }
-
         return new self(
             id: Coerce::int($data['id'] ?? 0),
             profileId: Coerce::str($data['profile_id'] ?? ''),
             name: Coerce::str($data['name'] ?? ''),
             startTime: Coerce::str($data['start_time'] ?? '00:00:00'),
             endTime: Coerce::str($data['end_time'] ?? '23:59:59'),
-            daysOfWeek: $days,
+            daysOfWeek: Coerce::stringList($data['days_of_week'] ?? null),
             isActive: Coerce::bool($data['is_active'] ?? true),
         );
     }

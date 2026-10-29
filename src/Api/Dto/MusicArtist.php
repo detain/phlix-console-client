@@ -35,20 +35,13 @@ final readonly class MusicArtist
      */
     public static function fromArray(array $data): self
     {
-        $albums = [];
-        foreach (Coerce::map($data['albums'] ?? null) as $row) {
-            if (is_string($row)) {
-                $albums[] = $row;
-            }
-        }
-
         return new self(
             name: Coerce::str($data['name'] ?? ''),
             imageUrl: Coerce::nstr($data['image_url'] ?? null),
             albumCount: Coerce::int($data['album_count'] ?? 0),
             trackCount: Coerce::int($data['track_count'] ?? 0),
             albumsTruncated: (bool) ($data['albums_truncated'] ?? false),
-            albums: $albums,
+            albums: Coerce::stringList($data['albums'] ?? null),
         );
     }
 }

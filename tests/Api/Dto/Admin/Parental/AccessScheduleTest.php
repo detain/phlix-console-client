@@ -43,13 +43,19 @@ final class AccessScheduleTest extends TestCase
         self::assertTrue($schedule->isActive);
     }
 
-    public function testFromArrayFiltersNonStringDays(): void
+    /**
+     * M-CONSOLE-33 law change: days route through Coerce::stringList (neutralise
+     * at ingest — sugar-forms Input has no render sanitizer). Scalars coerce
+     * (123 → '123' survives as text); null/false/non-scalars fold away — the
+     * old is_string gate that dropped them silently is the bypass shape.
+     */
+    public function testFromArrayCoercesScalarDaysAndDropsNonScalars(): void
     {
         $schedule = AccessSchedule::fromArray([
             'days_of_week' => ['mon', null, false, 'tue', 123, 'wed'],
         ]);
 
-        self::assertSame(['mon', 'tue', 'wed'], $schedule->daysOfWeek);
+        self::assertSame(['mon', 'tue', '123', 'wed'], $schedule->daysOfWeek);
     }
 
     public function testFromArrayHandlesNonArrayDays(): void
