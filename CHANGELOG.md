@@ -5,6 +5,40 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — README extension requirements restated to measured truth, both directions (review console__devops, M-CONSOLE-13) — 2026-10-29
+
+- **What.** `README.md` "## Requirements" claimed `pcntl` + `posix` were
+  needed for "TTY/raw mode" while naming only `ext-gd` — yet `src/` and
+  `bin/` contain zero `pcntl_*`/`posix_*` calls (raw mode is
+  `shell_exec('stty …')` in sugar-core `Util/RawMode.php`; pcntl/posix exist
+  only behind `function_exists` guards in vendor signal paths and in one
+  self-skipping fork test), and composer's production graph hard-enforces
+  **five** extensions no requirements doc mentioned: gd (sugar-image),
+  mbstring (sugar-image, league/commonmark; 11 src/ files call `mb_*`
+  directly), intl (sugar-core), ffi (sugar-pty, in the prod set via
+  sugar-core/quickpick/animation), json (workerman; 14 src/ files).
+  `ext-curl` — called unguarded by `doctor` (`bin/phlix:653`) and
+  `run --selftest` (`:219`) — appeared nowhere either.
+- **Cure.** docs-truth on all four surfaces: README source-install list,
+  README PHAR list, `docs/clients/console.md` PHAR list, and both
+  `build.yml` release-note bodies now carry the enforced five + curl
+  diagnostics note, with pcntl/posix restated as *optional* (Ctrl-Z suspend,
+  test harness). No code or `composer.json` change: the transitive platform
+  requires already guard source installs; the PHAR lists matter because a
+  PHAR bypasses composer's platform check entirely.
+- **Guard.** New `tests/Docs/RuntimeRequirementsDocsTest` (7 tests, 35
+  assertions) extends the in-repo docs-pin doctrine: the enforced set is
+  *derived from composer.lock* (never restated from prose), every list is
+  pinned to name it, pcntl/posix mentions must say "optional", and a src/
+  scan pins "the TUI itself needs no curl". Mutation-proven: reverting the
+  old prose reddens 5/7.
+- **Suite.** 3107→3114 tests, 16507→16542 assertions, 13 deprecations/
+  9 skips held; phpstan tests-L2 `[OK]`; phpcs both standards exit 0
+  (PSR-12 too on the changed test file); i18n gates pass. Disclosed
+  inherited: phpstan src-L9 carries 1 pre-existing `return.type` error at
+  `src/Api/Admin/AdminClient.php:2697` — byte-identical on a clean worktree
+  of parent `2ee27359`, zero src/ files in this diff.
+
 ### Fixed — humbug/box dev tree de-grouped from the production lock — `--no-dev` installs and the shipped PHAR are now clean (review console__seceng, M-CONSOLE-12) — 2026-10-29
 
 - **What.** `humbug/box` sat correctly in `require-dev`, but the committed

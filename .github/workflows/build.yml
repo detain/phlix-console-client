@@ -123,7 +123,9 @@ jobs:
             Rolling build of the latest `master` commit (${{ github.sha }}).
             Download the runnable phar directly — no zip:
             - **`phlix.phar`** — run with `php phlix.phar` (needs PHP 8.3+ with the
-              `gd` extension; `ffmpeg` on PATH for video frames).
+              `ext-gd`, `ext-mbstring`, `ext-intl`, `ext-ffi` and `ext-json`
+              extensions, plus `ext-curl` for `doctor` / `run --selftest`;
+              `ffmpeg` on PATH for video frames).
             Verify with SHA256SUMS.
           prerelease: true
           make_latest: false
@@ -208,7 +210,9 @@ jobs:
 
             Download the runnable phar directly — no zip:
             - **`phlix.phar`** — run with `php phlix.phar` (needs PHP 8.3+ with
-              the `gd` extension; `ffmpeg` on PATH for video frames).
+              the `ext-gd`, `ext-mbstring`, `ext-intl`, `ext-ffi` and
+              `ext-json` extensions, plus `ext-curl` for
+              `doctor` / `run --selftest`; `ffmpeg` on PATH for video frames).
 
             Verify integrity with `sha256sum -c SHA256SUMS`.
           files: |

@@ -73,7 +73,10 @@ sha256sum -c SHA256SUMS
 
 **PHAR requirements:**
 
-- PHP ≥ 8.3 with ext-gd (image decoding)
+- PHP ≥ 8.3 with ext-gd, ext-mbstring, ext-intl, ext-ffi, ext-json (composer
+  enforces these at install; a PHAR skips that check, so at runtime they are
+  on you). ext-curl additionally powers the `doctor` / `run --selftest`
+  reachability probes; pcntl/posix are optional (Ctrl-Z suspend, test harness).
 - ffmpeg + ffprobe (video frame extraction)
 - ffplay or mpv (for audio playback)
 - A terminal with sixel/kitty/iTerm2 support (or `--mode=halfblock` fallback)
