@@ -18,6 +18,12 @@ terminal via Unicode/ANSI cell rendering.
 - Series → season → episode drill-down with a breadcrumb trail
 - Media detail screen with cast, chapters, and recommendations
 - In-terminal video player with subtitle support and chapter markers
+- In-player track pickers for the audio, subtitle, and chapter tracks an item
+  exposes, plus a quality selector during transcoded playback
+- SyncPlay watch parties: create or join a room from the player — the room's
+  play / pause / seek commands drive your playback, with a live sync overlay
+- In-player sleep timer (15 / 30 / 45 / 60 / 90 / 120 min presets; playback
+  pauses when the countdown expires)
 - Music and audiobook playback with progress saving
 - Full admin panel access (when signed in as admin)
 - Command palette (Ctrl-K or `:`) for quick actions

@@ -128,6 +128,18 @@ compatibility.
 > discover **Chromecast / Roku / AirPlay / DLNA** devices on the network, send the
 > item, and drive a transport overlay (pause / resume / stop). Seek is intentionally
 > omitted — the cast backends don't expose a uniform playback position.
+>
+> Also working today, inside the player: `a`, shift-`S` and shift-`C` open the
+> **track pickers** — the audio, subtitle (with an explicit Off) and chapter
+> tracks the item exposes; picking a chapter jumps to it, and picking a subtitle
+> turns the caption overlay on. `v` selects the playback **quality** of a
+> transcoded item, and `w` opens **"For You"** recommendations without leaving
+> playback. `y` opens the **SyncPlay watch party** modal — create your own room
+> (public or private) or join one the server lists; while you are in a room an
+> overlay tracks the room, its member count and the sync status, and the room's
+> play / pause / seek commands drive your player in step. `z` sets an in-player
+> **sleep timer** (presets 15 / 30 / 45 / 60 / 90 / 120 min; playback pauses
+> when the countdown expires, and the last preset you used is remembered).
 
 ## Requirements
 

@@ -21,12 +21,23 @@
  * show it uppercase (sibling: detail-screen `C` cast). That is why `S` and
  * `C` are uppercase pins: unshifted `s` skips intro/outro and `c` toggles
  * captions, and each picker consumes its shift rune before those arms.
+ *
+ * Narrative pins (M-CONSOLE-16, review console__docmaint): the key lists
+ * alone proved not enough — the README Status blockquote and the
+ * docs/clients/console.md Overview feature list narrated Phases 0-8 and
+ * casting while never naming the SHIPPED feature areas behind those keys
+ * (SyncPlay watch parties, the in-player sleep timer, the track pickers).
+ * Prose cannot be token-parsed like a table, so each feature area is
+ * pinned per surface by required phrases; a rewritten narrative that drops
+ * an area reddens its row here and the message says exactly which surface
+ * and phrase moved.
  */
 
 declare(strict_types=1);
 
 namespace Phlix\Console\Tests\Docs;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -40,6 +51,27 @@ final class PlayerKeyDocsTest extends TestCase
 
     /** Section marker of the player line in README.md. */
     private const README_MARKER = '**In the player:**';
+
+    /** Marker that opens the README.md Status narrative blockquote. */
+    private const README_STATUS_MARKER = '> **Status:';
+
+    /** Heading of the docs/clients/console.md narrative section. */
+    private const CONSOLE_OVERVIEW_MARKER = '## Overview';
+
+    /**
+     * Feature areas the Status / Overview narratives must name alongside
+     * the key lists (M-CONSOLE-16): each entry is the family label mapped
+     * to the phrases its narrative surface must carry (case-insensitive,
+     * all required). A shipped feature area dropped from the prose reddens
+     * its row.
+     *
+     * @var array<string, list<string>>
+     */
+    private const NARRATIVE_FEATURE_AREAS = [
+        'SyncPlay watch parties' => ['SyncPlay', 'room'],
+        'sleep timer' => ['sleep timer'],
+        'track pickers' => ['audio', 'subtitle', 'chapter', 'picker'],
+    ];
 
     /**
      * The full census of letters the player handles, in documented form
@@ -86,6 +118,52 @@ final class PlayerKeyDocsTest extends TestCase
             . self::PLAYER_SOURCE . ': ' . implode(', ', $missing)
             . ' — every shipped key must be in the line (M-CONSOLE-02).'
         );
+    }
+
+    /**
+     * The narrative surfaces must describe the shipped feature areas the
+     * keys belong to, not just list the keys (M-CONSOLE-16): a rewritten
+     * Status blockquote or Overview list that silently drops SyncPlay
+     * watch parties, the sleep timer, or the track pickers reddens its row.
+     */
+    #[DataProvider('narrativeCoverageProvider')]
+    public function testTheNarrativeSurfaceNamesEachFeatureArea(string $surface, string $area, array $phrases): void
+    {
+        $text = match ($surface) {
+            'README.md Status blockquote' => self::readmeStatusNarrative(),
+            'docs/clients/console.md Overview list' => self::consoleOverviewNarrative(),
+            default => throw new RuntimeException('Unknown narrative surface: ' . $surface . '.'),
+        };
+
+        $missing = array_values(array_filter(
+            $phrases,
+            static fn (string $phrase): bool => stripos($text, $phrase) === false
+        ));
+
+        self::assertSame(
+            [],
+            $missing,
+            sprintf(
+                'The %s no longer names the "%s" feature area (missing phrase(s): %s) — the player '
+                . 'key lists and the shipped feature areas behind them must move together '
+                . '(M-CONSOLE-16): restore the prose or rotate NARRATIVE_FEATURE_AREAS here, in the '
+                . 'same change.',
+                $surface,
+                $area,
+                implode(', ', $missing)
+            )
+        );
+    }
+
+    /**
+     * @return iterable<string, array{string, string, list<string>}>
+     */
+    public static function narrativeCoverageProvider(): iterable
+    {
+        foreach (self::NARRATIVE_FEATURE_AREAS as $area => $phrases) {
+            yield 'README status names ' . $area => ['README.md Status blockquote', $area, $phrases];
+            yield 'console Overview names ' . $area => ['docs/clients/console.md Overview list', $area, $phrases];
+        }
     }
 
     /**
@@ -279,6 +357,55 @@ final class PlayerKeyDocsTest extends TestCase
         $line = $end === false ? $rest : substr($rest, 0, $end);
 
         return self::backtickLetters($line);
+    }
+
+    /**
+     * The Status narrative blockquote of README.md: the line opened by
+     * "> **Status:" through the last consecutive ">"-prefixed line (the
+     * quote ends at the first line without the marker).
+     */
+    private static function readmeStatusNarrative(): string
+    {
+        $doc = self::readRepoFile('README.md');
+        $start = strpos($doc, self::README_STATUS_MARKER);
+        if ($start === false) {
+            throw new RuntimeException(
+                'README.md no longer opens a "' . self::README_STATUS_MARKER . '" Status blockquote; '
+                . 'relocate the feature narrative and update ' . self::class . ' in the same change.'
+            );
+        }
+
+        $lines = [];
+        foreach (explode("\n", substr($doc, $start)) as $line) {
+            if (!str_starts_with($line, '>')) {
+                break;
+            }
+            $lines[] = $line;
+        }
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * The "## Overview" section of docs/clients/console.md: heading to
+     * the next '## ' heading — the scope where the "**Key features:**"
+     * list lives.
+     */
+    private static function consoleOverviewNarrative(): string
+    {
+        $doc = self::readRepoFile('docs/clients/console.md');
+        $start = strpos($doc, self::CONSOLE_OVERVIEW_MARKER);
+        if ($start === false) {
+            throw new RuntimeException(
+                'docs/clients/console.md no longer has a "' . self::CONSOLE_OVERVIEW_MARKER . '" section; '
+                . 'relocate the Overview narrative and update ' . self::class . ' in the same change.'
+            );
+        }
+
+        $rest = substr($doc, $start + strlen(self::CONSOLE_OVERVIEW_MARKER));
+        $break = preg_match('/^## /m', $rest, $hit, PREG_OFFSET_CAPTURE);
+
+        return $break === 1 ? substr($rest, 0, $hit[0][1]) : $rest;
     }
 
     /**
