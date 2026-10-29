@@ -291,4 +291,42 @@ final class SettingsScreenTest extends TestCase
         $msg = $cmd();
         self::assertInstanceOf(OpenServersMsg::class, $msg);
     }
+
+    // [review console__a11y critical 1] The status hint advertises the UPPERCASE
+    // 'L'/'S' (like BrowseScreen advertises 'H'/'P' for its h/H, p/P pairs), but
+    // the handler only accepted the lowercase rune — pressing the advertised key
+    // fell through to the form and did nothing. The hint is the app's own
+    // instruction; what it prints must be what the screen accepts.
+
+    public function testUppercaseLKeyEmitsLogoutMsgLikeTheHintAdvertises(): void
+    {
+        $screen = SettingsScreen::create($this->makeAuthStore(), $this->makeConfig('Daylight', 8));
+
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'L'));
+
+        self::assertInstanceOf(\Closure::class, $cmd);
+        $msg = $cmd();
+        self::assertInstanceOf(LogoutMsg::class, $msg, 'uppercase L must log out, not fall through');
+    }
+
+    public function testUppercaseSKeyEmitsOpenServersMsgLikeTheHintAdvertises(): void
+    {
+        $screen = SettingsScreen::create($this->makeAuthStore(), $this->makeConfig('Daylight', 8));
+
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'S'));
+
+        self::assertInstanceOf(\Closure::class, $cmd);
+        $msg = $cmd();
+        self::assertInstanceOf(OpenServersMsg::class, $msg, 'uppercase S must open servers, not fall through');
+    }
+
+    public function testTheStatusHintAdvertisesTheUppercasePairTheHandlerAccepts(): void
+    {
+        $screen = SettingsScreen::create($this->makeAuthStore(), $this->makeConfig('Daylight', 8));
+
+        $view = $screen->view();
+
+        self::assertStringContainsString('L  logout', $view, 'the hint prints the uppercase key');
+        self::assertStringContainsString('S  servers', $view, 'both cases are handled');
+    }
 }

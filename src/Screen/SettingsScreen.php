@@ -116,13 +116,21 @@ final class SettingsScreen implements Model, Themed
             ), null];
         }
 
-        // 'L' → log out (intercept before form sees it)
-        if ($msg instanceof KeyMsg && $msg->type === KeyType::Char && $msg->rune === 'l' && !$msg->ctrl) {
+        // 'L'/'l' → log out (intercept before form sees it). The hint advertises
+        // the uppercase pair, so both cases must land — the same h/H, p/P, s/S
+        // law BrowseScreen follows [review console__a11y critical 1].
+        if (
+            $msg instanceof KeyMsg && $msg->type === KeyType::Char && !$msg->ctrl
+            && ($msg->rune === 'l' || $msg->rune === 'L')
+        ) {
             return [$this, Cmd::send(new LogoutMsg())];
         }
 
-        // 'S' → open servers screen (intercept before form sees it)
-        if ($msg instanceof KeyMsg && $msg->type === KeyType::Char && $msg->rune === 's' && !$msg->ctrl) {
+        // 'S'/'s' → open servers screen (intercept before form sees it).
+        if (
+            $msg instanceof KeyMsg && $msg->type === KeyType::Char && !$msg->ctrl
+            && ($msg->rune === 's' || $msg->rune === 'S')
+        ) {
             return [$this, Cmd::send(new OpenServersMsg())];
         }
 
