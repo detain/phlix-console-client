@@ -5,6 +5,50 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — SyncPlay WebSocket ingest sanitized at the parse boundary; vacuous C1 decode test rebuilt (fix campaign C22 r2) — 2026-10-29
+
+- **What.** The r1 review (console__tuispec) found the C22 sanitize law
+  stopped at the HTTP/DTO/relay boundaries and missed the SyncPlay WebSocket
+  ingest. `SyncPlayService::handleError()` forwarded raw server
+  `syncplay_error` frame text (and the deprecated
+  `{type:'error', data:{message}}` envelope) to `onError`, and
+  `SyncPlayErrors::localize()`'s unknown-code fallback passes that text
+  through verbatim into PlayerScreen's error toast — a server-emitted (or
+  hostile-room-name-echoed) ESC/CSI/OSC payload executes on the operator's
+  terminal, since `Width::truncateAnsi` forwards control sequences with zero
+  width. `handleInfo()` additionally built its member DTO through the raw
+  `SyncPlayUser` constructor, bypassing the `Coerce` boundary every other
+  member construction uses. And one of r1's twelve tests,
+  `testDecodeSanitisesEightBitC1ErrorText`, was vacuous: its raw-`0x9b`
+  payload made `json_encode` fail, the response body arrived empty, and the
+  test passed on the generic fallback branch even with the ApiClient
+  sanitizer reverted.
+- **Cure.** Neutralize once where server WS text enters trusted state:
+  `handleError()` runs the message through
+  `Sanitize::untrustedForDisplay()` at the parse boundary — the placement
+  mirrors `ApiClient::decode()`'s error-envelope extraction and
+  `Coerce::str()`'s DTO construction (quoted in the docblock), so
+  `SyncPlayErrors::localize` and every toast consumer render trusted text by
+  construction. `handleInfo()` maps `member_id`/`member_name` onto
+  `SyncPlayUser::fromArray()`'s canonical keys, making WS-built and
+  HTTP-built member DTOs identically sanitized.
+- **Proof.** `ServerTextControlInjectionTest` +3 tests / +18 assertions:
+  hostile messages driven through the real `handleMessage` path for both the
+  `syncplay_error` and legacy envelopes — including the verbatim-passthrough
+  `localize` sink — plus a WS-vs-HTTP DTO sanitization-parity pin; red
+  before the rework (3 of 3), green after. The C1 decode test is rebuilt on
+  the well-formed UTF-8 spelling (`\xC2\x9B`) behind a `JSON_THROW_ON_ERROR`
+  harness with a payload-survival assert; mutation-checked: reverting the
+  ApiClient sanitizer reddens it (the vacuous version passed). Boundary
+  probes: reverting the `handleError` sanitize reddens exactly its 2 tests;
+  restoring the direct-ctor bypass reddens exactly the parity test. Full
+  suite 2991→2994 tests (+3 exact), 13717 assertions; phpstan error count
+  unchanged (1 pre-existing in `AdminClient::alternatePosters()`), phpstan
+  tests corpus `[OK]`, phpcs PSR12 on the changed files 0 errors (the one
+  remaining warning is a pre-existing untouched line shifted by the import),
+  i18n catalog/hardcoded checks green, `resources/lang` untouched. r1's
+  entry absolute counts restated to the landed baselines.
+
 ### Fixed — detail loading frame shows the translated hint, not the raw catalog key (fix campaign C24) — 2026-10-29
 
 - **What.** While a detail page loaded, the status bar rendered the literal
@@ -79,7 +123,7 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   error envelope, `reThrowFriendly`, and a relay frame — each boundary asserted
   terminal-inert with the visible payload preserved, plus a byte-identical
   no-op pin for legitimate multibyte/emoji text. Red before the fix (10 of 12
-  failed), green after; full suite 2973→2985 tests (+12 exact), phpstan error
+  failed), green after; full suite 2976→2988 tests (+12 exact), phpstan error
   count unchanged (1 pre-existing in `AdminClient::alternatePosters()`),
   phpcs src/tests/PSR12 all exit 0, i18n checks green. Historical entries
   above left verbatim.

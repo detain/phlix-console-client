@@ -15,7 +15,10 @@ use Phlix\Console\Api\ApiError;
 use Phlix\Console\Api\Dto\Coerce;
 use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\Dto\SyncPlayGroup;
+use Phlix\Console\Api\Dto\SyncPlayUser;
 use Phlix\Console\Api\SyncPlay\HubRelayConsumer;
+use Phlix\Console\Api\SyncPlay\SyncPlayService;
+use Phlix\Console\I18n\SyncPlayErrors;
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\SyncPlayOverlay;
 use PHPUnit\Framework\TestCase;
@@ -52,6 +55,16 @@ final class ServerTextControlInjectionTest extends TestCase
      * encoding (U+009B), which xterm-class terminals decode and execute.
      */
     private const HOSTILE_C1 = "\x9b[2Jhi\xC2\x9B2Jho";
+
+    /**
+     * The WELL-FORMED UTF-8 C1 spelling alone (U+009B as \xC2\x9B). Unlike a
+     * raw 0x9b byte this survives json_encode, so a response body built from
+     * it genuinely round-trips the decode boundary — r1 review issue 3:
+     * mixing the raw byte into a JSON-fed payload made json_encode fail,
+     * emptied the body, and routed the test to the generic fallback branch
+     * where it passed without the sanitizer.
+     */
+    private const HOSTILE_C1_UTF8 = "\xC2\x9B[2Jho";
 
     /**
      * Assert a string carries no byte that a terminal could execute or that
@@ -152,13 +165,19 @@ final class ServerTextControlInjectionTest extends TestCase
 
     /**
      * Invoke the private static ApiClient::decode() (same harness as
-     * EnvelopeTest) for one body.
+     * EnvelopeTest) for one body. JSON_THROW_ON_ERROR makes any payload
+     * that cannot survive the wire a loud failure instead of a silently
+     * empty body (the r1 review's vacuity trap).
      *
      * @param array<string,mixed> $body
      */
     private function decode(int $status, array $body): ApiError
     {
-        $response = new Response($status, ['Content-Type' => 'application/json'], (string) json_encode($body));
+        $response = new Response(
+            $status,
+            ['Content-Type' => 'application/json'],
+            json_encode($body, JSON_THROW_ON_ERROR),
+        );
 
         $ref = new ReflectionMethod(ApiClient::class, 'decode');
         $ref->setAccessible(true);
@@ -189,9 +208,25 @@ final class ServerTextControlInjectionTest extends TestCase
 
     public function testDecodeSanitisesEightBitC1ErrorText(): void
     {
-        $error = $this->decode(500, ['error' => self::HOSTILE_C1]);
+        // Non-vacuity proof (r1 review issue 3): the encoded body must really
+        // transport the U+009B codepoint, so the inertness asserted below is
+        // the sanitizer's doing — never the generic fallback branch a failed
+        // json_encode used to reach with a raw-0x9b payload.
+        $json = json_encode(['error' => self::HOSTILE_C1_UTF8], JSON_THROW_ON_ERROR);
+        self::assertStringContainsString(
+            '\\u009b',
+            strtolower($json),
+            'test payload must survive JSON encoding for the boundary claim to mean anything',
+        );
 
-        self::assertTerminalInert($error->getMessage(), 'ApiError message');
+        $error = $this->decode(500, ['error' => self::HOSTILE_C1_UTF8]);
+
+        self::assertTerminalInert($error->getMessage(), 'C1 ApiError message');
+        self::assertStringContainsString(
+            'ho',
+            $error->getMessage(),
+            'visible payload must reach (and pass through) the sanitizer',
+        );
     }
 
     public function testAdminClientReThrowFriendlySanitisesBodyMessage(): void
@@ -236,5 +271,115 @@ final class ServerTextControlInjectionTest extends TestCase
         self::assertTerminalInert($command->source, 'relay frame source');
         self::assertStringContainsString('Red', $command->title);
         self::assertSame('alexa', $command->source);
+    }
+
+    // ---- SyncPlay WebSocket ingest → onError toast AND member DTO state ----
+
+    /**
+     * Drive a server-shaped WS frame through the REAL parse path:
+     * {@see SyncPlayService::handleMessage()} → error handler → onError
+     * capture (same reflection harness as SyncPlayErrorWireTest).
+     *
+     * @param array<string,mixed> $frame
+     * @return array{0: string, 1: string} Code and message onError received.
+     */
+    private function dispatchErrorFrame(array $frame): array
+    {
+        $service = new SyncPlayService(new ApiClient('https://srv', new FakeTransport()));
+
+        $received = null;
+        $service->onError(function (string $code, string $message) use (&$received): void {
+            $received = [$code, $message];
+        });
+
+        $handle = new ReflectionMethod($service, 'handleMessage');
+        $handle->setAccessible(true);
+        $handle->invoke($service, json_encode($frame, JSON_THROW_ON_ERROR));
+
+        self::assertNotNull($received, 'onError must fire for an error frame');
+
+        return $received;
+    }
+
+    /**
+     * r1 review issue 1: `syncplay_error` frame text bypassed the sanitize
+     * law. PlayerScreen queues `'SyncPlay: ' . SyncPlayErrors::localize(...)`
+     * as a toast, and the unknown-code fallback passes server text through
+     * verbatim — so the message must already be terminal-inert when the
+     * frame is PARSED.
+     */
+    public function testSyncPlayErrorFrameMessageIsInertAtTheOnErrorBoundary(): void
+    {
+        [$code, $message] = $this->dispatchErrorFrame([
+            'type' => 'syncplay_error',
+            'protocol_version' => 1,
+            'error_code' => 'some_unknown_code',
+            'message' => self::HOSTILE,
+            'timestamp' => 1771000000,
+        ]);
+
+        self::assertSame('some_unknown_code', $code);
+        self::assertTerminalInert($message, 'WS error-frame message');
+        self::assertStringContainsString('Red', $message);
+        self::assertStringContainsString('Title', $message);
+
+        // The verbatim-passthrough fallback is where hostile text reaches
+        // the terminal; with the payload inert at the parse boundary the
+        // exact toast line PlayerScreen builds is inert too.
+        self::assertTerminalInert(
+            'SyncPlay: ' . SyncPlayErrors::localize($code, $message),
+            'localized unknown-code toast line',
+        );
+    }
+
+    /** The deprecated `{type:'error', data:{message}}` envelope shares the sink. */
+    public function testLegacyErrorEnvelopeMessageIsInert(): void
+    {
+        [$code, $message] = $this->dispatchErrorFrame([
+            'type' => 'error',
+            'protocol_version' => 1,
+            'code' => 42,
+            'data' => ['message' => self::HOSTILE],
+        ]);
+
+        self::assertSame('42', $code);
+        self::assertTerminalInert($message, 'legacy error-envelope message');
+        self::assertStringContainsString('Title', $message);
+    }
+
+    /**
+     * r1 review issue 2: the WS INFO join path built its DTO through the raw
+     * constructor, bypassing the {@see SyncPlayUser::fromArray()} Coerce
+     * boundary every other member construction uses. A WS-built DTO must
+     * match an HTTP-built one's sanitization exactly.
+     */
+    public function testWsInfoFrameMemberMatchesHttpBuiltDtoSanitization(): void
+    {
+        $service = new SyncPlayService(new ApiClient('https://srv', new FakeTransport()));
+
+        $joined = null;
+        $service->onMemberJoined(function (SyncPlayUser $user) use (&$joined): void {
+            $joined = $user;
+        });
+
+        $handle = new ReflectionMethod($service, 'handleMessage');
+        $handle->setAccessible(true);
+        $handle->invoke($service, json_encode([
+            'type' => 'syncplay_info',
+            'protocol_version' => 1,
+            'member_id' => self::HOSTILE,
+            'member_name' => self::HOSTILE,
+        ], JSON_THROW_ON_ERROR));
+
+        self::assertInstanceOf(SyncPlayUser::class, $joined);
+        self::assertTerminalInert($joined->sessionId, 'WS-built sessionId');
+        self::assertTerminalInert($joined->displayName, 'WS-built displayName');
+
+        // Parity law: identical hostile text through the HTTP GROUP_STATE
+        // key shape must land in an identically neutralized DTO.
+        $httpBuilt = SyncPlayUser::fromArray(['id' => self::HOSTILE, 'name' => self::HOSTILE]);
+        self::assertSame($httpBuilt->sessionId, $joined->sessionId);
+        self::assertSame($httpBuilt->displayName, $joined->displayName);
+        self::assertSame([$joined], $service->getMembers(), 'member list carries the neutralized DTO');
     }
 }

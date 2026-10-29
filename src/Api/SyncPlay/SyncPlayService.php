@@ -19,6 +19,7 @@ use React\EventLoop\TimerInterface;
 use React\Promise\Deferred;
 use React\Promise\PromiseInterface;
 use SugarCraft\Core\Cmd;
+use SugarCraft\Core\Util\Sanitize;
 use Throwable;
 use Workerman\Connection\AsyncTcpConnection;
 
@@ -948,9 +949,21 @@ final class SyncPlayService
      *
      * Per SPEC.md read-order doctrine, server `syncplay_error` frames carry
      * `error_code` (via Messages::error()) while legacy sendError() frames
-     * carry `code` — so `error_code` wins, `code` is the fallback. The
-     * message stays raw server English here; an empty string is passed when
-     * absent so the presentation layer can localize the generic fallback.
+     * carry `code` — so `error_code` wins, `code` is the fallback. An empty
+     * string is passed when no text is present so the presentation layer can
+     * localize the generic fallback.
+     *
+     * Terminal-injection law (fix campaign C22): the message text is
+     * neutralized HERE — the boundary where raw WS-frame text enters this
+     * client's trusted state — mirroring the HTTP-side treatment:
+     * `ApiClient::decode()` sanitizes error-envelope text at extraction and
+     * `Coerce::str()` sanitizes DTO text at construction. Downstream
+     * presentation (`SyncPlayErrors::localize`'s unknown-code verbatim
+     * fallback, PlayerScreen's error toast) therefore renders trusted text
+     * by construction and applies only the app's OWN styling. The deprecated
+     * `{type:'error', data:{message}}` envelope shares this choke point via
+     * {@see legacyEnvelopeMessage()}.
+     *
      * @param array<string, mixed> $message
      */
     private function handleError(array $message): void
@@ -959,7 +972,7 @@ final class SyncPlayService
         $errorMsg = $message['message'] ?? $this->legacyEnvelopeMessage($message) ?? '';
 
         $codeStr = is_string($code) ? $code : (is_int($code) ? (string) $code : 'unknown');
-        $errorStr = is_string($errorMsg) ? $errorMsg : '';
+        $errorStr = is_string($errorMsg) ? Sanitize::untrustedForDisplay($errorMsg) : '';
         ($this->onError ?? fn () => null)($codeStr, $errorStr);
     }
 
@@ -983,6 +996,13 @@ final class SyncPlayService
 
     /**
      * Handle INFO message - member join notifications.
+     *
+     * The join DTO is built through {@see SyncPlayUser::fromArray()} — the
+     * same Coerce parse boundary the GROUP_STATE member lists use — by
+     * mapping the SPEC §4 INFO fields onto its canonical wire keys. WS
+     * `member_id`/`member_name` text is therefore terminal-inert by
+     * construction exactly like HTTP-shaped text (fix campaign C22: the
+     * direct-ctor bypass routed raw server strings into trusted DTO state).
      * @param array<string, mixed> $message
      */
     private function handleInfo(array $message): void
@@ -992,9 +1012,7 @@ final class SyncPlayService
         $memberName = $message['member_name'] ?? null;
 
         if ($memberId !== null && $memberName !== null) {
-            $memberIdStr = is_string($memberId) ? $memberId : (is_int($memberId) ? (string) $memberId : '');
-            $memberNameStr = is_string($memberName) ? $memberName : '';
-            $user = new SyncPlayUser($memberIdStr, $memberNameStr);
+            $user = SyncPlayUser::fromArray(['id' => $memberId, 'name' => $memberName]);
             $this->members[] = $user;
             ($this->onMemberJoined ?? fn () => null)($user);
         }
