@@ -124,6 +124,10 @@ Within that directory:
 | --- | --- | --- |
 | `PHLIX_SERVER_URL` | from config | Override the server URL (useful for CI/testing) |
 | `PHLIX_POSTER_CACHE_ENTRIES` | `16384` | Max poster cache entries |
+| `PHLIX_HUB_URL` | — | `watch`: hub base URL (preferred over `--hub`) |
+| `PHLIX_HUB_SERVER_ID` | — | `watch`: hub-side server id (preferred over `--server-id`) |
+| `PHLIX_HUB_TOKEN` | — | `watch`: hub user access token used to mint relay tokens (preferred over `--hub-token`) |
+| `PHLIX_RELAY_TOKEN` | — | `watch`: ready-made relay token, skips minting (preferred over `--relay-token`) |
 
 ## Usage
 
@@ -142,6 +146,36 @@ bin/phlix run --mode=sixel
 
 The first run asks for your Phlix server URL, then presents a login prompt.
 On subsequent runs the stored tokens are used automatically.
+
+### Hub relay consumer (`watch`)
+
+`bin/phlix watch` connects to the hub relay and dispatches delivered
+`play_media` commands to the player — headless, no TTY required. It needs
+the hub URL, the hub-side server id, and a token (a ready-made relay token,
+or a hub user access token it exchanges for one on each connect).
+
+Bearer/JWT secrets have a carrier ladder, safest first:
+
+```sh
+# 1. Environment (preferred — invisible to ps(1))
+PHLIX_HUB_URL=https://hub.example PHLIX_HUB_SERVER_ID=srv-7 \
+PHLIX_HUB_TOKEN="$TOKEN" bin/phlix watch
+
+# 2. STDIN (for scripts/wrappers that already hold the token)
+bin/phlix watch --hub https://hub.example --server-id srv-7 \
+    --relay-token-stdin < /run/secrets/relay_token
+
+# 3. Literal argv — DEPRECATED, works but warns on every use
+bin/phlix watch --hub ... --server-id ... --hub-token "$TOKEN"
+```
+
+Why the ladder exists (CWE-214): a secret passed as a command-line
+argument is visible in `ps(1)` / `/proc/<pid>/cmdline` to every local user
+for the whole life of the process, and stays in shell history. The
+`--hub-token` / `--relay-token` flags are kept for script compatibility —
+they still work, but print a `warning:` line on stderr naming the env and
+STDIN replacements. (`--hub-token-stdin` / `--relay-token-stdin` read the
+whole of STDIN as the token, trailing newline trimmed.)
 
 ### Render modes
 

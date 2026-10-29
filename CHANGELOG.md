@@ -5,6 +5,49 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Security — `watch` bearer/JWT secrets pushed out of process argv (review console__secaudit, M-CONSOLE-35) — 2026-10-29
+
+- **What.** `phlix watch --hub-token JWT --relay-token TOKEN` accepted live
+  bearer secrets as command-line literals. Every argument is visible in
+  `ps(1)` / `/proc/<pid>/cmdline` to all local users for the process
+  lifetime and persists in shell history (CWE-214). The env fallbacks
+  (`PHLIX_HUB_TOKEN` / `PHLIX_RELAY_TOKEN`) already existed but the silent
+  flags were the documented headline form.
+- **Cure (carrier ladder, safest first).** (1) env — unchanged, now the
+  documented preference; (2) NEW `--hub-token-stdin` / `--relay-token-stdin`
+  read the whole STDIN as the token (trailing newlines trimmed; pipes /
+  process substitution / secret-file redirection; at most one may be used,
+  an empty STDIN is a loud exit-2 usage error); (3) the literal argv flags
+  are DEPRECATED but kept — breaking scripts silently is its own honesty
+  violation — and now emit a `warning:` line on stderr on EVERY use
+  (before validation, so it is never silent), naming the env variable and
+  the stdin flag, never echoing the secret itself. Help text and
+  `docs/clients/console.md` (previously watch carried no user-doc surface
+  at all) document the ladder and add the four `PHLIX_*` env rows. The
+  minting hop itself always sent the hub token as an `Authorization:`
+  header (never argv/URL) and is untouched; no other in-repo process launch
+  carries secrets (ffplay/mpv spawn is the vendor array-form `proc_open`,
+  stream URLs are server-signed paths, the audit script is argv-array).
+- **Tests.** `tests/BinPhlixTest.php` +9 tests/+37 assertions
+  (3037→3046, 13965→14002; deprecations 13 and skips 9 held): both argv
+  literals still function (exit 1, not 2) but warn from line start on
+  stderr; the warning survives a later usage error; env and both stdin
+  carriers are warning-silent and reach the dial ladder; empty-stdin →
+  exit 2; both-stdin flags → exit 2; inline `--*-stdin=value` → exit 2;
+  help-text pins. No secret literal ever appears in the child's output.
+  Venue law noted in the test comment: the hub-token path mints via curl and
+  this box's PHP 8.3.6+curl 8.5.0 segfaults at shutdown after any
+  `curl_exec` (bare-`php -r` reproducible, zero repo code), so every
+  hub-carrier test shadows minting with a relay token via a non-minting
+  carrier; the ws dial (:8804, closed) is socket-only. No test executes
+  `mintRelayToken()`.
+- **Gates (measured).** Full suite serial OK 3046/14002 (+9/+37 exact vs
+  `6fba622` worktree baseline); phpstan src error-set IDENTICAL to parent
+  (1 pre-existing `AdminClient::alternatePosters` error since `5ba0c6b`,
+  not this lane); phpstan-tests `[OK]`; phpcs both standards exit 0;
+  `scripts/check-i18n-hardcoded.sh` clean (bin/phlix stderr prose is the
+  file's raw-English convention; no `src/` strings added, catalogs held).
+
 ### Security — `dev-master` supply chain put under human review + whole-lock audit gate (review console__devops, M-CONSOLE-34) — 2026-10-29
 
 - **What.** All 26 `sugarcraft/*` packages resolve to `dev-master`, and the

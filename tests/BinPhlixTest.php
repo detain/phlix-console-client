@@ -250,6 +250,186 @@ final class BinPhlixTest extends TestCase
         $this->assertMatchesRegularExpression('/phlix run.*\(needs a TTY\)/', $result['stdout']);
     }
 
+    // ------------------------------------------------------------------
+    // M-CONSOLE-35: bearer/JWT secrets must not be silent argv residents
+    // (CWE-214: /proc/<pid>/cmdline is world-readable for the process
+    // lifetime; shell history keeps the flag line forever). The carrier
+    // ladder is env → stdin → (loud, deprecated) argv literal. Doctrine
+    // sibling: `phlix run` refuses a non-TTY with exit 2 instead of
+    // pretending (1b7dd9e exit-code honesty).
+    //
+    // Venue law baked into these shapes: the hub-token carrier MINTS a
+    // relay token via curl on every (re)connect, and this venue's PHP
+    // 8.3.6 + curl 8.5.0 segfaults at process shutdown after ANY
+    // curl_exec (reproduced with bare `php -r`, zero repo code — an env
+    // artifact, not ours). No test here may execute mintRelayToken. The
+    // dial is always host:8804 regardless of the hub URL, so every
+    // hub-token-path test below supplies a relay token through a NON-
+    // minting carrier (relay literal/flag/env), which the token provider
+    // prefers before minting.
+    // ------------------------------------------------------------------
+
+    /**
+     * Hub URL at 127.0.0.1:9 (discard, closed); the relay socket dials the
+     * fixed :8804 (also closed), so watch fails connect instantly, runs the
+     * `--once --timeout 1` ladder, and exits 1 — long enough to prove the
+     * carrier RESOLVED, never reaching a real hub.
+     */
+    private const WATCH_UNREACHABLE_HUB = 'http://127.0.0.1:9';
+
+    private function scratchHome(): string
+    {
+        $dir = sys_get_temp_dir() . '/opencode/fix-M-CONSOLE-35/phpunit-home-' . bin2hex(random_bytes(4));
+        if (!mkdir($dir, 0o700, true) && !is_dir($dir)) {
+            throw new \RuntimeException("scratch HOME {$dir} could not be created");
+        }
+
+        return $dir;
+    }
+
+    public function testWatchArgvSecretFlagsStillWorkButWarnLoudly(): void
+    {
+        // The relay literal shadows the hub token in the provider, so the run
+        // dials without ever minting (venue curl law above).
+        $result = $this->runPhlixWithDeadline(
+            ['watch', '--hub', self::WATCH_UNREACHABLE_HUB, '--server-id', 'srv-1',
+                '--hub-token', 'SECRENT-IN-ARGV-9c1f', '--relay-token', 'RELAY-SECRET-4b7a',
+                '--once', '--timeout', '1'],
+            8.0,
+            $this->scratchHome(),
+        );
+
+        $this->assertFalse($result['timedOut']);
+        // Exit 1 = "carriers accepted, no frame within timeout" — NOT 2: the
+        // deprecated carrier keeps working (no silent hard-break of scripts).
+        $this->assertSame(1, $result['exitCode']);
+        $this->assertMatchesRegularExpression('/^warning: --hub-token/m', $result['stderr']);
+        $this->assertMatchesRegularExpression('/^warning: --relay-token/m', $result['stderr']);
+        // The warnings name the carriers, never echo the secrets themselves.
+        $this->assertStringNotContainsString('SECRENT-IN-ARGV-9c1f', $result['stderr']);
+        $this->assertStringNotContainsString('SECRENT-IN-ARGV-9c1f', $result['stdout']);
+        $this->assertStringNotContainsString('RELAY-SECRET-4b7a', $result['stderr']);
+        $this->assertStringNotContainsString('RELAY-SECRET-4b7a', $result['stdout']);
+    }
+
+    public function testWatchArgvSecretWarningIsNotSilentEvenOnUsageError(): void
+    {
+        $result = $this->runPhlix([
+            'watch', '--hub-token', 'LEAKED-JWT-77aa',
+        ]);
+
+        $this->assertSame(2, $result['exitCode']);
+        $this->assertMatchesRegularExpression('/^warning: --hub-token/m', $result['stderr']);
+        $this->assertStringContainsString('PHLIX_HUB_TOKEN', $result['stderr']);
+        $this->assertStringContainsString('--hub-token-stdin', $result['stderr']);
+        $this->assertStringNotContainsString('LEAKED-JWT-77aa', $result['stderr']);
+    }
+
+    public function testWatchEnvTokenCarrierProducesNoWarning(): void
+    {
+        $result = $this->runPhlixWithDeadline(
+            ['watch', '--once', '--timeout', '1'],
+            8.0,
+            $this->scratchHome(),
+            [
+                'PHLIX_HUB_URL' => self::WATCH_UNREACHABLE_HUB,
+                'PHLIX_HUB_SERVER_ID' => 'srv-1',
+                'PHLIX_RELAY_TOKEN' => 'ENV-CARRIER-c3d2',
+            ],
+        );
+
+        $this->assertFalse($result['timedOut']);
+        $this->assertSame(1, $result['exitCode']);
+        $this->assertDoesNotMatchRegularExpression('/^warning: /m', $result['stderr']);
+        $this->assertStringNotContainsString('ENV-CARRIER-c3d2', $result['stderr']);
+    }
+
+    public function testWatchRelayTokenFromStdinIsAcceptedSilently(): void
+    {
+        $result = $this->runPhlixWithDeadline(
+            ['watch', '--hub', self::WATCH_UNREACHABLE_HUB, '--server-id', 'srv-1',
+                '--relay-token-stdin', '--once', '--timeout', '1'],
+            8.0,
+            $this->scratchHome(),
+            [],
+            "STDIN-RELAY-f0aa\n",
+        );
+
+        $this->assertFalse($result['timedOut']);
+        $this->assertSame(
+            1,
+            $result['exitCode'],
+            'the stdin carrier resolved the token; the run reached the dial ladder',
+        );
+        $this->assertDoesNotMatchRegularExpression('/^warning: /m', $result['stderr']);
+        $this->assertStringContainsString('hub relay:', $result['stderr']);
+        $this->assertStringNotContainsString('STDIN-RELAY-f0aa', $result['stderr']);
+    }
+
+    public function testWatchHubTokenFromStdinIsAcceptedSilently(): void
+    {
+        // PHLIX_RELAY_TOKEN shadows minting (venue curl law); the hub token
+        // must still be READ from stdin and resolve — an empty stdin makes
+        // this exact invocation exit 2 instead (next test's twin).
+        $result = $this->runPhlixWithDeadline(
+            ['watch', '--hub', self::WATCH_UNREACHABLE_HUB, '--server-id', 'srv-1',
+                '--hub-token-stdin', '--once', '--timeout', '1'],
+            8.0,
+            $this->scratchHome(),
+            ['PHLIX_RELAY_TOKEN' => 'shadow-relay-2f2f'],
+            "STDIN-HUB-e8b1\n",
+        );
+
+        $this->assertFalse($result['timedOut']);
+        $this->assertSame(1, $result['exitCode']);
+        $this->assertDoesNotMatchRegularExpression('/^warning: /m', $result['stderr']);
+        $this->assertStringContainsString('hub relay:', $result['stderr']);
+        $this->assertStringNotContainsString('STDIN-HUB-e8b1', $result['stderr']);
+    }
+
+    public function testWatchStdinCarrierWithEmptyStdinExitsTwo(): void
+    {
+        $result = $this->runPhlixWithDeadline(
+            ['watch', '--hub', self::WATCH_UNREACHABLE_HUB, '--server-id', 'srv-1',
+                '--relay-token-stdin', '--once', '--timeout', '1'],
+            8.0,
+            $this->scratchHome(),
+            [],
+            '',
+        );
+
+        $this->assertFalse($result['timedOut']);
+        $this->assertSame(2, $result['exitCode']);
+        $this->assertStringContainsString('token on STDIN', $result['stderr']);
+    }
+
+    public function testWatchBothStdinCarriersRefusedAtParse(): void
+    {
+        $result = $this->runPhlix(['watch', '--hub', self::WATCH_UNREACHABLE_HUB, '--server-id', 'srv-1',
+            '--hub-token-stdin', '--relay-token-stdin']);
+
+        $this->assertSame(2, $result['exitCode']);
+        $this->assertStringContainsString('Only one', $result['stderr']);
+    }
+
+    public function testWatchStdinCarriersRejectInlineValues(): void
+    {
+        $result = $this->runPhlix(['watch', '--hub', self::WATCH_UNREACHABLE_HUB, '--server-id', 'srv-1',
+            '--hub-token-stdin=x']);
+
+        $this->assertSame(2, $result['exitCode']);
+        $this->assertStringContainsString('does not take a value', $result['stderr']);
+    }
+
+    public function testHelpTextDocumentsTheSecretCarrierLadder(): void
+    {
+        $result = $this->runPhlix(['help']);
+
+        $this->assertStringContainsString('--hub-token-stdin', $result['stdout']);
+        $this->assertStringContainsString('--relay-token-stdin', $result['stdout']);
+        $this->assertStringContainsString('DEPRECATED', $result['stdout']);
+    }
+
     /**
      * Run the phlix binary with given arguments and capture output.
      *
@@ -304,18 +484,28 @@ final class BinPhlixTest extends TestCase
      *                                    pinned to this scratch directory (a full
      *                                    environment replacement — no host config
      *                                    or PHLIX_* variables leak in).
+     * @param array<string,string> $extraEnv additional variables merged into the
+     *                                    replacement environment (secret-carrier
+     *                                    tests pin what the child actually reads).
+     * @param string|null   $stdinContent when set, written to the child's stdin
+     *                                    before the close (the stdin token carrier).
      *
      * @return array{exitCode: int, stdout: string, stderr: string, timedOut: bool}
      */
-    private function runPhlixWithDeadline(array $args, float $deadline, ?string $homeOverride = null): array
-    {
+    private function runPhlixWithDeadline(
+        array $args,
+        float $deadline,
+        ?string $homeOverride = null,
+        array $extraEnv = [],
+        ?string $stdinContent = null,
+    ): array {
         $env = null;
         if ($homeOverride !== null) {
             $env = [
                 'HOME' => $homeOverride,
                 'XDG_CONFIG_HOME' => $homeOverride . '/.config',
                 'PATH' => (string) (getenv('PATH') ?: '/usr/bin:/bin'),
-            ];
+            ] + $extraEnv;
         }
 
         $descriptors = [
@@ -327,6 +517,12 @@ final class BinPhlixTest extends TestCase
         $process = proc_open(array_merge([PHP_BINARY, $this->binPath], $args), $descriptors, $pipes, null, $env);
         if (!is_resource($process)) {
             throw new \RuntimeException('Failed to open process');
+        }
+        if ($stdinContent !== null) {
+            // The stdin token carrier: write the secret line, then close so
+            // a reader draining php://stdin sees EOF (tokens never carry
+            // internal newlines, so the close also terminates the read).
+            fwrite($pipes[0], $stdinContent);
         }
         fclose($pipes[0]);
         stream_set_blocking($pipes[1], false);

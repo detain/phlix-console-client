@@ -19,8 +19,9 @@ usage:
   phlix doctor                              report terminal + server diagnostics
   phlix poster <image> [w] [h]              render an image at a cell size
   phlix frame  <video|gif> [n] [cols] [rows]  decode N frames to ANSI
-  phlix watch [--hub URL] [--server-id ID] [--hub-token JWT] [--relay-token TOKEN]
-                   [--once] [--timeout SECS]   consume hub-relay "play X" commands
+  phlix watch [--hub URL] [--server-id ID] [--once] [--timeout SECS]
+                    consume hub-relay "play X" commands
+                    (tokens: env PHLIX_*_TOKEN or --hub-token-stdin / --relay-token-stdin)
   phlix run [--mode=…]                      launch the full-window app (needs a TTY)
   phlix version                             print version information
   phlix help                                show this help message
@@ -33,12 +34,19 @@ In-app keys: ↑↓←→ navigate · / search · Ctrl-K / : command palette
  · Enter open · p play · A–Z jump · Esc back · Ctrl-C quit
 
 watch options:
-  --hub URL        hub base URL (env PHLIX_HUB_URL)
-  --server-id ID   hub-side server id (env PHLIX_HUB_SERVER_ID)
-  --hub-token JWT  hub user access token, used to mint relay tokens (env PHLIX_HUB_TOKEN)
-  --relay-token T  a ready-made relay token; skips minting (env PHLIX_RELAY_TOKEN)
-  --once           connect, wait for ONE play_media command, then exit
-  --timeout SECS   with --once: give up after SECS (default 30)
+  --hub URL            hub base URL (env PHLIX_HUB_URL)
+  --server-id ID       hub-side server id (env PHLIX_HUB_SERVER_ID)
+  --hub-token-stdin    read the hub user access token from STDIN (no argv
+                       exposure; pipes / process substitution work)
+  --relay-token-stdin  read a ready-made relay token from STDIN (ditto)
+  --hub-token JWT      DEPRECATED (prefer env PHLIX_HUB_TOKEN or
+                       --hub-token-stdin): argv is world-readable for the
+                       process lifetime (ps(1), /proc, shell history).
+                       Still accepted, warns on every use.
+  --relay-token T      DEPRECATED (prefer env PHLIX_RELAY_TOKEN or
+                       --relay-token-stdin): ditto
+  --once               connect, wait for ONE play_media command, then exit
+  --timeout SECS       with --once: give up after SECS (default 30)
 
 TXT;
 
@@ -265,13 +273,19 @@ $cmd = $argv[1] ?? 'help';
  * Normalise the `watch` command's arguments.
  *
  * Every option falls back to its environment variable so a headless watch
- * process can be configured without CLI flags. Unknown options, value-taking
- * options without a value, and malformed values (e.g. a non-numeric
- * `--timeout`) are usage errors (exit 2).
+ * process can be configured without CLI flags. Secrets have a carrier ladder
+ * (M-CONSOLE-35, CWE-214): env first, then `--hub-token-stdin` /
+ * `--relay-token-stdin` (read from STDIN at resolution time), then the
+ * DEPRECATED literal argv flags — which still parse (scripts stay alive)
+ * but set a provenance bit so `runWatch` can warn loudly. Unknown options,
+ * value-taking options without a value, and malformed values (e.g. a
+ * non-numeric `--timeout`) are usage errors (exit 2).
  *
  * @param list<string> $argv Full argv (index 0 = script, 1 = "watch").
  *
- * @return array{hub: ?string, serverId: ?string, hubToken: ?string, relayToken: ?string, once: bool, timeout: int}
+ * @return array{hub: ?string, serverId: ?string, hubToken: ?string, relayToken: ?string,
+ *               hubTokenFromArgv: bool, relayTokenFromArgv: bool,
+ *               hubTokenStdin: bool, relayTokenStdin: bool, once: bool, timeout: int}
  */
 function parseWatchArgs(array $argv): array
 {
@@ -280,6 +294,10 @@ function parseWatchArgs(array $argv): array
         'serverId' => getenv('PHLIX_HUB_SERVER_ID') ?: null,
         'hubToken' => getenv('PHLIX_HUB_TOKEN') ?: null,
         'relayToken' => getenv('PHLIX_RELAY_TOKEN') ?: null,
+        'hubTokenFromArgv' => false,
+        'relayTokenFromArgv' => false,
+        'hubTokenStdin' => false,
+        'relayTokenStdin' => false,
         'once' => false,
         'timeout' => 30,
     ];
@@ -313,9 +331,23 @@ function parseWatchArgs(array $argv): array
                     break;
                 case 'hub-token':
                     $args['hubToken'] = $value;
+                    $args['hubTokenFromArgv'] = $value !== null && $value !== '';
+                    break;
+                case 'hub-token-stdin':
+                    if ($value !== null) {
+                        throw new \InvalidArgumentException('Option --hub-token-stdin does not take a value');
+                    }
+                    $args['hubTokenStdin'] = true;
                     break;
                 case 'relay-token':
                     $args['relayToken'] = $value;
+                    $args['relayTokenFromArgv'] = $value !== null && $value !== '';
+                    break;
+                case 'relay-token-stdin':
+                    if ($value !== null) {
+                        throw new \InvalidArgumentException('Option --relay-token-stdin does not take a value');
+                    }
+                    $args['relayTokenStdin'] = true;
                     break;
                 case 'once':
                     if ($value !== null) {
@@ -337,7 +369,54 @@ function parseWatchArgs(array $argv): array
         }
     }
 
+    if ($args['hubTokenStdin'] && $args['relayTokenStdin']) {
+        throw new \InvalidArgumentException('Only one of --hub-token-stdin / --relay-token-stdin may read STDIN');
+    }
+
     return $args;
+}
+
+/**
+ * Name the CWE-214 exposure of a literal secret that arrived in argv —
+ * loud, before any connection or further validation, and on EVERY use.
+ * The process still proceeds: silently breaking existing scripts is its
+ * own honesty violation (the `phlix run` non-TTY refusal, 1b7dd9e, sets
+ * the bar for how deprecations exit in this CLI — this one is a warning,
+ * not a refusal, because a safe replacement carrier exists and is printed
+ * in the very line). The secret value itself is never echoed.
+ */
+function warnArgvSecretCarrier(bool $fromArgv, string $flag, string $envName, string $stdinFlag): void
+{
+    if (!$fromArgv) {
+        return;
+    }
+    fwrite(
+        STDERR,
+        sprintf(
+            "warning: --%s puts a live secret in process argv — readable via ps(1), "
+            . "/proc/<pid>/cmdline and shell history for the process lifetime (CWE-214)."
+            . " Prefer env %s or %s.\n",
+            $flag,
+            $envName,
+            $stdinFlag,
+        ),
+    );
+}
+
+/**
+ * Read one secret off STDIN: the whole stream, trailing line breaks trimmed
+ * (a bearer JWT never carries internal newlines). Returns null on an empty
+ * or unreadable stream — the caller turns that into a usage error.
+ */
+function readSecretFromStdin(): ?string
+{
+    $raw = stream_get_contents(STDIN);
+    if ($raw === false) {
+        return null;
+    }
+    $token = rtrim($raw, "\r\n");
+
+    return $token !== '' ? $token : null;
 }
 
 /**
@@ -392,8 +471,11 @@ function mintRelayToken(string $hubUrl, string $serverId, string $hubToken): ?st
  * `/syncplay/{server_id}`) with an `Authorization: Bearer` relay token and
  * dispatches every delivered `pending_command` / `play_media` frame to the
  * load-a-new-title path. The token provider re-reads on every (re)connect:
- * a ready-made `--relay-token` is used as-is, otherwise one is minted from
- * the hub with `--hub-token`. `--once` connects, waits for ONE frame (or
+ * a ready-made relay token is used as-is, otherwise one is minted from the
+ * hub with the hub user token. Secret carriers follow the M-CONSOLE-35
+ * ladder: env, then `--hub-token-stdin` / `--relay-token-stdin`, then the
+ * DEPRECATED literal argv flags (accepted, warned). `--once` connects,
+ * waits for ONE frame (or
  * `--timeout` seconds) and exits.
  *
  * Exit codes: 0 = a play_media frame was received and dispatched (with
@@ -406,10 +488,16 @@ function runWatch(array $argv): int
         $args = parseWatchArgs($argv);
     } catch (\InvalidArgumentException $e) {
         fwrite(STDERR, "Error: " . $e->getMessage() . "\n");
-        fwrite(STDERR, "usage: phlix watch [--hub URL] [--server-id ID] [--hub-token JWT]\n");
-        fwrite(STDERR, "                  [--relay-token TOKEN] [--once] [--timeout SECS]\n");
+        fwrite(STDERR, "usage: phlix watch [--hub URL] [--server-id ID] [--hub-token-stdin | --relay-token-stdin]\n");
+        fwrite(STDERR, "                  [--once] [--timeout SECS]  (or env PHLIX_HUB_URL / PHLIX_HUB_SERVER_ID / PHLIX_HUB_TOKEN / PHLIX_RELAY_TOKEN)\n");
         return 2;
     }
+
+    // CWE-214 exposure named BEFORE anything else — even when the run dies
+    // on a later usage error, the operator learned the secret is already in
+    // ps(1) output. (M-CONSOLE-35)
+    warnArgvSecretCarrier($args['hubTokenFromArgv'], 'hub-token', 'PHLIX_HUB_TOKEN', '--hub-token-stdin');
+    warnArgvSecretCarrier($args['relayTokenFromArgv'], 'relay-token', 'PHLIX_RELAY_TOKEN', '--relay-token-stdin');
 
     $hub = $args['hub'];
     $serverId = $args['serverId'];
@@ -419,8 +507,25 @@ function runWatch(array $argv): int
     }
     $relayToken = $args['relayToken'];
     $hubToken = $args['hubToken'];
+    if ($args['hubTokenStdin']) {
+        $read = readSecretFromStdin();
+        if ($read === null) {
+            fwrite(STDERR, "Error: --hub-token-stdin needs the token on STDIN\n");
+            return 2;
+        }
+        $hubToken = $read;
+    }
+    if ($args['relayTokenStdin']) {
+        $read = readSecretFromStdin();
+        if ($read === null) {
+            fwrite(STDERR, "Error: --relay-token-stdin needs the token on STDIN\n");
+            return 2;
+        }
+        $relayToken = $read;
+    }
     if (($relayToken === null || $relayToken === '') && ($hubToken === null || $hubToken === '')) {
-        fwrite(STDERR, "Error: watch needs --relay-token or --hub-token (env PHLIX_RELAY_TOKEN / PHLIX_HUB_TOKEN)\n");
+        fwrite(STDERR, "Error: watch needs --relay-token or --hub-token"
+            . " (env PHLIX_RELAY_TOKEN / PHLIX_HUB_TOKEN; or --relay-token-stdin / --hub-token-stdin)\n");
         return 2;
     }
 
