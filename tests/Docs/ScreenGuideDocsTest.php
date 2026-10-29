@@ -23,6 +23,14 @@
  * The recipe itself is compile-pinned: every complete PHP block the guide
  * carries is syntax-linted with the running PHP binary, so "the recipe cannot
  * compile" can never be true of this document again.
+ *
+ * Follow-up (this commit): the boot-return pin reads the literal `): self`
+ * from src/App.php because PHP 8.5 reflection resolves `self` to the
+ * declaring FQCN (which reddened the 8.5 test leg of the landing commit), and
+ * the Step-1 example's "modeled on src/Screen/X.php" attribution became a
+ * derived code pin — the named screen must itself show the example's shape
+ * (Chrome frame, ApiClient, Cmd::promise, NavigateBackMsg), which StatsScreen
+ * stopped doing long before the guide copied it.
  */
 
 declare(strict_types=1);
@@ -104,10 +112,23 @@ final class ScreenGuideDocsTest extends TestCase
             $parts[] = $this->renderParameter($param);
         }
 
-        $returnType = (string) $boot->getReturnType();
-        self::assertSame('self', $returnType, 'App::boot() no longer returns self; re-derive the guide pin.');
+        // PHP 8.5's reflection resolves the `self` return literal to the
+        // declaring class FQCN (where 8.3/8.4 report the token 'self'), so the
+        // pinned literal is re-read from the source — the version-stable
+        // ground truth — and reflection only cross-checks the declared type.
+        self::assertContains(
+            (string) $boot->getReturnType(),
+            ['self', App::class],
+            'App::boot() no longer returns self; re-derive the guide pin.'
+        );
+        $returnLiteral = self::declaredBootReturnType();
+        self::assertSame(
+            'self',
+            $returnLiteral,
+            'App::boot() source no longer declares `): self`; the guide and this pin move together.'
+        );
 
-        $expected = 'App::boot(' . implode(', ', $parts) . '): ' . $returnType;
+        $expected = 'App::boot(' . implode(', ', $parts) . '): ' . $returnLiteral;
         self::assertStringContainsString(
             $expected,
             self::readDoc(),
@@ -387,6 +408,50 @@ final class ScreenGuideDocsTest extends TestCase
     }
 
     /**
+     * The Step-1 example's "modeled on src/Screen/X.php" attribution is a CODE
+     * claim, not prose: the named screen must actually exhibit the exact shape
+     * the example shows (Chrome frame, ApiClient injection, Cmd::promise fetch,
+     * NavigateBackMsg return). The original rewrite named StatsScreen, whose
+     * view() returns a raw string and whose constructor takes an AdminClient —
+     * a true-in-2023 fact that had quietly rotted. Pinning the attribution to
+     * the tree means a model-on rename that breaks the example's shape reddens
+     * this test instead of silently shipping fiction.
+     */
+    public function testTheWorkedExampleIsModeledOnAScreenThatMatchesTheExample(): void
+    {
+        if (preg_match('/modeled on src\/Screen\/([A-Za-z0-9]+)\.php/', self::readDoc(), $m) !== 1) {
+            self::fail(
+                'The Step-1 example no longer names exactly one "modeled on src/Screen/X.php" '
+                . 'source; the guide and this pin move together.'
+            );
+        }
+
+        $guideScreen = $m[1];
+        $code = self::readFile('src/Screen/' . $guideScreen . '.php');
+
+        self::assertStringContainsString(
+            'Chrome::frame(',
+            $code,
+            $guideScreen . ' does not render through the shared Chrome the example renders through.'
+        );
+        self::assertStringContainsString(
+            'ApiClient $api',
+            $code,
+            $guideScreen . ' does not inject the ApiClient the example injects.'
+        );
+        self::assertStringContainsString(
+            'Cmd::promise',
+            $code,
+            $guideScreen . ' does not fetch on init via Cmd::promise the way the example does.'
+        );
+        self::assertStringContainsString(
+            'NavigateBackMsg',
+            $code,
+            $guideScreen . ' does not return through NavigateBackMsg the way the example does.'
+        );
+    }
+
+    /**
      * The guide's convention for a parameter of App::boot(): short class name,
      * leading `\` on nullable classes (the in-source style), then the default.
      */
@@ -403,6 +468,21 @@ final class ScreenGuideDocsTest extends TestCase
 
         return $rendered . ' $' . $param->getName()
             . ($param->isDefaultValueAvailable() ? ' = ' . self::renderDefault($param) : '');
+    }
+
+    /**
+     * The literal return-type token of App::boot() as declared in src/App.php.
+     * Version-stable by construction: PHP 8.5 reflection resolves `self` to
+     * the declaring FQCN, so the pin must not trust getName() for it.
+     */
+    private static function declaredBootReturnType(): string
+    {
+        $src = self::readFile('src/App.php');
+        if (preg_match('/public static function boot\((?:[^{}]*)\): (\??[A-Za-z_\\\\]+) \{/s', $src, $m) === 1) {
+            return $m[1];
+        }
+
+        throw new RuntimeException('App::boot() signature moved; re-derive declaredBootReturnType().');
     }
 
     /**

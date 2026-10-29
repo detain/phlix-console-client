@@ -5,6 +5,46 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — dev-guide worked-example attribution corrected; boot-return pin made PHP 8.5-stable (review console__docmaint, M-CONSOLE-17 follow-through) — 2026-10-29
+
+- **The defect.** Two residuals survived the landing commit above. (1) The
+  rewrite kept the Step-1 example's "modeled on src/Screen/StatsScreen.php
+  (the smallest shipped screen exercising the full contract): ... render
+  through the shared Chrome" sentence, but StatsScreen renders a raw string
+  (zero `Chrome::frame` in the file) and injects an `AdminClient` — the
+  example's true shipped model is `RecommendationsScreen.php` (same
+  `implements Model, Themed` + `use SubscriptionCapable, ThemedScreen`, the
+  `(ApiClient, cols, rows)` constructor, the `Cmd::promise` fetch resolving
+  to a Msg, the seven-argument `Chrome::frame` render, Esc returning through
+  `NavigateBackMsg`). (2) CI's `test (8.5)` leg reddened on
+  `ScreenGuideDocsTest::testBootSignatureIsPinnedVerbatimToTheGuide`: PHP 8.5
+  reflection resolves the `): self` return literal to the declaring FQCN
+  (`Phlix\Console\App`), where 8.3/8.4 report the token `self` — the
+  `assertSame('self', ...)` could not pass on the 8.5 matrix leg (run
+  40888044454; the 8.3/8.4 test legs and every other gate stayed green).
+- **Cure.** Docs-truth: the docblock now cites `RecommendationsScreen.php`
+  with the superlative dropped. Test-stability: the pinned return literal is
+  re-read from the `src/App.php` source text (the version-stable ground
+  truth), and reflection is demoted to a cross-check accepting `self` or
+  `App::class`.
+- **Pinned.** New `testTheWorkedExampleIsModeledOnAScreenThatMatchesTheExample`:
+  whatever screen the guide's "modeled on src/Screen/X.php" names must itself
+  exhibit the example's shape (`Chrome::frame(`, `ApiClient $api`,
+  `Cmd::promise`, `NavigateBackMsg`) — red exactly on `StatsScreen`, green on
+  the true model — so a future re-attribution that breaks the shape reddens
+  the suite instead of shipping fiction.
+- **Measured at HEAD.** Suite 3150 → 3151 tests (+1 exact), assertions
+  16824 → 16830 (+6 exact), skips 9 → 9, exit 0 (the 13 PHPUnit deprecations
+  are the pre-existing venue state). Red-on-parent: the attribution pin fails
+  1 test against the landing document ("StatsScreen does not render through
+  the shared Chrome..."); the boot-pin 8.5 red is attested by run 40888044454
+  itself. phpstan (tests config) [OK]; phpcs exit 0 under both CI standards
+  and bare PSR-12 on the changed test file. The src phpstan leg is UNCHANGED
+  — its single `AdminClient::alternatePosters()` return.type error is the
+  pre-existing red recorded by the M-CONSOLE-19 entry; this change touches no
+  `src/` file. `resources/lang/` untouched (no catalog writes); both i18n
+  gates re-run green.
+
 ### Fixed — the dev guide's "Adding a Screen" recipe rewritten to the shipped screen architecture (review console__docmaint, M-CONSOLE-17) — 2026-10-29
 
 - **The defect.** `docs/dev/client-console.md` contradicted HEAD at eight

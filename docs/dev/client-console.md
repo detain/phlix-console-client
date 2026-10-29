@@ -247,11 +247,10 @@ use SugarCraft\Core\Model;
 use SugarCraft\Core\SubscriptionCapable;
 
 /**
- * Worked example modeled on src/Screen/StatsScreen.php (the smallest shipped
- * screen exercising the full contract): fetch once on init, render through the
- * shared Chrome, Esc returns. A grid screen with a loading skeleton would
- * additionally `implements Loadable, Shimmering, Themed` and
- * `use ThemedScreen, ShimmeringScreen;` — see BooksScreen.php.
+ * Worked example modeled on src/Screen/RecommendationsScreen.php: fetch once
+ * on init, render through the shared Chrome, Esc returns. A grid screen with a
+ * loading skeleton would additionally `implements Loadable, Shimmering, Themed`
+ * and `use ThemedScreen, ShimmeringScreen;` — see BooksScreen.php.
  */
 final class MyNewScreen implements Model, Themed
 {
