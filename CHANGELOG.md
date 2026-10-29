@@ -5,6 +5,39 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Italian SyncPlay host-role strings said "ospite" (guest); semantic host/guest guard added (review console__copywriter, M-CONSOLE-08) — 2026-10-29
+
+- **What.** All four host-role values in `resources/lang/it.php` used
+  `ospite`, which means GUEST in Italian — the precise opposite of the
+  permission being described (`:72` "Solo l'ospite del gruppo può farlo."
+  for en "Only the group host can do that.", `:76` invalid-new-HOST,
+  `:78` already-the-HOST, `:82` HOST-reached-limit). The both-directions
+  census: en.php contains zero `guest` values, and `ospite` matched zero
+  correctly-used lines — all 4 occurrences were inversions, none kept.
+  The five sibling catalogs were probed for the same class and are clean
+  (`de:72,76,78,82` Gruppenhost/Host, `es:72,76,78,82` anfitrión,
+  `fr:72,76,78,82` hôte, `pt-br:77,81,83,87` anfitrião, `ja:72,76,78,82`
+  ホスト; zero hits for huésped/invité/Gast/hóspede/ゲスト anywhere).
+- **Cure.** `ospite` → `host` — the established Italian software loanword
+  (register-consistent with ja ホスト and de Gruppenhost), grammar repaired
+  per line (`l'ospite` → `l'host`, elision kept; `Il nuovo host richiesto`,
+  `già l'host`, `L'host ha raggiunto`), one uniform term across it.php.
+  `sale di visione` on `:82` left untouched — separate finding (M5 drift).
+  New `LocaleCatalogsTest::testHostRoleStringsSayHostAndNeverTheGuestTerm`
+  pins both directions per locale, derived from en.php: host-valued keys
+  must match the locale's host-term pattern; guest-term stems
+  (morphological: `ospit` catches ospite/ospiti) may never appear where
+  English says no guest. Red→green proven (`it` red on the inverted
+  catalog, 5 siblings green = non-vacuous); mutation-toothed (reverting
+  one line reddens the pin). Suite 3067→3073 tests / 15206→15584
+  assertions (+6/+378 exact), Skipped 9 held; phpstan-tests [OK] 0;
+  phpcs src 0E and tests 0E; `check-i18n-catalogs.php` all 6 locales in
+  sync (59 keys); `check-i18n-hardcoded` both legs pass. Pre-existing and
+  untouched: phpstan src leg red at `src/Api/Admin/AdminClient.php:2697`
+  (CI already red at the parent `7335185`); `it.php` file-header docblock
+  phpcs error + 2 long-line warnings (`resources/` is outside both CI
+  phpcs paths; byte-identical at HEAD).
+
 ### Fixed — the player-keys-inert prose now matches the code: TRANSPORT keys are inert, `q`/`Esc` always close (follow-up to M-CONSOLE-02) — 2026-10-29
 
 - **What.** The prose shipped beside the six-key tables read "All player

@@ -51,6 +51,40 @@ final class LocaleCatalogsTest extends TestCase
         'ja' => [],
     ];
 
+    /**
+     * The established host-role term per catalog as a case-insensitive
+     * pattern (Italian software convention keeps the English loanword
+     * 'host', as ja keeps ホスト and de the compound Gruppenhost — one
+     * uniform term across each catalog).
+     *
+     * @var array<string, string>
+     */
+    private const HOST_ROLE_TERMS = [
+        'es' => '/anfitri[oó]n/iu',
+        'fr' => '/h[oô]te/iu',
+        'de' => '/host/iu',
+        'it' => '/\bhost\b/iu',
+        'pt-br' => '/anfitri[ãa]o/iu',
+        'ja' => '/ホスト/u',
+    ];
+
+    /**
+     * Each catalog's stem for GUEST (morphological net: it ospite/ospiti).
+     * None of these may match a value whose English counterpart does not
+     * say "guest" (review console__copywriter M-CONSOLE-08 found it.php
+     * inverting exactly this).
+     *
+     * @var array<string, string>
+     */
+    private const GUEST_ROLE_TERMS = [
+        'es' => '/hu[eé]spd/iu',
+        'fr' => '/invit/iu',
+        'de' => '/gast/iu',
+        'it' => '/ospit/iu',
+        'pt-br' => '/h[oó]sped/iu',
+        'ja' => '/ゲスト/u',
+    ];
+
     /** @var array<string, array<string, string>> locale => catalog, lazily loaded */
     private array $catalogs = [];
 
@@ -173,6 +207,36 @@ final class LocaleCatalogsTest extends TestCase
             "$locale: duplicate key literal in file"
         );
         self::assertCount(count($this->catalog($locale)), $matches[1], "$locale: parsed key count != array count");
+    }
+
+    /**
+     * Both-directions host/guest semantic guard derived from en.php:
+     * (1) every value whose English says "host" must carry that locale's
+     * host term; (2) a locale's guest term may only appear where the
+     * English value itself says "guest".
+     */
+    #[DataProvider('localeRows')]
+    public function testHostRoleStringsSayHostAndNeverTheGuestTerm(string $locale): void
+    {
+        foreach ($this->catalog('en') as $key => $enValue) {
+            $value = $this->catalog($locale)[$key];
+
+            if (preg_match('/\bhost\b/i', $enValue) === 1) {
+                self::assertMatchesRegularExpression(
+                    self::HOST_ROLE_TERMS[$locale],
+                    $value,
+                    "$locale: $key inverts the host role (expected host term)"
+                );
+            }
+
+            if (preg_match('/\bguest\b/i', $enValue) !== 1) {
+                self::assertDoesNotMatchRegularExpression(
+                    self::GUEST_ROLE_TERMS[$locale],
+                    $value,
+                    "$locale: $key uses a guest term where English says no guest"
+                );
+            }
+        }
     }
 
     // ---- loader integration -------------------------------------------
