@@ -5,6 +5,50 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — detail loading frame shows the translated hint, not the raw catalog key (fix campaign C24) — 2026-10-29
+
+- **What.** While a detail page loaded, the status bar rendered the literal
+  string `detail.loading_hint` instead of the translated hint (`Esc  back`
+  and its six mirrors). The loading branch of `DetailScreen::view()` passed
+  `self::LOADING_HINT_KEY` straight to `Chrome::frame()`, which renders its
+  hint argument verbatim — while the adjacent error and loaded branches
+  correctly translate their hint keys through `Lang::t()`. The key itself
+  was present and correct in all seven locale catalogs, so the parity
+  checker could never see this; only the call site was wrong.
+- **Cure.** `Lang::t(self::LOADING_HINT_KEY)` at the loading frame
+  (`DetailScreen.php:392`), matching the protocol of both sibling frames.
+  Census of every other `Chrome::frame()` hint site in the repo: all pass
+  either `Lang::t(...)` results or literal display strings — no sibling of
+  this raw-key mechanism remains.
+- **Guard.** `tests/Screen/DetailScreenTest.php` gains two tests: the
+  not-yet-loaded `view()` must contain the English hint text and must NOT
+  contain the raw `detail.loading_hint` key (red pre-fix, verified against
+  the rendered frame dump), and the key must exist in every locale catalog
+  as a non-empty, non-key-shaped string (presence pin complementing
+  `LocaleCatalogsTest`'s parity law). Suite 2988 → 2990 tests / 13694 →
+  13733 assertions, zero failures.
+
+### Changed — token-file name in the docs matches the file the code writes (fix campaign C25) — 2026-10-29
+
+- **What.** Three doc sites named the auth token file `tokens.json` (plural)
+  while `TokenStore::default()` persists `token.json` (singular): the
+  config-directory table and the expired-session troubleshooting step in
+  `docs/clients/console.md`, and the `TokenStore` section of
+  `docs/dev/client-console.md`. The critical one was the troubleshooting
+  step — a user with a dead session followed it, deleted a file that does
+  not exist, and the re-auth silently did nothing.
+- **Cure.** Docs follow code: all three sites now say `token.json`, the
+  config table notes the file is keyed by server id, and the dev doc mirrors
+  the actual legacy-format migration behavior (flat bundles are migrated
+  under the `legacy` server id on load).
+- **Guard.** `tests/Docs/TokenFileNameDocsTest.php` derives the real
+  filename from `TokenStore::default()` under an isolated `XDG_CONFIG_HOME`
+  (pure path building; the real config is never touched) and pins every doc
+  that names the token file to it — wrong spelling red, doc moved red, and a
+  future code rename red with a message directing docs+pin to update
+  together. Mutation-proven: re-introducing the plural reddens exactly one
+  test.
+
 ### Fixed — server-sourced text is sanitized for terminal injection at the parse boundary (fix campaign C22) — 2026-10-29
 
 - **What.** ESC/CSI/OSC/DEL/C1 control sequences arriving inside

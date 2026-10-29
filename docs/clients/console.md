@@ -105,7 +105,7 @@ Within that directory:
 | File | Purpose |
 | --- | --- |
 | `config.json` | Server URL, theme, render mode preferences |
-| `tokens.json` | Auth tokens (access + refresh) |
+| `token.json` | Auth tokens (access + refresh, keyed by server id) |
 | `posters/` | Poster image cache (tiled per render mode) |
 
 #### Server entries (`config.json` → `servers[]`)
@@ -280,7 +280,7 @@ bin/phlix run --mode=halfblock
 
 ### Token expired / session expired
 
-Delete `~/.config/phlix/tokens.json` and run `bin/phlix run` to re-authenticate.
+Delete `~/.config/phlix/token.json` and run `bin/phlix run` to re-authenticate.
 
 ### Slow poster loading
 

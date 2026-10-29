@@ -162,7 +162,9 @@ App configuration. Persisted to `~/.config/phlix/config.json`.
 
 ### `TokenStore` (`src/Config/TokenStore.php`)
 
-File-based token persistence. Reads/writes `tokens.json`.
+File-based token persistence. Reads/writes `token.json`, keyed by server id;
+bundles found in the legacy flat single-token format are migrated under the
+`legacy` server id on load.
 
 ### `PosterLoader` (`src/Media/PosterLoader.php`)
 
