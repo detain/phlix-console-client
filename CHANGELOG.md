@@ -5,6 +5,73 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — the dev guide's "Adding a Screen" recipe rewritten to the shipped screen architecture (review console__docmaint, M-CONSOLE-17) — 2026-10-29
+
+- **The defect.** `docs/dev/client-console.md` contradicted HEAD at eight
+  points and the recipe could not compile: a `HomeScreen.php` tree entry
+  (no such file — the home screen is `BrowseScreen.php`: poster rails +
+  sidebar, Tab/Shift-Tab focus per its own docblock); `Loadable` described
+  (and `use`-d in the example) as a trait — it is an interface extending
+  `Model` declaring `isLoading()`, with no `load()` hook called anywhere; a
+  `ThemedScreen` "Base for all screens" table row — it is the trait that
+  implements the `Themed` interface; `App::boot(...): ?App` six params when
+  src/App.php:280-288 takes seven (`?\Closure $audioFactory = null`) and
+  returns `self`; registration into a `$messageHandlers` array in `boot()`
+  — that mechanism never existed; real routing is the App-private
+  `dispatch()` (App.php:341) plus `push(Route…)` openers; Step 3/4 told
+  screens to call `$this->dispatch(...)` — private to the App, unreachable;
+  `tests/phpunit/` — the suite is flat `tests/` (phpunit.xml.dist);
+  `composer phpcs` — the scripts are `cs`/`cs:fix`.
+- **Cure.** Docs-truth pass re-verified every named class, method, file and
+  step against HEAD. The worked example now implements the real contract
+  (`init(): \Closure`, `update(Msg): [self, ?\Closure]`, `view(): string`,
+  `Cmd::promise` resolving to a Msg, `Chrome::frame($title, $body, $hint,
+  $cols, $rows, $trail, $theme)`) and is modeled on `StatsScreen` with the
+  grid/shimmer variant pointed at `BooksScreen`; Step 2 registers a `Route`
+  enum case + one `instanceof` arm in `dispatch()` + a private `open*()`
+  that pushes the frame and runs `init()`; Step 3 emits navigation via
+  `Cmd::send(...)` returned from a screen; Step 4 splits global keys (App)
+  from screen keys (`$msg->rune` / `SugarCraft\Core\KeyType`). Secondary
+  truths fixed in the same file: the `Route.php` tree line (was "screen →
+  URL mapping"), the diagram's "Routes Msg::* messages to Screen handlers"
+  box, the `app->run()` phantom (the loop is sugar-core `Program`: bin/phlix
+  :721-728), the `Config` key fields (real readonly props `servers`,
+  `activeServerId`, `theme`, `slideshowInterval`; `serverUrl`/`renderMode`
+  never existed as properties), the `Coerce::str(...) ?? ''` fiction
+  (`str()` returns non-null `string`), the phantom `PHLIX_DEBUG` env var
+  (replaced by the shipped six-var `PHLIX_*` census), and the counts
+  (79 screen files, 23 admin screens).
+- **Disposition vs review M4.** Seven of the eight enumerated points fixed
+  as above. The eighth (":112 tree `SugarCraft/` — no such directory") is a
+  FALSE POSITIVE: `src/SugarCraft/Screen/` exists and carries the local
+  `Breadcrumbed.php` + `Themed.php` wrappers; the tree entry stays. The
+  frame-diff claim ("App diffs against the previous frame") verified TRUE
+  (sugar-core `Program.php:1423` line-diff repaint) and is kept, tightened
+  to name `Program::renderFrame`.
+- **Pinned.** New `tests/Docs/ScreenGuideDocsTest.php` (9 tests,
+  tests/Docs venue): `App::boot()` and `Chrome::frame()` signatures
+  re-derived by reflection and pinned verbatim into the guide; the ten-row
+  screen-contract table must match `interface_exists`/`trait_exists` verdicts;
+  every `*.php` token the guide names must exist under `src/` (the recipe's
+  own example files allow-listed; `HomeScreen` regression-pinned forbidden);
+  navigation truth — `dispatch()`/`push()` stay private, zero
+  `$this->dispatch(` in `src/Screen/`, `$messageHandlers` forbidden;
+  composer script keys, the flat `tests/` suite directory, and the
+  `PHLIX_*` census pinned against the guide; and every complete PHP block
+  in the guide is syntax-linted with the running binary (minimum-4
+  non-vacuity assertion) so "the recipe cannot compile" is now structurally
+  impossible for this document.
+- **Measured at HEAD.** Suite 3141 → 3150 tests (+9 exact), assertions
+  16584 → 16824 (+240 exact), skips 9 → 9, exit 0 (the "but there were
+  issues" 13 PHPUnit deprecations are pre-existing venue state — identical
+  on the sibling `TokenFileNameDocsTest` filter run). phpstan (tests config)
+  [OK]; the src phpstan leg is UNCHANGED — its single error
+  (`AdminClient::alternatePosters()` return.type) is the pre-existing red the
+  M-CONSOLE-19 entry above records with the CI-greening lane owed; this lane
+  touched no `src/` file. phpcs exit 0 under both CI standards and bare
+  PSR-12 on the new test file (0 errors, 0 warnings after reflow). i18n:
+  `resources/lang/` untouched (zero catalog writes — no en.php scope).
+
 ### Fixed — docs/upgrade/v1.md method cites and CLI compatibility claims match the shipped truth (review console__docmaint, M-CONSOLE-19) — 2026-10-29
 
 - **The defect.** The guide told readers migrating off the `exists()` change to
