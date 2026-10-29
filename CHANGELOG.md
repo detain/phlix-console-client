@@ -42,7 +42,10 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   ApiClient sanitizer reddens it (the vacuous version passed). Boundary
   probes: reverting the `handleError` sanitize reddens exactly its 2 tests;
   restoring the direct-ctor bypass reddens exactly the parity test. Full
-  suite 2991→2994 tests (+3 exact), 13717 assertions; phpstan error count
+  suite 2993→2996 tests / 13738→13756 assertions (+3 tests / +18 assertions
+  exact over the clean `a96ae71` baseline — the figures first printed here,
+  2991→2994 / 13717, were measured against a pre-C24/C25 sibling baseline
+  and restated to the re-verified tip truth); phpstan error count
   unchanged (1 pre-existing in `AdminClient::alternatePosters()`), phpstan
   tests corpus `[OK]`, phpcs PSR12 on the changed files 0 errors (the one
   remaining warning is a pre-existing untouched line shifted by the import),
