@@ -45,6 +45,7 @@ use Phlix\Console\Api\Dto\Admin\WatchHistoryEntry;
 use Phlix\Console\Api\Dto\Coerce;
 use Phlix\Console\Api\Dto\Library;
 use React\Promise\PromiseInterface;
+use SugarCraft\Core\Util\Sanitize;
 
 use function React\Promise\all;
 
@@ -2759,7 +2760,7 @@ final class AdminClient
         if ($e instanceof ApiError && !$e instanceof AuthError) {
             $message = $e->body['message'] ?? $e->body['error'] ?? null;
             if (is_string($message) && $message !== '') {
-                throw new ApiError($message, $e->statusCode, $e->body, $e);
+                throw new ApiError(Sanitize::untrustedForDisplay($message), $e->statusCode, $e->body, $e);
             }
         }
 

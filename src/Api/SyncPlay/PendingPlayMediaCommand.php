@@ -14,8 +14,9 @@ namespace Phlix\Console\Api\SyncPlay;
  * emitted by the hub's `PendingCommandDispatcher`).
  *
  * Parsed at the boundary by {@see HubRelayConsumer::parsePendingCommandFrame()}:
- * every field here is already validated, so consumers can trust it without
- * re-checking. `issuedAt` is Unix seconds.
+ * every field here is already validated — and terminal-control-free (the
+ * string fields are sanitized by the parser), so consumers can trust it
+ * without re-checking. `issuedAt` is Unix seconds.
  */
 final readonly class PendingPlayMediaCommand
 {

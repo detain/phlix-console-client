@@ -9,6 +9,8 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Api\Dto;
 
+use SugarCraft\Core\Util\Sanitize;
+
 /**
  * Defensive coercion helpers for mapping loosely-typed server JSON into
  * strict readonly DTOs.
@@ -18,24 +20,39 @@ namespace Phlix\Console\Api\Dto;
  * plain strings or `{name: ...}` objects. These helpers normalise all of that
  * so a DTO constructor always receives the declared type.
  *
+ * String fields additionally pass the terminal-injection boundary: server-
+ * sourced text is run through {@see Sanitize::untrustedForDisplay()} (ESC/CSI/
+ * OSC sequences, raw and UTF-8-encoded C1, DEL, stray C0; CR mapped to LF) so
+ * a hostile media title, room name, or genre can never paint control sequences
+ * into the frame-diff renderer, an overlay, or a toast. Downstream code is
+ * trusted text by construction — the app's OWN styling is applied after this
+ * point, never inside server values.
+ *
  * @internal
  */
 final class Coerce
 {
-    /** Coerce a scalar to a string, falling back to $default for non-scalars. */
+    /**
+     * Coerce a scalar to a sanitized display string, falling back to $default
+     * for non-scalars (the default is app-authored text, trusted as-is).
+     */
     public static function str(mixed $value, string $default = ''): string
     {
-        return is_scalar($value) ? (string) $value : $default;
+        return is_scalar($value) ? Sanitize::untrustedForDisplay((string) $value) : $default;
     }
 
-    /** Coerce to a non-empty string, or null when absent/empty/non-scalar. */
+    /**
+     * Coerce to a non-empty sanitized string, or null when absent/empty/
+     * non-scalar — including text that neutralises to nothing (a pure control
+     * payload is absent text, not hostile text).
+     */
     public static function nstr(mixed $value): ?string
     {
         if ($value === null || $value === '' || !is_scalar($value)) {
             return null;
         }
 
-        $string = (string) $value;
+        $string = Sanitize::untrustedForDisplay((string) $value);
 
         return $string === '' ? null : $string;
     }

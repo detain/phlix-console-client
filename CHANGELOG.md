@@ -5,6 +5,41 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — server-sourced text is sanitized for terminal injection at the parse boundary (fix campaign C22) — 2026-10-29
+
+- **What.** ESC/CSI/OSC/DEL/C1 control sequences arriving inside
+  server-/hub-controlled strings (media titles, SyncPlay room names,
+  `success:false` error text, hub-relay `play_media` frame titles) reached the
+  render surface and the `bin/phlix watch` stdout unsanitized. The framework
+  documents the outcome (`SugarCraft\Core\Util\Sanitize`): a raw ESC desyncs
+  the frame-diff renderer's line model, `\x1b[2J` erases regions mid-diff, OSC
+  `\x1b]0;…\x07` re-titles the operator's window, and `Width::truncateAnsi`
+  passes CSI sequences through untouched.
+- **Cure.** Sanitize where server text is PARSED, never as a global output
+  filter (the app's own styling still emits its intentional escapes):
+  `Coerce::str()`/`Coerce::nstr()` — the choke point behind every DTO string
+  field — now run `Sanitize::untrustedForDisplay()` (strips 7-bit and 8-bit
+  escape sequences, raw + UTF-8-encoded C1, DEL, stray C0; folds CR to LF;
+  values that neutralise to empty become absent), which makes the
+  `Chrome::frame` header, `SyncPlayOverlay`, `NowPlayingBar`, and every toast
+  fed by DTO text inert by construction. The same policy guards the
+  `ApiError`/`AuthError` message extraction in `ApiClient::decode()`, the
+  register-pending message, `AdminClient::reThrowFriendly()`, and all four
+  string fields of `PendingPlayMediaCommand` at
+  `HubRelayConsumer::parsePendingCommandFrame()` — the boundary that feeds both
+  the TUI and `bin/phlix watch`'s raw `fwrite(STDOUT, …)`.
+- **Proof.** `tests/Api/ServerTextControlInjectionTest` (12 tests, 36
+  assertions): one hostile payload covering SGR, OSC, `CSI 2J`, BEL, DEL, NUL
+  and both C1 spellings fed through Coerce (incl. `stringList`),
+  `MediaItem`→`Chrome::frame`, `SyncPlayGroup`→`SyncPlayOverlay`, the decode
+  error envelope, `reThrowFriendly`, and a relay frame — each boundary asserted
+  terminal-inert with the visible payload preserved, plus a byte-identical
+  no-op pin for legitimate multibyte/emoji text. Red before the fix (10 of 12
+  failed), green after; full suite 2973→2985 tests (+12 exact), phpstan error
+  count unchanged (1 pre-existing in `AdminClient::alternatePosters()`),
+  phpcs src/tests/PSR12 all exit 0, i18n checks green. Historical entries
+  above left verbatim.
+
 ### Changed — install docs re-anchored to the download paths that actually work (fix campaign C18) — 2026-10-29
 
 - **What.** `README.md` and `docs/clients/console.md` advertised the PHAR

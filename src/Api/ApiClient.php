@@ -46,6 +46,7 @@ use Phlix\Console\Config\TokenBundle;
 use Psr\Http\Message\ResponseInterface;
 use React\Promise\Deferred;
 use React\Promise\PromiseInterface;
+use SugarCraft\Core\Util\Sanitize;
 
 use function React\Promise\reject;
 
@@ -147,7 +148,9 @@ final class ApiClient
             // can display the appropriate pending-approval message.
             if (($data['status'] ?? null) === 'pending') {
                 throw new ApiError(
-                    is_string($data['message'] ?? null) ? $data['message'] : 'Your account is pending approval.',
+                    is_string($data['message'] ?? null)
+                        ? Sanitize::untrustedForDisplay($data['message'])
+                        : 'Your account is pending approval.',
                     202,
                     $data,
                 );
@@ -1419,9 +1422,9 @@ final class ApiClient
             if (array_key_exists('success', $data)) {
                 if ($data['success'] === false) {
                     $message = isset($data['message']) && is_string($data['message'])
-                        ? $data['message']
+                        ? Sanitize::untrustedForDisplay($data['message'])
                         : (isset($data['error']) && is_string($data['error'])
-                            ? $data['error']
+                            ? Sanitize::untrustedForDisplay($data['error'])
                             : 'Request failed');
                     throw new ApiError($message, $status, $data);
                 }
@@ -1434,7 +1437,7 @@ final class ApiClient
         }
 
         $message = isset($data['error']) && is_string($data['error'])
-            ? $data['error']
+            ? Sanitize::untrustedForDisplay($data['error'])
             : "Request failed (HTTP {$status})";
 
         if ($status === 401) {

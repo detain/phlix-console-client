@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace Phlix\Console\Api\SyncPlay;
 
 use JsonException;
+use SugarCraft\Core\Util\Sanitize;
 use Throwable;
 use Workerman\Connection\AsyncTcpConnection;
 use Workerman\Timer;
@@ -266,11 +267,16 @@ final class HubRelayConsumer
         $source = $frame['source'] ?? null;
 
         return new PendingPlayMediaCommand(
-            serverId: $serverId,
-            mediaId: $mediaId,
-            title: $title,
+            // Sanitized at the parse boundary: the TUI renders `title` and the
+            // `bin/phlix watch` command fwrites these fields to raw stdout, so
+            // an injected ESC/OSC in a hub frame must be inert in both sinks.
+            serverId: Sanitize::untrustedForDisplay($serverId),
+            mediaId: Sanitize::untrustedForDisplay($mediaId),
+            title: Sanitize::untrustedForDisplay($title),
             issuedAt: $issuedAt,
-            source: is_string($source) && $source !== '' ? $source : 'unknown',
+            source: is_string($source) && $source !== ''
+                ? Sanitize::untrustedForDisplay($source)
+                : 'unknown',
         );
     }
 
