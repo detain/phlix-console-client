@@ -14,13 +14,22 @@ protocols, each with different capabilities and terminal support.
 
 ## How It Works
 
-1. **Poster rendering** — A source image (poster) is decoded into an `RgbFrame`
-   containing a cell-grid of RGB pixels.
-2. **Protocol encoding** — Each graphics protocol (`SixelDecoder`,
-   `Iterm2Decoder`, `KittyDecoder`) encodes the `RgbFrame` into its native
-   terminal escape sequence format.
-3. **Cell modes** — For ANSI-based modes (HalfBlock, QuarterBlock, ASCII,
-   ANSI256, TrueColor), the frame is rendered as colored block characters.
+1. **Image source** — A poster arrives as a sugar-image `ImageSource`.
+   `Phlix\Console\Media\MosaicFactory` maps the chosen render mode to a
+   `SugarCraft\Image\Mosaic` backend, and `Phlix\Console\Media\PosterLoader`
+   fetches, renders and disk-caches each poster through that mosaic in one
+   upstream call.
+2. **Protocol encoding** — `Mosaic::render()` emits the backend's native
+   terminal output: `SixelRenderer`, `Iterm2Renderer` and `KittyRenderer`
+   produce escape-sequence blobs for the graphics protocols, while the
+   cell-based renderers (`HalfBlockRenderer`, `QuarterBlockRenderer`,
+   `AsciiRenderer` — ANSI256 and TrueColor are tinted ASCII ramps) produce
+   colored characters, one terminal line per cell row.
+3. **Overlay vs inline** — Graphics-protocol output is an opaque blob
+   (`Mosaic::isInline()` is false), so `PosterLoader` hands it to
+   sugar-image's `ImageLayer`: the text layout reserves marker blocks and
+   the runtime paints the real bytes on top. Cell-mode output is inline
+   text that composes directly into rails and grids.
 
 ## Protocol Details
 
@@ -70,42 +79,42 @@ ESC [ G ... ESC \
 
 ```
                       ┌─────────────────────────────┐
-                      │      PlayerScreen            │
-                      │  (orchestrates rendering)  │
+                      │         PlayerScreen         │
+                      │   (orchestrates rendering)   │
                       └──────────────┬──────────────┘
-                                     │
-                    ┌────────────────┼────────────────┐
-                    ▼                ▼                ▼
-            ┌──────────┐   ┌──────────────┐   ┌──────────┐
-            │SixelDeco │   │Iterm2Deco    │   │KittyDeco │
-            │der       │   │der          │   │der       │
-            └────┬─────┘   └──────┬───────┘   └────┬─────┘
-                 │                │               │
-                 └────────────────┼───────────────┘
-                                  ▼
-                    ┌─────────────────────────────┐
-                    │      RgbFrame               │
-                    │  (cell grid of RGB pixels) │
-                    └─────────────────────────────┘
+                                     │ render mode
+                      ┌──────────────▼──────────────┐
+                      │         MosaicFactory        │
+                      │  (mode → backend policy)     │
+                      └──────────────┬──────────────┘
+                                     │ builds
+                      ┌──────────────▼──────────────┐
+                      │   SugarCraft\Image\Mosaic    │
+                      │ ImageSource → terminal bytes │
+                      └──────────────┬──────────────┘
+                                     │ encodes through
+        ┌──────────────┬─────────────┼─────────────┬───────────────┐
+        ▼              ▼             ▼             ▼               ▼
+   SixelRenderer  Iterm2Renderer  KittyRenderer  HalfBlock /     AsciiRenderer
+                                             QuarterBlock     (ANSI256/TrueColor
+                                             Renderer           are tinted ramps)
 ```
 
 ## Testing
 
-Graphics decoders are tested via test doubles in `tests/Graphics/`:
+Graphics output is tested against the protocol bytes a terminal would
+actually receive. The earlier hand-made "decoder" doubles were removed as
+theater — they replayed canned frames and proved nothing about the wire
+format:
 
-- `SixelDecoder` — Test double for SIXEL protocol decoding
-- `Iterm2Decoder` — Test double for iTerm2 inline image decoding
-- `KittyDecoder` — Test double for Kitty protocol decoding
-
-Each decoder implements `SugarCraft\Video\Decode\Decoder` and is tested for:
-
-1. Opening with correct cell dimensions
-2. Yielding RgbFrame objects
-3. Proper close/reopen lifecycle
-4. Null return after all frames exhausted
-
-`PosterRenderTest` tests the full rendering pipeline from image source
-to terminal output for each protocol/mode combination.
+- `tests/Graphics/PosterGraphicsStreamTest.php` renders real poster mosaics
+  for each graphics mode (`sixel`, `kitty`, `iterm2`) and decodes the
+  emitted escape sequences with sugar-testing's protocol streams
+  (`SixelStream`, `KittyStream`, `Iterm2Stream`), proving the bytes are
+  well-formed, speak the requested protocol, and carry the intended raster
+  and cell geometry.
+- `tests/Ui/PosterRenderTest.php` covers the full pipeline — MediaItem →
+  PosterCard → PosterLoader → Mosaic — for each protocol/mode combination.
 
 ## Fallback Strategy
 

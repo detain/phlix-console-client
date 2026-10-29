@@ -1,0 +1,327 @@
+<?php
+
+/**
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ * @license   MIT
+ */
+
+declare(strict_types=1);
+
+namespace Phlix\Console\Tests\Docs;
+
+use PHPUnit\Framework\TestCase;
+use RecursiveDirectoryIterator;
+use RecursiveIteratorIterator;
+use RuntimeException;
+use SplFileInfo;
+use SugarCraft\Testing\Graphics\Mode;
+
+/**
+ * Guard against the M-CONSOLE-49 class (review console__writer): the graphics
+ * doc described hand-made `SixelDecoder`/`Iterm2Decoder`/`KittyDecoder` test
+ * doubles in present tense — classes the suite had already deleted as theater
+ * (their own successor, PosterGraphicsStreamTest, says so in its header), and
+ * presented them as the poster ENCODERS, a pipeline that in reality runs
+ * MosaicFactory → sugar-image Mosaic → the protocol/cell renderers.
+ *
+ * Doctrine, per TokenFileNameDocsTest and ConfigVocabularyDocsTest: real state
+ * is DERIVED from the code at runtime, never restated from prose. Five laws:
+ *
+ * 1. README and docs/** name none of the retired decoder doubles. A doc
+ *    re-advertising them reddens here until the prose AND this pin move again.
+ * 2. src/, bin/ and tests/ carry none of those class names either (this file
+ *    excepted — it must name them to forbid them). Re-introducing real doubles
+ *    is allowed only together with a deliberate rewrite of the doc and both pins.
+ * 3. The modes the graphics suite actually covers are derived by CALLING
+ *    PosterGraphicsStreamTest's own data provider; for every yielded protocol
+ *    the doc must name the matching sugar-testing `<Name>Stream` and that class
+ *    must exist. A new provider mode with no doc coverage reddens here.
+ * 4. Every backticked `tests/...php` path the doc cites exists on disk.
+ * 5. Every encoder/renderer class the doc names on code terms (backticked
+ *    short name) exists via the autoloader — a vendor rename reddens here and
+ *    sends the doc and this list to move together.
+ *
+ * Historical CHANGELOG entries are exempt forever (history is verbatim); the
+ * doc sweep deliberately never reads it.
+ */
+final class TerminalGraphicsDocsTest extends TestCase
+{
+    private const GRAPHICS_DOC = 'docs/terminal-graphics.md';
+
+    /**
+     * The retired test doubles (and fossil encoder identities) the doc must
+     * never re-advertise.
+     *
+     * @var list<string>
+     */
+    private const DEAD_DOUBLES = ['SixelDecoder', 'Iterm2Decoder', 'KittyDecoder'];
+
+    /**
+     * Classes the cured doc cites for the real pipeline: short name => FQCN.
+     *
+     * @var array<string, string>
+     */
+    private const CITED_CLASSES = [
+        'MosaicFactory' => 'Phlix\\Console\\Media\\MosaicFactory',
+        'PosterLoader' => 'Phlix\\Console\\Media\\PosterLoader',
+        'Capabilities' => 'Phlix\\Console\\Capabilities',
+        'Mosaic' => 'SugarCraft\\Image\\Mosaic',
+        'ImageSource' => 'SugarCraft\\Image\\ImageSource',
+        'ImageLayer' => 'SugarCraft\\Image\\ImageLayer',
+        'SixelRenderer' => 'SugarCraft\\Image\\Renderer\\SixelRenderer',
+        'Iterm2Renderer' => 'SugarCraft\\Image\\Renderer\\Iterm2Renderer',
+        'KittyRenderer' => 'SugarCraft\\Image\\Renderer\\KittyRenderer',
+        'HalfBlockRenderer' => 'SugarCraft\\Image\\Renderer\\HalfBlockRenderer',
+        'QuarterBlockRenderer' => 'SugarCraft\\Image\\Renderer\\QuarterBlockRenderer',
+        'AsciiRenderer' => 'SugarCraft\\Image\\Renderer\\AsciiRenderer',
+    ];
+
+    public function testNoDocAdvertisesTheRetiredDecoderDoubles(): void
+    {
+        $hits = self::findDeadNames(self::proseFiles());
+
+        self::assertSame(
+            [],
+            $hits,
+            'README/docs name the retired graphics decoder doubles (review M-CONSOLE-49). '
+            . 'The doubles were deleted as theater; describe the real harness '
+            . '(PosterGraphicsStreamTest + sugar-testing protocol streams) instead: '
+            . self::describe($hits)
+        );
+    }
+
+    public function testCodeCarriesNoRetiredDecoderDoubles(): void
+    {
+        $hits = self::findDeadNames(self::codeFiles());
+
+        self::assertSame(
+            [],
+            $hits,
+            'the repo re-introduced the retired decoder double names in code (review M-CONSOLE-49). '
+            . 'If real doubles for the graphics protocols are back deliberately, the doc, its '
+            . 'Testing section, and DEAD_DOUBLES here must all move together: '
+            . self::describe($hits)
+        );
+    }
+
+    public function testDocNamesAStreamDecoderForEachCoveredGraphicsMode(): void
+    {
+        // Derive coverage from the suite's own provider — never from prose.
+        $covered = [];
+        foreach (self::streamTestProvider() as $label => $arguments) {
+            $protocol = is_array($arguments) ? ($arguments[1] ?? null) : null;
+            if (!$protocol instanceof Mode) {
+                throw new RuntimeException(
+                    'PosterGraphicsStreamTest row ' . $label . ' no longer yields a Mode as '
+                    . 'its second provider argument — law 3 derives from that shape; inspect the provider.'
+                );
+            }
+
+            $covered[$protocol->name] = true;
+        }
+
+        self::assertNotEmpty(
+            $covered,
+            'PosterGraphicsStreamTest yields no graphics protocols any more — the provider '
+            . 'shape moved and this pin cannot derive coverage; update it deliberately.'
+        );
+
+        $doc = self::readRepoFile(self::GRAPHICS_DOC);
+
+        foreach (array_keys($covered) as $caseName) {
+            $fqcn = 'SugarCraft\\Testing\\Graphics\\' . $caseName . 'Stream';
+            self::assertTrue(
+                class_exists($fqcn),
+                $fqcn . ' (derived from the provider\'s ' . $caseName . ' case) no longer exists; '
+                . 'the doc Testing section and this pin need a deliberate update.'
+            );
+            self::assertMatchesRegularExpression(
+                '/\b' . preg_quote($caseName, '/') . 'Stream\b/',
+                $doc,
+                'the graphics suite covers ' . $caseName . ' but ' . self::GRAPHICS_DOC
+                . ' no longer names the ' . $caseName . 'Stream decoder that proves it.'
+            );
+        }
+    }
+
+    public function testEveryTestFileCitedByTheDocExists(): void
+    {
+        $doc = self::readRepoFile(self::GRAPHICS_DOC);
+
+        $ok = preg_match_all('/`(tests\/[^`\s]+\.php)`/', $doc, $matches);
+        if (!$ok || !isset($matches[1]) || $matches[1] === []) {
+            throw new RuntimeException(
+                self::GRAPHICS_DOC . ' cites no `tests/...php` path — the Testing section lost '
+                . 'its anchors; this pin refuses to pass vacuously.'
+            );
+        }
+
+        foreach (array_unique($matches[1]) as $relative) {
+            self::assertFileExists(
+                self::repoRoot() . '/' . $relative,
+                self::GRAPHICS_DOC . ' cites ' . $relative . ' which no longer exists on disk.'
+            );
+        }
+    }
+
+    public function testEncoderClassesTheDocNamesStillExist(): void
+    {
+        $doc = self::readRepoFile(self::GRAPHICS_DOC);
+
+        foreach (self::CITED_CLASSES as $shortName => $fqcn) {
+            self::assertTrue(
+                class_exists($fqcn),
+                $fqcn . ' was renamed or removed; ' . self::GRAPHICS_DOC
+                . ' and CITED_CLASSES here must follow together.'
+            );
+            self::assertMatchesRegularExpression(
+                '/\b' . preg_quote($shortName, '/') . '\b/',
+                $doc,
+                self::GRAPHICS_DOC . ' no longer names ' . $shortName
+                . ' — keep the encoder prose on code terms with the real pipeline.'
+            );
+        }
+    }
+
+    /**
+     * The provider lives in the graphics suite; call it through a tiny probe
+     * so this file stays the only place allowed to spell the dead names.
+     */
+    private static function streamTestProvider(): iterable
+    {
+        $class = 'Phlix\\Console\\Tests\\Graphics\\PosterGraphicsStreamTest';
+        if (!class_exists($class)) {
+            throw new RuntimeException($class . ' vanished; law 3 of ' . self::class . ' derives from it.');
+        }
+
+        return $class::graphicsModeProvider();
+    }
+
+    /**
+     * Prose side: README.md plus every .md under docs/ (CHANGELOG.md is
+     * deliberately unreachable here — history stays verbatim).
+     *
+     * @return array<string, string>
+     */
+    private static function proseFiles(): array
+    {
+        $files = ['README.md' => self::readRepoFile('README.md')];
+        foreach (self::scannedFiles(['docs'], ['md']) as $relative => $text) {
+            $files[$relative] = $text;
+        }
+
+        return $files;
+    }
+
+    /**
+     * Code side: src/, bin/, tests/ — with this guard file excepted, since it
+     * must name the dead classes to forbid them.
+     *
+     * @return array<string, string>
+     */
+    private static function codeFiles(): array
+    {
+        $files = [];
+        $self = 'tests/Docs/' . basename(__FILE__);
+        foreach (self::scannedFiles(['src', 'bin', 'tests'], ['php', '']) as $relative => $text) {
+            if ($relative === $self) {
+                continue;
+            }
+
+            $files[$relative] = $text;
+        }
+
+        return $files;
+    }
+
+    /**
+     * @param list<string> $dirs
+     * @param list<string> $extensions empty-string extension admits extensionless bin/phlix
+     * @return array<string, string>
+     */
+    private static function scannedFiles(array $dirs, array $extensions): array
+    {
+        $root = self::repoRoot();
+        $files = [];
+
+        foreach ($dirs as $dir) {
+            $absolute = $root . '/' . $dir;
+            if (!is_dir($absolute)) {
+                throw new RuntimeException($dir . '/ disappeared; update ' . self::class . '.');
+            }
+
+            $iterator = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($absolute, RecursiveDirectoryIterator::SKIP_DOTS)
+            );
+
+            /** @var SplFileInfo $info */
+            foreach ($iterator as $info) {
+                if (!$info->isFile()) {
+                    continue;
+                }
+
+                if (!in_array($info->getExtension(), $extensions, true)) {
+                    continue;
+                }
+
+                $relative = ltrim(str_replace($root, '', $info->getPathname()), '/');
+                $contents = file_get_contents($info->getPathname());
+                if ($contents === false) {
+                    throw new RuntimeException('could not read ' . $relative);
+                }
+
+                $files[$relative] = $contents;
+            }
+        }
+
+        return $files;
+    }
+
+    /**
+     * @param array<string, string> $files
+     * @return list<string> "file:line" hits for every dead-name occurrence
+     */
+    private static function findDeadNames(array $files): array
+    {
+        $hits = [];
+        foreach ($files as $relative => $text) {
+            foreach (explode("\n", $text) as $number => $line) {
+                foreach (self::DEAD_DOUBLES as $dead) {
+                    if (str_contains($line, $dead)) {
+                        $hits[] = $relative . ':' . ($number + 1) . ' ' . $dead;
+                    }
+                }
+            }
+        }
+
+        return $hits;
+    }
+
+    /**
+     * @param list<string> $hits
+     */
+    private static function describe(array $hits): string
+    {
+        return implode('; ', $hits);
+    }
+
+    private static function readRepoFile(string $relative): string
+    {
+        $path = self::repoRoot() . '/' . $relative;
+        if (!is_file($path)) {
+            throw new RuntimeException($relative . ' moved or was deleted; update ' . self::class . '.');
+        }
+
+        $contents = file_get_contents($path);
+        if ($contents === false) {
+            throw new RuntimeException('could not read ' . $relative);
+        }
+
+        return $contents;
+    }
+
+    private static function repoRoot(): string
+    {
+        return dirname(__DIR__, 2);
+    }
+}

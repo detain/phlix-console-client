@@ -5,6 +5,39 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — terminal-graphics doc to the real pipeline and the real test harness; retired decoder doubles purged from prose with a runtime-derived pin (review console__writer, M-CONSOLE-49) — 2026-10-29
+
+- **The defect.** `docs/terminal-graphics.md` still narrated a removed
+  architecture in present tense: the Testing section advertised test
+  doubles `SixelDecoder`/`Iterm2Decoder`/`KittyDecoder` living in
+  `tests/Graphics/`, and How-It-Works plus the architecture diagram cast
+  those same ghosts as the poster ENCODERS over an `RgbFrame`. None of
+  those classes exist anywhere in src/ or tests/ (grep: docs only); the
+  suite's own successor (`PosterGraphicsStreamTest`) says in its header
+  that it replaces those hand-made doubles, which "merely implemented
+  the sugar-video Decoder interface over canned frames" — the doubles
+  were the retired strategy, not the current one.
+- **The cure.** The three stale sections were rewritten to executed truth:
+  the encode path is `MosaicFactory` → sugar-image `Mosaic::render()` →
+  `SixelRenderer`/`Iterm2Renderer`/`KittyRenderer` (+ the cell renderers,
+  with ANSI256/TrueColor as tinted ASCII ramps), graphics blobs painted
+  through `ImageLayer` markers; the harness is
+  `tests/Graphics/PosterGraphicsStreamTest.php` (real protocol bytes
+  round-tripped through sugar-testing's `SixelStream`/`KittyStream`/
+  `Iterm2Stream` — measured OK, 10 tests/1,627 assertions) and
+  `tests/Ui/PosterRenderTest.php` (MediaItem → PosterCard → PosterLoader →
+  Mosaic — measured OK, 21 tests/51 assertions). `RgbFrame` remains true
+  only for the video decode path and no longer appears in the doc.
+- **The pin.** `tests/Docs/TerminalGraphicsDocsTest.php` (5 tests, 35
+  assertions): README/docs and src/bin/tests carry none of the retired
+  double names; the covered modes derive at runtime from the stream
+  suite's own data provider and each must be named by its `<Mode>Stream`
+  decoder; every backticked `tests/...php` cite must exist; every
+  encoder class the doc names must autoload. Red-on-parent measured
+  (1 error + 3 failures against the pre-cure doc); mutations planted:
+  re-adding a dead name reddens law 1 alone, swapping `SixelStream` out
+  of the doc reddens law 3 alone, both restored green.
+
 ### Fixed — hardcoded truecolor hexes routed through the Theme palette; a census law keeps the bypass class dead (review console__uxdesign, M-CONSOLE-48) — 2026-10-29
 
 - **The defect.** Four widgets emitted raw 24-bit colour straight into the
