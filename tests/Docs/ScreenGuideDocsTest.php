@@ -49,6 +49,15 @@
  * nine modes, frame five), the guide is pinned verbatim to the rendered
  * lists, and a structural test pins frame's narrower set so the arms and the
  * prose move together.
+ *
+ * Round 4 (M-CONSOLE-26 r2, this commit): testEveryFileNamedInTheGuideExists
+ * widened its registry from src/ alone to src/ + tests/. The static-analysis
+ * cure made the guide name a REAL test file
+ * (tests/Docs/StaticAnalysisClaimsDocsTest.php), which a src-only index can
+ * never resolve; the law is "a file named in the guide must resolve against
+ * the tree," not "…against src/". Fabricated names still fail — nothing
+ * exists for them anywhere — and RECIPE_FICTION stays exactly what its
+ * docblock says: files the recipe tells the reader to CREATE.
  */
 
 declare(strict_types=1);
@@ -268,12 +277,14 @@ final class ScreenGuideDocsTest extends TestCase
     public function testEveryFileNamedInTheGuideExists(): void
     {
         $known = [];
-        $iterator = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator(dirname(__DIR__, 2) . '/src', RecursiveDirectoryIterator::SKIP_DOTS)
-        );
-        foreach ($iterator as $file) {
-            if ($file->isFile() && $file->getExtension() === 'php') {
-                $known[$file->getFilename()] = true;
+        foreach (['src', 'tests'] as $root) {
+            $iterator = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator(dirname(__DIR__, 2) . '/' . $root, RecursiveDirectoryIterator::SKIP_DOTS)
+            );
+            foreach ($iterator as $file) {
+                if ($file->isFile() && $file->getExtension() === 'php') {
+                    $known[$file->getFilename()] = true;
+                }
             }
         }
 
@@ -288,7 +299,7 @@ final class ScreenGuideDocsTest extends TestCase
             self::assertArrayHasKey(
                 $named,
                 $known,
-                self::GUIDE . ' names ' . $named . ' but src/ has no such file — '
+                self::GUIDE . ' names ' . $named . ' but neither src/ nor tests/ has such a file — '
                 . 'the tree or prose must follow the code '
                 . '(or a new worked example joins RECIPE_FICTION).'
             );

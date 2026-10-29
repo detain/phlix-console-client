@@ -505,8 +505,12 @@ self-skip when ffmpeg is unavailable.
 composer phpstan      # or: vendor/bin/phpstan analyse
 ```
 
-PHPStan level 9 (strictest) is enforced in CI for `src/`. No baseline, no
-suppressions. `tests/` is analysed separately via `phpstan-tests.neon`.
+PHPStan level 9 (strictest) is enforced in CI for `src/`. There is no baseline
+file and no `ignoreErrors` in either config; `src/` carries 5 inline
+`property.onlyWritten` suppressions, catalogued with per-site reasons in
+README.md ("Static analysis") and pinned against the tree by
+`tests/Docs/StaticAnalysisClaimsDocsTest.php`. `tests/` is analysed separately
+via `phpstan-tests.neon`.
 
 ### PHP CodeSniffer (PSR-12)
 

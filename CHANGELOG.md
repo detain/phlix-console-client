@@ -5,6 +5,41 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — README static-analysis posture to the measured suppression census; claims pin (review console__docmaint, M-CONSOLE-26) — 2026-10-29
+
+- **The defect.** README.md claimed "**no baseline and no
+  suppressions**: the whole tree is level-9 clean" and
+  `docs/dev/client-console.md` repeated "No baseline, no
+  suppressions." The enforced half is still true — no baseline FILE
+  and no `ignoreErrors` in either config — but `src/` carries
+  **five** inline `@phpstan-ignore-next-line property.onlyWritten`
+  suppressions (three write-only SyncPlayService ingest mirrors,
+  two re-stamped SyncPlayModal dimensions). The queue's "six" was
+  the 60ac303-era count; the sixth died with the admin-server-restart
+  rail at a944cab.
+- **Liveness (mutation, not grep).** Stripping all five ignores moves
+  CI-faithful `phpstan analyse` from the known 1 inherited
+  AdminClient error to exactly 6 — every suppression still fires, so
+  the cure is to document, not delete. The `$onMemberLeft` row
+  discloses the genuine gap (the setter is wired from PlayerScreen
+  yet the service never dispatches it) as an owed code-plane item,
+  not silently fixed under a docs scope.
+- **Cure.** Both doc surfaces reworded to the true posture plus a
+  five-row table (site, field, why). New
+  `tests/Docs/StaticAnalysisClaimsDocsTest` (5 tests / 23 assertions)
+  re-derives the census from the tree — fail-loud on unclassifiable
+  suppression shapes — and pins the README table, stated count,
+  per-site identifiers, the false-phrasing ban, and the config-truth
+  half in both directions. Measured probes: restoring the old README
+  reddened 4 of 5 tests; planting a sixth live-shaped suppression
+  reddened exactly the census and count pins with targeted messages.
+- **r2 registry cure.** `ScreenGuideDocsTest`'s guide-file registry
+  widened from src/ alone to src/ + tests/: the guide's new pointer
+  names a REAL `tests/Docs/` file, which a src-only index could never
+  resolve (full suite reddened 1/3186). The law is "a file named in
+  the guide resolves against the tree"; teeth verified kept — a
+  planted phantom name still reddens the guard.
+
 ### Fixed — Collections/Playlists rows to shipped membership truth; Series/Stats row attribution (review console__enduser, M-CONSOLE-22 round 2) — 2026-10-29
 
 - **The defect.** The r1 review proved the Collections row ("items are
