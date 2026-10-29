@@ -5,6 +5,79 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — the [Unreleased] SugarCraft-rename deferral note contradicted the tree; closed out forward-only (review console__docmaint, M-CONSOLE-15) — 2026-10-29
+
+- **The defect.** The 2026-10-17 "SugarCraft dependency rename (campaign
+  Phase 11.3)" entry still claimed — inside [Unreleased], where prose must
+  be true at HEAD — that "`composer.lock` still pins the OLD package
+  names", with the lock + `build/phlix.phar` regeneration "Deferred to
+  campaign Phase 12 (known red window)". The same day the note was
+  written, `5ba0c6b` ("build: regenerate composer.lock from renamed
+  packagist slugs and rebuild phar") landed: "Lock moves 27 old-name
+  entries to 26 new-name entries; zero candy-/honey- names remain", phar
+  rebuilt 26,829,132 → 28,084,683 bytes. The note was never closed out and
+  still sat in [Unreleased] at tip `230d1a23`.
+- **Cure.** Docs + CHANGELOG only; no history deleted. Per the house
+  forward-only precedent (the 2026-10-02 bridge entry's "superseded by the
+  … entry above" correction), the stale deferral bullet now carries an
+  inline supersession pointer naming `5ba0c6b`, and this entry records the
+  closure. The surrounding Phase 11.3 narrative is untouched.
+- **Measured at HEAD.** `grep -c '"name": "sugarcraft/candy-'
+  composer.lock` = 0; `grep -c '"name": "sugarcraft/sugar-'` = 26;
+  `build/phlix.phar` committed (last rebuilt at `2ee2735`, 8,981,867
+  bytes — the dev-group de-grouping shrank it). No other surface repeats
+  the claim: `grep -rn "still pins" docs/ README.md CHANGELOG.md` names
+  only the now-pointered bullet.
+- **No pin (disclosed).** The repo's `tests/Docs/` doctrine pins README /
+  console.md / build.yml surfaces and never CHANGELOG prose (`grep -rln
+  CHANGELOG tests/ scripts/` = zero hits); a self-referential pin would
+  rot on the next top-prepend. This fix is deliberately prose-truth only.
+- **Gates.** Full suite serial unchanged at 3129 tests / 16566 assertions
+  (worktree-measured on this edit; zero PHP/test files touched → phpstan/
+  phpcs N/A by lane rule).
+
+### Fixed — player feature narrative omitted the shipped feature areas behind the six player keys (review console__docmaint, M-CONSOLE-16) — 2026-10-29
+
+- **The defect.** The M-CONSOLE-02 cure (`d8c1d2d` + `7335185`) extended both
+  player KEY lists — the README "**In the player:**" line and the
+  docs/clients/console.md "Media playback" table — and pinned them against
+  `PlayerScreen.php`'s handler arms via `PlayerKeyDocsTest`, but the FEATURE
+  narrative stayed silent: the README Status blockquote narrated Phases 0–8
+  plus Cast while naming none of SyncPlay watch parties, the in-player sleep
+  timer, or the track pickers, and the console.md Overview "Key features"
+  list omitted the same three shipped feature areas.
+- **Cure.** Narrative prose only, quoted from shipped code: the README
+  Status blockquote gained an "Also working today, inside the player"
+  paragraph — `a`/shift-`S`/shift-`C` track pickers (chapter picks seek via
+  `applyChapterSelection`; a subtitle pick turns the caption overlay on via
+  `applySubtitleTrackSelection`), `v` transcode quality, `w` "For You"
+  recommendations (`OpenRecommendationsMsg` → `App` screen push), the `y`
+  SyncPlay watch-party modal (create a public/private room — `p` toggles —
+  or join a listed one; room/member-count/sync-status overlay; the room's
+  play/pause/seek commands drive the local player through
+  `onSyncPlayPlaybackCommand`), and the `z` sleep timer (presets
+  15/30/45/60/90/120 min, pause-on-expiry via `onSleepTimerFire`, last
+  preset persisted through PlayerPrefs). console.md's Key features list
+  gained the same three areas. No absent feature is promised: the local
+  transport never broadcasts to the room (`SyncPlayService::sendPlay/
+  sendPause/sendSeek` have zero production callers), so the prose claims
+  only the receive-side sync truth.
+- **Pin.** `PlayerKeyDocsTest` gained narrative-family pins:
+  `NARRATIVE_FEATURE_AREAS` (SyncPlay watch parties / sleep timer / track
+  pickers, each a list of required phrases) crossed with the two narrative
+  surfaces (README Status blockquote line-range, console.md Overview
+  section) as a 6-row data provider — all six red on the unfixed narrative
+  (measured: filtered run went 3 tests / 3 assertions at parent to 9 / 9
+  green after the cure), green on the cured prose.
+- **Measured.** Full suite serial: 3135 tests / 16572 assertions / OK
+  (parent derived from the exact +6 tests / +6 assertions pin delta; the
+  13 PHPUnit deprecations and 9 skips held). phpstan tests config [OK];
+  the prod config carries one INHERITED error (`src/Api/Admin/
+  AdminClient.php:2697` `alternatePosters()` return shape — stash-proven
+  present on the clean parent; this commit touches zero src/ files). phpcs
+  `phpcs-tests.xml` and bare `PSR12` both clean on the changed test file.
+  i18n gates untouched; no en.php edits.
+
 ### Added — `watch` documented to code truth in the two remaining doc surfaces (review console__docmaint, M-CONSOLE-14) — 2026-10-29
 
 - **What.** `README.md` gained a "### Hub relay watch" section (between Render
@@ -811,7 +884,12 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   lockfile and the committed `build/phlix.phar` are regenerated at the P12 batch
   verification, together with a post-rename CI green run. Until then CI `composer
   install` resolves old code and the renamed namespaces are absent — expected, not a
-  regression.
+  regression. (**Superseded — closed out the same day it was written:** `5ba0c6b`
+  regenerated the lock from the renamed packagist slugs and rebuilt the phar
+  ("27 old-name entries to 26 new-name entries; zero candy-/honey- names
+  remain"); the premise never held past that commit. Text kept verbatim as
+  history per the house forward-only precedent — see the 2026-10-29
+  correction entry at the top of [Unreleased].)
 
 ### Fixed — settings saves send canonical lowercase theme ids to the server — 2026-10-14
 
