@@ -78,20 +78,22 @@ ESC [ G ... ESC \
 ## Architecture
 
 ```
-                      ┌─────────────────────────────┐
-                      │         PlayerScreen         │
-                      │   (orchestrates rendering)   │
-                      └──────────────┬──────────────┘
-                                     │ render mode
-                      ┌──────────────▼──────────────┐
-                      │         MosaicFactory        │
+                      ┌──────────────────────────────┐
+                      │    bin/phlix — CLI argv      │
+                      │  --mode=… / --mode … / bare  │
+                      └──────────────┬───────────────┘
+                                     │ mode string, parsed at
+                                     │ container build (no screen yet)
+                      ┌──────────────▼───────────────┐
+                      │        MosaicFactory         │
+                      │ Mosaic::forPosterGrid($mode) │
                       │  (mode → backend policy)     │
-                      └──────────────┬──────────────┘
+                      └──────────────┬───────────────┘
                                      │ builds
-                      ┌──────────────▼──────────────┐
+                      ┌──────────────▼───────────────┐
                       │   SugarCraft\Image\Mosaic    │
                       │ ImageSource → terminal bytes │
-                      └──────────────┬──────────────┘
+                      └──────────────┬───────────────┘
                                      │ encodes through
         ┌──────────────┬─────────────┼─────────────┬───────────────┐
         ▼              ▼             ▼             ▼               ▼
@@ -99,6 +101,14 @@ ESC [ G ... ESC \
                                              QuarterBlock     (ANSI256/TrueColor
                                              Renderer           are tinted ramps)
 ```
+
+The `Mosaic` is held by `PosterLoader`, which every poster consumer shares —
+the rails and grids of `DetailScreen`, `PhotosScreen`, `BrowseScreen` and
+friends. `PlayerScreen` sits *downstream* of this diagram, not above it:
+`App` opens the player with
+`PlayerScreen::productionFactory($this->posters->protocol(), $this->posters->cellSize())`,
+so the video reel mirrors the poster mode and graphics-mode frames decode at
+the terminal's measured cell pixel size.
 
 ## Testing
 

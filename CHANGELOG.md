@@ -75,6 +75,19 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   (1 error + 3 failures against the pre-cure doc); mutations planted:
   re-adding a dead name reddens law 1 alone, swapping `SixelStream` out
   of the doc reddens law 3 alone, both restored green.
+- **The r2 cure** (review verdict REWORK, issues=1): the r1 diagram had
+  re-rooted itself on the same defect class — a "PlayerScreen (orchestrates
+  rendering) —render mode→ MosaicFactory" edge the code contradicts (the mode
+  is parsed from CLI argv and consumed at container-build time in `bin/phlix`,
+  before any screen exists; `PlayerScreen` never references `MosaicFactory` and
+  is in fact downstream: `App` opens it with
+  `PlayerScreen::productionFactory($this->posters->protocol(),
+  $this->posters->cellSize())`). The diagram now traces the real spine
+  (CLI → factory → Mosaic → renderers) with a code-anchored note showing
+  `PlayerScreen` where it actually sits. A sixth runtime-derived law pins the
+  edges in both directions (measured: the suite is now 6 tests / 42
+  assertions; planted r1-fiction doc and planted player-side factory
+  reference each redden law 6 alone).
 
 ### Fixed — hardcoded truecolor hexes routed through the Theme palette; a census law keeps the bypass class dead (review console__uxdesign, M-CONSOLE-48) — 2026-10-29
 

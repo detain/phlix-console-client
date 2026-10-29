@@ -25,7 +25,7 @@ use SugarCraft\Testing\Graphics\Mode;
  * MosaicFactory → sugar-image Mosaic → the protocol/cell renderers.
  *
  * Doctrine, per TokenFileNameDocsTest and ConfigVocabularyDocsTest: real state
- * is DERIVED from the code at runtime, never restated from prose. Five laws:
+ * is DERIVED from the code at runtime, never restated from prose. Six laws:
  *
  * 1. README and docs/** name none of the retired decoder doubles. A doc
  *    re-advertising them reddens here until the prose AND this pin move again.
@@ -40,6 +40,13 @@ use SugarCraft\Testing\Graphics\Mode;
  * 5. Every encoder/renderer class the doc names on code terms (backticked
  *    short name) exists via the autoloader — a vendor rename reddens here and
  *    sends the doc and this list to move together.
+ * 6. The Architecture diagram's edges match the code's. The mode is parsed from
+ *    CLI argv in bin/phlix and turned into a Mosaic there at container-build
+ *    time via MosaicFactory::forPosterGrid(); PlayerScreen is DOWNSTREAM (it
+ *    opens with PosterLoader::protocol()/cellSize(), so it must not appear as
+ *    the mode's source). The r1 review caught the diagram re-rooted on a
+ *    "PlayerScreen —render mode→ MosaicFactory" edge the code contradicts; this
+ *    law pins the true root so the diagram and the call graph move together.
  *
  * Historical CHANGELOG entries are exempt forever (history is verbatim); the
  * doc sweep deliberately never reads it.
@@ -179,6 +186,55 @@ final class TerminalGraphicsDocsTest extends TestCase
                 $doc,
                 self::GRAPHICS_DOC . ' no longer names ' . $shortName
                 . ' — keep the encoder prose on code terms with the real pipeline.'
+            );
+        }
+    }
+
+    public function testTheArchitectureDiagramEdgesMatchTheCodeEdges(): void
+    {
+        // Law 6, derived from the call graph — never from prose. Review
+        // M-CONSOLE-49 r1 caught the diagram rooted on a "PlayerScreen —render
+        // mode→ MosaicFactory" edge the code contradicts; these checks pin the
+        // true direction so a re-rooted fiction reddens here.
+        $bin = self::readRepoFile('bin/phlix');
+        self::assertStringContainsString(
+            "'--mode='",
+            $bin,
+            'bin/phlix no longer parses a --mode= argv flag — the CLI-argv root of the '
+            . self::GRAPHICS_DOC . ' Architecture diagram (and law 6) must move together.'
+        );
+        self::assertStringContainsString(
+            'MosaicFactory::forPosterGrid($mode)',
+            $bin,
+            'bin/phlix no longer builds the poster Mosaic at container-build time; the '
+            . 'diagram root claims it does, so doc, code and this law must move together.'
+        );
+
+        $player = self::readRepoFile('src/Screen/PlayerScreen.php');
+        self::assertStringNotContainsString(
+            'MosaicFactory',
+            $player,
+            'PlayerScreen now references MosaicFactory. If the player really became the '
+            . 'mode source upstream of the factory, the diagram root, this law and review '
+            . 'M-CONSOLE-49 must all be revisited deliberately — until then the player is '
+            . 'a downstream consumer of PosterLoader::protocol().'
+        );
+
+        $app = self::readRepoFile('src/App.php');
+        self::assertStringContainsString(
+            'PlayerScreen::productionFactory($this->posters->protocol()',
+            $app,
+            'src/App.php no longer opens PlayerScreen from PosterLoader::protocol(); the '
+            . 'doc note below the diagram states that edge, so doc, code and law 6 move together.'
+        );
+
+        $doc = self::readRepoFile(self::GRAPHICS_DOC);
+        foreach (['forPosterGrid', 'PlayerScreen', 'productionFactory'] as $anchor) {
+            self::assertMatchesRegularExpression(
+                '/\b' . preg_quote($anchor, '/') . '\b/',
+                $doc,
+                self::GRAPHICS_DOC . ' no longer names ' . $anchor . ' — keep the diagram '
+                . 'rooted at the CLI mode source with PlayerScreen shown downstream (law 6).'
             );
         }
     }
