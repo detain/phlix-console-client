@@ -5,7 +5,14 @@ declare(strict_types=1);
 namespace Phlix\Console\Tests\Unit\Ui;
 
 use Phlix\Console\Ui\RatingBadge;
+use Phlix\Console\Ui\Theme;
 use PHPUnit\Framework\TestCase;
+
+/**
+ * Star arithmetic and label text for the rating badge. The colour itself is
+ * theme-sourced (M-CONSOLE-48) and pinned in ThemePaletteSoleSourceTest; these
+ * cases render under Nocturne and assert the structural text.
+ */
 
 final class RatingBadgeTest extends TestCase
 {
@@ -13,7 +20,7 @@ final class RatingBadgeTest extends TestCase
     {
         $badge = new RatingBadge(7.5);
 
-        $rendered = $badge->render();
+        $rendered = $badge->render(Theme::nocturne());
 
         self::assertStringContainsString('7.5/10', $rendered);
         self::assertStringContainsString('★', $rendered);
@@ -23,7 +30,7 @@ final class RatingBadgeTest extends TestCase
     {
         $badge = new RatingBadge(null);
 
-        $rendered = $badge->render();
+        $rendered = $badge->render(Theme::nocturne());
 
         self::assertSame('', $rendered);
     }
@@ -32,7 +39,7 @@ final class RatingBadgeTest extends TestCase
     {
         $badge = new RatingBadge(10.0);
 
-        $rendered = $badge->render();
+        $rendered = $badge->render(Theme::nocturne());
 
         self::assertStringContainsString('10.0/10', $rendered);
         self::assertStringContainsString('★★★★★', $rendered);
@@ -42,7 +49,7 @@ final class RatingBadgeTest extends TestCase
     {
         $badge = new RatingBadge(0.0);
 
-        $rendered = $badge->render();
+        $rendered = $badge->render(Theme::nocturne());
 
         self::assertStringContainsString('0.0/10', $rendered);
         self::assertStringNotContainsString('★', $rendered, 'no full stars for zero score');
@@ -53,7 +60,7 @@ final class RatingBadgeTest extends TestCase
         // Score above 10 should be clamped to 10
         $badge = new RatingBadge(15.0);
 
-        $rendered = $badge->render();
+        $rendered = $badge->render(Theme::nocturne());
 
         self::assertStringContainsString('10.0/10', $rendered);
     }
@@ -63,7 +70,7 @@ final class RatingBadgeTest extends TestCase
         // Negative score should be clamped to 0
         $badge = new RatingBadge(-5.0);
 
-        $rendered = $badge->render();
+        $rendered = $badge->render(Theme::nocturne());
 
         self::assertStringContainsString('0.0/10', $rendered);
     }
@@ -73,7 +80,7 @@ final class RatingBadgeTest extends TestCase
         // 5.0 should give 2.5 stars (2 full + 1 half)
         $badge = new RatingBadge(5.0);
 
-        $rendered = $badge->render();
+        $rendered = $badge->render(Theme::nocturne());
 
         self::assertStringContainsString('5.0/10', $rendered);
         self::assertStringContainsString('½', $rendered, 'half star indicator present');

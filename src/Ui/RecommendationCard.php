@@ -15,6 +15,8 @@ use SugarCraft\Style\Style;
  * Renders a recommendation card in the terminal.
  *
  * Shows title, year, "Because You Watched" badge, and match score.
+ * All colour comes from the active {@see Theme} (M-CONSOLE-48) — the card
+ * itself carries no hexes.
  */
 final readonly class RecommendationCard
 {
@@ -54,17 +56,17 @@ final readonly class RecommendationCard
         return new self($id, $title, $year, $score);
     }
 
-    public function render(): string
+    public function render(Theme $theme): string
     {
-        $accent = Style::new()->bold()->fg('#ffcc00');
-        $badge = Style::new()->fg('#0066cc')->bold();
+        $accent = $theme->widgetStyle(Theme::ROLE_STAR);
+        $badge = $theme->widgetStyle(Theme::ROLE_BADGE);
         $dim = Style::new()->faint();
-        $white = Style::new()->fg('#ffffff');
+        $title = $theme->widgetStyle(Theme::ROLE_TITLE);
 
         $scorePercent = (int) ($this->score * 100);
         $yearStr = $this->year !== null ? (string) $this->year : '';
 
-        $line1 = $accent->render('★ ') . $white->render(str_pad($this->title, 50));
+        $line1 = $accent->render('★ ') . $title->render(str_pad($this->title, 50));
         $line2 = '  ' . $dim->render($yearStr);
         $line2 .= '  ' . $badge->render('Because You Watched');
         $line2 .= '  ' . $accent->render($scorePercent . '% match');

@@ -5,6 +5,46 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — hardcoded truecolor hexes routed through the Theme palette; a census law keeps the bypass class dead (review console__uxdesign, M-CONSOLE-48) — 2026-10-29
+
+- **The defect.** Four widgets emitted raw 24-bit colour straight into the
+  frame: `RecommendationCard` (`#ffcc00` stars, `#0066cc` badge, `#ffffff`
+  title), `RatingBadge` and `UserRatingPicker` (`#ffcc00`, `#ff6666`), and
+  DetailScreen's cast avatars (a fixed six-hue saturated ramp applied as
+  `->bg($hex)`). None took the active `Theme`, none went near
+  `resolveProfile()` — so the theme picker silently failed to cover these
+  surfaces, the `#ffffff` card title was invisible on precisely the light
+  terminals `daylight` exists for, and 16-colour terminals got undowngraded
+  SGR. `Style::new()->fg('#rrggbb')` was measured emitting
+  `\e[38;2;…` byte-verbatim under every theme.
+- **The cure.** `Theme` gains the content-widget role palette — roles
+  `star`/`badge`/`title`/`danger` + a six-hue avatar ramp, mapped per theme
+  — and two style factories following the house `brandStyle()` idiom
+  (`Color::hex()` + `resolveProfile()`): `widgetStyle(role, reversed:)` and
+  `avatarStyle(slot)`. Nocturne carries the historical hexes in the same
+  emission order, so the default theme stays byte-identical (all four
+  widgets' pre-fix renders are pinned golden); Daylight remaps every role
+  that was illegible on a light field (dark gold, its own accent, an
+  honest terminal-default title, dark red, pastel avatar chips); Midnight
+  lifts the badge onto its accent. Unknown role/palette-less theme/negative
+  slot fail loud at the boundary.
+- **The law.** `ThemePaletteSoleSourceTest` censuses src/ for colour hexes
+  and raw `38;2` sequences outside `Theme.php` (the sole legal palette home
+  — red on the 14-offender parent) and carries the byte-goldens, the
+  daylight legibility sweep, full preset coverage and the fail-loud arms.
+  Re-adding one bypass reddens the census leg by filename.
+- **Numbers.** Unit suite 3264→3275 tests (+11), 18702→18867 assertions
+  (+165), skips 9 held, measured serial at the 65a31fa base; phpstan
+  prod+tests identical to parent (sole error remains the inherited
+  AdminClient:2697 return-shape); phpcs src+tests+PSR12 on every touched
+  file at 0 errors and no new warnings; i18n hardcoded + 6-catalog parity
+  gates green; mutation probe (bypass re-added to RecommendationCard) → the
+  named census failure. Capability-posture disclosure: the app never
+  negotiates a terminal profile at startup (`Style::setDefaultProfile()`
+  has no call site outside `phlix doctor`), so `resolveProfile()` is a
+  pass-through today — the cure matches the existing chrome idiom exactly;
+  startup negotiation is a separate decision.
+
 ### Fixed — truncation honors display cells at the shared choke; the codepoint-counting admin family is extinct (review console__uxdesign, M-CONSOLE-47) — 2026-10-29
 
 - **The defect.** `AdminDuplicatesScreen`, `AdminWatchHistoryScreen` and

@@ -1335,7 +1335,7 @@ final class DetailScreen implements Breadcrumbed, Themed
             foreach ($ratings->ratings as $rating) {
                 if (in_array($rating->source, ['tmdb', 'imdb'], true) && $rating->type === 'average') {
                     $badge = new RatingBadge($rating->score);
-                    $rendered = $badge->render();
+                    $rendered = $badge->render($this->theme());
                     if ($rendered !== '') {
                         $parts[] = $rendered;
                     }
@@ -1402,7 +1402,7 @@ final class DetailScreen implements Breadcrumbed, Themed
         $maxShow = min(8, count($cast));
         for ($i = 0; $i < $maxShow; $i++) {
             $member = $cast[$i];
-            $avatar = $this->avatarForCastMember($member, $dim);
+            $avatar = $this->avatarForCastMember($member);
             $role = $member->role !== null ? " as {$member->role}" : '';
             $lines[] = $avatar . ' ' . Width::truncate($member->name . $role, $width - 3);
         }
@@ -1415,21 +1415,15 @@ final class DetailScreen implements Breadcrumbed, Themed
     }
 
     /**
-     * Render a minimal initials-based avatar for a cast member using ANSI escape codes.
+     * Render a minimal initials-based avatar for a cast member: the theme's
+     * avatar ramp supplies the chip colour (slot = crc32 of the name, the
+     * historical stable pick), so light terminals never get a saturated
+     * dark-field palette (M-CONSOLE-48).
      */
-    private function avatarForCastMember(CastMember $member, Style $style): string
+    private function avatarForCastMember(CastMember $member): string
     {
-        static $colors = [
-            'red' => '#ff0000',
-            'green' => '#00ff00',
-            'yellow' => '#ffff00',
-            'blue' => '#0000ff',
-            'magenta' => '#ff00ff',
-            'cyan' => '#00ffff',
-        ];
         $initials = $this->initials($member->name);
-        $color = $colors[array_keys($colors)[crc32($member->name) % count($colors)]];
-        return $style->bg($color)->render(" {$initials} ");
+        return $this->theme()->avatarStyle(crc32($member->name))->render(" {$initials} ");
     }
 
     /**

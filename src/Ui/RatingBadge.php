@@ -34,30 +34,31 @@ final readonly class RatingBadge
     ) {
     }
 
-    public function render(): string
+    public function render(Theme $theme): string
     {
         if ($this->score === null) {
             return '';
         }
 
         $score = max(0.0, min(10.0, $this->score));
-        $stars = $this->buildStarString($score);
+        $stars = $this->buildStarString($score, $theme);
         $label = number_format($score, 1) . '/10';
 
         return $stars . '  ' . $label;
     }
 
     /**
-     * Build the star string with proportional fill.
+     * Build the star string with proportional fill; the filled-star colour is
+     * the theme's star token (M-CONSOLE-48), empties stay attribute-only dim.
      */
-    private function buildStarString(float $score): string
+    private function buildStarString(float $score, Theme $theme): string
     {
         $normalizedScore = $score / 2; // Convert 0-10 to 0-5 scale
         $fullStars = (int) floor($normalizedScore);
         $hasHalfStar = ($normalizedScore - $fullStars) >= 0.5;
         $emptyStars = 5 - $fullStars - ($hasHalfStar ? 1 : 0);
 
-        $accent = Style::new()->bold()->fg('#ffcc00');
+        $accent = $theme->widgetStyle(Theme::ROLE_STAR);
         $dim = Style::new()->faint();
 
         $result = $accent->render(str_repeat(self::FULL_STAR, $fullStars));

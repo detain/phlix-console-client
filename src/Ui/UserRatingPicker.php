@@ -116,10 +116,14 @@ final class UserRatingPicker
     }
 
     /** Composite the picker box centred over a sugar-overlay dimmed background. */
-    public function render(string $background): string
+    public function render(string $background, Theme $theme): string
     {
         $box = SugarPanels::new()->render(
-            SugarPanels::new()->leaf($this->body())->withBorder(true)->withPadding(0)->withTitle(' Rate this title '),
+            SugarPanels::new()
+                ->leaf($this->body($theme))
+                ->withBorder(true)
+                ->withPadding(0)
+                ->withTitle(' Rate this title '),
             $this->winWidth,
             $this->winHeight,
         );
@@ -131,26 +135,26 @@ final class UserRatingPicker
 
     // ---- rendering -----------------------------------------------------
 
-    private function body(): string
+    private function body(Theme $theme): string
     {
         $lines = [];
-        $lines[] = $this->renderStars();
+        $lines[] = $this->renderStars($theme);
         $lines[] = '';
         $lines[] = $this->renderHint();
 
         return implode("\n", $lines);
     }
 
-    private function renderStars(): string
+    private function renderStars(Theme $theme): string
     {
-        $accent = Style::new()->bold()->fg('#ffcc00');
+        $accent = $theme->widgetStyle(Theme::ROLE_STAR);
         $dim = Style::new()->faint();
-        $clearColor = Style::new()->bold()->fg('#ff6666');
+        $clearColor = $theme->widgetStyle(Theme::ROLE_DANGER);
 
         $result = '';
         // Position 0: "✕" (clear/rating removal)
         if ($this->cursor === 0) {
-            $result .= Style::new()->reverse()->bold()->fg('#ff6666')->render('✕');
+            $result .= $theme->widgetStyle(Theme::ROLE_DANGER, reversed: true)->render('✕');
         } else {
             $result .= $clearColor->render('✕');
         }
@@ -159,7 +163,7 @@ final class UserRatingPicker
         // Positions 1-5: stars representing ratings 2, 4, 6, 8, 10
         for ($i = 1; $i <= self::STAR_COUNT; $i++) {
             if ($i === $this->cursor) {
-                $result .= Style::new()->reverse()->bold()->fg('#ffcc00')->render('★');
+                $result .= $theme->widgetStyle(Theme::ROLE_STAR, reversed: true)->render('★');
             } elseif ($i < $this->cursor) {
                 $result .= $accent->render('★');
             } else {

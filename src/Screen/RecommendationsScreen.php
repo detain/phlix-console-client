@@ -212,7 +212,7 @@ final class RecommendationsScreen implements Model, Teardownable, CapturesSlash,
         $cards = [];
         foreach ($this->items as $i => $item) {
             $prefix = $i === $this->selectedIndex ? '▶ ' : '  ';
-            $cards[] = $prefix . $item->render();
+            $cards[] = $prefix . $item->render($this->theme());
         }
 
         return "\n\n" . implode("\n", $cards);
