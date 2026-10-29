@@ -51,6 +51,7 @@ final class AdminLogsScreen implements Breadcrumbed, Themed
 {
     use SubscriptionCapable;
     use ThemedScreen;
+    use ResizesTo;
 
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LIST_FAILED = 'Could not load the log files.';
@@ -445,15 +446,6 @@ final class AdminLogsScreen implements Breadcrumbed, Themed
         }
         $next = clone $this;
         $next->scroll = $offset;
-
-        return $next;
-    }
-
-    private function resizedTo(int $cols, int $rows): self
-    {
-        $next = clone $this;
-        $next->cols = $cols;
-        $next->rows = $rows;
 
         return $next;
     }

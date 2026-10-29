@@ -74,6 +74,7 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
 {
     use SubscriptionCapable;
     use ThemedScreen;
+    use ResizesTo;
 
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load the remote-access status.';
@@ -772,15 +773,6 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
         };
 
         return static fn (): PromiseInterface => $poll(self::MAX_POLLS);
-    }
-
-    private function resizedTo(int $cols, int $rows): self
-    {
-        $next = clone $this;
-        $next->cols = $cols;
-        $next->rows = $rows;
-
-        return $next;
     }
 
     // ---- rendering -----------------------------------------------------

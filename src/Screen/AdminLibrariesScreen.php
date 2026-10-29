@@ -81,6 +81,7 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
 {
     use SubscriptionCapable;
     use ThemedScreen;
+    use ResizesTo;
 
     /** Seconds between scan-status polls while the selected job is active. */
     private const STATUS_INTERVAL = 2.0;
@@ -946,15 +947,6 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
         $next = clone $this;
         $next->pollEpoch = $this->pollEpoch + 1;
         $next->pendingRescan = null;
-
-        return $next;
-    }
-
-    private function resizedTo(int $cols, int $rows): self
-    {
-        $next = clone $this;
-        $next->cols = $cols;
-        $next->rows = $rows;
 
         return $next;
     }

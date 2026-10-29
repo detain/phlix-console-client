@@ -71,6 +71,8 @@ final class BrowseScreen implements Breadcrumbed, Themed
 {
     use SubscriptionCapable;
     use ThemedScreen;
+    use ResizesTo;
+    use ResolvesUrls;
 
     private const CONTINUE_ID = 'continue';
     private const MOST_WATCHED_ID = 'most-watched';
@@ -322,15 +324,6 @@ final class BrowseScreen implements Breadcrumbed, Themed
     }
 
     /** Resolve a (possibly relative) URL against the server base; absolute/empty pass through. */
-    private function resolveUrl(string $url): string
-    {
-        if ($url === '' || preg_match('#^https?://#i', $url) === 1) {
-            return $url; // empty, or already absolute (signed URLs are absolute)
-        }
-
-        return rtrim($this->baseUrl, '/') . '/' . ltrim($url, '/');
-    }
-
     // ---- message handlers ----------------------------------------------
 
     /**
@@ -1002,15 +995,6 @@ final class BrowseScreen implements Breadcrumbed, Themed
     {
         $next = clone $this;
         $next->sidebar = $sidebar;
-
-        return $next;
-    }
-
-    private function resizedTo(int $cols, int $rows): self
-    {
-        $next = clone $this;
-        $next->cols = $cols;
-        $next->rows = $rows;
 
         return $next;
     }

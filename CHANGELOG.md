@@ -5,6 +5,46 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — byte-identical screen helper families single-sourced into concern traits; drift ratchet pin (review console__srphp, M-CONSOLE-37) — 2026-10-29
+
+- **The defect.** A token census (visibility + signature + body, comments
+  normalized) found the review's copy-paste families alive and GROWN at HEAD:
+  `resizedTo` 37 byte-identical private copies across `src/Screen/` (raw text
+  identical at every site), `resolveUrl` 11 (the review-era inline comment
+  included), `selectPrev` 9, and the `items`-shaped `selectNext` 5. Exactly the
+  bodies the review named as fix-prone (resize bounds, URL-join edge cases,
+  selection wrap-around) — each future cure had to be hand-applied 5–37 times.
+- **The cure.** Four concern traits next to the existing `ThemedScreen` /
+  `PosterFetchPolicy` / `ShimmeringScreen` trio: `ResizesTo`, `ResolvesUrls`,
+  `SelectsPrevious`, `SelectsNext`. 62 local copies deleted from 46 screens,
+  each `use` line appended in place; bodies moved verbatim (method text
+  raw-identical, docblocks included). Behavior byte-identical: every class
+  keeps the same method set, visibility and bodies as before. `HasSelection`
+  ships split (the four admin screens share `selectPrev` but their `selectNext`
+  bodies differ by collection property — one both-directions trait would hand
+  them a shadowed member).
+- **Deliberately NOT extracted.** `withError` is six distinct state-machine
+  shapes under one name (x9/x8/x5/x5/x4/x2; each resets a different field set)
+  and `onActionDone` six message-typed signatures share one body — either
+  consolidation would change behavior or types, so both are ratchet-pinned
+  instead, alongside everything else the sweep found (the review missed
+  `withCrumbs` x46, `error()` x37, `isLoaded` x24, `init` x20).
+- **New pin.** `tests/Unit/Screen/ScreenConcernSingleSourceTest.php` (3 tests,
+  222 assertions): the four canonical families must exist exactly once, in
+  their trait file (red-on-parent: 37/11/9/5 copies, traits absent), and the
+  remaining 104-family duplicate census over `src/Screen/` must match the
+  pinned (name, hash) → count baseline exactly — a planted byte-identical twin
+  reddens both guards; partial peels must re-pin from a measured red.
+- **Verification.** Suite 3202→3205 tests / 17005→17239 assertions, 0 failures,
+  9 skips and 14 deprecations held; the +234 asserts are this entry's 222 plus
+  12 from two pre-existing per-file scan pins (ScreenGuideDocsTest's navigation
+  contract, SessionExpiredCopyTest's expiry-wording scan) simply iterating the
+  four new trait files — both green on them. phpstan src keeps its single known
+  inherited red (`AdminClient::alternatePosters` return.type, same signature as
+  parent), phpstan-tests clean; phpcs src holds the declared 236-warning
+  baseline exactly, tests gate clean; i18n catalogs untouched (traits carry no
+  strings).
+
 ### Changed — console manual linked from the README; front-door section + link-integrity pin (review console__newcomer, M-CONSOLE-31) — 2026-10-29
 
 - **The defect.** `docs/clients/console.md` is the actual newcomer guide —

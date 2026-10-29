@@ -49,6 +49,7 @@ final class BookDetailScreen implements Breadcrumbed, Themed
 {
     use SubscriptionCapable;
     use ThemedScreen;
+    use ResolvesUrls;
 
     private const HERO_WIDTH = 26;
     private const HERO_HEIGHT = 16;
@@ -207,15 +208,6 @@ final class BookDetailScreen implements Breadcrumbed, Themed
     }
 
     /** Resolve a (possibly relative) URL against the server base; absolute/empty pass through. */
-    private function resolveUrl(string $url): string
-    {
-        if ($url === '' || preg_match('#^https?://#i', $url) === 1) {
-            return $url; // empty, or already absolute (signed URLs are absolute)
-        }
-
-        return rtrim($this->baseUrl, '/') . '/' . ltrim($url, '/');
-    }
-
     private function headerTitle(): string
     {
         return $this->book->title ?? $this->title;

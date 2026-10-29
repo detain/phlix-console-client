@@ -125,6 +125,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
 {
     use SubscriptionCapable;
     use ThemedScreen;
+    use ResolvesUrls;
 
     /** Rows reserved below the video: caption + scrubber + status line + 1 slack for the inner player's own status line. */
     private const CHROME_ROWS = 4;
@@ -2503,15 +2504,6 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
     }
 
     /** Resolve a (possibly relative) URL against the server base; absolute/empty pass through. */
-    private function resolveUrl(string $url): string
-    {
-        if ($url === '' || preg_match('#^https?://#i', $url) === 1) {
-            return $url; // empty, or already absolute (signed URLs are absolute)
-        }
-
-        return rtrim($this->baseUrl, '/') . '/' . ltrim($url, '/');
-    }
-
     private function innerRows(): int
     {
         return max(4, $this->rows - self::CHROME_ROWS);

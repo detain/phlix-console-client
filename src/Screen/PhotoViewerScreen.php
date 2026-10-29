@@ -68,6 +68,7 @@ final class PhotoViewerScreen implements Breadcrumbed, Themed
 {
     use SubscriptionCapable;
     use ThemedScreen;
+    use ResolvesUrls;
 
     private const EXIF_WIDTH = 30;
     private const COL_GAP = 2;
@@ -388,15 +389,6 @@ final class PhotoViewerScreen implements Breadcrumbed, Themed
     }
 
     /** Resolve a (possibly relative) URL against the server base; absolute/empty pass through. */
-    private function resolveUrl(string $url): string
-    {
-        if ($url === '' || preg_match('#^https?://#i', $url) === 1) {
-            return $url; // empty, or already absolute (signed URLs are absolute)
-        }
-
-        return rtrim($this->baseUrl, '/') . '/' . ltrim($url, '/');
-    }
-
     /**
      * Batch the Cmds, or null when there are none (so init()/update can return null cleanly).
      *

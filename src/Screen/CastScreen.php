@@ -71,6 +71,8 @@ final class CastScreen implements Breadcrumbed, Themed
 {
     use SubscriptionCapable;
     use ThemedScreen;
+    use ResizesTo;
+    use ResolvesUrls;
 
     private const MODE_DISCOVERING = 'discovering';
     private const MODE_PICKER = 'picker';
@@ -475,15 +477,6 @@ final class CastScreen implements Breadcrumbed, Themed
         return $next;
     }
 
-    private function resizedTo(int $cols, int $rows): self
-    {
-        $next = clone $this;
-        $next->cols = $cols;
-        $next->rows = $rows;
-
-        return $next;
-    }
-
     // ---- rendering -----------------------------------------------------
 
     private function body(): string
@@ -570,15 +563,6 @@ final class CastScreen implements Breadcrumbed, Themed
     }
 
     /** Resolve a (possibly relative) URL against the server base; absolute/empty pass through. */
-    private function resolveUrl(string $url): string
-    {
-        if ($url === '' || preg_match('#^https?://#i', $url) === 1) {
-            return $url; // empty, or already absolute (signed URLs are absolute)
-        }
-
-        return rtrim($this->baseUrl, '/') . '/' . ltrim($url, '/');
-    }
-
     private function selectedDevice(): ?CastDevice
     {
         return $this->devices[$this->selected] ?? null;

@@ -62,6 +62,7 @@ final class AdminBackupScreen implements Breadcrumbed, Themed
 {
     use SubscriptionCapable;
     use ThemedScreen;
+    use ResizesTo;
 
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load the backups.';
@@ -527,15 +528,6 @@ final class AdminBackupScreen implements Breadcrumbed, Themed
         }
         $next = clone $this;
         $next->selected = $selected;
-
-        return $next;
-    }
-
-    private function resizedTo(int $cols, int $rows): self
-    {
-        $next = clone $this;
-        $next->cols = $cols;
-        $next->rows = $rows;
 
         return $next;
     }

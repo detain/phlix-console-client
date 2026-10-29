@@ -49,6 +49,7 @@ final class AlbumScreen implements Breadcrumbed, Themed
 {
     use SubscriptionCapable;
     use ThemedScreen;
+    use ResizesTo;
 
     private const HINT = '↑↓  select      ⏎  play      space  pause · n/p  next/prev      Esc  back';
     private const NUM_WIDTH = 4;
@@ -211,17 +212,6 @@ final class AlbumScreen implements Breadcrumbed, Themed
         // less the header line + blank (2) and the table's own header + separator
         // (2), so the selected row is never clipped by the frame.
         return max(1, Chrome::bodyHeight($this->rows) - 4);
-    }
-
-    // ---- immutable copies (clone-mutate) -------------------------------
-
-    private function resizedTo(int $cols, int $rows): self
-    {
-        $next = clone $this;
-        $next->cols = $cols;
-        $next->rows = $rows;
-
-        return $next;
     }
 
     // ---- breadcrumb ----------------------------------------------------

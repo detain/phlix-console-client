@@ -38,6 +38,7 @@ final class AdminMenuScreen implements Breadcrumbed, Themed
 {
     use SubscriptionCapable;
     use ThemedScreen;
+    use ResizesTo;
 
     private const HINT = '↑↓  select      ⏎  open      Esc  back';
     private const STATUS_WIDTH = 16;
@@ -171,17 +172,6 @@ final class AdminMenuScreen implements Breadcrumbed, Themed
         // height less the table's header + separator (2) so the selected row is
         // never clipped.
         return max(1, Chrome::bodyHeight($this->rows) - 2);
-    }
-
-    // ---- immutable copies (clone-mutate) -------------------------------
-
-    private function resizedTo(int $cols, int $rows): self
-    {
-        $next = clone $this;
-        $next->cols = $cols;
-        $next->rows = $rows;
-
-        return $next;
     }
 
     // ---- breadcrumb ----------------------------------------------------

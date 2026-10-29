@@ -38,6 +38,9 @@ final class RecommendationsScreen implements Model, Teardownable, CapturesSlash,
 {
     use SubscriptionCapable;
     use ThemedScreen;
+    use ResizesTo;
+    use SelectsNext;
+    use SelectsPrevious;
 
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED_KEY = 'recommendations.load_failed';
@@ -155,26 +158,6 @@ final class RecommendationsScreen implements Model, Teardownable, CapturesSlash,
     }
 
     /** @return array{self, ?\Closure} */
-    private function selectPrev(): array
-    {
-        if ($this->selectedIndex > 0) {
-            return [$this->withSelectedIndex($this->selectedIndex - 1), null];
-        }
-
-        return [$this, null];
-    }
-
-    /** @return array{self, ?\Closure} */
-    private function selectNext(): array
-    {
-        if ($this->selectedIndex < count($this->items) - 1) {
-            return [$this->withSelectedIndex($this->selectedIndex + 1), null];
-        }
-
-        return [$this, null];
-    }
-
-    /** @return array{self, ?\Closure} */
     private function openSelected(): array
     {
         if (!isset($this->items[$this->selectedIndex])) {
@@ -267,15 +250,6 @@ final class RecommendationsScreen implements Model, Teardownable, CapturesSlash,
     {
         $next = clone $this;
         $next->selectedIndex = $index;
-
-        return $next;
-    }
-
-    private function resizedTo(int $cols, int $rows): self
-    {
-        $next = clone $this;
-        $next->cols = $cols;
-        $next->rows = $rows;
 
         return $next;
     }

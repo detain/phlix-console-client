@@ -44,6 +44,8 @@ final class AdminDuplicatesScreen implements Breadcrumbed, Themed
 {
     use SubscriptionCapable;
     use ThemedScreen;
+    use ResizesTo;
+    use SelectsPrevious;
 
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load duplicate groups.';
@@ -230,16 +232,6 @@ final class AdminDuplicatesScreen implements Breadcrumbed, Themed
     // ---- selection -----------------------------------------------------
 
     /** @return array{self, ?\Closure} */
-    private function selectPrev(): array
-    {
-        if ($this->selectedIndex > 0) {
-            return [$this->withSelectedIndex($this->selectedIndex - 1), null];
-        }
-
-        return [$this, null];
-    }
-
-    /** @return array{self, ?\Closure} */
     private function selectNext(): array
     {
         if ($this->selectedIndex < count($this->groups) - 1) {
@@ -365,17 +357,6 @@ final class AdminDuplicatesScreen implements Breadcrumbed, Themed
         $next = clone $this;
         $next->loading = true;
         $next->error = null;
-
-        return $next;
-    }
-
-    // ---- clone-mutate --------------------------------------------------
-
-    private function resizedTo(int $cols, int $rows): self
-    {
-        $next = clone $this;
-        $next->cols = $cols;
-        $next->rows = $rows;
 
         return $next;
     }

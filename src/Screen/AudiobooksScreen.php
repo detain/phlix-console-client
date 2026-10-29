@@ -45,6 +45,7 @@ final class AudiobooksScreen implements Breadcrumbed, Themed
 {
     use SubscriptionCapable;
     use ThemedScreen;
+    use ResizesTo;
 
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const HINT = '↑↓  select      ⏎  open      Esc  back';
@@ -212,15 +213,6 @@ final class AudiobooksScreen implements Breadcrumbed, Themed
         $next = clone $this;
         $next->error = $error;
         $next->loaded = true;
-
-        return $next;
-    }
-
-    private function resizedTo(int $cols, int $rows): self
-    {
-        $next = clone $this;
-        $next->cols = $cols;
-        $next->rows = $rows;
 
         return $next;
     }

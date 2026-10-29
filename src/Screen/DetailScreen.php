@@ -101,6 +101,7 @@ final class DetailScreen implements Breadcrumbed, Themed
     use SubscriptionCapable;
     use ThemedScreen;
     use PosterFetchPolicy;
+    use ResolvesUrls;
 
     private const HERO_WIDTH = 26;
     private const HERO_HEIGHT = 16;
@@ -1034,20 +1035,6 @@ final class DetailScreen implements Breadcrumbed, Themed
                     : Lang::t('detail.missing_episodes_load_failed'),
             ),
         ));
-    }
-
-    /**
-     * Resolves a relative URL to an absolute URL using the configured baseUrl.
-     * Handles empty strings and already-absolute http/https URLs as pass-through.
-     * Relative URLs (e.g., /api/v1/artwork/...) are resolved against baseUrl.
-     */
-    private function resolveUrl(string $url): string
-    {
-        if ($url === '' || preg_match('#^https?://#i', $url) === 1) {
-            return $url; // empty, or already absolute (signed URLs are absolute)
-        }
-
-        return rtrim($this->baseUrl, '/') . '/' . ltrim($url, '/');
     }
 
     // ---- data: the children grid (container mode) ----------------------

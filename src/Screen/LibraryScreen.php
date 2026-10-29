@@ -63,6 +63,7 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
     use ThemedScreen;
     use ShimmeringScreen;
     use PosterFetchPolicy;
+    use ResolvesUrls;
 
     private const CARD_WIDTH = 14;
     private const POSTER_HEIGHT = 9;
@@ -586,15 +587,6 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
     }
 
     /** Resolve a (possibly relative) URL against the server base; absolute/empty pass through. */
-    private function resolveUrl(string $url): string
-    {
-        if ($url === '' || preg_match('#^https?://#i', $url) === 1) {
-            return $url; // empty, or already absolute (signed URLs are absolute)
-        }
-
-        return rtrim($this->baseUrl, '/') . '/' . ltrim($url, '/');
-    }
-
     /**
      * @param array<int, \Phlix\Console\Api\Dto\MediaItem> $items
      * @return array<int, \SugarCraft\Gallery\PosterCard>

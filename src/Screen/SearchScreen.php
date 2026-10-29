@@ -53,6 +53,7 @@ final class SearchScreen implements Breadcrumbed, CapturesSlash, Loadable, Shimm
     use ThemedScreen;
     use ShimmeringScreen;
     use PosterFetchPolicy;
+    use ResolvesUrls;
 
     private const CARD_WIDTH = 14;
     private const POSTER_HEIGHT = 9;
@@ -344,20 +345,6 @@ final class SearchScreen implements Breadcrumbed, CapturesSlash, Loadable, Shimm
                 ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new LibraryFailedMsg('Could not run your search.'),
         ));
-    }
-
-    /**
-     * Resolves a relative URL to an absolute URL using the configured baseUrl.
-     * Handles empty strings and already-absolute http/https URLs as pass-through.
-     * Relative URLs (e.g., /api/v1/artwork/...) are resolved against baseUrl.
-     */
-    private function resolveUrl(string $url): string
-    {
-        if ($url === '' || preg_match('#^https?://#i', $url) === 1) {
-            return $url; // empty, or already absolute (signed URLs are absolute)
-        }
-
-        return rtrim($this->baseUrl, '/') . '/' . ltrim($url, '/');
     }
 
     /**

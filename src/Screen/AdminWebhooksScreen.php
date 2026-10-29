@@ -41,6 +41,8 @@ final class AdminWebhooksScreen implements Breadcrumbed, Themed
 {
     use SubscriptionCapable;
     use ThemedScreen;
+    use ResizesTo;
+    use SelectsPrevious;
 
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load webhooks.';
@@ -137,16 +139,6 @@ final class AdminWebhooksScreen implements Breadcrumbed, Themed
     }
 
     // ---- selection -----------------------------------------------------
-
-    /** @return array{self, ?\Closure} */
-    private function selectPrev(): array
-    {
-        if ($this->selectedIndex > 0) {
-            return [$this->withSelectedIndex($this->selectedIndex - 1), null];
-        }
-
-        return [$this, null];
-    }
 
     /** @return array{self, ?\Closure} */
     private function selectNext(): array
@@ -261,17 +253,6 @@ final class AdminWebhooksScreen implements Breadcrumbed, Themed
         }
 
         return mb_substr($text, 0, $maxWidth - 1, 'UTF-8') . '…';
-    }
-
-    // ---- clone-mutate --------------------------------------------------
-
-    private function resizedTo(int $cols, int $rows): self
-    {
-        $next = clone $this;
-        $next->cols = $cols;
-        $next->rows = $rows;
-
-        return $next;
     }
 
     // ---- breadcrumb ----------------------------------------------------

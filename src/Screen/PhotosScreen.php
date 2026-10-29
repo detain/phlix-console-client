@@ -56,6 +56,7 @@ final class PhotosScreen implements Breadcrumbed, Loadable, Shimmering, Themed
     use ThemedScreen;
     use ShimmeringScreen;
     use PosterFetchPolicy;
+    use ResolvesUrls;
 
     private const CARD_WIDTH = 14;
     private const POSTER_HEIGHT = 9;
@@ -367,15 +368,6 @@ final class PhotosScreen implements Breadcrumbed, Loadable, Shimmering, Themed
     }
 
     /** Resolve a (possibly relative) URL against the server base; absolute/empty pass through. */
-    private function resolveUrl(string $url): string
-    {
-        if ($url === '' || preg_match('#^https?://#i', $url) === 1) {
-            return $url; // empty, or already absolute (signed URLs are absolute)
-        }
-
-        return rtrim($this->baseUrl, '/') . '/' . ltrim($url, '/');
-    }
-
     // ---- immutable copies (clone-mutate) -------------------------------
 
     private function withGrid(PosterGrid $grid): self

@@ -40,6 +40,7 @@ final class AdminPluginUpdateScreen implements Breadcrumbed, Themed
 {
     use SubscriptionCapable;
     use ThemedScreen;
+    use ResizesTo;
 
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load plugin updates.';
@@ -268,15 +269,6 @@ final class AdminPluginUpdateScreen implements Breadcrumbed, Themed
     private function armApply(): self
     {
         return $this->withPendingApply('armed');
-    }
-
-    private function resizedTo(int $cols, int $rows): self
-    {
-        $next = clone $this;
-        $next->cols = $cols;
-        $next->rows = $rows;
-
-        return $next;
     }
 
     private function idle(): self
