@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/detain/phlix-console-client/actions/workflows/ci.yml/badge.svg)](https://github.com/detain/phlix-console-client/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/detain/phlix-console-client/graph/badge.svg)](https://codecov.io/gh/detain/phlix-console-client)
-[![Version](https://img.shields.io/github/v/tag/detain/phlix-console-client?label=version&sort=semver)](https://github.com/detain/phlix-console-client/tags)
+[![Version](https://img.shields.io/github/v/release/detain/phlix-console-client?include_prereleases&label=version)](https://github.com/detain/phlix-console-client/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![PHP](https://img.shields.io/badge/PHP-8.3%2B-777bb4?logo=php&logoColor=white)](https://www.php.net/)
 
@@ -141,21 +141,32 @@ compatibility.
 
 ### Composer (developer)
 
+The fully verified install path — clone over HTTPS (no SSH key needed) and run
+from the checkout:
+
+```sh
+git clone https://github.com/detain/phlix-console-client.git
+cd phlix-console-client
+composer install
+bin/phlix run    # needs a real TTY; first run asks for your server URL
+```
+
 The SugarCraft libraries are normal Composer dependencies, pulled from
 Packagist (`sugarcraft/*`, currently tracking `dev-master`).
 
-```sh
-composer install
-```
-
 ### PHAR (end user)
 
-A pre-built PHAR distribution is available for end users who don't need to
-develop against the source:
+CI publishes a **rolling pre-built PHAR** of the tip of `master` on every push,
+carried as an asset of the GitHub Release tagged `latest` — marked
+**prerelease**. No stable, versioned release has been cut yet (no `v*.*.*`
+tag exists), and GitHub's `/releases/latest` shortlink deliberately excludes
+prereleases, so `releases/latest/download/...` URLs **404** today. Download
+from the `latest` **tag** path instead (the commands below are verified against
+the live release):
 
 ```sh
-# Download the latest release PHAR
-curl -fsSL https://github.com/detain/phlix-console-client/releases/latest/download/phlix.phar -o phlix.phar
+# Download the rolling master-build PHAR (tag path — not releases/latest)
+curl -fsSL https://github.com/detain/phlix-console-client/releases/download/latest/phlix.phar -o phlix.phar
 
 # Make it executable
 chmod +x phlix.phar
@@ -170,12 +181,11 @@ phlix run
 
 **Verify the download** (recommended):
 ```sh
-# Fetch the checksums file
-curl -fsSL https://github.com/detain/phlix-console-client/releases/latest/download/SHA256SUMS.txt
+# Fetch the checksums file (the asset is named SHA256SUMS, no .txt)
+curl -fsSL https://github.com/detain/phlix-console-client/releases/download/latest/SHA256SUMS -o SHA256SUMS
 
-# Verify (on Linux/macOS)
-sha256sum phlix.phar
-# Compare the output against SHA256SUMS.txt
+# Verify (Linux; on macOS use `shasum -a 256 -c SHA256SUMS`)
+sha256sum -c SHA256SUMS
 ```
 
 **Requirements for PHAR:**
@@ -183,16 +193,17 @@ sha256sum phlix.phar
 - A terminal with sixel/kitty/iTerm2 support (or use `--mode=halfblock` as fallback)
 - ffmpeg + ffprobe (for video frame grabs)
 
-To build your own PHAR from source:
+To build your own PHAR from source (`humbug/box` is already a declared dev
+dependency and `scripts/build-phar.sh` auto-detects `vendor/bin/box`, so no
+separate box install step is needed):
 
 ```sh
-# Install box PHAR builder
-composer require --dev humbug/box
-
-# Build
+composer install
 ./scripts/build-phar.sh
 
 # Output: build/phlix.phar
+# Building needs phar.readonly=0 (CI sets it); box reports a clear error
+# if your PHP has it enabled.
 ```
 
 ### Developing against unreleased library changes

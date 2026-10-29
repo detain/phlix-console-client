@@ -5,6 +5,36 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — install docs re-anchored to the download paths that actually work (fix campaign C18) — 2026-10-29
+
+- **What.** `README.md` and `docs/clients/console.md` advertised the PHAR
+  install via `releases/latest/download/phlix.phar` and a `SHA256SUMS.txt`
+  asset — both 404 as written: the only published release is the rolling
+  **prerelease** tagged `latest` (GitHub's `/releases/latest` shortlink skips
+  prereleases), and the build uploads the checksum asset as plain `SHA256SUMS`
+  (`build.yml`). No stable `v*.*.*` release has ever been cut, so the primary
+  end-user install path failed with an opaque `curl: (22) 404` for every
+  self-hoster following the docs.
+- **Cure.** Docs-truth only, no release/pipeline changes (cutting a versioned
+  release stays an owner decision): both install sections now name the
+  **verified working** tag-path URLs
+  (`releases/download/latest/phlix.phar` + `…/SHA256SUMS`), state honestly that
+  the artifact is a prerelease rolling `master` build and that a stable release
+  does not exist yet, and replace the hand-compare checksum step with a real
+  `sha256sum -c SHA256SUMS` flow. The dev path gains explicit verified steps
+  (`git clone` over HTTPS — the SSH URL required keys — `composer install`,
+  `bin/phlix run`); the build-from-source section drops the bogus
+  `composer require --dev humbug/box` step (box is already a declared dev
+  dependency and `scripts/build-phar.sh` auto-detects `vendor/bin/box`) and
+  notes the `phar.readonly=0` requirement. The README version badge moves from
+  `v/tag?sort=semver` (which resolved the non-semver `latest` tag) to
+  `v/release?include_prereleases` linking the releases page.
+- **Proof.** Every published command was probed live from scratch: tag-path
+  downloads returned 200, `sha256sum -c SHA256SUMS` verified `phlix.phar: OK`,
+  `php phlix.phar --version` and the in-tree `php bin/phlix --version` both
+  print `phlix 1.0.0`, `bin/phlix bogus` exits 2, and `git ls-remote` resolves
+  the HTTPS clone URL at master. Historical entries above left verbatim.
+
 ### Fixed — PSR-4 misplaced tree fatals two screens (fix campaign C10) — 2026-10-29
 
 - **What.** `src/Phlix/Console/SugarCraft/Screen/{Breadcrumbed,Themed}.php` declared

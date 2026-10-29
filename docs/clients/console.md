@@ -28,19 +28,27 @@ terminal via Unicode/ANSI cell rendering.
 
 ### Composer (for development)
 
+Clone over HTTPS (no SSH key needed) and run from the checkout:
+
 ```sh
-git clone git@github.com:detain/phlix-console-client.git
+git clone https://github.com/detain/phlix-console-client.git
 cd phlix-console-client
 composer install
+bin/phlix run    # needs a real TTY; first run asks for your server URL
 ```
 
 ### PHAR (for end users)
 
-Download a pre-built PHAR from the releases page:
+CI publishes a **rolling pre-built PHAR** of the tip of `master` on every push,
+carried as an asset of the GitHub Release tagged `latest` — marked
+**prerelease**. No stable, versioned release has been cut yet (no `v*.*.*` tag
+exists), and GitHub's `/releases/latest` shortlink deliberately excludes
+prereleases, so `releases/latest/download/...` URLs **404** today. Download
+from the `latest` **tag** path instead:
 
 ```sh
-# Download the latest release
-curl -fsSL https://github.com/detain/phlix-console-client/releases/latest/download/phlix.phar -o phlix.phar
+# Download the rolling master-build PHAR (tag path — not releases/latest)
+curl -fsSL https://github.com/detain/phlix-console-client/releases/download/latest/phlix.phar -o phlix.phar
 
 # Make it executable
 chmod +x phlix.phar
@@ -53,6 +61,16 @@ sudo mv phlix.phar /usr/local/bin/phlix
 phlix run
 ```
 
+**Verify the download** (recommended):
+
+```sh
+# Fetch the checksums file (the asset is named SHA256SUMS, no .txt)
+curl -fsSL https://github.com/detain/phlix-console-client/releases/download/latest/SHA256SUMS -o SHA256SUMS
+
+# Verify (Linux; on macOS use `shasum -a 256 -c SHA256SUMS`)
+sha256sum -c SHA256SUMS
+```
+
 **PHAR requirements:**
 
 - PHP ≥ 8.3 with ext-gd (image decoding)
@@ -62,10 +80,15 @@ phlix run
 
 ### Building the PHAR from source
 
+`humbug/box` is already a declared dev dependency and `scripts/build-phar.sh`
+auto-detects `vendor/bin/box`, so no separate box install step is needed:
+
 ```sh
-composer require --dev humbug/box
+composer install
 ./scripts/build-phar.sh
 # Output: build/phlix.phar
+# Building needs phar.readonly=0 (CI sets it); box reports a clear error
+# if your PHP has it enabled.
 ```
 
 ## Configuration
