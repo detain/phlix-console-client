@@ -404,19 +404,18 @@ synthesizes its own image with `gd`, so the suite needs no fixtures.
 CI — any new type error fails the build. Config lives in `phpstan.neon`;
 `tests/` is analysed separately at level 2 via `phpstan-tests.neon`. There is
 **no baseline file and no `ignoreErrors`** in either config; the honest
-qualifier is that `src/` carries **5 inline suppressions**, all
+qualifier is that `src/` carries **3 inline suppressions**, all
 `@phpstan-ignore-next-line property.onlyWritten`, each on a deliberately
 write-only field (`tests/Docs/StaticAnalysisClaimsDocsTest.php` re-derives
 this census from the tree — plant or remove a suppression and the table must
-move with it):
+move with it; two former `SyncPlayModal` terminal-size rows retired when the
+opaque-frame graft made those fields read):
 
 | Site | Why it stays write-only |
 | --- | --- |
 | `SyncPlayService::$playbackPosition` | room-reported position ingested from group state; the player drives its own clock and never reads it back |
 | `SyncPlayService::$currentMediaId` | sanitized group-state mirror — the ingest boundary stores every hostile wire string uniformly, display reader or not |
 | `SyncPlayService::$onMemberLeft` | callback registered by the player screen but never dispatched yet — member-left frames have no routing in the service (live gap, owed a code fix) |
-| `SyncPlayModal::$_cols` | terminal width re-stamped on every resize clone; `calculateDims()` consumes the parameter directly |
-| `SyncPlayModal::$_rows` | same, for the height |
 
 ```sh
 composer phpstan                                    # or: vendor/bin/phpstan analyse

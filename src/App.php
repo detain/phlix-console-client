@@ -159,6 +159,7 @@ use Phlix\Console\Screen\PlaylistsScreen;
 use Phlix\Console\Screen\CollectionsScreen;
 use Phlix\Console\Screen\Teardownable;
 use Phlix\Console\Screen\Themed;
+use Phlix\Console\Screen\LineAligned;
 use Phlix\Console\Store\AudiobooksStore;
 use Phlix\Console\Store\AuthStore;
 use Phlix\Console\Store\BooksStore;
@@ -186,6 +187,7 @@ use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\PasteMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\SubscriptionCapable;
+use SugarCraft\Core\Util\Ansi;
 use SugarCraft\Core\Util\Width;
 use SugarCraft\Core\View;
 use SugarCraft\Toast\Position;
@@ -603,10 +605,26 @@ final class App implements Model
     public function view(): string|View
     {
         $view = $this->baseView();
+        // A graphics-mode player frame carries its pixel blob on one OPAQUE first
+        // line: newline-indexed compositing (the HUD splice, the bar's bottom-row
+        // splice, the palette canvas) would sever the DCS/APC payload mid-blob or
+        // replace the whole frame. The screen opts out via {@see LineAligned};
+        // boxes then ride absolute cursor moves ({@see \Phlix\Console\Ui\Graft}),
+        // and the vendor toast compositor — which splits lines and cannot be told
+        // otherwise — is skipped while such a frame is on top.
+        $topScreen = $this->topScreen();
+        $opaqueFrame = $topScreen instanceof LineAligned && !$topScreen->isLineAligned();
         // The diagnostic HUD sits in the top-left UNDER everything else: drawn over
         // the base but before the now-playing bar + the modals.
         if ($this->metricsVisible) {
-            $view = MetricsOverlay::render($view, $this->metricsLines(), $this->cols, $this->rows, $this->theme);
+            $view = MetricsOverlay::render(
+                $view,
+                $this->metricsLines(),
+                $this->cols,
+                $this->rows,
+                $this->theme,
+                $opaqueFrame,
+            );
         }
         // The App owns the playback audio (music OR audiobook), so a persistent
         // now-playing bar is composited onto the bottom row of every screen
@@ -615,17 +633,22 @@ final class App implements Model
         // row even on a very short terminal where the (taller) HUD reaches it. The
         // palette + toasts then layer ON TOP of both.
         if ($this->nowPlaying !== null) {
-            $view = $this->compositeNowPlayingBar($view, $this->nowPlaying);
+            $view = $this->compositeNowPlayingBar($view, $this->nowPlaying, $opaqueFrame);
         }
         // The command palette dims + centers its box over the screen; toasts then
         // float over everything (palette included).
         if ($this->palette !== null) {
-            $view = $this->palette->render($view);
+            $view = $this->palette->render($view, $opaqueFrame);
         }
 
         // Toast::View is a no-op (returns the background unchanged) when nothing
-        // is queued.
-        $frame = $this->toast->View($view, max(1, $this->cols), max(1, $this->rows));
+        // is queued. On an opaque graphics frame it is skipped outright: sugar-toast
+        // splices its boxes into newline-indexed rows (its own splitLines canvas),
+        // which would cut through the blob payload — the vendor offers no graft
+        // path, so queued toasts wait out the graphics frame rather than corrupt it.
+        $frame = $opaqueFrame
+            ? $view
+            : $this->toast->View($view, max(1, $this->cols), max(1, $this->rows));
 
         // In a pixel-graphics mode the poster cells carry overlay markers; hand
         // the loader's image layer to the runtime so it paints the blobs on top
@@ -642,10 +665,21 @@ final class App implements Model
      * non-corrupting line-replace — overlays composite over the result).
      * `explode("\n", …)` always yields at least one element, so the last-line
      * index is always valid.
+     *
+     * On an opaque graphics frame ($opaqueFrame) there is no addressable bottom
+     * LINE — the frame's single line holds the blob plus the player's
+     * absolute-move chrome, and replacing it would erase the video. The bar is
+     * instead written onto the LAST SCREEN ROW with an absolute cursor move +
+     * line erase (the graphicsChrome idiom); it emits after the chrome's own
+     * status write, so the bar still wins the bottom row.
      */
-    private function compositeNowPlayingBar(string $view, NowPlayingSession $nowPlaying): string
+    private function compositeNowPlayingBar(string $view, NowPlayingSession $nowPlaying, bool $opaqueFrame = false): string
     {
         $bar = NowPlayingBar::render($nowPlaying, max(1, $this->cols), $this->theme);
+
+        if ($opaqueFrame) {
+            return $view . Ansi::cursorTo($this->rows, 1) . Ansi::eraseLine() . $bar;
+        }
 
         $lines = explode("\n", $view);
         $lines[count($lines) - 1] = $bar;

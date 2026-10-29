@@ -54,6 +54,8 @@ final class SleepTimerMenu
         private int $cursor,
         private int $winWidth,
         private int $winHeight,
+        private int $cols,
+        private int $rows,
     ) {
     }
 
@@ -64,7 +66,7 @@ final class SleepTimerMenu
     {
         [$w, $h] = self::dims($cols, $rows);
 
-        return new self($initialCursor, $w, $h);
+        return new self($initialCursor, $w, $h, $cols, $rows);
     }
 
     public function up(): self
@@ -117,13 +119,20 @@ final class SleepTimerMenu
     }
 
     /** Composite the menu box centred over a sugar-overlay dimmed background. */
-    public function render(string $background): string
+    public function render(string $background, bool $opaqueFrame = false): string
     {
         $box = SugarPanels::new()->render(
             SugarPanels::new()->leaf($this->body())->withBorder(true)->withPadding(0)->withTitle(' Sleep Timer '),
             $this->winWidth,
             $this->winHeight,
         );
+
+        if ($opaqueFrame) {
+            // The background's first line is an opaque pixel-graphics blob — a line
+            // splice cannot touch it (see \Phlix\Console\Screen\LineAligned). Graft the
+            // same box at the same CENTER anchor with absolute cursor moves.
+            return Graft::centered($background, $box, $this->cols, $this->rows);
+        }
 
         return Veil::new()
             ->withBackdrop(self::BACKDROP_DIM)

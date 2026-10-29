@@ -43,6 +43,8 @@ final class CommandPalette
         private array $actions,
         private int $winWidth,
         private int $winHeight,
+        private int $cols,
+        private int $rows,
     ) {
     }
 
@@ -54,7 +56,7 @@ final class CommandPalette
         [$w, $h] = self::dims($cols, $rows, count($actions));
         $quickPick = self::buildQuickPick($actions, $w, $h);
 
-        return new self($quickPick, $actions, $w, $h);
+        return new self($quickPick, $actions, $w, $h, $cols, $rows);
     }
 
     /**
@@ -131,10 +133,17 @@ final class CommandPalette
     }
 
     /** Composite the palette box centered over a sugar-overlay dimmed background. */
-    public function render(string $background): string
+    public function render(string $background, bool $opaqueFrame = false): string
     {
         $blank = implode("\n", array_fill(0, $this->winHeight, str_repeat(' ', $this->winWidth)));
         $box = $this->quickPick->View($blank);
+
+        if ($opaqueFrame) {
+            // The background's first line is an opaque pixel-graphics blob — a line
+            // splice cannot touch it (see \Phlix\Console\Screen\LineAligned). Graft the
+            // same box at the same CENTER anchor with absolute cursor moves.
+            return Graft::centered($background, $box, $this->cols, $this->rows);
+        }
 
         return Veil::new()
             ->withBackdrop(self::BACKDROP_DIM)

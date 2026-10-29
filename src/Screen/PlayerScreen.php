@@ -121,7 +121,7 @@ use function React\Promise\resolve;
  * {@see Teardownable} so leaving it — by Esc, or a global Ctrl-C quit — stops
  * the ffmpeg/ffplay subprocesses rather than leaking them.
  */
-final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
+final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, LineAligned
 {
     use SubscriptionCapable;
     use ThemedScreen;
@@ -548,28 +548,43 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         return [$this, null];
     }
 
+    /**
+     * The graphics-mode frame is NOT line-addressable: its first line carries the
+     * whole sixel/kitty/iTerm2 blob (a multi-row payload behind one logical line),
+     * so App-level compositors graft over it with absolute cursor moves instead of
+     * splicing it — see {@see LineAligned} and {@see \Phlix\Console\Ui\Graft}.
+     * Text modes (and the pre-frame placeholder) stay line-aligned.
+     */
+    public function isLineAligned(): bool
+    {
+        return !($this->inner !== null && $this->inner->mode->isGraphics());
+    }
+
     public function view(): string
     {
         $base = $this->renderBase();
+        // A graphics-mode base frame carries its pixel blob on one opaque first line;
+        // every box composited below it must ride absolute cursor moves.
+        $opaqueFrame = !$this->isLineAligned();
         // The chapter picker dims + centres its box over the current frame.
         if ($this->chapterMenu !== null) {
-            return $this->chapterMenu->render($base);
+            return $this->chapterMenu->render($base, $opaqueFrame);
         }
         // The audio track picker dims + centres its box over the current frame.
         if ($this->audioTrackMenu !== null) {
-            return $this->audioTrackMenu->render($base);
+            return $this->audioTrackMenu->render($base, $opaqueFrame);
         }
         // The subtitle track picker dims + centres its box over the current frame.
         if ($this->subtitleTrackMenu !== null) {
-            return $this->subtitleTrackMenu->render($base);
+            return $this->subtitleTrackMenu->render($base, $opaqueFrame);
         }
         // The quality picker dims + centres its box over the current frame.
         if ($this->qualityMenu !== null) {
-            return $this->qualityMenu->render($base);
+            return $this->qualityMenu->render($base, $opaqueFrame);
         }
         // The sleep timer picker dims + centres its box over the current frame.
         if ($this->sleepTimerMenu !== null) {
-            return $this->sleepTimerMenu->render($base);
+            return $this->sleepTimerMenu->render($base, $opaqueFrame);
         }
         // The SyncPlay modal (create/join room).
         if ($this->syncPlayModal !== null) {
@@ -581,9 +596,10 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
                 $this->cols,
                 $this->rows,
                 $this->theme(),
+                $opaqueFrame,
             );
 
-            return $this->syncPlayModal->render($withOverlay);
+            return $this->syncPlayModal->render($withOverlay, $opaqueFrame);
         }
 
         // SyncPlay overlay when in a room (but modal not open).
@@ -596,6 +612,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
                 $this->cols,
                 $this->rows,
                 $this->theme(),
+                $opaqueFrame,
             );
         }
 

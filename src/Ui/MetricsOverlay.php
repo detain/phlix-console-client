@@ -32,6 +32,14 @@ use SugarCraft\Core\Util\Width;
  * below the box are left completely untouched, so $base's overall line count is
  * unchanged.
  *
+ * On an opaque graphics frame ($opaqueFrame = true, see
+ * {@see \Phlix\Console\Screen\LineAligned}) the line splice cannot run: the
+ * frame's first line carries a pixel-graphics blob whose DCS/APC payload
+ * dropAnsi would cut like plain text. The box is then GRAFTED instead — same
+ * rows, same top-left anchor, written with absolute cursor moves
+ * ({@see Graft::at}); no tail is preserved because the "tail" is image cells,
+ * not re-emittable text.
+ *
  * The border + the leading `│ ` of each content row may be tinted with the
  * theme's brand accent (Nocturne is plain — a no-op, asserted zero-SGR); the
  * `Label  value` text stays plain.
@@ -53,9 +61,18 @@ final class MetricsOverlay
      * Composite a metrics box of $lines onto the top-left of $base.
      *
      * @param list<string> $lines each a `Label  value` string (ANSI-stripped for width)
+     * @param bool $opaqueFrame true when $base's first line is an opaque pixel-graphics
+     *                          blob (see {@see \Phlix\Console\Screen\LineAligned}) — the
+     *                          box is grafted with absolute moves instead of line-spliced
      */
-    public static function render(string $base, array $lines, int $cols, int $rows, ?Theme $theme = null): string
-    {
+    public static function render(
+        string $base,
+        array $lines,
+        int $cols,
+        int $rows,
+        ?Theme $theme = null,
+        bool $opaqueFrame = false,
+    ): string {
         $cols = max(1, $cols);
         $rows = max(1, $rows);
 
@@ -88,6 +105,11 @@ final class MetricsOverlay
 
         // The exact display width every box row occupies (border + pad + inner).
         $boxWidth = $inner + 2 + 2 * self::INNER_PAD;
+
+        if ($opaqueFrame) {
+            // Never draw below the terminal's last row (mirrors overlay()'s cap).
+            return Graft::at($base, array_slice($box, 0, $rows), 0, 0);
+        }
 
         return self::overlay($base, $box, $boxWidth, $rows);
     }

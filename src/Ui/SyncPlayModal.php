@@ -47,11 +47,9 @@ final class SyncPlayModal
         /** @var list<SyncPlayGroup> */
         private array $rooms,
         private ?string $error,
-        /** @internal */
-        /** @phpstan-ignore-next-line property.onlyWritten */
+        /** @internal Read by the opaque-frame graft path (see {@see Graft::centered}). */
         private int $_cols,
         /** @internal */
-        /** @phpstan-ignore-next-line property.onlyWritten */
         private int $_rows,
     ) {
     }
@@ -243,8 +241,11 @@ final class SyncPlayModal
 
     /**
      * Render the modal overlaying the given background.
+     *
+     * @param bool $opaqueFrame true when $background's first line is an opaque
+     *                          pixel-graphics blob (see {@see \Phlix\Console\Screen\LineAligned})
      */
-    public function render(string $background): string
+    public function render(string $background, bool $opaqueFrame = false): string
     {
         $box = match ($this->state) {
             1 => $this->renderCreateForm(),
@@ -252,6 +253,12 @@ final class SyncPlayModal
             3 => $this->renderError(),
             default => $this->renderRoomsList(),
         };
+
+        if ($opaqueFrame) {
+            // Graft the same box at the same CENTER anchor with absolute cursor
+            // moves — the blob line must not be line-spliced.
+            return Graft::centered($background, $box, $this->_cols, $this->_rows);
+        }
 
         return Veil::new()
             ->withBackdrop(self::BACKDROP_DIM)

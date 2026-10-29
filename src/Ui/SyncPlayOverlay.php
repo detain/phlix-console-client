@@ -45,6 +45,10 @@ final class SyncPlayOverlay
      * @param string      $syncStatus Status text: "Synced", "Syncing...", "Connecting..."
      * @param int         $cols    Terminal column count
      * @param int         $rows    Terminal row count
+     * @param bool        $opaqueFrame true when $base's first line is an opaque pixel-graphics
+     *                                 blob (see {@see \Phlix\Console\Screen\LineAligned}) — the box is
+     *                                 grafted at the same top-right anchor with absolute cursor
+     *                                 moves instead of line-spliced
      */
     public static function render(
         string $base,
@@ -54,6 +58,7 @@ final class SyncPlayOverlay
         int $cols,
         int $rows,
         ?Theme $theme = null,
+        bool $opaqueFrame = false,
     ): string {
         // If not in a room, render nothing.
         if ($roomName === null) {
@@ -96,6 +101,12 @@ final class SyncPlayOverlay
 
         // Box width including borders and padding.
         $boxWidth = $inner + 2 + 2 * self::INNER_PAD;
+
+        if ($opaqueFrame) {
+            // Same top-right anchor, absolute cursor moves — the blob line
+            // must not be line-spliced (see \Phlix\Console\Screen\LineAligned).
+            return Graft::topRight($base, array_slice($box, 0, $rows), $boxWidth, $cols);
+        }
 
         return self::overlayTopRight($base, $box, $boxWidth, $cols, $rows);
     }

@@ -38,6 +38,8 @@ final class SubtitleTrackList
         private int $cursor,
         private int $winWidth,
         private int $winHeight,
+        private int $cols,
+        private int $rows,
     ) {
     }
 
@@ -61,7 +63,7 @@ final class SubtitleTrackList
 
         [$w, $h] = self::dims($cols, $rows, count($tracks) + 1);
 
-        return new self($tracks, $cursor, $w, $h);
+        return new self($tracks, $cursor, $w, $h, $cols, $rows);
     }
 
     public function up(): self
@@ -114,13 +116,20 @@ final class SubtitleTrackList
     }
 
     /** Composite the menu box centred over a sugar-overlay dimmed background. */
-    public function render(string $background): string
+    public function render(string $background, bool $opaqueFrame = false): string
     {
         $box = SugarPanels::new()->render(
             SugarPanels::new()->leaf($this->body())->withBorder(true)->withPadding(0)->withTitle(' Subtitles '),
             $this->winWidth,
             $this->winHeight,
         );
+
+        if ($opaqueFrame) {
+            // The background's first line is an opaque pixel-graphics blob — a line
+            // splice cannot touch it (see \Phlix\Console\Screen\LineAligned). Graft the
+            // same box at the same CENTER anchor with absolute cursor moves.
+            return Graft::centered($background, $box, $this->cols, $this->rows);
+        }
 
         return Veil::new()
             ->withBackdrop(self::BACKDROP_DIM)

@@ -5,6 +5,49 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — compositor honors single-logical-line graphics frames; overlays measure display width, not blob lines (review console__tuispec, M-CONSOLE-42) — 2026-10-29
+
+- **The defect.** `PlayerScreen::renderBase()` deliberately keeps a graphics-mode
+  frame on ONE logical line (`$blob . graphicsChrome()` — cursor moves only, no
+  `"\n"`, docblock-player). Every App- and player-level compositor disagrees:
+  `compositeNowPlayingBar()` `explode("\n")` + last-line replace swaps the whole
+  video+chrome for the 1-row bar; `MetricsOverlay::overlay()` splices row 0 and
+  `Width::dropAnsi` (which passes only CSI+OSC through) severs the DCS/APC sixel
+  payload mid-blob; all eight `Veil::composite` menus resolve their canvas from
+  newlines and so see a 1-row screen; the vendor toast splices the same way.
+  Reachable today: `App::openPlayer()` never tears down the App-owned
+  now-playing session, so music + sixel video co-exist by design.
+- **The model.** A graphics frame is OPAQUE-FIRST-LINE and stays canonical.
+  New `Screen\LineAligned` contract (PlayerScreen: false only with a graphics-mode
+  inner mounted); new `Ui\Graft` writes each overlay row via
+  `Ansi::cursorTo(row, col)` with the anchors mirroring sugar-overlay's
+  `Position::CENTER` (`floor((bg − fg) / 2)`) and the top-right splice
+  (`max(0, cols − boxWidth)`) 1:1 — same box, same cells, never byte-splitting
+  the blob. `render($background, bool $opaqueFrame = false)` threads the seam
+  through the 7 reachable overlays (chapter/audio/subtitle/quality/sleep-timer
+  menus, SyncPlay modal, command palette) + `SyncPlayOverlay::render` +
+  `MetricsOverlay::render`; the now-playing bar writes the bottom row with an
+  absolute move + erase after the chrome (bar wins its row); the sugar-toast
+  splice, having no graft path in the vendor, is skipped over opaque frames —
+  queued toasts wait the video out (the review's sanctioned alternative).
+- **Pins.** `tests/Ui/GraftTest.php` +6 (anchor math incl the live Veil-center
+  numbers, DCS byte-fidelity, 1-line invariant, clamp legs);
+  `tests/Screen/GraphicsFrameCompositingTest.php` +9 (App-level HUD/bar/palette/
+  toast graft vs a live mounted `Player::fromDecoder(mode: Mode::Sixel)` frame —
+  the sixel view really is one `"\x1bP"`-headed line — legacy-splice-unchanged
+  control over plain frames, text-mode control). Red-on-parent doubly proven:
+  parent `MetricsOverlay::render` replaces the blob head live, and the new files
+  fatal-load on 9cd33c2.
+- **Gates (measured at this commit).** Full suite 3234 tests / 17,845 assertions,
+  0 failures / 0 errors / 9 skipped (shared tree also carries sibling-lane docs
+  edits, +14 tests over the clean 3205/17,239 base). The lane adds exactly +15
+  tests / +51 assertions, measured per-file: `GraftTest` 6/18,
+  `GraphicsFrameCompositingTest` 9/33; the docs content-scan tripwires re-derive
+  their loop counts from this CHANGELOG/README text itself and shift by a few
+  assertions with each prose pass (never pin them from memory). phpstan: 1 error
+  = the known `AdminClient::alternatePosters()` inherited-red (identical at
+  parent). phpcs both repo standards exit 0. i18n: zero new user strings
+  (hardcoded + catalog checks pass).
 ### Added — run entrypoint enables bracketed-paste terminal mode 2004 so the M44 replay actually fires (review console__tuispec, M-CONSOLE-44) — 2026-10-29
 
 - **The missing half.** `8793a43` shipped the consumption seam (`App::dispatch()`
@@ -95,20 +138,14 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   dead-end is deleted; the empty-state copy and footer now advertise `a`
   truthfully. The screen gains `CapturesSlash` (same law ServerScreen carries for
   URL typing: the App must not hijack `:`/`/` — Ctrl-K still opens the palette).
-<<<<<<< HEAD
-=======
 - **Docs.** The manual's Screens-table Servers row now advertises the `a` add
   key with the same one-sentence story as the footer and docblock (the row
   previously listed only Enter/h/r).
->>>>>>> b35b76c (fix(tui): Servers-screen add-server key to one true story [review console__tuiarch M40])
 - **Tests.** New `ServersScreenAddServerTest`: 9 tests / 24 assertions — all red
   on parent, green after (incl. the regression pin that `a` must not return a
   `ShowToastMsg`). phpstan src/tests, phpcs (both standards) and the i18n checks
   green; the one phpstan src error (AdminClient return.type) is pre-existing.
-<<<<<<< HEAD
-=======
 
->>>>>>> b35b76c (fix(tui): Servers-screen add-server key to one true story [review console__tuiarch M40])
 ### Fixed — SyncPlayModal room-name backspace cuts a codepoint, not a byte (review console__tuispec, M-CONSOLE-43) — 2026-10-29
 
 - **The defect.** `SyncPlayModal::backspace()` sliced the room name with
