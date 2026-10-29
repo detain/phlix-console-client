@@ -5,6 +5,36 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `watch` documented to code truth in the two remaining doc surfaces (review console__docmaint, M-CONSOLE-14) — 2026-10-29
+
+- **What.** `README.md` gained a "### Hub relay watch" section (between Render
+  diagnostics and Test): the `watch` invocation, the four env vars
+  (`PHLIX_HUB_URL`, `PHLIX_HUB_SERVER_ID`, `PHLIX_HUB_TOKEN`,
+  `PHLIX_RELAY_TOKEN`), the overriding flags, the STDIN carriers, the
+  deprecated-argv warning (CWE-214), `--once` / `--timeout` (default 30), and
+  the 0/1/2 exit codes — every fact read off `bin/phlix` (usage :22-24, options
+  :36-50, `parseWatchArgs` env ladder :292-296 with flag-over-env assignment,
+  `runWatch` docblock exit codes :481-484) and `src/Api/SyncPlay/
+  HubRelayConsumer.php` (`:8804`, `/syncplay/{server_id}`, :57/:300).
+  `docs/dev/client-console.md:14` diagram now lists `watch` in the CLI
+  entrypoint row.
+- **Already cured, verified this lane.** `docs/clients/console.md` carries the
+  four env-var rows (:130-133) and the "Hub relay consumer (`watch`)" usage
+  section (:153+) since `93c2ad4` (M-CONSOLE-35); those sites were confirmed
+  against code, not rewritten.
+- **Teeth.** New `tests/Docs/WatchCommandDocsTest.php` (15 tests, 24
+  assertions): derives the four names from `parseWatchArgs`' own `getenv()`
+  calls plus a six-name `bin/phlix` env census, and pins README/console.md/
+  dev-diagram against them; a diagram-column alignment pin guards the
+  fixed-width box. Red-on-parent: exactly the 5 README errors + 1 diagram
+  failure; the console.md/bin-phlix pins held green (cure attribution). Full
+  suite serial 3114 → 3129 tests, 16542 → 16566 assertions (+15/+24 exact,
+  the new file alone; 13 PHPUnit deprecations and 9 skips held at the
+  worktree-measured `7b08db5` baseline); phpstan src error-set IDENTICAL to
+  parent (the documented pre-existing `AdminClient::alternatePosters`
+  return.type only — no `src/` changes this lane); phpstan-tests `[OK]`;
+  phpcs `phpcs-tests.xml` and `PSR12` both exit 0 on the new test.
+
 ### Fixed — README extension requirements restated to measured truth, both directions (review console__devops, M-CONSOLE-13) — 2026-10-29
 
 - **What.** `README.md` "## Requirements" claimed `pcntl` + `posix` were

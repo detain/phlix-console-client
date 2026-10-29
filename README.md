@@ -291,6 +291,30 @@ bin/phlix frame /path/to/movie.mkv 3 60 20
 `doctor`, `poster`, and `frame` are non-interactive and work over a pipe;
 `run` needs an interactive terminal.
 
+### Hub relay watch
+
+```sh
+# Consume the hub relay's "play this" commands (headless — no TTY needed)
+bin/phlix watch --hub https://hub.example --server-id srv-7 \
+    --hub-token-stdin < /run/secrets/hub_token
+
+# Fully env-driven — the recommended carrier for tokens
+PHLIX_HUB_URL=https://hub.example PHLIX_HUB_SERVER_ID=srv-7 \
+PHLIX_HUB_TOKEN="$TOKEN" bin/phlix watch --once --timeout 60
+```
+
+`watch` connects to the hub's SyncPlay relay (`ws(s)://{hub}:8804/syncplay/{server_id}`)
+and dispatches every delivered `play_media` command to the player. Four environment
+variables drive it — `PHLIX_HUB_URL`, `PHLIX_HUB_SERVER_ID`, `PHLIX_HUB_TOKEN` (a hub
+user access token, exchanged for a relay token on each connect) and `PHLIX_RELAY_TOKEN`
+(a ready-made relay token; skips minting) — each overridden by its flag (`--hub`,
+`--server-id`, `--hub-token`, `--relay-token`). For the two token values prefer the
+environment or `--hub-token-stdin` / `--relay-token-stdin`: literal argv secrets are
+world-readable via `ps(1)`, so the plain-token flags are deprecated and warn on every
+use. `--once` waits for a single play command and exits, giving up after `--timeout`
+seconds (default 30). Exit codes: 0 = a command was dispatched (with `--once`, also on
+a clean run), 1 = watch failed, 2 = usage error.
+
 ## Test
 
 ```sh

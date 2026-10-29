@@ -11,7 +11,7 @@ video playback.
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        bin/phlix                                 │
-│              CLI entrypoint: doctor, poster, frame, run          │
+│              CLI entrypoint: doctor, poster, frame, watch, run   │
 └──────────────────┬──────────────────────────────────────────────┘
                    │ builds object graph
                    ▼
