@@ -5,6 +5,30 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — SyncPlayModal room-name backspace cuts a codepoint, not a byte (review console__tuispec, M-CONSOLE-43) — 2026-10-29
+
+- **The defect.** `SyncPlayModal::backspace()` sliced the room name with
+  `strlen()`/`substr()` — byte semantics. One keystroke on a UTF-8 name cut a
+  single byte out of the tail codepoint and orphaned a partial sequence:
+  "café" became "caf\xC3" and "Room 🚀" grew a dangling "\xF0\x9F\x9A", both
+  rendering as a mojibake replacement glyph in the field.
+- **The cure.** `mb_substr($name, 0, -1, 'UTF-8')` — the same idiom the
+  palette/search backspace paths already use (`FilterBar::editSearch()`,
+  `SearchScreen`), with the emptiness guard tightened from a byte-length
+  probe to a plain non-empty comparison.
+- **Granularity law.** Deletion is per codepoint, deliberately not per
+  grapheme cluster: a decomposed "e + U+0301" or a ZWJ emoji sequence sheds
+  one mark per keystroke. Grapheme clustering needs ext-intl, which
+  `composer.json` does not require and the CI matrix does not install —
+  mbstring is the safe, already-assumed floor (a dozen `src/` call sites use
+  it today). The tradeoff is documented at the method and pinned by tests.
+- **Tests.** New `tests/Ui/SyncPlayModalBackspaceTest` (7 cases): 4-byte
+  emoji, 2-byte composed accent, decomposed combining sequence, ZWJ
+  sequence — each asserting valid UTF-8 at every intermediate step — plus
+  ASCII regression parity, empty-field no-op, and the non-creation-state
+  no-op pins. Red-on-parent measured at commit base: 4 failures, one per
+  multi-byte vector; green after.
+
 ### Added — bracketed paste replays as typed keys into every text surface (review console__tuispec, M-CONSOLE-44) — 2026-10-29
 
 - **The defect.** sugar-core's InputReader delivers a bracketed paste as ONE

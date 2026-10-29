@@ -169,6 +169,15 @@ final class SyncPlayModal
 
     /**
      * Remove the last character from the room name.
+     *
+     * The cut is one Unicode codepoint (mb_substr), never one byte: a
+     * byte-wise substr() on a UTF-8 name (accents, emoji) orphaned a partial
+     * sequence and rendered as a mojibake tail. Granularity is deliberately
+     * codepoint, not grapheme cluster — a base character followed by
+     * combining marks (or a ZWJ emoji sequence) sheds one mark per keystroke.
+     * Grapheme clustering would require ext-intl, which composer.json does
+     * not require and the CI matrix does not install; mb_substr with an
+     * explicit 'UTF-8' is the house idiom (see FilterBar, SearchScreen).
      */
     public function backspace(): self
     {
@@ -177,8 +186,8 @@ final class SyncPlayModal
         }
 
         $next = clone $this;
-        $next->roomName = $this->roomName !== null && strlen($this->roomName) > 0
-            ? substr($this->roomName, 0, -1)
+        $next->roomName = $this->roomName !== null && $this->roomName !== ''
+            ? mb_substr($this->roomName, 0, -1, 'UTF-8')
             : '';
 
         return $next;
