@@ -5,6 +5,25 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — PSR-4 misplaced tree fatals two screens (fix campaign C10) — 2026-10-29
+
+- **What.** `src/Phlix/Console/SugarCraft/Screen/{Breadcrumbed,Themed}.php` declared
+  namespace `Phlix\Console\SugarCraft\Screen` while composer.json maps
+  `"Phlix\\Console\\"` to `src/` — under that mapping the autoloader looks at
+  `src/SugarCraft/Screen/`, so in a plain `composer install` checkout opening
+  "Shared with me" or "Invite links" threw the unrecoverable
+  `Error: Interface "Phlix\Console\SugarCraft\Screen\Breadcrumbed" not found` at
+  class-link time (commit 4f24749 had moved the files the wrong way; phpstan
+  scans src/ by path and the box PHAR embeds a forgiving classmap, so no gate
+  saw it). Both files are back at their PSR-4-correct paths; composer.json — the
+  authority — and the declared namespaces are unchanged, consumers untouched.
+- **Cure.** `tests/Unit/AutoloadMapTest.php`: a static path↔namespace↔primary-symbol
+  guard over the whole src/ tree plus link-time resolution probes for every
+  `src/Screen/` class and the two affected screens — path/namespace drift can
+  never ship silently again. Red on the old tree (2 errors + 2 failures), green
+  after the move; suite 2969 → 2973 tests, 13646 → 13652 assertions, 0 errors,
+  PSR-12 and phpstan (src + tests) clean on all changed files.
+
 ### Changed — SugarCraft dependency rename (campaign Phase 11.3) — 2026-10-17
 
 - **What.** Every `sugarcraft/*` requirement moved to its renamed package:
