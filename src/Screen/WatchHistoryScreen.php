@@ -12,6 +12,7 @@ namespace Phlix\Console\Screen;
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\RecentlyWatchedItem;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\WatchHistoryLoadedMsg;
@@ -39,7 +40,7 @@ final class WatchHistoryScreen implements Model, Teardownable, Breadcrumbed, The
     use ThemedScreen;
 
     private const HINT = 'Q: Back  ↑↓: Navigate  Enter: Open';
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load watch history.';
 
     /** @var list<RecentlyWatchedItem> */
@@ -66,7 +67,7 @@ final class WatchHistoryScreen implements Model, Teardownable, Breadcrumbed, The
                 },
                 static function (\Throwable $e): WatchHistoryFailedMsg|SessionExpiredMsg {
                     return $e instanceof AuthError
-                        ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                        ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                         : new WatchHistoryFailedMsg(self::LOAD_FAILED);
                 },
             );

@@ -17,10 +17,12 @@ declare(strict_types=1);
  */
 
 return [
+    // ---- Auth (session expiry — shared by every surface) ---------
+    'auth.session_expired' => 'セッションの有効期限が切れました。もう一度ログインしてください。',
+
     // ---- RecommendationsScreen ----------------------------------------
     'recommendations.title' => 'おすすめ',
     'recommendations.hint' => 'Q: 戻る  ↑↓: 移動  Enter: 開く  X: 非表示',
-    'recommendations.session_expired' => 'セッションの有効期限が切れました。もう一度ログインしてください。',
     'recommendations.load_failed' => 'おすすめを読み込めませんでした。',
     'recommendations.loading' => 'おすすめを読み込み中…',
     'recommendations.empty' => "まだおすすめはありません。\n  視聴を始めると、あなた向けの提案が表示されます！",
@@ -28,7 +30,6 @@ return [
     'recommendations.crumb' => 'おすすめ',
 
     // ---- DetailScreen -------------------------------------------------
-    'detail.session_expired' => 'セッションの有効期限が切れました。もう一度ログインしてください。',
     'detail.load_failed' => 'このタイトルを読み込めませんでした。',
     'detail.similar_load_failed' => '関連作品を読み込めませんでした。',
     'detail.missing_episodes_load_failed' => '欠落エピソードを読み込めませんでした。',

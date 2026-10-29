@@ -13,6 +13,7 @@ use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Audiobook;
 use Phlix\Console\Api\Dto\AudiobookChapter;
 use Phlix\Console\Api\Dto\AudiobookProgress;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\AudiobookChaptersLoadedMsg;
 use Phlix\Console\Msg\AudiobookFailedMsg;
 use Phlix\Console\Msg\AudiobookLoadedMsg;
@@ -68,7 +69,7 @@ final class AudiobookDetailScreen implements Breadcrumbed, Themed
     use SubscriptionCapable;
     use ThemedScreen;
 
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const HINT = '↑↓  select   ⏎  play   r  resume   space  pause   Esc  back';
     private const NUM_WIDTH = 5;
     private const DURATION_WIDTH = 10;
@@ -148,7 +149,7 @@ final class AudiobookDetailScreen implements Breadcrumbed, Themed
         return Cmd::promise(fn () => $this->store->audiobook($this->id)->then(
             static fn (Audiobook $audiobook): Msg => new AudiobookLoadedMsg($audiobook),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new AudiobookFailedMsg('Could not load this audiobook.'),
         ));
     }
@@ -160,7 +161,7 @@ final class AudiobookDetailScreen implements Breadcrumbed, Themed
             // A non-auth chapters error degrades to an empty chapter list (the
             // meta still shows); an auth failure still re-authenticates.
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new AudiobookChaptersLoadedMsg([]),
         ));
     }
@@ -176,7 +177,7 @@ final class AudiobookDetailScreen implements Breadcrumbed, Themed
         return Cmd::promise(fn (): PromiseInterface => $this->store->progress($this->id)->then(
             static fn (AudiobookProgress $progress): Msg => new AudiobookProgressLoadedMsg($progress),
             static fn (\Throwable $e): ?Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : null,
         ));
     }

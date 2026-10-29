@@ -14,6 +14,7 @@ use Phlix\Console\Api\Cast\CastClient;
 use Phlix\Console\Api\Dto\Cast\CastDevice;
 use Phlix\Console\Api\Dto\Cast\CastStatus;
 use Phlix\Console\Api\Dto\MediaItem;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\CastActionDoneMsg;
 use Phlix\Console\Msg\CastActionFailedMsg;
 use Phlix\Console\Msg\CastDevicesFailedMsg;
@@ -78,7 +79,7 @@ final class CastScreen implements Breadcrumbed, Themed
     /** Seconds between status polls while in Transport mode. */
     private const STATUS_INTERVAL = 2.5;
 
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
 
     private const PICKER_HINT = '↑↓  select      ⏎  cast      r  rescan      Esc  back';
 
@@ -285,7 +286,7 @@ final class CastScreen implements Breadcrumbed, Themed
         return Cmd::promise(static fn () => $promise->then(
             static fn (string $sessionId): Msg => new CastStartedMsg($device),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new CastFailedMsg($e->getMessage()),
         ));
     }
@@ -358,7 +359,7 @@ final class CastScreen implements Breadcrumbed, Themed
         return Cmd::promise(static fn () => $promise->then(
             static fn (string $state): Msg => new CastActionDoneMsg($state),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new CastActionFailedMsg($e->getMessage()),
         ));
     }
@@ -387,7 +388,7 @@ final class CastScreen implements Breadcrumbed, Themed
             static fn (CastStatus $status): Msg => new CastStatusLoadedMsg($epoch, $status),
             // A failed status poll is best-effort — keep the last-known line, never crash.
             static fn (\Throwable $e): ?Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : null,
         ));
     }

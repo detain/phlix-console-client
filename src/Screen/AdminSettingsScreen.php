@@ -13,6 +13,7 @@ use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Admin\ServerSetting;
 use Phlix\Console\Api\Dto\Admin\ServerSettings;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\AdminSettingActionDoneMsg;
 use Phlix\Console\Msg\AdminSettingActionFailedMsg;
 use Phlix\Console\Msg\AdminSettingsFailedMsg;
@@ -65,7 +66,7 @@ final class AdminSettingsScreen implements Breadcrumbed, Themed
     use SubscriptionCapable;
     use ThemedScreen;
 
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load the settings.';
     private const HINT = '↑↓ select   e/⏎ edit   r refresh   Esc back';
     private const EDIT_HINT = 'Enter  save      Esc  cancel';
@@ -108,7 +109,7 @@ final class AdminSettingsScreen implements Breadcrumbed, Themed
         return Cmd::promise(fn () => $this->admin->serverSettings()->then(
             static fn (ServerSettings $settings): Msg => new AdminSettingsLoadedMsg($settings),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new AdminSettingsFailedMsg(self::LOAD_FAILED),
         ));
     }
@@ -125,7 +126,7 @@ final class AdminSettingsScreen implements Breadcrumbed, Themed
         return Cmd::promise(static fn () => $promise->then(
             static fn (string $message): Msg => new AdminSettingActionDoneMsg($message === '' ? 'Settings updated.' : $message),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new AdminSettingActionFailedMsg($e->getMessage()),
         ));
     }

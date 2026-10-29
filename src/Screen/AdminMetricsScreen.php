@@ -11,6 +11,7 @@ namespace Phlix\Console\Screen;
 
 use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\AuthError;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\AdminMetricsFailedMsg;
 use Phlix\Console\Msg\AdminMetricsLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
@@ -39,7 +40,7 @@ final class AdminMetricsScreen implements Breadcrumbed, Themed
     use SubscriptionCapable;
     use ThemedScreen;
 
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load the metrics.';
     private const HINT = 'r  refresh      Esc  back';
 
@@ -73,7 +74,7 @@ final class AdminMetricsScreen implements Breadcrumbed, Themed
         return Cmd::promise(fn () => $this->admin->metricsSnapshot()->then(
             static fn (array $snapshot): Msg => new AdminMetricsLoadedMsg($snapshot, [], [], []),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new AdminMetricsFailedMsg(self::LOAD_FAILED),
         ));
     }

@@ -13,6 +13,7 @@ use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Admin\CatalogPlugin;
 use Phlix\Console\Api\Dto\Admin\PluginCatalogResult;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\AdminPluginCatalogActionDoneMsg;
 use Phlix\Console\Msg\AdminPluginCatalogActionFailedMsg;
 use Phlix\Console\Msg\AdminPluginCatalogFailedMsg;
@@ -63,7 +64,7 @@ final class AdminPluginCatalogScreen implements Breadcrumbed, Themed
     use SubscriptionCapable;
     use ThemedScreen;
 
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load the plugin catalog.';
     private const HINT = '↑↓ select   ⏎/i install   a add source   x remove source   r refresh   Esc back';
     private const ADD_HINT = 'Enter  add      Esc  cancel';
@@ -114,7 +115,7 @@ final class AdminPluginCatalogScreen implements Breadcrumbed, Themed
         return Cmd::promise(fn () => $this->admin->pluginCatalog()->then(
             static fn (PluginCatalogResult $result): Msg => new AdminPluginCatalogLoadedMsg($result),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new AdminPluginCatalogFailedMsg(self::LOAD_FAILED),
         ));
     }
@@ -130,7 +131,7 @@ final class AdminPluginCatalogScreen implements Breadcrumbed, Themed
         return Cmd::promise(static fn () => $promise->then(
             static fn (mixed $_): Msg => new AdminPluginCatalogActionDoneMsg($success),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new AdminPluginCatalogActionFailedMsg($e->getMessage()),
         ));
     }

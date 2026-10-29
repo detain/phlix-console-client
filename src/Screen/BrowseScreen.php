@@ -15,6 +15,7 @@ use Phlix\Console\Api\Dto\ContinueWatchingItem;
 use Phlix\Console\Api\Dto\Library;
 use Phlix\Console\Api\Dto\MediaPage;
 use Phlix\Console\Api\MediaQuery;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Media\PosterCardFactory;
 use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Msg\BrowseFavoritesLoadedMsg;
@@ -83,7 +84,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
     private const POSTER_HEIGHT = 9;
     private const RAIL_HEIGHT = 12;        // estimate for vertical windowing
     private const PER_LIBRARY_LIMIT = 18;
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const FILTER_ALL = 0;
     private const FILTER_WATCHED = 1;
     private const FILTER_UNWATCHED = 2;
@@ -233,7 +234,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
         return Cmd::promise(fn () => $this->libraries->all()->then(
             static fn (array $libs): Msg => new LibrariesLoadedMsg($libs),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new LibrariesFailedMsg('Could not load your libraries.'),
         ));
     }
@@ -243,7 +244,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
         return Cmd::promise(fn () => $this->media->continueWatching()->then(
             static fn (array $items): Msg => new ContinueWatchingLoadedMsg($items),
             static fn (\Throwable $e): ?Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : null,
         ));
     }
@@ -253,7 +254,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
         return Cmd::promise(fn (): \React\Promise\PromiseInterface => $this->favorites->page()->then(
             static fn (\Phlix\Console\Api\Dto\MediaPage $page): BrowseFavoritesLoadedMsg => new BrowseFavoritesLoadedMsg($page->items),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new FavoritesFailedMsg('Could not load your favorites.'),
         ));
     }
@@ -263,7 +264,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
         return Cmd::promise(fn (): \React\Promise\PromiseInterface => $this->media->api()->mostWatched(offset: $offset)->then(
             static fn (array $items): BrowseMostWatchedLoadedMsg => new BrowseMostWatchedLoadedMsg($items),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new MostWatchedFailedMsg('Could not load most watched.'),
         ));
     }
@@ -273,7 +274,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
         return Cmd::promise(fn (): \React\Promise\PromiseInterface => $this->media->api()->nextUp()->then(
             static fn (array $items): NextUpLoadedMsg => new NextUpLoadedMsg($items),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new NextUpFailedMsg('Could not load up next.'),
         ));
     }
@@ -285,7 +286,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
         return Cmd::promise(fn () => $this->media->page($query)->then(
             static fn (MediaPage $page): Msg => new LibraryMediaLoadedMsg($libraryId, $page),
             static fn (\Throwable $e): ?Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : null,
         ));
     }
@@ -702,7 +703,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
             return [$this, Cmd::promise(fn () => $this->media->api()->shufflePlay($mediaId)->then(
                 static fn (array $result): Msg => new ShufflePlayMsg($mediaId, $result['shuffled_ids'], $result['mode']),
                 static fn (\Throwable $e): Msg => $e instanceof AuthError
-                    ? new SessionExpiredMsg('Your session expired. Please sign in again.')
+                    ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                     : new ShufflePlayFailedMsg($mediaId, $e->getMessage()),
             ))];
         }

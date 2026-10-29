@@ -11,6 +11,7 @@ namespace Phlix\Console\Screen;
 
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\MediaItem;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\FavoritesFailedMsg;
 use Phlix\Console\Msg\FavoritesLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
@@ -39,7 +40,7 @@ final class FavoritesScreen implements Model, Teardownable, Breadcrumbed, Themed
     use ThemedScreen;
 
     private const HINT = 'Q: Back  ↑↓: Navigate  Enter: Open';
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load favorites.';
 
     /** @var list<MediaItem> */
@@ -65,7 +66,7 @@ final class FavoritesScreen implements Model, Teardownable, Breadcrumbed, Themed
             },
             static function (\Throwable $e): FavoritesFailedMsg|SessionExpiredMsg {
                 return $e instanceof AuthError
-                    ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                    ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                     : new FavoritesFailedMsg(self::LOAD_FAILED);
             },
         ));

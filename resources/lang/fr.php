@@ -17,10 +17,12 @@ declare(strict_types=1);
  */
 
 return [
+    // ---- Auth (session expiry — shared by every surface) ---------
+    'auth.session_expired' => 'Votre session a expiré. Veuillez vous reconnecter.',
+
     // ---- RecommendationsScreen ----------------------------------------
     'recommendations.title' => 'Pour vous',
     'recommendations.hint' => 'Q : Retour  ↑↓ : Naviguer  Entrée : Ouvrir  X : Ignorer',
-    'recommendations.session_expired' => 'Votre session a expiré. Veuillez vous reconnecter.',
     'recommendations.load_failed' => 'Impossible de charger les recommandations.',
     'recommendations.loading' => 'Chargement des recommandations…',
     'recommendations.empty' => "Pas encore de recommandations.\n  Regardez des titres pour recevoir des suggestions personnalisées !",
@@ -28,7 +30,6 @@ return [
     'recommendations.crumb' => 'Pour vous',
 
     // ---- DetailScreen -------------------------------------------------
-    'detail.session_expired' => 'Votre session a expiré. Veuillez vous reconnecter.',
     'detail.load_failed' => 'Impossible de charger ce titre.',
     'detail.similar_load_failed' => 'Impossible de charger les titres similaires.',
     'detail.missing_episodes_load_failed' => 'Impossible de charger les épisodes manquants.',

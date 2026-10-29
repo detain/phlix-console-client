@@ -89,7 +89,7 @@ final class TranslatorTest extends TestCase
         // Verify all RecommendationsScreen translation keys are accessible.
         self::assertSame('For You', Lang::t('recommendations.title'));
         self::assertSame('Q: Back  ↑↓: Navigate  Enter: Open  X: Dismiss', Lang::t('recommendations.hint'));
-        self::assertSame('Your session expired. Please sign in again.', Lang::t('recommendations.session_expired'));
+        self::assertSame('Your session expired. Please sign in again.', Lang::t('auth.session_expired'));
         self::assertSame('Could not load recommendations.', Lang::t('recommendations.load_failed'));
         self::assertSame('Loading recommendations…', Lang::t('recommendations.loading'));
         self::assertNotEmpty(Lang::t('recommendations.empty'));
@@ -99,7 +99,7 @@ final class TranslatorTest extends TestCase
     public function testDetailScreenKeysExist(): void
     {
         // Verify all DetailScreen translation keys are accessible.
-        self::assertSame('Your session expired. Please sign in again.', Lang::t('detail.session_expired'));
+        self::assertSame('Your session expired. Please sign in again.', Lang::t('auth.session_expired'));
         self::assertSame('▶  This title has no playable source.', Lang::t('detail.play_notice'));
         self::assertNotEmpty(Lang::t('detail.hint'));
         self::assertNotEmpty(Lang::t('detail.container_hint'));

@@ -13,6 +13,7 @@ use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Admin\Backup;
 use Phlix\Console\Api\Dto\Admin\BackupSchedule;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\AdminBackupActionDoneMsg;
 use Phlix\Console\Msg\AdminBackupActionFailedMsg;
 use Phlix\Console\Msg\AdminBackupFailedMsg;
@@ -62,7 +63,7 @@ final class AdminBackupScreen implements Breadcrumbed, Themed
     use SubscriptionCapable;
     use ThemedScreen;
 
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load the backups.';
     private const HINT = 'c create   x delete   R restore   s upload-S3   e schedule   r refresh   Esc back';
     private const LABEL_HINT = 'Enter  create      Esc  cancel';
@@ -126,7 +127,7 @@ final class AdminBackupScreen implements Breadcrumbed, Themed
         )->then(
             static fn (Msg $msg): Msg => $msg,
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new AdminBackupFailedMsg(self::LOAD_FAILED),
         ));
     }
@@ -142,7 +143,7 @@ final class AdminBackupScreen implements Breadcrumbed, Themed
         return Cmd::promise(static fn () => $promise->then(
             static fn (string $message): Msg => new AdminBackupActionDoneMsg($message === '' ? $fallback : $message),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new AdminBackupActionFailedMsg($e->getMessage()),
         ));
     }
@@ -335,7 +336,7 @@ final class AdminBackupScreen implements Breadcrumbed, Themed
             return [$this->closeSchedule()->working(), Cmd::promise(fn () => $this->admin->updateBackupSchedule($interval, $retention)->then(
                 static fn (BackupSchedule $schedule): Msg => new AdminBackupScheduleUpdatedMsg($schedule),
                 static fn (\Throwable $e): Msg => $e instanceof AuthError
-                    ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                    ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                     : new AdminBackupActionFailedMsg($e->getMessage()),
             ))];
         }

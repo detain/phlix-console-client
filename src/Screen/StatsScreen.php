@@ -6,6 +6,7 @@ namespace Phlix\Console\Screen;
 
 use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\AuthError;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\InitMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
@@ -89,7 +90,7 @@ final class StatsScreen implements Model
         return Cmd::promise(fn (): PromiseInterface => $this->doFetchCmd());
     }
 
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
 
     /** @return PromiseInterface<\SugarCraft\Core\Msg> */
     private function doFetchCmd(): PromiseInterface
@@ -98,7 +99,7 @@ final class StatsScreen implements Model
         return $this->adminClient->statsOverview()
             ->then(fn ($stats) => new StatsLoadedMsg($stats))
             ->catch(fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : ShowToastMsg::error('Failed: ' . $e->getMessage()));
     }
 

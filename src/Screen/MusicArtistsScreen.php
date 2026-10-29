@@ -11,6 +11,7 @@ namespace Phlix\Console\Screen;
 
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\MusicArtist;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\MusicArtistsRangeLoadedMsg;
 use Phlix\Console\Msg\MusicArtistsFailedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
@@ -43,7 +44,7 @@ final class MusicArtistsScreen implements Breadcrumbed, Themed
     use SubscriptionCapable;
     use ThemedScreen;
 
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const HINT = '↑↓  artists      ⏎  open      Esc  back';
     // Fixed columns; the flex Artist column fills whatever is left.
     private const ALBUMS_WIDTH = 8;
@@ -167,7 +168,7 @@ final class MusicArtistsScreen implements Breadcrumbed, Themed
         return Cmd::promise(fn () => $this->artistsStore->ensureRange($start, $end, self::PAGE_LIMIT)->then(
             static fn (MusicArtistsRange $range): Msg => new MusicArtistsRangeLoadedMsg($range, $generation),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new MusicArtistsFailedMsg(self::LOAD_MORE_FAILED),
         ));
     }

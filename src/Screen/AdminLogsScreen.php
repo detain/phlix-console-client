@@ -13,6 +13,7 @@ use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Admin\LogFile;
 use Phlix\Console\Api\Dto\Admin\LogTail;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\AdminLogFailedMsg;
 use Phlix\Console\Msg\AdminLogFilesLoadedMsg;
 use Phlix\Console\Msg\AdminLogTailLoadedMsg;
@@ -51,7 +52,7 @@ final class AdminLogsScreen implements Breadcrumbed, Themed
     use SubscriptionCapable;
     use ThemedScreen;
 
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LIST_FAILED = 'Could not load the log files.';
     private const TAIL_FAILED = 'Could not read the log.';
     private const HINT = 'Tab  focus      ↑↓/PgUp/PgDn  move      ⏎  open      r  refresh      Esc  back';
@@ -135,7 +136,7 @@ final class AdminLogsScreen implements Breadcrumbed, Themed
     private static function failure(\Throwable $e, string $message): Msg
     {
         return $e instanceof AuthError
-            ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+            ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
             : new AdminLogFailedMsg($message);
     }
 

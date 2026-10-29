@@ -11,6 +11,7 @@ namespace Phlix\Console\Screen;
 
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\MediaItem;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\CollectionsFailedMsg;
 use Phlix\Console\Msg\CollectionsLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
@@ -40,7 +41,7 @@ final class CollectionsScreen implements Model, Teardownable, Breadcrumbed, Them
     use ThemedScreen;
 
     private const HINT = 'Q: Back  ↑↓: Navigate  Enter: Open  A: Add item  R: Remove item  D: Delete';
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load collections.';
     private const ADD_ITEM_NOT_IMPLEMENTED = 'Add/remove items from the collection detail screen.';
     private const DELETE_CONFIRM_CANCELLED = 'Delete cancelled.';
@@ -79,7 +80,7 @@ final class CollectionsScreen implements Model, Teardownable, Breadcrumbed, Them
             },
             static function (\Throwable $e): CollectionsFailedMsg|SessionExpiredMsg {
                 return $e instanceof AuthError
-                    ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                    ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                     : new CollectionsFailedMsg(self::LOAD_FAILED);
             },
         ));
@@ -217,7 +218,7 @@ final class CollectionsScreen implements Model, Teardownable, Breadcrumbed, Them
             },
             static function (\Throwable $e): CollectionsFailedMsg|SessionExpiredMsg {
                 return $e instanceof AuthError
-                    ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                    ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                     : new CollectionsFailedMsg('Delete failed: ' . $e->getMessage());
             },
         );

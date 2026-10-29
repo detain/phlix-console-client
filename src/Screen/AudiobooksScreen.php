@@ -11,6 +11,7 @@ namespace Phlix\Console\Screen;
 
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Audiobook;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\AudiobooksFailedMsg;
 use Phlix\Console\Msg\AudiobooksLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
@@ -45,7 +46,7 @@ final class AudiobooksScreen implements Breadcrumbed, Themed
     use SubscriptionCapable;
     use ThemedScreen;
 
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const HINT = '↑↓  select      ⏎  open      Esc  back';
     // Fixed columns; the flex Title column fills whatever is left.
     private const AUTHOR_WIDTH = 24;
@@ -74,7 +75,7 @@ final class AudiobooksScreen implements Breadcrumbed, Themed
         return Cmd::promise(fn () => $this->store->all($this->libraryId)->then(
             static fn (array $audiobooks): Msg => new AudiobooksLoadedMsg($audiobooks),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new AudiobooksFailedMsg('Could not load this library.'),
         ));
     }

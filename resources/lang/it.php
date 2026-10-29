@@ -17,10 +17,12 @@ declare(strict_types=1);
  */
 
 return [
+    // ---- Auth (session expiry — shared by every surface) ---------
+    'auth.session_expired' => 'La tua sessione è scaduta. Accedi di nuovo.',
+
     // ---- RecommendationsScreen ----------------------------------------
     'recommendations.title' => 'Per te',
     'recommendations.hint' => 'Q: Indietro  ↑↓: Sfoglia  Invio: Apri  X: Ignora',
-    'recommendations.session_expired' => 'La tua sessione è scaduta. Accedi di nuovo.',
     'recommendations.load_failed' => 'Impossibile caricare i consigli.',
     'recommendations.loading' => 'Caricamento consigli…',
     'recommendations.empty' => "Ancora nessun consiglio.\n  Inizia a guardare per ricevere suggerimenti personalizzati!",
@@ -28,7 +30,6 @@ return [
     'recommendations.crumb' => 'Per te',
 
     // ---- DetailScreen -------------------------------------------------
-    'detail.session_expired' => 'La tua sessione è scaduta. Accedi di nuovo.',
     'detail.load_failed' => 'Impossibile caricare questo titolo.',
     'detail.similar_load_failed' => 'Impossibile caricare i titoli simili.',
     'detail.missing_episodes_load_failed' => 'Impossibile caricare gli episodi mancanti.',

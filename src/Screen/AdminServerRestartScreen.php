@@ -11,6 +11,7 @@ namespace Phlix\Console\Screen;
 
 use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\AuthError;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\AdminServerRestartDoneMsg;
 use Phlix\Console\Msg\AdminServerRestartFailedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
@@ -52,7 +53,7 @@ final class AdminServerRestartScreen implements Breadcrumbed, Themed
     use SubscriptionCapable;
     use ThemedScreen;
 
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const RESTART_FAILED = 'Server restart failed.';
     private const RESTART_CONFIRM = 'Type "restart" and press Enter to confirm';
     private const HINT = 'r  restart server      Esc  back';
@@ -91,7 +92,7 @@ final class AdminServerRestartScreen implements Breadcrumbed, Themed
                 static function (\Throwable $e): \React\Promise\PromiseInterface {
                     return \React\Promise\resolve(
                         $e instanceof AuthError
-                            ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                            ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                             : new AdminServerRestartFailedMsg(self::RESTART_FAILED . ' ' . $e->getMessage()),
                     );
                 },

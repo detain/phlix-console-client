@@ -11,6 +11,7 @@ namespace Phlix\Console\Screen;
 
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Book;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Media\BookCardFactory;
 use Phlix\Console\Media\PosterLoadResult;
 use Phlix\Console\Media\PosterLoader;
@@ -67,7 +68,7 @@ final class BooksScreen implements Breadcrumbed, Loadable, Shimmering, Themed
     private const V_SPACING = 1;
     private const PAGE_LIMIT = 50;
     private const OVERSCAN = 1;
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_MORE_FAILED = "Couldn't load more books.";
     private const HINT = '↑↓←→  move      ⏎  open      Esc  back';
 
@@ -274,7 +275,7 @@ final class BooksScreen implements Breadcrumbed, Loadable, Shimmering, Themed
         return Cmd::promise(fn () => $this->books->ensureRange($this->libraryId, $this->total, $start, $end, self::PAGE_LIMIT)->then(
             static fn (array $books): Msg => new BooksRangeLoadedMsg($books, $generation),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new BooksFailedMsg('Could not load this library.'),
         ));
     }

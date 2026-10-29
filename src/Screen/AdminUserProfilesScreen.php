@@ -12,6 +12,7 @@ namespace Phlix\Console\Screen;
 use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Admin\Profile;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\AdminProfileActionDoneMsg;
 use Phlix\Console\Msg\AdminProfileActionFailedMsg;
 use Phlix\Console\Msg\AdminProfilesFailedMsg;
@@ -63,7 +64,7 @@ final class AdminUserProfilesScreen implements Breadcrumbed, Themed
     use SubscriptionCapable;
     use ThemedScreen;
 
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load the profiles.';
     private const HINT = 'c create  E edit  x delete  p set-PIN  k clear-PIN  r refresh  Esc back';
     private const FORM_HINT = 'Tab/↑↓  field      Enter  save      Esc  cancel';
@@ -129,7 +130,7 @@ final class AdminUserProfilesScreen implements Breadcrumbed, Themed
             /** @param list<Profile> $profiles */
             static fn (array $profiles): Msg => new AdminProfilesLoadedMsg($profiles),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new AdminProfilesFailedMsg(self::LOAD_FAILED),
         ));
     }
@@ -146,7 +147,7 @@ final class AdminUserProfilesScreen implements Breadcrumbed, Themed
         return Cmd::promise(static fn () => $promise->then(
             static fn (string $message): Msg => new AdminProfileActionDoneMsg($message === '' ? $fallback : $message),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new AdminProfileActionFailedMsg($e->getMessage()),
         ));
     }

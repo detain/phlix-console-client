@@ -30,6 +30,7 @@ use Phlix\Console\Audio\AudiobookSession;
 use Phlix\Console\Audio\MusicSession;
 use Phlix\Console\Audio\NowPlayingSession;
 use Phlix\Console\Config\Config;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\I18n\Locale;
 use Phlix\Console\Media\TrickplayCache;
 use Phlix\Console\Msg\AudiobookTickMsg;
@@ -2002,7 +2003,7 @@ final class App implements Model
                 return new TrackResolvedMsg($album, $index, $this->resolveUrl($url));
             },
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg('Your session expired. Please sign in again.')
+                ? new SessionExpiredMsg(Lang::t('auth.session_expired'))
                 : ShowToastMsg::error(self::PLAY_TRACK_FAILED),
         ));
     }

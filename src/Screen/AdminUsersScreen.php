@@ -12,6 +12,7 @@ namespace Phlix\Console\Screen;
 use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Admin\AdminUser;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\AdminUserActionDoneMsg;
 use Phlix\Console\Msg\AdminUserActionFailedMsg;
 use Phlix\Console\Msg\AdminUsersFailedMsg;
@@ -71,7 +72,7 @@ final class AdminUsersScreen implements Breadcrumbed, Themed
     use SubscriptionCapable;
     use ThemedScreen;
 
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load the users.';
     private const HINT = 'c create  E edit  P profiles  f filter  a approve  d disable  x delete  j reject  m admin  p reset-pw  r refresh  Esc back';
     private const FORM_HINT = 'Tab/↑↓  field      Enter  save      Esc  cancel';
@@ -141,7 +142,7 @@ final class AdminUsersScreen implements Breadcrumbed, Themed
             /** @param list<AdminUser> $users */
             static fn (array $users): Msg => new AdminUsersLoadedMsg($users),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new AdminUsersFailedMsg(self::LOAD_FAILED),
         ));
     }
@@ -162,7 +163,7 @@ final class AdminUsersScreen implements Breadcrumbed, Themed
                 ? new AdminUserActionDoneMsg("New password for {$name}: {$result}", $result)
                 : new AdminUserActionDoneMsg($result),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new AdminUserActionFailedMsg($e->getMessage()),
         ));
     }
@@ -279,7 +280,7 @@ final class AdminUsersScreen implements Breadcrumbed, Themed
         return Cmd::promise(static fn () => $promise->then(
             static fn (string $message): Msg => new AdminUserActionDoneMsg($message === '' ? $fallback : $message),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new AdminUserActionFailedMsg($e->getMessage()),
         ));
     }

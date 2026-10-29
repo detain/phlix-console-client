@@ -16,6 +16,7 @@ use Phlix\Console\Api\Dto\Admin\GuideProgram;
 use Phlix\Console\Api\Dto\Admin\Recording;
 use Phlix\Console\Api\Dto\Admin\SeriesRule;
 use Phlix\Console\Api\Dto\Admin\Tuner;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\AdminLiveTvActionDoneMsg;
 use Phlix\Console\Msg\AdminLiveTvActionFailedMsg;
 use Phlix\Console\Msg\AdminLiveTvChannelsLoadedMsg;
@@ -81,7 +82,7 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
     use SubscriptionCapable;
     use ThemedScreen;
 
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load this section.';
     private const HINT = 'Tab/←→ section   ↑↓ select   action keys below   r refresh   Esc back';
     private const FORM_HINT = 'Enter  save      Esc  cancel';
@@ -162,7 +163,7 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
         return Cmd::promise(static fn (): PromiseInterface => self::fetchPromise($admin, $section, $upcoming)->then(
             static fn (Msg $msg): Msg => $msg,
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new AdminLiveTvFailedMsg(self::LOAD_FAILED),
         ));
     }
@@ -206,7 +207,7 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
         return Cmd::promise(static fn (): PromiseInterface => $promise->then(
             static fn (mixed $_): Msg => new AdminLiveTvActionDoneMsg($fallback),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new AdminLiveTvActionFailedMsg($e->getMessage()),
         ));
     }
@@ -384,7 +385,7 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
             return [$this->working(), Cmd::promise(fn (): PromiseInterface => $this->admin->refreshGuide()->then(
                 static fn (int $count): Msg => new AdminLiveTvActionDoneMsg("Imported {$count} programs"),
                 static fn (\Throwable $e): Msg => $e instanceof AuthError
-                    ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                    ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                     : new AdminLiveTvActionFailedMsg($e->getMessage()),
             ))];
         }

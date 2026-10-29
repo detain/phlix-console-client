@@ -11,6 +11,7 @@ namespace Phlix\Console\Screen;
 
 use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\AuthError;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\AdminDuplicatesFailedMsg;
 use Phlix\Console\Msg\AdminDuplicatesLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
@@ -44,7 +45,7 @@ final class AdminDuplicatesScreen implements Breadcrumbed, Themed
     use SubscriptionCapable;
     use ThemedScreen;
 
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load duplicate groups.';
     private const HINT = 'Enter view   r refresh   Esc back';
     private const GROUP_HINT = 'm arm-merge   Esc close';
@@ -87,7 +88,7 @@ final class AdminDuplicatesScreen implements Breadcrumbed, Themed
             ->then(
                 static fn (array $groups) => new AdminDuplicatesLoadedMsg($libraryId, $groups),
                 static fn (\Throwable $e): Msg => $e instanceof AuthError
-                    ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                    ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                     : new AdminDuplicatesFailedMsg(self::LOAD_FAILED),
             ));
     }
@@ -221,7 +222,7 @@ final class AdminDuplicatesScreen implements Breadcrumbed, Themed
                 /** @param array{moved: int, deleted: int} $result */
                 static fn (array $result): Msg => ShowToastMsg::success(sprintf('Merge complete: %d moved, %d deleted.', $result['moved'], $result['deleted'])),
                 static fn (\Throwable $e): Msg => $e instanceof AuthError
-                    ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                    ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                     : ShowToastMsg::error('Merge failed: ' . $e->getMessage()),
             ));
     }

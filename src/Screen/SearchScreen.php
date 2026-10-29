@@ -11,6 +11,7 @@ namespace Phlix\Console\Screen;
 
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\MediaQuery;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Media\PosterCardFactory;
 use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Msg\GridPosterLoadedMsg;
@@ -60,7 +61,7 @@ final class SearchScreen implements Breadcrumbed, CapturesSlash, Loadable, Shimm
     private const PAGE_LIMIT = 50;
     private const OVERSCAN = 1;
     private const SEARCH_DEBOUNCE = 0.3;
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const HINT = 'type to search      ↑↓←→  move      ⏎  open      Esc  back';
 
     private string $searchText = '';
@@ -340,7 +341,7 @@ final class SearchScreen implements Breadcrumbed, CapturesSlash, Loadable, Shimm
         return Cmd::promise(fn () => $this->media->ensureRange($this->query, $start, $end)->then(
             static fn (MediaRange $range): Msg => new MediaRangeLoadedMsg($range, $generation),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new LibraryFailedMsg('Could not run your search.'),
         ));
     }

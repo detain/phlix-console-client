@@ -14,6 +14,7 @@ use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Admin\Parental\AccessSchedule;
 use Phlix\Console\Api\Dto\Admin\Parental\ProfileStreamLimit;
 use Phlix\Console\Api\Dto\Admin\Parental\ProfileTag;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\ShowToastMsg;
@@ -65,7 +66,7 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
     use SubscriptionCapable;
     use ThemedScreen;
 
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load. Please try again.';
     private const HINT = '←→/Tab section   ↑↓ select   c create   E edit   x delete   u update-limits   r refresh   Esc back';
     private const FORM_HINT = 'Enter  save      Esc  cancel';
@@ -146,11 +147,10 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
     {
         $apiErrorClass = \Phlix\Console\Api\ApiError::class;
         $loadFailed = self::LOAD_FAILED;
-        $sessionExpired = self::SESSION_EXPIRED;
         $admin = $this->admin;
         $profileId = $this->profileId;
 
-        $doFetch = static function () use ($section, $apiErrorClass, $loadFailed, $sessionExpired, $admin, $profileId): PromiseInterface {
+        $doFetch = static function () use ($section, $apiErrorClass, $loadFailed, $admin, $profileId): PromiseInterface {
             $promise = match ($section) {
                 'schedules' => $admin->profileSchedules($profileId)->then(
                     static fn (array $rows): Msg => new ParentalSchedulesLoadedMsg($rows),
@@ -166,9 +166,9 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
 
             return $promise->then(
                 static fn (Msg $msg): Msg => $msg,
-                static function (\Throwable $e) use ($apiErrorClass, $loadFailed, $sessionExpired): Msg {
+                static function (\Throwable $e) use ($apiErrorClass, $loadFailed): Msg {
                     if ($e instanceof AuthError) {
-                        return new SessionExpiredMsg($sessionExpired);
+                        return new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY));
                     }
                     $msg = $e instanceof $apiErrorClass ? $e->getMessage() : $loadFailed;
 
@@ -191,7 +191,7 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
         return [$this, Cmd::promise(static fn (): PromiseInterface => $promise->then(
             static fn (mixed $message): Msg => new ParentalActionDoneMsg(is_string($message) ? ($message === '' ? $fallback : $message) : $fallback),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : ShowToastMsg::error(($e instanceof \Phlix\Console\Api\ApiError) ? $e->getMessage() : 'Action failed.'),
         ))];
     }

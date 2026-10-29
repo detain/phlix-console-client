@@ -33,6 +33,34 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   and the i18n checks green; `src/` untouched (the lone phpstan-prod red at
   `AdminClient::alternatePosters` pre-dates this change, fix lane owed).
 
+### Fixed — one session-expiry sentence: three divergent wordings unified onto a single translated catalog key (review console__copywriter, M-CONSOLE-06) — 2026-10-29
+
+- **What.** The same event ("your auth died") rendered in three different
+  ways: the catalog sentence `Your session expired. Please sign in again.`
+  (reachable via `recommendations.session_expired`/`detail.session_expired`
+  on only those 2 screens), 44 hardcoded English copies of it (41 screens'
+  `private const SESSION_EXPIRED`, `App::fetchTrackCmd`, `PhotosScreen`,
+  plus a stray inline each in `LibraryScreen`/`BrowseScreen`), and the
+  em-dash variant `Session expired — please log in again.` thrown from
+  `ApiClient::authed()`/`retryOnAuthError()` — so under `de` a DetailScreen
+  expiry spoke German while a Favorites/Cast/Search expiry stayed English,
+  and a raw error pass-through could surface the third wording.
+- **Cure.** One catalog key `auth.session_expired` (localized in all 7
+  locale files, value held identical to the previous two keys' per-locale
+  strings; the `recommendations.`/`detail.` keys removed). All 41 const
+  screens now follow the pre-existing DetailScreen idiom
+  (`SESSION_EXPIRED_KEY` + `Lang::t(...)`): 78 `self::SESSION_EXPIRED`
+  call sites and 4 inline literals rewrapped, `Lang` import added to the
+  41 screens plus `App.php`/`ApiClient.php`. The 2 `ApiClient` throw sites
+  reuse the same key (per the review's sanctioned option) so the message
+  that may reach a raw pass-through matches the catalog. Test pins
+  re-anchored: `TranslatorTest` ×2 key refs, `ApiClientTest` refresh-failure
+  message pin to the canonical sentence.
+- **Teeth.** New `tests/I18n/SessionExpiredCopyTest.php`: the catalog must
+  carry exactly one `*.session_expired` key; no English wording (canonical
+  or retired em-dash) may exist as a literal anywhere under `src/`; every
+  `new SessionExpiredMsg(` dispatch must wrap a `Lang::t(` call.
+
 ### Changed — CI baseline doc re-anchored to the commands the workflows actually run (review console__writer, M-CONSOLE-53) — 2026-10-29
 
 - **What.** `docs/steps/ci-baseline-C9.md` had drifted against `ci.yml`/

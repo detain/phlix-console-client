@@ -11,6 +11,7 @@ namespace Phlix\Console\Screen;
 
 use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\AuthError;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\AdminFilesystemFailedMsg;
 use Phlix\Console\Msg\AdminFilesystemLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
@@ -59,7 +60,7 @@ final class AdminFilesystemScreen implements Breadcrumbed, Themed
     use SubscriptionCapable;
     use ThemedScreen;
 
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LIST_FAILED = 'Could not load the filesystem.';
     private const HINT = '↑↓  select      ⏎  enter dir      ←  parent      r  refresh      Esc  back';
 
@@ -110,7 +111,7 @@ final class AdminFilesystemScreen implements Breadcrumbed, Themed
                 return new AdminFilesystemLoadedMsg($entries, $path ?? '/');
             },
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new AdminFilesystemFailedMsg(self::LIST_FAILED),
         ));
     }

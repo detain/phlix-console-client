@@ -13,6 +13,7 @@ use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Photo;
 use Phlix\Console\Api\Dto\PhotoAlbum;
 use Phlix\Console\Api\Dto\PhotoExif;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Media\PosterLoadResult;
 use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Msg\NavigateBackMsg;
@@ -70,7 +71,7 @@ final class PhotoViewerScreen implements Breadcrumbed, Themed
 
     private const EXIF_WIDTH = 30;
     private const COL_GAP = 2;
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const HINT = '←→  prev/next      i  EXIF      s  slideshow      Esc  back';
 
     private int $index;
@@ -310,7 +311,7 @@ final class PhotoViewerScreen implements Breadcrumbed, Themed
         $cmds[] = Cmd::promise(fn () => $this->store->photo($photo->id)->then(
             static fn (Photo $p): Msg => new PhotoExifLoadedMsg($gen, $p->exif),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new PhotoExifLoadedMsg($gen, null),
         ));
 

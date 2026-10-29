@@ -39,7 +39,7 @@ final class RecommendationsScreen implements Model, Teardownable, CapturesSlash,
     use SubscriptionCapable;
     use ThemedScreen;
 
-    private const SESSION_EXPIRED_KEY = 'recommendations.session_expired';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED_KEY = 'recommendations.load_failed';
 
     /** @var list<RecommendationCard> */

@@ -13,6 +13,7 @@ use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Admin\ToneMappingSettings;
 use Phlix\Console\Api\Dto\Admin\TranscodingAccelerators;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\ShowToastMsg;
@@ -46,7 +47,7 @@ final class AdminTranscodingScreen implements Breadcrumbed, Themed
     use SubscriptionCapable;
     use ThemedScreen;
 
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load transcoding settings.';
     private const HINT = '↑↓ select   e/⏎ edit tone-mapping   r refresh   Esc back';
     private const EDIT_HINT = 'Enter  save      Esc  cancel';
@@ -100,7 +101,7 @@ final class AdminTranscodingScreen implements Breadcrumbed, Themed
                     return new TranscodingLoadedMsg($accel, $tone);
                 },
                 static fn (\Throwable $e): Msg => $e instanceof AuthError
-                    ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                    ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                     : new TranscodingLoadFailedMsg(self::LOAD_FAILED),
             );
         });
@@ -270,7 +271,7 @@ final class AdminTranscodingScreen implements Breadcrumbed, Themed
                 return new TranscodingActionDoneMsg('Tone-mapping settings updated.');
             },
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new TranscodingActionFailedMsg($e->getMessage()),
         ));
     }

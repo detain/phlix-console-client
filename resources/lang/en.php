@@ -14,10 +14,12 @@ declare(strict_types=1);
  */
 
 return [
+    // ---- Auth (session expiry — shared by every surface) ---------
+    'auth.session_expired' => 'Your session expired. Please sign in again.',
+
     // ---- RecommendationsScreen ----------------------------------------
     'recommendations.title' => 'For You',
     'recommendations.hint' => 'Q: Back  ↑↓: Navigate  Enter: Open  X: Dismiss',
-    'recommendations.session_expired' => 'Your session expired. Please sign in again.',
     'recommendations.load_failed' => 'Could not load recommendations.',
     'recommendations.loading' => 'Loading recommendations…',
     'recommendations.empty' => "No recommendations yet.\n  Start watching to get personalized suggestions!",
@@ -25,7 +27,6 @@ return [
     'recommendations.crumb' => 'For You',
 
     // ---- DetailScreen -------------------------------------------------
-    'detail.session_expired' => 'Your session expired. Please sign in again.',
     'detail.load_failed' => 'Could not load this title.',
     'detail.similar_load_failed' => 'Could not load similar titles.',
     'detail.missing_episodes_load_failed' => 'Could not load missing episodes.',

@@ -14,6 +14,7 @@ use Phlix\Console\Api\ApiError;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Admin\PortForwardCandidate;
 use Phlix\Console\Api\Dto\Admin\RemoteAccessStatus;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\AdminPortForwardCandidatesFailedMsg;
 use Phlix\Console\Msg\AdminPortForwardCandidatesLoadedMsg;
 use Phlix\Console\Msg\AdminRemoteActionDoneMsg;
@@ -74,7 +75,7 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
     use SubscriptionCapable;
     use ThemedScreen;
 
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load the remote-access status.';
     private const CANDIDATES_FAILED = 'Could not load the port-forward candidates.';
     private const CANDIDATES_HINT = '↑/↓ scroll   r refresh   c/Esc close';
@@ -146,7 +147,7 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
         return Cmd::promise(static fn () => $admin->remoteStatus()->then(
             static fn (RemoteAccessStatus $status): Msg => new AdminRemoteStatusLoadedMsg($status),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new AdminRemoteFailedMsg(self::LOAD_FAILED),
         ));
     }
@@ -163,7 +164,7 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
         return Cmd::promise(static fn () => $promise->then(
             static fn (string $message): Msg => new AdminRemoteActionDoneMsg($message),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new AdminRemoteActionFailedMsg($e->getMessage()),
         ));
     }
@@ -181,7 +182,7 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
             /** @param list<PortForwardCandidate> $candidates */
             static fn (array $candidates): Msg => new AdminPortForwardCandidatesLoadedMsg($candidates),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new AdminPortForwardCandidatesFailedMsg(self::CANDIDATES_FAILED),
         ));
     }
@@ -690,7 +691,7 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
                 },
                 static function (\Throwable $e) use ($screen): Msg {
                     if ($e instanceof AuthError) {
-                        return new SessionExpiredMsg(self::SESSION_EXPIRED);
+                        return new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY));
                     }
 
                     // Pairing request failed (hub unreachable, etc.).

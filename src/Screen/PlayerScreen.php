@@ -27,6 +27,7 @@ use Phlix\Console\Api\Dto\Trickplay;
 use Phlix\Console\Api\MediaQuery;
 use Phlix\Console\Api\SyncPlay\SyncPlayService;
 use Phlix\Console\Config\Config;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\I18n\SyncPlayErrors;
 use Phlix\Console\Media\TrickplayCache;
 use Phlix\Console\Msg\AccessScheduleDeniedMsg;
@@ -126,7 +127,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
 
     /** Rows reserved below the video: caption + scrubber + status line + 1 slack for the inner player's own status line. */
     private const CHROME_ROWS = 4;
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     /** Jellyfin-style 100ns ticks per second (the server's progress unit). */
     private const TICKS_PER_SECOND = 10_000_000;
     /** Seconds between throttled progress reports. */
@@ -691,7 +692,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         return Cmd::promise(fn (): PromiseInterface => $this->api->playbackMarkers($id)->then(
             static fn (PlaybackMarkers $markers): Msg => new PlaybackMarkersLoadedMsg($markers),
             static fn (\Throwable $e): ?Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : null,
         ));
     }
@@ -708,7 +709,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed
         return Cmd::promise(fn (): PromiseInterface => $this->api->playbackInfo($id)->then(
             static fn ($info): Msg => new AudioTracksLoadedMsg($info->audioTracks, $info->subtitleTracks),
             static fn (\Throwable $e): ?Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : null,
         ));
     }

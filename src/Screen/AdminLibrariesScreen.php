@@ -14,6 +14,7 @@ use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Admin\ScanJob;
 use Phlix\Console\Api\Dto\Library;
 use Phlix\Console\Api\Dto\MediaItemType;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\AdminLibrariesFailedMsg;
 use Phlix\Console\Msg\AdminLibrariesLoadedMsg;
 use Phlix\Console\Msg\AdminLibraryActionDoneMsg;
@@ -87,7 +88,7 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
     /** How many recent scan jobs to request for the history sub-view. */
     private const HISTORY_LIMIT = 20;
 
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load the libraries.';
     private const HISTORY_FAILED = 'Could not load the scan history.';
     private const HINT = 'c create   u update   d delete   p prune   M clear-metadata   A clear-artwork   D delete-all   s scan   R rescan   m match   h history   r refresh   Esc back';
@@ -180,7 +181,7 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
             /** @param list<Library> $libraries */
             static fn (array $libraries): Msg => new AdminLibrariesLoadedMsg($libraries),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new AdminLibrariesFailedMsg(self::LOAD_FAILED),
         ));
     }
@@ -197,7 +198,7 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
             // A failed status poll is best-effort — keep the last-known readout,
             // never crash; surface only an auth failure.
             static fn (\Throwable $e): ?Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : null,
         ));
     }
@@ -220,7 +221,7 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
             /** @param list<ScanJob> $history */
             static fn (array $history): Msg => new AdminLibraryScanHistoryLoadedMsg($libraryId, $history),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new AdminLibraryScanHistoryFailedMsg(self::HISTORY_FAILED),
         ));
     }
@@ -244,7 +245,7 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
                 return new AdminLibraryActionDoneMsg($message);
             },
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new AdminLibraryActionFailedMsg($e->getMessage()),
         ));
     }

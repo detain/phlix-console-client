@@ -111,7 +111,7 @@ final class DetailScreen implements Breadcrumbed, Themed
     private const V_SPACING = 1;
     private const PAGE_LIMIT = 50;
     private const OVERSCAN = 1;
-    private const SESSION_EXPIRED_KEY = 'detail.session_expired';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const PLAY_NOTICE_KEY = 'detail.play_notice';
     private const HINT_KEY = 'detail.hint';
     private const CONTAINER_HINT_KEY = 'detail.container_hint';

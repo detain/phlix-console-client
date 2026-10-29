@@ -11,6 +11,7 @@ namespace Phlix\Console\Screen;
 
 use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\AuthError;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\AdminPluginUpdateActionDoneMsg;
 use Phlix\Console\Msg\AdminPluginUpdateActionFailedMsg;
 use Phlix\Console\Msg\AdminPluginUpdateFailedMsg;
@@ -40,7 +41,7 @@ final class AdminPluginUpdateScreen implements Breadcrumbed, Themed
     use SubscriptionCapable;
     use ThemedScreen;
 
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load plugin updates.';
     private const HINT = 'a  toggle auto-update   c  set channel   u  apply updates   Esc  back';
 
@@ -90,7 +91,7 @@ final class AdminPluginUpdateScreen implements Breadcrumbed, Themed
                     return new AdminPluginUpdateLoadedMsg($channel, $autoUpdate, $updates);
                 },
                 static fn (\Throwable $e): Msg => $e instanceof AuthError
-                    ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                    ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                     : new AdminPluginUpdateFailedMsg(self::LOAD_FAILED),
             );
         });
@@ -191,7 +192,7 @@ final class AdminPluginUpdateScreen implements Breadcrumbed, Themed
             return $this->admin->applyPluginUpdates()->then(
                 static fn (): Msg => new AdminPluginUpdateActionDoneMsg('Plugin updates applied'),
                 static fn (\Throwable $e): Msg => $e instanceof AuthError
-                    ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                    ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                     : new AdminPluginUpdateActionFailedMsg('Failed: ' . $e->getMessage()),
             );
         });
@@ -207,7 +208,7 @@ final class AdminPluginUpdateScreen implements Breadcrumbed, Themed
                     'Auto-update ' . (!$autoUpdate ? 'enabled' : 'disabled'),
                 ),
                 static fn (\Throwable $e): Msg => $e instanceof AuthError
-                    ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                    ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                     : new AdminPluginUpdateActionFailedMsg('Failed: ' . $e->getMessage()),
             );
         });
@@ -221,7 +222,7 @@ final class AdminPluginUpdateScreen implements Breadcrumbed, Themed
             return $this->admin->setPluginCatalogChannel($channel)->then(
                 static fn (): Msg => new AdminPluginUpdateActionDoneMsg('Channel set to ' . $channel),
                 static fn (\Throwable $e): Msg => $e instanceof AuthError
-                    ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                    ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                     : new AdminPluginUpdateActionFailedMsg('Failed: ' . $e->getMessage()),
             );
         });

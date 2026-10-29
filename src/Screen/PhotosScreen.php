@@ -11,6 +11,7 @@ namespace Phlix\Console\Screen;
 
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\PhotoAlbum;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Media\PhotoCardFactory;
 use Phlix\Console\Media\PosterLoadResult;
 use Phlix\Console\Media\PosterLoader;
@@ -266,7 +267,7 @@ final class PhotosScreen implements Breadcrumbed, Loadable, Shimmering, Themed
         )->then(
             static fn (PhotoRange $range): Msg => new PhotoRangeLoadedMsg($range, $generation),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg('Your session expired. Please sign in again.')
+                ? new SessionExpiredMsg(Lang::t('auth.session_expired'))
                 : new PhotosFailedMsg(self::LOAD_MORE_FAILED),
         ));
     }

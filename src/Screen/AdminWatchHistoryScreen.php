@@ -12,6 +12,7 @@ namespace Phlix\Console\Screen;
 use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Admin\WatchHistoryEntry;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\AdminWatchHistoryFailedMsg;
 use Phlix\Console\Msg\AdminWatchHistoryLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
@@ -46,7 +47,7 @@ final class AdminWatchHistoryScreen implements Breadcrumbed, Themed
     use SubscriptionCapable;
     use ThemedScreen;
 
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load watch history.';
     private const HINT = 'u  filter-user  r  refresh  Esc  back';
 
@@ -87,7 +88,7 @@ final class AdminWatchHistoryScreen implements Breadcrumbed, Themed
             ->then(
                 static fn (array $entries): AdminWatchHistoryLoadedMsg => new AdminWatchHistoryLoadedMsg($entries),
                 static fn (\Throwable $e): Msg => $e instanceof AuthError
-                    ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                    ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                     : new AdminWatchHistoryFailedMsg(self::LOAD_FAILED),
             ));
     }

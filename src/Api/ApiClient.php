@@ -43,6 +43,7 @@ use Phlix\Console\Api\Dto\Track;
 use Phlix\Console\Api\Dto\TranscodeJob;
 use Phlix\Console\Api\Dto\Trickplay;
 use Phlix\Console\Config\TokenBundle;
+use Phlix\Console\I18n\Lang;
 use Psr\Http\Message\ResponseInterface;
 use React\Promise\Deferred;
 use React\Promise\PromiseInterface;
@@ -1324,7 +1325,7 @@ final class ApiClient
                     return $this->refresh()->then(
                         fn (): PromiseInterface => $this->exchange($method, $path, $query, $body, auth: true),
                         static fn (\Throwable $refreshError): never => throw new AuthError(
-                            'Session expired — please log in again.',
+                            Lang::t('auth.session_expired'),
                             401,
                             null,
                             $refreshError,
@@ -1353,7 +1354,7 @@ final class ApiClient
                     return $this->refresh()->then(
                         fn (): PromiseInterface => $produce(),
                         static fn (\Throwable $refreshError): never => throw new AuthError(
-                            'Session expired — please log in again.',
+                            Lang::t('auth.session_expired'),
                             401,
                             null,
                             $refreshError,

@@ -1552,7 +1552,7 @@ final class ApiClientTest extends TestCase
         $error = $this->awaitError($client->me());
 
         self::assertInstanceOf(AuthError::class, $error);
-        self::assertSame('Session expired — please log in again.', $error->getMessage());
+        self::assertSame('Your session expired. Please sign in again.', $error->getMessage());
         self::assertSame(2, $t->requestCount(), 'no second retry after a failed refresh');
     }
 

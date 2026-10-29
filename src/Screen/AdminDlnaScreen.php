@@ -12,6 +12,7 @@ namespace Phlix\Console\Screen;
 use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Admin\DlnaServerStatus;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\AdminDlnaActionDoneMsg;
 use Phlix\Console\Msg\AdminDlnaActionFailedMsg;
 use Phlix\Console\Msg\AdminDlnaFailedMsg;
@@ -51,7 +52,7 @@ final class AdminDlnaScreen implements Breadcrumbed, Themed
     use SubscriptionCapable;
     use ThemedScreen;
 
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load the DLNA server status.';
 
     private ?DlnaServerStatus $status = null;
@@ -85,7 +86,7 @@ final class AdminDlnaScreen implements Breadcrumbed, Themed
         return Cmd::promise(static fn () => $admin->dlnaStatus()->then(
             static fn (DlnaServerStatus $status): Msg => new AdminDlnaStatusLoadedMsg($status),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new AdminDlnaFailedMsg(self::LOAD_FAILED),
         ));
     }
@@ -102,7 +103,7 @@ final class AdminDlnaScreen implements Breadcrumbed, Themed
         return Cmd::promise(static fn () => $promise->then(
             static fn (string $message): Msg => new AdminDlnaActionDoneMsg($message),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new AdminDlnaActionFailedMsg($e->getMessage()),
         ));
     }

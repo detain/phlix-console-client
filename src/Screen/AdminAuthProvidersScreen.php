@@ -11,6 +11,7 @@ namespace Phlix\Console\Screen;
 
 use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\AuthError;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\AdminAuthProvidersFailedMsg;
 use Phlix\Console\Msg\AdminAuthProvidersLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
@@ -39,7 +40,7 @@ final class AdminAuthProvidersScreen implements Breadcrumbed, Themed
     use SubscriptionCapable;
     use ThemedScreen;
 
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load auth providers.';
     private const HINT = 'e  toggle  r  refresh  Esc  back';
 
@@ -69,7 +70,7 @@ final class AdminAuthProvidersScreen implements Breadcrumbed, Themed
             ->then(
                 static fn (array $providers): AdminAuthProvidersLoadedMsg => new AdminAuthProvidersLoadedMsg($providers),
                 static fn (\Throwable $e): Msg => $e instanceof AuthError
-                    ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                    ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                     : new AdminAuthProvidersFailedMsg(self::LOAD_FAILED),
             ));
     }
@@ -202,7 +203,7 @@ final class AdminAuthProvidersScreen implements Breadcrumbed, Themed
                 ->then(
                     static fn (): AdminAuthProvidersLoadedMsg => new AdminAuthProvidersLoadedMsg([]),
                     static fn (\Throwable $e): Msg => $e instanceof AuthError
-                        ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                        ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                         : new AdminAuthProvidersFailedMsg(self::LOAD_FAILED),
                 ),
         );

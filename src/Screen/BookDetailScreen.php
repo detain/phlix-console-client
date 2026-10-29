@@ -11,6 +11,7 @@ namespace Phlix\Console\Screen;
 
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Book;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Media\PosterLoadResult;
 use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Msg\BookDetailPosterLoadedMsg;
@@ -52,7 +53,7 @@ final class BookDetailScreen implements Breadcrumbed, Themed
     private const HERO_WIDTH = 26;
     private const HERO_HEIGHT = 16;
     private const COL_GAP = 3;
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const DOWNLOAD_HINT = 'Open this URL in a browser or e-reader to download:';
     private const NO_DOWNLOAD = 'No download is available for this book.';
     private const HINT = 'Esc  back';
@@ -133,7 +134,7 @@ final class BookDetailScreen implements Breadcrumbed, Themed
         return Cmd::promise(fn () => $this->books->book($this->id)->then(
             static fn (Book $book): Msg => new BookLoadedMsg($book),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new BookFailedMsg('Could not load this book.'),
         ));
     }

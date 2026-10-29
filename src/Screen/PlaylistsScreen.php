@@ -11,6 +11,7 @@ namespace Phlix\Console\Screen;
 
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\MediaItem;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\PlaylistsFailedMsg;
@@ -40,7 +41,7 @@ final class PlaylistsScreen implements Model, Teardownable, Breadcrumbed, Themed
     use ThemedScreen;
 
     private const HINT = 'Q: Back  ↑↓: Navigate  Enter: Open  A: Add item  R: Remove item  D: Delete';
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load playlists.';
     private const ADD_ITEM_NOT_IMPLEMENTED = 'Add/remove items from the playlist detail screen.';
     private const DELETE_CONFIRM_CANCELLED = 'Delete cancelled.';
@@ -79,7 +80,7 @@ final class PlaylistsScreen implements Model, Teardownable, Breadcrumbed, Themed
             },
             static function (\Throwable $e): PlaylistsFailedMsg|SessionExpiredMsg {
                 return $e instanceof AuthError
-                    ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                    ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                     : new PlaylistsFailedMsg(self::LOAD_FAILED);
             },
         ));
@@ -217,7 +218,7 @@ final class PlaylistsScreen implements Model, Teardownable, Breadcrumbed, Themed
             },
             static function (\Throwable $e): PlaylistsFailedMsg|SessionExpiredMsg {
                 return $e instanceof AuthError
-                    ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                    ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                     : new PlaylistsFailedMsg('Delete failed: ' . $e->getMessage());
             },
         );

@@ -13,6 +13,7 @@ use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Admin\PluginDetail;
 use Phlix\Console\Api\Dto\Admin\PluginSettingField;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\AdminPluginDetailFailedMsg;
 use Phlix\Console\Msg\AdminPluginDetailLoadedMsg;
 use Phlix\Console\Msg\AdminPluginSettingFailedMsg;
@@ -68,7 +69,7 @@ final class AdminPluginDetailScreen implements Breadcrumbed, Themed
     use SubscriptionCapable;
     use ThemedScreen;
 
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load the plugin.';
     private const HINT = '↑↓ select   e/⏎ edit   r refresh   Esc back';
     private const EDIT_HINT = 'Enter  save      Esc  cancel';
@@ -112,7 +113,7 @@ final class AdminPluginDetailScreen implements Breadcrumbed, Themed
         return Cmd::promise(fn () => $this->admin->pluginDetail($this->pluginName)->then(
             static fn (PluginDetail $detail): Msg => new AdminPluginDetailLoadedMsg($detail),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new AdminPluginDetailFailedMsg(self::LOAD_FAILED),
         ));
     }
@@ -130,7 +131,7 @@ final class AdminPluginDetailScreen implements Breadcrumbed, Themed
         return Cmd::promise(static fn () => $promise->then(
             static fn (PluginDetail $detail): Msg => new AdminPluginSettingSavedMsg($detail),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new AdminPluginSettingFailedMsg($e->getMessage()),
         ));
     }

@@ -12,6 +12,7 @@ namespace Phlix\Console\Screen;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\LetterIndex;
 use Phlix\Console\Api\MediaQuery;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Media\PosterCardFactory;
 use Phlix\Console\Media\PosterLoadResult;
 use Phlix\Console\Media\PosterLoader;
@@ -70,7 +71,7 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
     private const PAGE_LIMIT = 50;
     private const OVERSCAN = 1;
     private const SEARCH_DEBOUNCE = 0.3;
-    private const SESSION_EXPIRED = 'Your session expired. Please sign in again.';
+    private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_MORE_FAILED = "Couldn't load more items.";
     private const HINT = '↑↓←→  move      A–Z  jump      /  filter      c  clear      s  shuffle      R  refresh      Esc  back';
     private const FILTER_HINT = 'type to search      Tab  field      ←→  change      c  clear      Esc  done';
@@ -241,7 +242,7 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
             return [$this, Cmd::promise(fn () => $this->media->api()->shufflePlay($mediaId)->then(
                 static fn (array $result): Msg => new ShufflePlayMsg($mediaId, $result['shuffled_ids'], $result['mode']),
                 static fn (\Throwable $e): Msg => $e instanceof AuthError
-                    ? new SessionExpiredMsg('Your session expired. Please sign in again.')
+                    ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                     : new ShufflePlayFailedMsg($mediaId, $e->getMessage()),
             ))];
         }
@@ -534,7 +535,7 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
         return Cmd::promise(fn () => $this->media->ensureRange($this->query, $start, $end)->then(
             static fn (MediaRange $range): Msg => new MediaRangeLoadedMsg($range, $generation),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
-                ? new SessionExpiredMsg(self::SESSION_EXPIRED)
+                ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new LibraryFailedMsg('Could not load this library.'),
         ));
     }
