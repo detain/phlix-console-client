@@ -5,6 +5,47 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — docs/upgrade/v1.md method cites and CLI compatibility claims match the shipped truth (review console__docmaint, M-CONSOLE-19) — 2026-10-29
+
+- **The defect.** The guide told readers migrating off the `exists()` change to
+  "update your logic to explicitly call `TokenStore::fileExists()`" — a method
+  TokenStore never had (its public API is `default()`, `path()`, `exists()`,
+  `load()`, `save()`, `clear()`, `getForServer()`, `setForServer()`,
+  `removeForServer()`). It promised "existing workflows using `run`, `browse`,
+  `search`, and other commands will continue to work" — `browse` and `search`
+  were never CLI commands: bin/phlix's `switch ($cmd)` dispatches
+  doctor/poster/frame/run/watch/version/help, and `git log --all -S` finds no
+  browse/search case label in any commit. And its "Config Migration Data
+  Format" section described a `var_export`-to-PHP-array storage change that
+  never existed (zero `var_export` history in src/, bin/, or scripts/; the
+  config is JSON).
+- **Cure.** Docs-truth pass only: the `exists()` section now states the
+  shipped semantics (cache-backed, valid-bundle-gated, expiry-unaware) and
+  offers a working file-based check (`is_file()` on `TokenStore::path()`)
+  instead of the phantom method; the fabricated var_export section was
+  replaced by the REAL auto-migrations (legacy `server_url` → `servers[]` in
+  `Config::load()`, legacy flat bundle → reserved `legacy` server id in
+  TokenStore); the compatibility section became a "CLI Commands" section
+  listing the actual command set, the unknown-command stderr + exit 2
+  behavior, and the honest note that Browse and Search are in-app screens
+  only. The feature list and PSR-12 sections are untouched (verified true).
+- **Pinned.** New `tests/Docs/UpgradeGuideV1DocsTest.php` (5 tests): every
+  `Class::method()` cite in the guide resolves via reflection; the guide's
+  command list is checked against bin/phlix's `switch ($cmd)` case labels in
+  both directions; `fileExists`, `browse`, and `search` are regression-pinned
+  as forbidden; docs/upgrade/v1.md joined TokenFileNameDocsTest's DOC_FILES
+  (+1 provider case). Red-on-parent: 4 of the 5 new tests are red against the
+  pre-fix guide.
+- **Measured at HEAD.** Suite 3135 → 3141 tests, assertions 16572 → 16584,
+  skips 9 → 9, exit 0. phpstan (tests config) [OK]; phpcs exit 0 under both
+  `phpcs-tests.xml` and bare PSR-12 on the two changed test files; i18n gates
+  untouched and green. The prod `src/` phpstan leg is a PRE-EXISTING
+  estate-wide CI red streak (sole error: `AdminClient::alternatePosters()`
+  return.type at src/Api/Admin/AdminClient.php:2697, phpstan 2.3.1,
+  byte-identical local vs CI at `6b640ad`; last all-green run `081ca0d`,
+  2026-10-14) — untouched by this docs/test-only change; a separate
+  CI-greening lane is owed.
+
 ### Fixed — the [Unreleased] SugarCraft-rename deferral note contradicted the tree; closed out forward-only (review console__docmaint, M-CONSOLE-15) — 2026-10-29
 
 - **The defect.** The 2026-10-17 "SugarCraft dependency rename (campaign

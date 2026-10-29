@@ -32,6 +32,7 @@ final class TokenFileNameDocsTest extends TestCase
     private const DOC_FILES = [
         'docs/clients/console.md',
         'docs/dev/client-console.md',
+        'docs/upgrade/v1.md',
     ];
 
     /** @return array<string, array{0: string}> */
@@ -51,7 +52,7 @@ final class TokenFileNameDocsTest extends TestCase
             'token.json',
             self::actualTokenFileName(),
             'TokenStore changed the on-disk token file name; update docs/clients/console.md,'
-            . ' docs/dev/client-console.md, and this pin together.'
+            . ' docs/dev/client-console.md, docs/upgrade/v1.md, and this pin together.'
         );
     }
 
