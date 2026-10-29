@@ -40,6 +40,11 @@
         "squizlabs/php_codesniffer": "^4.0",
         "sugarcraft/sugar-testing": "dev-master"
     },
+    "provide": {
+        "symfony/polyfill-php80": "*",
+        "symfony/polyfill-php81": "*",
+        "symfony/polyfill-php82": "*"
+    },
     "autoload": {
         "psr-4": {
             "Phlix\\Console\\": "src/",

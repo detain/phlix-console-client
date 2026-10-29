@@ -5,6 +5,47 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — humbug/box dev tree de-grouped from the production lock — `--no-dev` installs and the shipped PHAR are now clean (review console__seceng, M-CONSOLE-12) — 2026-10-29
+
+- **What.** `humbug/box` sat correctly in `require-dev`, but the committed
+  `composer.lock` pinned the whole box tree (55 packages: box, php-scoper,
+  amphp/*, nikic/php-parser, jetbrains/phpstorm-stubs, symfony/console …) in
+  the *production* group — so `composer install --no-dev` installed it and the
+  checked-in `build/phlix.phar` bundled 1,651 of its files. Root cause:
+  `league/commonmark` (prod, via sugar-markdown) requires
+  `symfony/polyfill-php80`, and box 4.7 `replaces` it with `*` — the solver
+  satisfies that prod edge through the already-installed dev root, structurally
+  re-polluting on every re-resolve (reproduced with a from-scratch
+  `composer update`; a fresh `--lock` regeneration is a no-op).
+- **Cure.** Root `"provide": {"symfony/polyfill-php80/81/82": "*"}` — truthful
+  on this platform (`php >= 8.3`: the polyfills are no-ops), giving the virtual
+  a non-removable provider so the box tree falls back to the dev group. Lock
+  re-derived via a scoped re-resolve (`composer update humbug/box
+  league/commonmark -W` with temporary exact pins holding `nette/schema`
+  `v1.3.6` / `nette/utils` `v4.1.5`): the prod group is now exactly the true
+  46-package closure, versions AND dist refs byte-identical to tip (zero prod
+  drift; the 13 dev-side bumps — box 4.7.0→4.7.1 et al. — are dev-tooling
+  only). `provide` must stay in `composer.json`: deleting it lets the next
+  `composer update` re-promote the tree.
+- **Artifact.** `build/phlix.phar` rebuilt with box's default (no `--dev`)
+  vendor selection: 4,416 → 1,920 files, 28,084,683 → 8,981,867 bytes (−68%);
+  smoke legs `--version`→0, `bogus`→2, non-TTY `run`→CON-32 guard 2 pass on
+  both the phar and a fresh `composer install --no-dev` tree, where vendor
+  contains zero `humbug`/`amphp`/`jetbrains` directories.
+- **Consumers.** `.github/workflows/build.yml` unaffected (box comes from
+  setup-php `tools: box`, its `composer install --no-dev` leg now installs 46
+  instead of 101 packages); `ci.yml` dev legs unaffected; `vendor/bin/box`
+  still present after a plain `composer install` (`scripts/build-phar.sh`,
+  README:196 and docs/clients/console.md:83 "declared dev dependency" guidance
+  — copy-paste-true, now lock-honest too).
+- **Gates.** `composer validate --strict` OK; phpunit full serial
+  3,107/16,507/0F/9S — exact M11-era baseline (prod universe unchanged);
+  phpstan-tests, phpcs (both configs), i18n checks green. PHPStan *prod* shows
+  one inherited error (`AdminClient::alternatePosters()` return type, :2697,
+  from d8a7218) — reproduced identically at tip with the old lock; CI's
+  phpstan job has been red on master since the M9 era; re-green owed as its
+  own lane.
+
 ### Fixed — exception→toast internals leak cured via typed sentences + prefix dedup (review console__copywriter, M-CONSOLE-11) — 2026-10-29
 
 - **What.** `friendlyError()` echoed any throwable's raw `getMessage()` into
