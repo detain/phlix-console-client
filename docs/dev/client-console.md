@@ -547,8 +547,9 @@ reachability against the configured server.
 bin/phlix poster /path/to/image.jpg 40 --mode=halfblock | cat -v
 ```
 
-(`--mode` also accepts `auto`, `quarterblock`, `ascii`, `ansi256`,
-`truecolor`, `sixel`, `kitty`; `frame` likewise for videos.)
+(`--mode` accepts `auto`, `halfblock`, `quarterblock`, `ascii`, `ansi256`,
+`truecolor`, `sixel`, `kitty`, `iterm2`; for videos `frame --mode` accepts
+the narrower `auto`, `halfblock`, `sixel`, `kitty`, `ascii`.)
 
 ### Trace message dispatch
 
@@ -566,8 +567,11 @@ There is no request-tracing env var; the shipped `PHLIX_*` variables are
 `PHLIX_SERVER_URL` (server override for `run`) and
 `PHLIX_POSTER_CACHE_ENTRIES` (disk-cache size). The `watch` relay entrypoint
 additionally reads `PHLIX_HUB_URL`, `PHLIX_HUB_SERVER_ID`, `PHLIX_HUB_TOKEN`,
-and `PHLIX_RELAY_TOKEN`. To see API traffic, log temporarily in
-`BrowserTransport.php`.
+and `PHLIX_RELAY_TOKEN`. Inside `src/`, `PHLIX_POSTER_CONCURRENCY` caps
+concurrent poster fetches (`PosterLoader::concurrencyLimit()`, default 6)
+and `PHLIX_DOWNLOAD_DIR` sets the download target directory
+(`DownloadService::resolveDownloadDir()`, default `~/Downloads`). To see
+API traffic, log temporarily in `BrowserTransport.php`.
 
 ## Resources
 

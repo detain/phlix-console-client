@@ -5,6 +5,45 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — env-var guide covers the real shipped inventory; poster/frame mode lists pinned to the entrypoint arms (review console__docmaint, M-CONSOLE-17 round 3) — 2026-10-29
+
+- **The defect.** r2 left two r1 asks open. (a) `ScreenGuideDocsTest` still
+  pinned the guide's Debugging section to a hand-kept six-item `BIN_ENV_CENSUS`
+  and asserted guide-tokens ⊆ that list, so truthfully naming the two env vars
+  `src/` actually honours — `PHLIX_POSTER_CONCURRENCY`
+  (`PosterLoader::concurrencyLimit()`, default 6) and `PHLIX_DOWNLOAD_DIR`
+  (`DownloadService::resolveDownloadDir()`, default `~/Downloads`) — reddened
+  the guard: the undercount was structurally locked. (b) The poster `--mode`
+  sentence omitted the shipped `iterm2` arm and claimed `frame` "likewise",
+  overclaiming — bin/phlix:681 accepts nine poster modes
+  (`auto|halfblock|quarterblock|ascii|ansi256|truecolor|sixel|kitty|iterm2`)
+  while frame:690 accepts only five (`auto|halfblock|sixel|kitty|ascii`).
+- **Cure.** The Debugging prose now names all eight shipped vars (six
+  entrypoint + two src-side) with their real defaults. The mode sentence
+  distinguishes poster's nine from frame's narrower five.
+- **Pin.** `BIN_ENV_CENSUS` is deleted; `shippedEnvVars()` derives the
+  inventory by scanning every quoted `'PHLIX_*'` literal across `bin/*` and
+  `src/**/*.php` (entrypoint `getenv()`, src `$_ENV`/`$_SERVER`, and
+  `const ENV_X = 'PHLIX_X'` registrations alike; the unquoted `PHLIX_VERSION`
+  and docblock prose carry no quotes and correctly do not count). A second
+  test re-blesses that derived list so a code change reddens a pin, not the
+  guide. `testPosterAndFrameModeListsMatchTheEntrypointUsage()` parses both
+  `--mode` arms straight out of `bin/phlix` and pins the guide's rendered list
+  verbatim; if either arm moves, the fail-loud names it.
+- **Mutation proofs.** (1) r2's bin-only guard run against the corrected guide
+  reddens exactly on `names PHLIX_POSTER_CONCURRENCY, which no shipped
+  entrypoint reads` — the structural lock, demonstrated; my derived guard passes
+  it (8 guide tokens, all in census). (2) Planting `PHLIX_FAKE_TELEMETRY` in the
+  guide → 1 failure (not-in-census). (3) Dropping `PHLIX_DOWNLOAD_DIR` from the
+  guide → 1 failure (completeness arm). (4) Removing `iterm2` from the guide's
+  mode sentence → 1 failure (verbatim-match). All restored to green (12 tests).
+- **Suite.** Parent `8e8b068` full serial 3167/16858/9; with this round +2 tests
+  /+11 assertions = 3169/16869/9 (two new tests, the rewritten env test's
+  census re-bless + both-direction checks). phpstan tests corpus [OK]; src leg
+  byte-identical to parent (lone pre-existing `AdminClient::alternatePosters()`
+  return.type, unchanged — this lane touches no `src/`/`bin/` code); phpcs clean
+  under both PSR-12 and `phpcs-tests.xml`; i18n gates pass (no catalog moved).
+
 ### Added — the manual now covers every live screen, pinned to the App registry (review console__enduser, M-CONSOLE-22) — 2026-10-29
 
 - **The defect.** The "Screens" table in `docs/clients/console.md`

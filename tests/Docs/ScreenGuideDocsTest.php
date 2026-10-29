@@ -12,9 +12,10 @@
  * `tests/`), and a `PHLIX_DEBUG` variable the entrypoint never reads.
  *
  * Every code fact below is derived from the live tree — reflection over
- * App/Chrome/screen contracts, composer.json, phpunit.xml.dist, the bin/phlix
- * getenv() census, and an index of real source files — never restated from
- * prose, then pinned into docs/dev/client-console.md. A code rename reddens
+ * App/Chrome/screen contracts, composer.json, phpunit.xml.dist, a quoted-
+ * literal PHLIX_* census scanned over bin/ and src/, the two --mode usage
+ * arms in bin/phlix, and an index of real source files — never restated
+ * from prose, then pinned into docs/dev/client-console.md. A code rename reddens
  * the reflection pins; a drifting guide reddens the doc pins; either way the
  * message names the surface that must move together — the same doctrine as
  * TokenFileNameDocsTest, RuntimeRequirementsDocsTest, WatchCommandDocsTest
@@ -31,6 +32,23 @@
  * derived code pin — the named screen must itself show the example's shape
  * (Chrome frame, ApiClient, Cmd::promise, NavigateBackMsg), which StatsScreen
  * stopped doing long before the guide copied it.
+ *
+ * Round 3 (this commit): the env-var guard is de-locked from its bin-only
+ * slice. r2 found that naming the two src-side vars that ARE actually read
+ * (PHLIX_POSTER_CONCURRENCY in PosterLoader.php, PHLIX_DOWNLOAD_DIR in
+ * DownloadService.php) reddened testTheGuideNamesOnlyShippedEnvVars, because
+ * the ⊆ arm compared guide tokens against a hand-maintained six-item
+ * entrypoint list — a structurally locked guard that punished truth. The
+ * census is now DERIVED (shippedEnvVars()): every quoted 'PHLIX_*' literal
+ * across bin/ and src/, deduped and sorted. Truthfully naming a src var now
+ * passes; a fabricated name still fails (nothing read it), and the guide
+ * must name every var the code reads (the completeness arm). r2's other ask:
+ * the poster/frame `--mode` prose listed modes from memory and omitted the
+ * shipped `iterm2` poster mode while claiming `frame` "likewise" for videos;
+ * both usage arms are now parsed straight out of bin/phlix (poster accepts
+ * nine modes, frame five), the guide is pinned verbatim to the rendered
+ * lists, and a structural test pins frame's narrower set so the arms and the
+ * prose move together.
  */
 
 declare(strict_types=1);
@@ -85,22 +103,6 @@ final class ScreenGuideDocsTest extends TestCase
         \Phlix\Console\Screen\Breadcrumbed::class => ['Breadcrumbed.php', 'interface', 'Breadcrumbed'],
         \Phlix\Console\Screen\Teardownable::class => ['Teardownable.php', 'interface', 'Teardownable'],
         \Phlix\Console\Screen\CapturesSlash::class => ['CapturesSlash.php', 'marker', 'CapturesSlash'],
-    ];
-
-    /**
-     * Census pin: every PHLIX_* env var the shipped entrypoint reads, sorted
-     * (the same set WatchCommandDocsTest derives for the README / console.md
-     * surfaces — re-pinned here for the dev guide's Debugging section).
-     *
-     * @var list<string>
-     */
-    private const BIN_ENV_CENSUS = [
-        'PHLIX_HUB_SERVER_ID',
-        'PHLIX_HUB_TOKEN',
-        'PHLIX_HUB_URL',
-        'PHLIX_POSTER_CACHE_ENTRIES',
-        'PHLIX_RELAY_TOKEN',
-        'PHLIX_SERVER_URL',
     ];
 
     public function testBootSignatureIsPinnedVerbatimToTheGuide(): void
@@ -349,9 +351,45 @@ final class ScreenGuideDocsTest extends TestCase
         self::assertStringContainsString('tests/Docs/', $guide);
     }
 
+    /**
+     * Census pin (r3): the shipped env inventory is MEASURED from the tree
+     * by shippedEnvVars(), and the literal below is that measurement as of
+     * this commit. Adding or removing a quoted PHLIX_* read/registration
+     * anywhere in bin/ or src/ reddens this row on purpose — census, code
+     * and the guide's Debugging section move together, re-blessed only from
+     * a measured red.
+     */
+    public function testTheShippedEnvVarCensusIsDerivedFromReadSites(): void
+    {
+        self::assertSame(
+            [
+                'PHLIX_DOWNLOAD_DIR',
+                'PHLIX_HUB_SERVER_ID',
+                'PHLIX_HUB_TOKEN',
+                'PHLIX_HUB_URL',
+                'PHLIX_POSTER_CACHE_ENTRIES',
+                'PHLIX_POSTER_CONCURRENCY',
+                'PHLIX_RELAY_TOKEN',
+                'PHLIX_SERVER_URL',
+            ],
+            self::shippedEnvVars(),
+            'The bin/+src/ quoted-literal env census moved; re-derive it from the read sites and '
+            . 'update the Debugging section of ' . self::GUIDE . ' and this pin together.'
+        );
+    }
+
+    /**
+     * r2 issue 2 (r1-ask-2): the old guard compared guide tokens against a
+     * hand-kept BIN-ONLY list, so truthfully naming PHLIX_POSTER_CONCURRENCY
+     * or PHLIX_DOWNLOAD_DIR — vars src/ really reads — reddened it. Against
+     * the derived census both directions hold: the guide may name nothing
+     * the code never registers, and must name everything the code reads.
+     */
     public function testTheGuideNamesOnlyShippedEnvVars(): void
     {
         $guide = self::readDoc();
+        $shipped = self::shippedEnvVars();
+        self::assertNotEmpty($shipped, 'The derived env census is empty — the read-site scan stopped working.');
 
         preg_match_all('/PHLIX_[A-Z_]+/', $guide, $matches);
         self::assertNotEmpty($matches[0]);
@@ -359,17 +397,131 @@ final class ScreenGuideDocsTest extends TestCase
         foreach (array_unique($matches[0]) as $named) {
             self::assertContains(
                 $named,
-                self::BIN_ENV_CENSUS,
-                self::GUIDE . ' names ' . $named . ', which no shipped entrypoint reads '
-                . '(re-derive against the bin/phlix getenv() census).'
+                $shipped,
+                self::GUIDE . ' names ' . $named . ', which no shipped code reads '
+                . '(the census is scanned from quoted PHLIX_* literals in bin/ and src/).'
             );
         }
 
         self::assertStringNotContainsString('PHLIX_DEBUG', $guide, 'PHLIX_DEBUG is not read anywhere in the repo.');
 
-        foreach (self::BIN_ENV_CENSUS as $var) {
+        foreach ($shipped as $var) {
             self::assertStringContainsString($var, $guide, 'The guide dropped ' . $var . ' from its env-var prose.');
         }
+    }
+
+    /**
+     * r2 issue 3 (r1-ask-3): the poster/frame --mode prose was remembered,
+     * not read — it omitted the shipped `iterm2` poster mode and claimed
+     * "`frame` likewise for videos" when bin/phlix accepts only five modes
+     * for frame against poster's nine. Both usage arms are parsed out of
+     * bin/phlix itself (fail-loud if either moves) and the guide's sentence
+     * must carry both rendered lists verbatim, in usage order.
+     */
+    public function testPosterAndFrameModeListsMatchTheEntrypointUsage(): void
+    {
+        [$poster, $frame] = self::derivedModeLists();
+
+        // The asymmetry IS the fact the old prose obscured; if bin/phlix
+        // ever equalizes the arms, this pin and the guide's wording move.
+        self::assertGreaterThan(count($frame), count($poster), 'frame no longer accepts a narrower set than poster.');
+        self::assertEmpty(array_diff($frame, $poster), 'frame usage names a mode poster does not; re-read both arms.');
+
+        $normalized = (string) preg_replace('/\s+/', ' ', self::readDoc());
+        self::assertStringContainsString(
+            '`--mode` accepts ' . self::renderModes($poster)
+                . '; for videos `frame --mode` accepts the narrower ' . self::renderModes($frame) . '.',
+            $normalized,
+            'The --mode sentence no longer mirrors the bin/phlix usage arms verbatim; the lists are derived '
+            . 'from them — move the guide prose and (if the code changed) the arms together.'
+        );
+    }
+
+    /**
+     * The shipped PHLIX_* env inventory, scanned from code: every QUOTED
+     * 'PHLIX_*' literal in bin/ and src/ is a registration or read site —
+     * entrypoint getenv() calls, src-side $_ENV/$_SERVER lookups, and
+     * `const ENV_X = 'PHLIX_X'` declarations alike. Bare unquoted constant
+     * references (PHLIX_VERSION) are not env vars, and docblock prose that
+     * names the real variables carries no quotes, so neither counts.
+     *
+     * @return list<string> unique variable names, sorted
+     */
+    private static function shippedEnvVars(): array
+    {
+        $root = dirname(__DIR__, 2);
+
+        $paths = [];
+        foreach (glob($root . '/bin/*') ?: [] as $path) {
+            if (is_file($path)) {
+                $paths[] = $path;
+            }
+        }
+        $tree = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($root . '/src', RecursiveDirectoryIterator::SKIP_DOTS)
+        );
+        foreach ($tree as $file) {
+            if ($file->isFile() && $file->getExtension() === 'php') {
+                $paths[] = $file->getPathname();
+            }
+        }
+        self::assertNotEmpty($paths, 'Neither bin/ nor src/ is scannable; the census venue moved.');
+
+        $vars = [];
+        foreach ($paths as $path) {
+            $code = file_get_contents($path);
+            if (!is_string($code)) {
+                throw new RuntimeException('Census scan could not read ' . $path . '.');
+            }
+
+            if (preg_match_all('/[\'"](PHLIX_[A-Z_]+)[\'"]/', $code, $matches) > 0) {
+                foreach ($matches[1] as $var) {
+                    $vars[$var] = true;
+                }
+            }
+        }
+
+        $census = array_keys($vars);
+        sort($census);
+
+        return $census;
+    }
+
+    /**
+     * The --mode accepted-value lists exactly as bin/phlix spells them in
+     * its two usage arms (poster, frame), in declaration order.
+     *
+     * @return array{0: list<string>, 1: list<string>}
+     */
+    private static function derivedModeLists(): array
+    {
+        $bin = self::readFile('bin/phlix');
+
+        if (preg_match('/phlix poster <image> \[width\] \[height\] \[--mode=([a-z0-9|]+)\]/', $bin, $m) !== 1) {
+            throw new RuntimeException('The bin/phlix poster usage arm moved; re-derive derivedModeLists().');
+        }
+        $poster = explode('|', $m[1]);
+
+        $frameArm = '/phlix frame <video\|gif> \[count\] \[cols\] \[rows\]'
+            . ' \[--mode=([a-z0-9|]+)\]/';
+        if (preg_match($frameArm, $bin, $m) !== 1) {
+            throw new RuntimeException('The bin/phlix frame usage arm moved; re-derive derivedModeLists().');
+        }
+
+        return [$poster, explode('|', $m[1])];
+    }
+
+    /**
+     * The guide's rendering of a mode list: backticked, comma-separated.
+     *
+     * @param list<string> $modes
+     */
+    private static function renderModes(array $modes): string
+    {
+        return implode(', ', array_map(
+            static fn (string $mode): string => '`' . $mode . '`',
+            $modes
+        ));
     }
 
     public function testCompletePhpBlocksInTheGuideCompile(): void
