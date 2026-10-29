@@ -33,6 +33,10 @@ terminal via Unicode/ANSI cell rendering.
 
 ## Installation
 
+> Front door first: the repository [README](../../README.md#install) carries the same
+> install steps where GitHub readers arrive; the two lists are kept in lockstep,
+> so either page is current. This section repeats them for manual-only readers.
+
 ### Composer (for development)
 
 Clone over HTTPS (no SSH key needed) and run from the checkout:

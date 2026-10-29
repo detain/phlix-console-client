@@ -21,6 +21,27 @@ thumbnails previewing while you scrub. Posters and video render as
 **sixel / kitty / iTerm2 / half-block ANSI** via the
 [SugarCraft](https://sugarcraft.github.io/) stack.
 
+## Documentation
+
+This page is the front door. The full user manual — config-file layout, every
+keybinding, the screen-by-screen guide, the render-mode reference and genuine
+troubleshooting — lives in **[docs/clients/console.md](docs/clients/console.md)**.
+Straight to the answers:
+
+| Question | Jump to |
+| --- | --- |
+| Where does config live; which files and env vars? | [Configuration](docs/clients/console.md#configuration) |
+| What does every key do? | [Keybindings](docs/clients/console.md#keybindings) |
+| Which screens exist, and how do I reach each? | [Screens](docs/clients/console.md#screens) |
+| How do rating / favorite / watched persist? | [Watching & ratings](docs/clients/console.md#watching--ratings) |
+| How do I consume hub-relay play commands headless? | [Hub relay consumer](docs/clients/console.md#hub-relay-consumer-watch) |
+| "needs a TTY" / no graphics / expired session? | [Troubleshooting](docs/clients/console.md#troubleshooting) |
+
+Further reading: [i18n](docs/i18n.md) (the env locale chain),
+[terminal graphics](docs/terminal-graphics.md) (protocol capabilities),
+[upgrade notes](docs/upgrade/v1.md). Issues and questions:
+[the issue tracker](https://github.com/detain/phlix-console-client/issues).
+
 ## Render modes
 
 The same screen rendered with each `--mode`, cycling every few seconds.
@@ -77,8 +98,8 @@ compatibility.
 > **Resume playback** / **Pause playback** and **Stop playback** (while a music
 > or audiobook session is live), **Log out**, and **Quit** — plus a `Go to
 > <library>` jump per library. The same census with what each action opens is
-> under **Run it** below and in the manual (`docs/clients/console.md`,
-> "Screens").
+> under **Run it** below and in the manual's [Screens](docs/clients/console.md#screens)
+> section.
 >
 > Phase 6 makes **every library type browsable** and audio + photos fully usable —
 > opening a library now routes to a browser built for its type:
@@ -285,8 +306,8 @@ ratings 2–10), `F` favorite, `w` watched, `l` / `j` thumbs up / down (every on
 of these persists to your account on the server, and the screen reverts if the
 save fails); on home, `a` cycles the watch filter
 All → Watched → Unwatched → ♥ Favorites, and `H` / `P` open your watch history
-and playlists. The manual (`docs/clients/console.md`, "Watching & ratings")
-covers the loop in full.
+and playlists. The manual's [Watching & ratings](docs/clients/console.md#watching--ratings)
+section covers the loop in full.
 
 The command palette (`Ctrl-K` or `:`) is the universal navigator: **Search**,
 **Home**, **Settings** (theme + slideshow interval), the read-only **Stats**
@@ -297,7 +318,7 @@ Links**, **Federation Shares**, **Show metrics** / **Hide metrics**, **Log out**
 when you're signed in as an admin (see *Status* above), and **Resume
 playback** / **Pause playback** and **Stop playback** while a music or
 audiobook session is live. Every live screen is listed with how to reach
-it in the manual (`docs/clients/console.md`, "Screens").
+it in the manual's [Screens](docs/clients/console.md#screens) section.
 
 **In the player:** `Space` play/pause · `←`/`→` seek ±10s · `0`–`9` seek to % ·
 `[` / `]` speed · `m` cycle render mode · `s` skip intro/outro · `o` start over ·
@@ -340,7 +361,9 @@ bin/phlix frame /path/to/movie.mkv 3 60 20
 ```
 
 `doctor`, `poster`, and `frame` are non-interactive and work over a pipe;
-`run` needs an interactive terminal.
+`run` needs an interactive terminal. The full command inventory is `run`,
+`doctor`, `poster`, `frame`, `watch` (below), `version` (`-V` / `--version`)
+and `help` — the latter two print and exit, no terminal required.
 
 ### Hub relay watch
 

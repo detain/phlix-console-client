@@ -5,6 +5,44 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — console manual linked from the README; front-door section + link-integrity pin (review console__newcomer, M-CONSOLE-31) — 2026-10-29
+
+- **The defect.** `docs/clients/console.md` is the actual newcomer guide —
+  config-file layout, full keybinding tables, the render-mode reference,
+  genuine Troubleshooting — yet the README named it only as backticked
+  prose (3 mentions, 0 links; backticks are not clickable on GitHub).
+  The tuiarch twin (`watch` absent from both docs) was already cured by
+  the WatchCommandDocsTest era; its unclaimed residue — `version`/`help`
+  missing from the README command inventory — lands here.
+- **The cure.** README gains a `## Documentation` front-door section
+  (manual deep-links: Configuration, Keybindings, Screens, Watching &
+  ratings, Hub relay consumer, Troubleshooting, plus i18n /
+  terminal-graphics / upgrade-notes); the three backticked mentions
+  became real anchor links; the diagnostics inventory now names all
+  seven commands (`run doctor poster frame watch version help`) —
+  `version` (`-V`/`--version`) and `help` print and exit, no TTY
+  (bin/phlix:734-742). The manual's Installation gains a reciprocal
+  pointer to the README front door. The README↔manual passage
+  duplication (install lists, watch prose, palette census, key loops) is
+  the estate's ratified lockstep — each pair is pinned to the same code
+  source by its own tests/Docs gate — so it is kept, now with doors both
+  ways instead of orphan copies.
+- **New pin.** `tests/Docs/ManualLinkingDocsTest.php` (4 tests, 6
+  assertions): the README must carry the front-door section, every
+  manual mention must be inside a link, and every relative link in
+  README.md / docs/clients/console.md must resolve (file exists +
+  GitHub-slugified heading anchor). Red-on-parent proven: on `3c54ff3`
+  both law tests fail; the resolver also caught (and fixed) a
+  `../README.md` one-level error in the pointer itself —
+  two-levels-up is the correct relative path from docs/clients/.
+- **Measured.** Full suite `3198→3202` tests / `16999→17017` assertions
+  / skipped 9 held (+1 PHPUnit deprecation 13→14 is the new
+  `@dataProvider` annotation count — repo-wide config migration stays
+  owed separately); phpstan prod carries only the inherited
+  `AdminClient:2697` red (non-attribution: diff touches no `src/`);
+  phpstan-tests OK; phpcs `phpcs.xml` src + `phpcs-tests.xml` tests +
+  bare PSR12 on the new file all 0. i18n catalogs untouched.
+
 ### Fixed — ci-baseline-C9 gate coordinates re-anchored to workflows on disk; claims pin (review console__ipd, M-CONSOLE-27) — 2026-10-29
 
 - **The defect.** The four phantom gates this item originally filed (coverage
