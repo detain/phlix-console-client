@@ -234,7 +234,7 @@ figures themselves are kept verbatim as history.)*
 
 ## Dependencies
 
-- `sugarcraft/*` packages are locked to `dev-master` (`composer.json:18-33,41`)
+- `sugarcraft/*` packages are locked to `dev-master` (`composer.json:20-35,43`)
   — upstream carries no mainline tags (see `docs/dev/dependencies.md`).
 - Dependency drift is detected weekly via `deps.yml` (Monday 06:00 UTC,
   `deps.yml:29-30`).

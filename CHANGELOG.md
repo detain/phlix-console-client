@@ -5,6 +5,56 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — rider W17 R-CONSOLE-17: composer.json now declares ext-intl + ext-mbstring — src has been living on them and the production lock already enforced them hard — 2026-10-30
+
+- **The ask.** M-CONSOLE-47__r1 minors-accumulator row, queued as rider
+  R-CONSOLE-17: "composer.json should declare ext-mbstring + ext-intl
+  (pre-existing; live mb_*/Width usage in src)." The "pre-existing" clause
+  dates the defect (it predates the M47 truncation cure that surfaced it) —
+  the ask text is directive, so the rider cures. Condition checked first:
+  no R-CONSOLE-17 landing exists on origin/master and the gap was live at
+  tip `4ab1a85`.
+- **Live-usage evidence.** ext-mbstring: 18 direct `mb_*` call sites across
+  12 src files (mb_strlen ×8, mb_substr ×6, mb_strtoupper ×2, mb_str_split
+  ×1, mb_convert_encoding ×1 at `App.php:1219`). ext-intl: no direct Intl
+  call in src, but the `Width::` display-cell authority is used at 70+ sites
+  in 20+ src files (Chrome, AdminLogs, Detail, PhotoViewer, MetricsOverlay,
+  Truncate, …) and its vendor guarantee executes `grapheme_extract` — ICU,
+  i.e. ext-intl — with the non-ICU branch documented as "a documented seam,
+  not a supported path"; `sugarcraft/sugar-core` hard-requires `ext-intl`.
+  Nothing unused declared: ext-gd already was, and ext-ffi/ext-json stay
+  owned by their vendor packages' own requires, not console-direct use.
+- **The cure.** `"ext-intl": "*"` + `"ext-mbstring": "*"` added to `require`
+  after ext-gd (sort-packages order), `composer update --lock` rotated the
+  lock surgically — content-hash and the root `_meta.platform` echo only,
+  zero package changes. The +2-line composer.json shift reddened the
+  `CiBaselineClaimsDocsTest` coordinate tripwire over
+  `docs/steps/ci-baseline-C9.md`; the doc's `composer.json:18-33,41`
+  citation re-anchored to `20-35,43` in the same change (measure-at-red,
+  not ignored).
+- **CI install posture — no gate weakened.** No workflow anywhere runs
+  `--ignore-platform-reqs`, and every install leg already enforces BOTH
+  extensions through the production lock today: `league/commonmark` and
+  `sugarcraft/sugar-image` hard-require `ext-mbstring` and `sugar-core`
+  hard-requires `ext-intl` with no virtual provider in the prod tree (the
+  polyfills that provide them are dev-only). Current CI green is therefore
+  empirical proof the ubuntu-26.04 runners ship both, so the root
+  declaration cannot break any leg — including the build.yml
+  `composer install --no-dev` phar leg. The release-note bodies in
+  build.yml already advertise ext-mbstring + ext-intl to PHAR users;
+  composer.json now matches its own published promise.
+- **Gates.** FULL serial suite in one venue: tip `4ab1a85` 3493/21516 →
+  cure 3493 tests / 21518 assertions, dep-15/skip-15 held, exit 0; the +2
+  is attributed by a per-test junit diff to
+  `VendorPatchesDocsTest::testComposerJsonPatchToolingAbsenceIsDerivedAndMirroredInProse`,
+  which scans every `require` key with a `/patch/i` negative assertion —
+  two honest new entries, two more green scans. `composer validate
+  --strict` rc 2 (out-of-date lock) before rotation, rc 0 after. phpcs both
+  repo standards exit 0; bare PSR12 on changed files N/A (this change
+  touches no PHP file). i18n: catalogs 6×68 parity + hardcoded gate pass,
+  no catalog touched. Historical entries verbatim; this forward entry
+  prepended. No PHAR built locally.
+
 ### Fixed — rider W16 R-CONSOLE-16: the M43 backspace battery gains its headline CJK case — one provider row for 会議室, the 3-byte BMP width the 2- and 4-byte pins previously only bounded by sandwich — 2026-10-30
 
 - **The ask.** M-CONSOLE-43__r2 (non-blocking note): "No dedicated CJK test

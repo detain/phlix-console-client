@@ -11,6 +11,8 @@
     "require": {
         "php": ">=8.3",
         "ext-gd": "*",
+        "ext-intl": "*",
+        "ext-mbstring": "*",
         "react/event-loop": "^1.5",
         "react/http": "^1.11",
         "react/promise": "^3.3",
