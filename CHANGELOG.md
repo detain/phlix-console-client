@@ -5,6 +5,26 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — minors batch W-min24 rework (M-CONSOLE-44): the README Test section stops generalizing past the one fixture it ships — 2026-10-30
+
+- **The defect.** (console__ipd m.) README.md claimed "the poster test
+  synthesizes its own image with `gd`, so the suite needs no fixtures" while
+  `tests/Unit/Api/ServerRouteManifestGateTest.php` loads
+  `tests/fixtures/server-route-manifest.json` — a vendored byte-for-byte copy
+  of the contracts route manifest. True of image/video synthesis; false as a
+  generalization about the suite.
+- **The cure.** The sentence is qualified per the queue fix-essence: no
+  BINARY fixtures need downloading, and the one vendored text fixture — the
+  route-manifest JSON — is named where the gate uses it. M-CONSOLE-31, the
+  batch's other item, needed no code: its docs/terminal-graphics.md cure
+  landed earlier under the writer-M49 wave (81426c0 + 74175be).
+- **The pins.** NEW `tests/Docs/ReadmeTestFixturesDocsTest.php` (3 laws,
+  bidirectional, fixture inventory re-derived from the tree): every file in
+  `tests/fixtures/` is named in the README Test section; every fixture path
+  the section names exists on disk; while the directory is non-empty the
+  "needs no fixtures" claim reddens (mutation-proven: reverting the cure
+  reddens laws 1 and 3, restoring greens all three).
+
 ### Fixed — minors batch W-min11 (M-CONSOLE-09 · 60 · 61): CLI usage surface made self-honest, malformed `--mode` priced at its contract exit code, one toast-sentence grammar — 2026-10-30
 
 - **The defects.** (console__tuiarch m2×2, console__copywriter m2.)

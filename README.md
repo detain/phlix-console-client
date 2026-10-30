@@ -397,7 +397,11 @@ vendor/bin/phpunit   # or: composer test
 ```
 
 The video-decode test self-skips when `ffmpeg` is unavailable; the poster test
-synthesizes its own image with `gd`, so the suite needs no fixtures.
+synthesizes its own image with `gd`, so no binary fixtures ever need to be
+downloaded. The suite does carry one vendored text fixture:
+`tests/fixtures/server-route-manifest.json`, the byte-for-byte server route
+manifest that `tests/Unit/Api/ServerRouteManifestGateTest.php` checks every
+wire URL against.
 
 ## Static analysis
 
