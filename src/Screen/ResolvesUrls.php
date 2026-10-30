@@ -9,6 +9,8 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Screen;
 
+use Phlix\Console\Api\ServerAuthority;
+
 /**
  * The clone-safe artwork URL join 11 screens carried byte-identically (M-CONSOLE-37).
  *
@@ -33,5 +35,32 @@ trait ResolvesUrls
         }
 
         return rtrim($this->baseUrl, '/') . '/' . ltrim($url, '/');
+    }
+
+    /**
+     * resolveUrl() PLUS the media-authority gate [M-CONSOLE-55]: a server-
+     * supplied URL destined for a playback/download sink is honoured only when
+     * hosted at (or beneath) the configured server's host. A foreign host
+     * resolves to '' — every caller already treats an empty source URL as its
+     * failure signal ("no playable source", the transcode arm, the error
+     * toast), so the refusal lands on existing UX with zero new states.
+     * Artwork keeps using plain resolveUrl()/PosterFetchPolicy on purpose:
+     * cross-host CDN art is absolute by server design and display-only.
+     */
+    private function resolveMediaUrl(string $url): string
+    {
+        $resolved = $this->resolveUrl($url);
+        if ($resolved === '') {
+            return '';
+        }
+
+        // Only http(s) targets carry the arbitrary-host fetch risk this gate
+        // exists for; a resolved local path (dev/selftest clips) has no host
+        // to pin.
+        if (preg_match('#^https?://#i', $resolved) !== 1) {
+            return $resolved;
+        }
+
+        return ServerAuthority::trusted($this->baseUrl, $resolved) ? $resolved : '';
     }
 }

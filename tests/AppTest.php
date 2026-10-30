@@ -240,6 +240,40 @@ final class AppTest extends TestCase
         self::assertInstanceOf(LoginScreen::class, $next->screen());
     }
 
+    // [review console__qa m-3, M-CONSOLE-51] A config file that exists but
+    // cannot be honoured is surfaced once at boot — never silently swallowed.
+
+    public function testBootWarnsWhenTheLocalConfigCouldNotBeHonoured(): void
+    {
+        $config = new Config(
+            servers: [new ServerEntry(id: 's1', label: 'Server', url: 'https://srv')],
+            activeServerId: 's1',
+            loadError: 'Config file at /tmp/x/config.json is not valid JSON (Syntax error); using defaults (the file was left untouched).',
+        );
+        $api = new ApiClient('https://srv', new FakeTransport());
+        $app = App::boot($config, new AuthStore($api, TokenStore::default()), $api, new LibrariesStore($api), new MediaStore($api), new PosterLoader(Mosaic::halfBlock()));
+
+        $resolved = $this->runCmd($app->init());
+        self::assertInstanceOf(BootResolvedMsg::class, $resolved);
+        self::assertNull($resolved->toast);
+
+        [, $cmd] = $app->update($resolved);
+
+        $result = $cmd !== null ? $cmd() : null;
+        self::assertInstanceOf(BatchMsg::class, $result, 'route command and the warning travel together');
+
+        $msgs = array_map(static fn (\Closure $c): ?Msg => $c(), $result->cmds);
+        $toast = null;
+        foreach ($msgs as $child) {
+            if ($child instanceof ShowToastMsg) {
+                $toast = $child;
+            }
+        }
+
+        self::assertNotNull($toast, 'the load error must reach the user as a boot toast');
+        self::assertStringContainsString('not valid JSON', (string) $toast->message);
+    }
+
     public function testBootWithValidTokenGoesToBrowse(): void
     {
         TokenStore::default()->save(new TokenBundle('stored', 'refresh', 'Bearer', null));

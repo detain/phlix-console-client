@@ -329,4 +329,58 @@ final class SettingsScreenTest extends TestCase
         self::assertStringContainsString('L  logout', $view, 'the hint prints the uppercase key');
         self::assertStringContainsString('S  servers', $view, 'both cases are handled');
     }
+
+    // [review console__a11y M-CONSOLE-05] The l/s shortcuts intercepted the
+    // lowercase keys BEFORE the form, so 'l' and 's' could never be typed into
+    // the slideshow interval field — a screen-level violation of the repo's own
+    // capture-text law (App honors it for '/' and ':' while a screen captures
+    // text). While a text field has focus, printable characters belong to it;
+    // the shortcuts keep working everywhere else (the resting-focus and
+    // uppercase-pair tests above pin the other side of the law).
+
+    public function testLowercaseShortcutsDoNotInterceptWhileTheSlideshowFieldIsFocused(): void
+    {
+        $screen = SettingsScreen::create($this->makeAuthStore(), $this->makeConfig('Nocturne', 4));
+        $screen = $this->toInterval($screen);
+
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'l'));
+        $msg = $cmd !== null ? $cmd() : null;
+        self::assertNotInstanceOf(LogoutMsg::class, $msg, "'l' while editing must type, not log out");
+
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 's'));
+        $msg = $cmd !== null ? $cmd() : null;
+        self::assertNotInstanceOf(OpenServersMsg::class, $msg, "'s' while editing must type, not open servers");
+    }
+
+    public function testShortcutLettersLandInTheSlideshowFieldValueWhileEditing(): void
+    {
+        $screen = SettingsScreen::create($this->makeAuthStore(), $this->makeConfig('Nocturne', 4));
+        $screen = $this->toInterval($screen);
+        $screen = $this->type($screen, 'ls');
+
+        // Strip styling: the focused input renders the cursor as SGR, never as
+        // inserted text, so the bare value reads '4ls'.
+        $plain = (string) preg_replace('/\e\[[0-9;?]*[mH]|\e\][^\a]*\a/', '', $screen->view());
+
+        self::assertStringContainsString('4ls', $plain, 'both shortcut letters must reach the field value');
+    }
+
+    public function testUppercaseShortcutIsTextWhileEditingAndALiveShortcutAtRest(): void
+    {
+        // Uppercase follows the same capture-text law: shift produces a printable
+        // rune, so while the Input is focused 'L' is content, not a command. The
+        // a11y critical-1 advertised-pair law (testUppercaseLKeyEmitsLogoutMsg)
+        // pins that the very same key still fires at rest on the Select.
+        $screen = SettingsScreen::create($this->makeAuthStore(), $this->makeConfig('Nocturne', 4));
+        $screen = $this->toInterval($screen);
+
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'L'));
+        $msg = $cmd !== null ? $cmd() : null;
+        self::assertNotInstanceOf(LogoutMsg::class, $msg, "'L' while editing must type, not log out");
+
+        $rested = SettingsScreen::create($this->makeAuthStore(), $this->makeConfig('Nocturne', 4));
+        [, $cmd] = $rested->update(new KeyMsg(KeyType::Char, 'L'));
+        self::assertInstanceOf(\Closure::class, $cmd);
+        self::assertInstanceOf(LogoutMsg::class, $cmd(), 'at rest the advertised uppercase shortcut stays live');
+    }
 }

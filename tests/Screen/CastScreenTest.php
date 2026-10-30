@@ -265,6 +265,39 @@ final class CastScreenTest extends TestCase
 
     // ---- cast send -----------------------------------------------------
 
+    // ---- media authority (M-CONSOLE-55) ----------------------------------
+
+    public function testAForeignStreamHostIsRefusedBeforeTheCastPost(): void
+    {
+        // The cast bridge makes a DEVICE fetch media_url — a hostile server must
+        // not be able to point the living-room TV at an arbitrary host. The
+        // refusal is local: CastFailedMsg, and no POST ever leaves.
+        $item = MediaItem::fromArray([
+            'id' => 'm-9',
+            'name' => 'Hostile Stream',
+            'type' => 'movie',
+            'poster_url' => 'https://srv.example/p/m-9.jpg',
+            'runtime' => 90,
+            'stream_url' => 'https://evil.example.org/movie.mp4',
+        ]);
+
+        $transport = (new FakeTransport())
+            ->json(200, ['devices' => [['device_id' => 'cc-1', 'name' => 'Living Room TV', 'model' => 'Chromecast Ultra']]]);
+        $api = new ApiClient(self::BASE, $transport);
+        $api->setToken(new TokenBundle('access-1', 'refresh-1', 'Bearer', time() + 3600));
+
+        $screen = new CastScreen(new CastClient($api), $item, self::BASE, cols: 120, rows: 40);
+        $msg = $this->runCmd($screen->init());
+        self::assertInstanceOf(CastDevicesLoadedMsg::class, $msg);
+        $picker = $screen->update($msg)[0];
+
+        [, $cmd] = $picker->update(new KeyMsg(KeyType::Enter));
+        $failed = $this->runCmd($cmd);
+
+        self::assertInstanceOf(CastFailedMsg::class, $failed, 'the cast must fail locally on the authority gate');
+        self::assertCount(4, $transport->requests, 'the four discovery legs ran; no cast POST left for a refused source');
+    }
+
     public function testEnterCastsTheSelectedDeviceAndEntersTransport(): void
     {
         // A Chromecast send → {session_id, state}.

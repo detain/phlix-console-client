@@ -676,6 +676,10 @@ try {
 
             echo "PHP version: " . PHP_VERSION . "\n";
             echo "Config path: " . Config::path() . "\n";
+            if ($config->loadError !== null) {
+                // A broken config file is data-safe but never silent [review console__qa m-3].
+                echo "Config WARN: " . $config->loadError . "\n";
+            }
             echo "Token path: " . $tokenPath . "\n";
             echo "Server URL: " . ($serverUrl ?? '(none)') . "\n";
             echo "\n";

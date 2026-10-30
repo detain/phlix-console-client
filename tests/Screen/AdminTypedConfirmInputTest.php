@@ -45,7 +45,7 @@ final class AdminTypedConfirmInputTest extends TestCase
     {
         $screen = new AdminServerRestartScreen($this->adminClient());
 
-        // 'r' arms the typed-confirm mode ("Type \"restart\" to confirm").
+        // 'r' arms the typed-confirm mode ("Type \"restart\" and press Enter to confirm").
         [$screen] = $screen->update(new KeyMsg(KeyType::Char, 'r'));
 
         foreach (self::RUNES as $rune) {
@@ -61,7 +61,7 @@ final class AdminTypedConfirmInputTest extends TestCase
     {
         $screen = new AdminPluginUpdateScreen($this->adminClient());
 
-        // 'u' arms the pending-apply typed-confirm ("Type \"update\" to confirm").
+        // 'u' arms the pending-apply typed-confirm ("Type \"update\" and press Enter to confirm").
         [$screen] = $screen->update(new KeyMsg(KeyType::Char, 'u'));
 
         $firstFour = array_slice(self::RUNES, 0, 4);
@@ -85,5 +85,46 @@ final class AdminTypedConfirmInputTest extends TestCase
 
         // 7 Latin chars — well inside the 10-codepoint cap; the word survives.
         self::assertSame('restart', $this->typed($screen));
+    }
+
+    // [review console__copywriter m7, M-CONSOLE-14] The double-quoted typed-
+    // confirm family (the two admin screens) said "Type \"x\" to confirm" in
+    // one place and "Type \"x\" and press Enter to confirm" in another — the
+    // same screen contradicted itself. Law: one template for the family. The
+    // single-quote pending-action prompts (PlaylistPendingAction et al.) are a
+    // separate, internally consistent family and stay as they are.
+
+    public function testTheDoubleQuotedConfirmPromptsFollowOneTemplate(): void
+    {
+        $offenders = [];
+        $paths = glob(dirname(__DIR__, 2) . '/src/Screen/*.php');
+        self::assertIsArray($paths);
+
+        foreach ($paths as $path) {
+            foreach (token_get_all((string) file_get_contents($path)) as $token) {
+                if (!is_array($token) || $token[0] !== T_CONSTANT_ENCAPSED_STRING) {
+                    continue;
+                }
+
+                if (preg_match('/Type "/', $token[1]) !== 1) {
+                    continue;
+                }
+
+                if (preg_match('/^Type "\w+" and press Enter to confirm[:.]?\s*$/', trim(trim($token[1], "'\""))) !== 1) {
+                    $offenders[] = basename($path) . ': ' . $token[1];
+                }
+            }
+        }
+
+        self::assertSame([], $offenders, 'typed-confirm wording drifted off the single template [M-CONSOLE-14]');
+    }
+
+    public function testTheConfirmTemplateIsActuallyLiveInTheAdminScreens(): void
+    {
+        $restart = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Screen/AdminServerRestartScreen.php');
+        $update = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Screen/AdminPluginUpdateScreen.php');
+
+        self::assertStringContainsString('Type "restart" and press Enter to confirm', $restart);
+        self::assertStringContainsString('Type "update" and press Enter to confirm', $update);
     }
 }

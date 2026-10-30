@@ -449,7 +449,7 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
         $tagType = $form->getString('tagType');
 
         if ($tag === '' || strlen($tag) > 100) {
-            return [$this->reopenTagCreate($tag, $tagType, 'Tag must be 1-100 characters.'), null];
+            return [$this->reopenTagCreate($tag, $tagType, 'Tag must be 1–100 characters.'), null];
         }
         if ($tagType !== ProfileTag::TYPE_BLOCKED && $tagType !== ProfileTag::TYPE_ALLOWED) {
             return [$this->reopenTagCreate($tag, $tagType, 'Type must be blocked or allowed.'), null];

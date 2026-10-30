@@ -85,6 +85,19 @@ final class ServerScreen implements Model, Themed, CapturesSlash
                 return [new self($fresh, 'Please enter a server URL.', $this->cols, $this->rows), $fresh->init()];
             }
 
+            // Shape gate [review console__qa m-2, M-CONSOLE-50]: a URL that
+            // cannot exist must not be persisted + advanced past — the wizard
+            // would announce "Connecting…" and land on Login for a host that is
+            // structurally impossible (5k chars, emoji, spaces). Reachability
+            // stays a sign-in-time concern (that failure UX is already fast and
+            // clear); this gate only enforces the shape law at the boundary.
+            if (!self::isPlausibleServerUrl($url)) {
+                return [
+                    new self($form, 'Enter a valid server URL (e.g. https://phlix.example.com).', $this->cols, $this->rows),
+                    null,
+                ];
+            }
+
             return [new self($form, null, $this->cols, $this->rows), Cmd::send(new SubmitServerMsg($url))];
         }
 
@@ -109,5 +122,21 @@ final class ServerScreen implements Model, Themed, CapturesSlash
         $body = implode("\n", $lines) . $this->form->view();
 
         return Chrome::frame('Setup', $body, 'Enter  connect      Esc  quit', $this->cols, $this->rows, theme: $this->theme());
+    }
+
+    /**
+     * Does the normalized URL have a shape a server could ever have? http(s)
+     * scheme (normalizeUrl forces one, so this only fires on scheme-embedded
+     * oddities) and filter_var-valid — which empirically refuses absurd lengths,
+     * non-ASCII host labels, and spaces before the value is persisted.
+     */
+    private static function isPlausibleServerUrl(string $url): bool
+    {
+        $scheme = parse_url($url, PHP_URL_SCHEME);
+        if (!is_string($scheme) || !in_array(strtolower($scheme), ['http', 'https'], true)) {
+            return false;
+        }
+
+        return filter_var($url, FILTER_VALIDATE_URL) !== false;
     }
 }

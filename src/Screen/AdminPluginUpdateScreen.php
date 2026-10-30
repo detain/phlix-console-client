@@ -166,7 +166,7 @@ final class AdminPluginUpdateScreen implements Breadcrumbed, Themed
                 return $this->doApplyUpdates();
             }
 
-            return [$this->withError('Type "update" to confirm')->withPendingApply(null)->withTyped(''), null];
+            return [$this->withError('Type "update" and press Enter to confirm')->withPendingApply(null)->withTyped(''), null];
         }
         if ($msg->string() === 'Escape') {
             return [$this->withPendingApply(null)->withTyped(''), null];
@@ -327,7 +327,7 @@ final class AdminPluginUpdateScreen implements Breadcrumbed, Themed
 
         if ($this->pendingApply !== null) {
             $out .= "  ⚠️  Warning: Plugin updates can destroy settings including OAuth tokens (Trakt, Last.fm, etc.)\n\n";
-            $out .= '  Type "update" to confirm: ' . $this->typed . "\n";
+            $out .= '  Type "update" and press Enter to confirm: ' . $this->typed . "\n";
         }
 
         return $out;

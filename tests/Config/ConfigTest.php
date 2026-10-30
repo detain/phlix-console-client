@@ -86,6 +86,8 @@ final class ConfigTest extends TestCase
         $config = Config::load($this->dir . '/does-not-exist.json');
 
         self::assertNull($config->activeServer()?->url ?? null);
+        // [review console__qa m-3] Absence is silence: a fresh install must not warn.
+        self::assertNull($config->loadError, 'a missing config file is not an error');
     }
 
     public function testLoadInvalidJsonReturnsDefaults(): void
@@ -95,6 +97,54 @@ final class ConfigTest extends TestCase
         file_put_contents($path, '{not valid json');
 
         self::assertNull(Config::load($path)->activeServer()?->url ?? null);
+    }
+
+    // ---- M-CONSOLE-51: a malformed config is loud but untouched -----------
+
+    public function testMalformedConfigCarriesALoadErrorAndSurvivesTheLoad(): void
+    {
+        @mkdir($this->dir, 0o700, true);
+        $path = $this->dir . '/config.json';
+        file_put_contents($path, '{{{not json');
+
+        $config = Config::load($path);
+
+        self::assertNotNull($config->loadError, 'a broken config file must surface a reason, never silence');
+        self::assertStringContainsString('not valid JSON', (string) $config->loadError);
+        self::assertSame('{{{not json', file_get_contents($path), 'loading must not clobber the broken file');
+    }
+
+    public function testEmptyConfigFileIsReportedAsPossibleTruncation(): void
+    {
+        @mkdir($this->dir, 0o700, true);
+        $path = $this->dir . '/config.json';
+        file_put_contents($path, '');
+
+        $config = Config::load($path);
+
+        self::assertNotNull($config->loadError);
+        self::assertStringContainsString('empty', (string) $config->loadError);
+    }
+
+    public function testJsonScalarIsReportedNotAJsonObject(): void
+    {
+        @mkdir($this->dir, 0o700, true);
+        $path = $this->dir . '/config.json';
+        file_put_contents($path, 'null');
+
+        $config = Config::load($path);
+
+        self::assertNotNull($config->loadError);
+        self::assertStringContainsString('not a JSON object', (string) $config->loadError);
+    }
+
+    public function testValidConfigLoadsWithoutALoadError(): void
+    {
+        @mkdir($this->dir, 0o700, true);
+        $path = $this->dir . '/config.json';
+        (new Config(servers: [new \Phlix\Console\Config\ServerEntry(id: 'i', label: 'l', url: 'https://h.tld')]))->save($path);
+
+        self::assertNull(Config::load($path)->loadError);
     }
 
     public function testWithServerUrlNormalises(): void

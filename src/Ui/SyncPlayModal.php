@@ -379,7 +379,7 @@ final class SyncPlayModal
     {
         $lines = [];
         $lines[] = '';
-        $lines[] = '  Joining room...';
+        $lines[] = '  Joining room…';
         $lines[] = '';
 
         $body = implode("\n", $lines);

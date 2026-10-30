@@ -276,10 +276,19 @@ final class CastScreen implements Breadcrumbed, Themed
 
     private function castCmd(CastDevice $device): \Closure
     {
+        // Media-authority gate [M-CONSOLE-55]: the cast bridge hands media_url
+        // to a living-room device to fetch — never let a hostile server drive
+        // that from an arbitrary host. Refuse locally, before the POST.
+        $rawStream = $this->item->streamUrl ?? '';
+        $mediaUrl = $this->resolveMediaUrl($rawStream);
+        if ($rawStream !== '' && $mediaUrl === '') {
+            return Cmd::send(new CastFailedMsg('The cast source points outside your configured server.'));
+        }
+
         $promise = $this->cast->castTo(
             $device,
             $this->item->id,
-            $this->resolveUrl($this->item->streamUrl ?? ''),
+            $mediaUrl,
             $this->item->name,
             ($this->item->posterUrl !== null && $this->item->posterUrl !== '') ? $this->resolveUrl($this->item->posterUrl) : null,
             $this->item->runtime ?? $this->item->duration,

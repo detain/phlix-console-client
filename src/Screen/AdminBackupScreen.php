@@ -605,7 +605,7 @@ final class AdminBackupScreen implements Breadcrumbed, Themed
 
     private function scheduleBody(Form $form): string
     {
-        $lines = ['Edit the automatic-backup schedule. Both values must be greater than 0.', ''];
+        $lines = ['Edit the automatic-backup schedule. Both values must be whole numbers greater than 0.', ''];
 
         return implode("\n", $lines) . $form->view();
     }

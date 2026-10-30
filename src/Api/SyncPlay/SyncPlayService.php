@@ -242,7 +242,7 @@ final class SyncPlayService
         }
 
         if (!$this->connected) {
-            return 'Connecting...';
+            return 'Connecting…';
         }
 
         if ($this->playbackState === 'playing') {

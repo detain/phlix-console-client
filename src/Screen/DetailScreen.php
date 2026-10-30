@@ -176,7 +176,7 @@ final class DetailScreen implements Breadcrumbed, Themed
     private function downloadService(): DownloadService
     {
         if ($this->downloadService === null) {
-            $this->downloadService = new DownloadService();
+            $this->downloadService = new DownloadService(serverBase: $this->baseUrl);
         }
 
         return $this->downloadService;

@@ -53,12 +53,18 @@ final class Config
 
     /**
      * @param array<int, ServerEntry>|list<ServerEntry> $servers
+     * @param string|null $loadError diagnostic sentence when a config file on disk
+     *                               could not be honoured (unreadable or not valid
+     *                               JSON); null means defaults come from absence or
+     *                               a clean read. The file itself is NEVER clobbered
+     *                               on this path — only an explicit save() rewrites it.
      */
     public function __construct(
         public readonly array $servers = [],
         public readonly ?string $activeServerId = null,
         public readonly ?string $theme = null,
         public readonly int $slideshowInterval = self::SLIDESHOW_DEFAULT,
+        public readonly ?string $loadError = null,
     ) {
     }
 
@@ -86,6 +92,11 @@ final class Config
     /**
      * Load config from disk, returning defaults when absent or unreadable.
      * Migrates legacy single-server format to multi-server format.
+     *
+     * Absence is silence (fresh install); a file that exists but cannot be
+     * honoured is LOUD: {@see self::$loadError} carries the reason so doctor
+     * and boot surface it [review console__qa m-3, M-CONSOLE-51]. The broken
+     * file is deliberately left untouched.
      */
     public static function load(?string $path = null): self
     {
@@ -93,12 +104,23 @@ final class Config
 
         $raw = @file_get_contents($path);
         if ($raw === false) {
+            if (file_exists($path)) {
+                // The file is there but we cannot read it — never silent.
+                return new self(loadError: "Config file at {$path} exists but could not be read; using defaults (the file was left untouched).");
+            }
+
             return new self();
         }
 
         $data = json_decode($raw, true);
         if (!is_array($data)) {
-            return new self();
+            if (trim($raw) === '') {
+                return new self(loadError: "Config file at {$path} is empty; using defaults (the file was left untouched — it may be the tail of a truncated write).");
+            }
+
+            $reason = json_last_error() === JSON_ERROR_NONE ? 'not a JSON object' : json_last_error_msg();
+
+            return new self(loadError: "Config file at {$path} is not valid JSON ({$reason}); using defaults (the file was left untouched).");
         }
 
         // Migrate legacy single-server format

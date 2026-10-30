@@ -1854,4 +1854,38 @@ final class PlayerScreenTest extends TestCase
 
         return $state['value'];
     }
+
+    // ---- media authority (M-CONSOLE-55) ----------------------------------
+
+    /** Read the private streamUrl() the initial buildPlayerCmd is fed. */
+    private function streamUrlOf(PlayerScreen $screen): string
+    {
+        return (function (): string {
+            return $this->streamUrl();
+        })->call($screen);
+    }
+
+    public function testAForeignHostStreamUrlIsRefusedToTheEmptySourceArm(): void
+    {
+        // A hostile/compromised server's absolute URL must never be handed to
+        // the player factory — it collapses to '' and lands on the existing
+        // "no playable source" failure UX instead.
+        [$screen] = $this->screen(streamUrl: 'https://evil.example.org/movie.mp4');
+
+        self::assertSame('', $this->streamUrlOf($screen), 'foreign host must be refused [M-CONSOLE-55]');
+    }
+
+    public function testASubdomainStreamUrlIsHonoured(): void
+    {
+        [$screen] = $this->screen(streamUrl: 'https://cdn.srv/media/m1/stream?sig=1');
+
+        self::assertSame('https://cdn.srv/media/m1/stream?sig=1', $this->streamUrlOf($screen), 'signed CDN offloads under the server host stay live');
+    }
+
+    public function testARelativeStreamUrlResolvesAgainstTheServerAsBefore(): void
+    {
+        [$screen] = $this->screen(streamUrl: '/api/v1/media/m1/stream');
+
+        self::assertSame('https://srv/api/v1/media/m1/stream', $this->streamUrlOf($screen));
+    }
 }

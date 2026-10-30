@@ -118,18 +118,25 @@ final class SettingsScreen implements Model, Themed
 
         // 'L'/'l' → log out (intercept before form sees it). The hint advertises
         // the uppercase pair, so both cases must land — the same h/H, p/P, s/S
-        // law BrowseScreen follows [review console__a11y critical 1].
+        // law BrowseScreen follows [review console__a11y critical 1]. While the
+        // user is editing a text field, though, printable characters belong to
+        // that field — the capture-text law honored for '/' and ':' in App —
+        // so lowercase l/s must reach the slideshow Input untouched
+        // [review console__a11y M-CONSOLE-05].
         if (
             $msg instanceof KeyMsg && $msg->type === KeyType::Char && !$msg->ctrl
             && ($msg->rune === 'l' || $msg->rune === 'L')
+            && !$this->isEditingText()
         ) {
             return [$this, Cmd::send(new LogoutMsg())];
         }
 
-        // 'S'/'s' → open servers screen (intercept before form sees it).
+        // 'S'/'s' → open servers screen (same intercept-before-form law, same
+        // text-editing exemption).
         if (
             $msg instanceof KeyMsg && $msg->type === KeyType::Char && !$msg->ctrl
             && ($msg->rune === 's' || $msg->rune === 'S')
+            && !$this->isEditingText()
         ) {
             return [$this, Cmd::send(new OpenServersMsg())];
         }
@@ -164,6 +171,17 @@ final class SettingsScreen implements Model, Themed
         }
 
         return [new self($form, $this->currentTheme, $this->currentInterval, $this->authStore, $this->config, $this->error, $this->cols, $this->rows), $cmd];
+    }
+
+    /**
+     * Is the focused form field a text-entry field? While it is, printable
+     * characters belong to the field — the screen's character shortcuts stand
+     * down (the capture-text law App applies to '/' and ':' via
+     * {@see \Phlix\Console\Screen\CapturesSlash}).
+     */
+    private function isEditingText(): bool
+    {
+        return $this->form->focusedField() instanceof Input;
     }
 
     public function view(): string

@@ -166,7 +166,8 @@ bin/phlix run
 ```
 
 Keys: `↑↓←→` move · `⏎` open · `/` search (or filter, in a grid) · Ctrl-K / `:`
-command palette · A–Z jump · `p` play · `C` cast (on a detail screen) · `d`
+command palette · A–Z jump · `PgUp` / `PgDn` page a grid · `Home` / `End` jump to
+a grid's first / last item · `p` play · `C` cast (on a detail screen) · `d`
 download (on a detail screen) · `R` refresh (home rails / library grids) · `s`
 shuffle-play the focused item (home rails / library grids / media detail) · `c` clear the grid
 filter · `u` / `n` jump to the Up Next rail (home) · `[` / `]` page the Most

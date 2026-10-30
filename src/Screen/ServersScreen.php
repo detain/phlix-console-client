@@ -374,7 +374,7 @@ final class ServersScreen implements Model, Themed, CapturesSlash
         $lines = ['Servers', ''];
 
         if ($this->loading) {
-            $lines[] = '  Loading from hub...';
+            $lines[] = '  Loading from hub…';
             $lines[] = '';
         }
 

@@ -13,6 +13,7 @@ use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\AuthResult;
+use Phlix\Console\Api\ServerAuthority;
 use Phlix\Console\Api\Cast\CastClient;
 use Phlix\Console\Api\Hub\HubClient;
 use Phlix\Console\Api\SyncPlay\SyncPlayService;
@@ -394,6 +395,12 @@ final class App implements Model
             // merge or fetch failure that was silently degraded to local config).
             if ($msg->toast !== null) {
                 return [$next[0], Cmd::batch($next[1], Cmd::send($msg->toast))];
+            }
+
+            // A local config file that exists but could not be honoured warns at
+            // boot — once, and without ever clobbering it [review console__qa m-3].
+            if ($this->config->loadError !== null) {
+                return [$next[0], Cmd::batch($next[1], Cmd::send(ShowToastMsg::warning($this->config->loadError)))];
             }
 
             return $next;
@@ -2104,7 +2111,14 @@ final class App implements Model
                     return ShowToastMsg::error(self::PLAY_TRACK_FAILED);
                 }
 
-                return new TrackResolvedMsg($album, $index, $this->resolveUrl($url));
+                // Media-authority gate [M-CONSOLE-55]: a signed URL pointing at
+                // a foreign host must never reach the audio player.
+                $resolved = $this->resolveMediaUrl($url);
+                if ($resolved === '') {
+                    return ShowToastMsg::error(self::PLAY_TRACK_FAILED);
+                }
+
+                return new TrackResolvedMsg($album, $index, $resolved);
             },
             static fn (\Throwable $e): Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(Lang::t('auth.session_expired'))
@@ -2277,10 +2291,16 @@ final class App implements Model
             return [$this, Cmd::send(ShowToastMsg::error(self::PLAY_AUDIOBOOK_FAILED))];
         }
 
+        // Media-authority gate [M-CONSOLE-55]: same law as the track path.
+        $mediaUrl = $this->resolveMediaUrl($audiobook->streamUrl);
+        if ($mediaUrl === '') {
+            return [$this, Cmd::send(ShowToastMsg::error(self::PLAY_AUDIOBOOK_FAILED))];
+        }
+
         $prevEpoch = $this->nowPlaying?->epoch() ?? 0;
         $this->nowPlaying?->teardown();
 
-        $player = ($this->audioFactory)($this->resolveUrl($audiobook->streamUrl), $startMs);
+        $player = ($this->audioFactory)($mediaUrl, $startMs);
         $player->start();
 
         $epoch = $prevEpoch + 1;
@@ -2369,6 +2389,29 @@ final class App implements Model
         }
 
         return rtrim($this->api->baseUrl(), '/') . '/' . ltrim($url, '/');
+    }
+
+    /**
+     * resolveUrl() plus the media-authority gate [M-CONSOLE-55] — the App-side
+     * twin of {@see \Phlix\Console\Screen\ResolvesUrls::resolveMediaUrl()}.
+     * A foreign-host URL resolves to '' (the caller's existing empty-URL error
+     * arm surfaces it).
+     */
+    private function resolveMediaUrl(string $url): string
+    {
+        $resolved = $this->resolveUrl($url);
+        if ($resolved === '') {
+            return '';
+        }
+
+        // Only http(s) targets carry the arbitrary-host fetch risk this gate
+        // exists for; a resolved local path (dev/selftest clips) has no host
+        // to pin.
+        if (preg_match('#^https?://#i', $resolved) !== 1) {
+            return $resolved;
+        }
+
+        return ServerAuthority::trusted($this->api->baseUrl(), $resolved) ? $resolved : '';
     }
 
     /** @return array{App, ?\Closure} */

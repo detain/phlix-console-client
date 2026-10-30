@@ -262,6 +262,8 @@ bin/phlix poster /path/to/poster.jpg 40
 | Key | Action |
 | --- | --- |
 | `↑↓←→` | Move focus / scroll |
+| `PgUp` / `PgDn` | Page up / down a poster grid (library, search, photos, albums, detail rails, admin logs) |
+| `Home` / `End` | Jump to the first / last item in a grid |
 | `Enter` | Open selected item |
 | `Esc` | Go back / dismiss |
 | `Tab` | Switch focus (e.g., sidebar ↔ poster grid on home) |

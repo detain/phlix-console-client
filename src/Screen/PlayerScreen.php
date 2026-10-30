@@ -1247,7 +1247,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
 
         // Already playable (a reused/complete job) → build now; else start polling.
         if ($job->isPlayable()) {
-            return [$next, $this->buildPlayerCmd($this->resolveUrl($job->masterUrl))];
+            return [$next, $this->buildPlayerCmd($this->resolveMediaUrl($job->masterUrl))];
         }
 
         return [$next, $this->transcodePollCmd()];
@@ -1269,7 +1269,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
             $this->variants = $job->variants;
         }
         if ($job->masterUrl !== '') {
-            $this->transcodeMasterUrl = $this->resolveUrl($job->masterUrl);
+            $this->transcodeMasterUrl = $this->resolveMediaUrl($job->masterUrl);
         }
     }
 
@@ -1299,7 +1299,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
         $next->rememberLadder($job);
 
         if ($job->isPlayable()) {
-            return [$next, $this->buildPlayerCmd($this->resolveUrl($job->masterUrl))];
+            return [$next, $this->buildPlayerCmd($this->resolveMediaUrl($job->masterUrl))];
         }
 
         return [$next, $this->transcodePollCmd()];
@@ -1690,7 +1690,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
         $url = $rendition?->url;
         $target = ($menu->isAuto() || $url === null || $url === '')
             ? $this->transcodeMasterUrl
-            : $this->resolveUrl($url);
+            : $this->resolveMediaUrl($url);
 
         if ($target === null || $target === '') {
             $next = clone $this;
@@ -2221,7 +2221,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
         $next->syncPlayModal = null;
         $next->syncPlayRoomName = $room->name;
         $next->syncPlayMemberCount = $room->memberCount;
-        $next->syncPlayStatus = 'Connecting...';
+        $next->syncPlayStatus = 'Connecting…';
 
         // The socket join is async and its rejection used to be discarded —
         // every failed join vanished silently. Route it through the Cmd
@@ -2370,7 +2370,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
     private function onSyncPlayDisconnected(bool $wasIntentional): array
     {
         $next = clone $this;
-        $next->syncPlayStatus = $wasIntentional ? 'Not in room' : 'Reconnecting...';
+        $next->syncPlayStatus = $wasIntentional ? 'Not in room' : 'Reconnecting…';
 
         return [$next, null];
     }
@@ -2521,7 +2521,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
     /** Resolve the item's signed stream URL against the server base (handles a relative path). */
     private function streamUrl(): string
     {
-        return $this->resolveUrl($this->item->streamUrl ?? '');
+        return $this->resolveMediaUrl($this->item->streamUrl ?? '');
     }
 
     /** Resolve a (possibly relative) URL against the server base; absolute/empty pass through. */

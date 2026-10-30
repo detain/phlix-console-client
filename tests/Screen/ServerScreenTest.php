@@ -70,6 +70,60 @@ final class ServerScreenTest extends TestCase
         self::assertStringContainsString('server URL', $next->view());
     }
 
+    // [review console__qa m-2, M-CONSOLE-50] A structurally impossible URL was
+    // persisted and the wizard advanced past it; the shape gate refuses before
+    // SubmitServerMsg ever fires.
+
+    public function testBogusHugeUrlIsRefusedWithoutSubmitting(): void
+    {
+        $screen = $this->type(ServerScreen::create(), 'http://' . str_repeat('a', 5000));
+
+        [$next, $cmd] = $screen->update(new KeyMsg(KeyType::Enter));
+
+        self::assertInstanceOf(ServerScreen::class, $next);
+        self::assertNotNull($next->error, 'the impossible URL must surface an inline error');
+        self::assertStringContainsString('valid server URL', $next->error);
+        if ($cmd !== null) {
+            self::assertNotInstanceOf(SubmitServerMsg::class, $cmd(), 'a refused URL must never be submitted');
+        }
+    }
+
+    public function testEmojiAndSpaceUrlsAreRefusedWithoutSubmitting(): void
+    {
+        foreach (['https://🙂.example.com', 'https://good host.com'] as $bogus) {
+            $screen = $this->type(ServerScreen::create(), $bogus);
+
+            [$next, $cmd] = $screen->update(new KeyMsg(KeyType::Enter));
+
+            self::assertInstanceOf(ServerScreen::class, $next);
+            self::assertNotNull($next->error, "'$bogus' must be refused by the shape gate");
+            if ($cmd !== null) {
+                self::assertNotInstanceOf(SubmitServerMsg::class, $cmd(), "'$bogus' must never be submitted");
+            }
+        }
+    }
+
+    public function testRealisticServerUrlsStillPassTheShapeGate(): void
+    {
+        $cases = [
+            'host.tld' => 'https://host.tld',
+            'http://host:8096' => 'http://host:8096',
+            'https://phlix.example.com/phlix' => 'https://phlix.example.com/phlix',
+            'localhost:8096' => 'https://localhost:8096',
+        ];
+
+        foreach ($cases as $typed => $expected) {
+            $screen = $this->type(ServerScreen::create(), (string) $typed);
+
+            [, $cmd] = $screen->update(new KeyMsg(KeyType::Enter));
+
+            self::assertInstanceOf(\Closure::class, $cmd, "'$typed' must still submit");
+            $msg = $cmd();
+            self::assertInstanceOf(SubmitServerMsg::class, $msg);
+            self::assertSame($expected, $msg->url);
+        }
+    }
+
     public function testEscQuits(): void
     {
         [, $cmd] = ServerScreen::create()->update(new KeyMsg(KeyType::Escape));

@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Download;
 
+use Phlix\Console\Api\ServerAuthority;
 use React\Http\Browser;
 use React\Promise\PromiseInterface;
 use React\Promise\Deferred;
@@ -35,10 +36,19 @@ final class DownloadService
     /** @var string */
     private readonly string $downloadDir;
 
-    public function __construct(?Browser $browser = null)
+    /**
+     * Host authority for media URLs this service may fetch [M-CONSOLE-55];
+     * null = unconstrained (construction without a server base — tests and
+     * any future non-server flows). The production wiring passes the server
+     * base and every signed download URL is checked against it.
+     */
+    private readonly ?string $serverBase;
+
+    public function __construct(?Browser $browser = null, ?string $serverBase = null)
     {
         $this->browser = $browser ?? new Browser();
         $this->downloadDir = $this->resolveDownloadDir();
+        $this->serverBase = $serverBase;
     }
 
     /**
@@ -65,6 +75,18 @@ final class DownloadService
         string $mediaId,
         ?callable $_onProgress = null,
     ): PromiseInterface {
+        // Media-authority gate [review console__secaudit m4, M-CONSOLE-55]:
+        // a signed URL from a compromised server must not turn this client
+        // into a fetcher for an arbitrary host. Checked before any filesystem
+        // work so a refused URL never touches disk.
+        if ($this->serverBase !== null && !ServerAuthority::trusted($this->serverBase, $signedUrl)) {
+            /** @var PromiseInterface<DownloadResult> */
+            return reject(new DownloadException(
+                'Download refused: the signed URL points outside the configured server.',
+                0,
+            ));
+        }
+
         // Ensure download directory exists
         if (!is_dir($this->downloadDir) && !@mkdir($this->downloadDir, 0o755, true) && !is_dir($this->downloadDir)) {
             /** @var PromiseInterface<DownloadResult> */

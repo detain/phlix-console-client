@@ -1125,7 +1125,7 @@ final class AdminLiveTvScreenTest extends TestCase
         [$still, $cmd] = $this->submitOnce($bad);
         self::assertTrue($still->isEditing(), 'an invalid numeric keeps the form open');
         self::assertSame(5, $transport->requestCount(), 'no PUT is fired');
-        self::assertStringContainsString('! Enter a whole number ≥ 0', $still->view(), 'the priority field surfaces its inline validation error');
+        self::assertStringContainsString('! Enter a whole number of 0 or more', $still->view(), 'the priority field surfaces its inline validation error');
         // A blocked submit shows an inline error, not a toast.
         foreach ($this->collectCmd($cmd) as $msg) {
             self::assertNotInstanceOf(ShowToastMsg::class, $msg, 'a blocked submit shows an inline error, not a toast');

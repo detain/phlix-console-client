@@ -583,26 +583,26 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
             Input::new('priority')
                 ->withTitle('Priority')
                 ->withValue($priority)
-                ->validation(self::isNonNegativeInt(...), 'Enter a whole number ≥ 0.'),
+                ->validation(self::isNonNegativeInt(...), 'Enter a whole number of 0 or more.'),
             Input::new('pre_pad')
                 ->withTitle('Pre-padding (seconds)')
                 ->withValue($prePad)
                 ->withPlaceholder('leave blank to keep')
-                ->validation(self::isNonNegativeIntOrBlank(...), 'Enter a whole number ≥ 0, or leave blank.'),
+                ->validation(self::isNonNegativeIntOrBlank(...), 'Enter a whole number of 0 or more, or leave blank.'),
             Input::new('post_pad')
                 ->withTitle('Post-padding (seconds)')
                 ->withValue($postPad)
                 ->withPlaceholder('leave blank to keep')
-                ->validation(self::isNonNegativeIntOrBlank(...), 'Enter a whole number ≥ 0, or leave blank.'),
+                ->validation(self::isNonNegativeIntOrBlank(...), 'Enter a whole number of 0 or more, or leave blank.'),
             Input::new('max')
                 ->withTitle('Max recordings')
                 ->withValue($max)
                 ->withPlaceholder('leave blank to keep')
-                ->validation(self::isNonNegativeIntOrBlank(...), 'Enter a whole number ≥ 0, or leave blank.'),
+                ->validation(self::isNonNegativeIntOrBlank(...), 'Enter a whole number of 0 or more, or leave blank.'),
             Input::new('days')
                 ->withTitle('Days ahead')
                 ->withValue($days)
-                ->validation(self::isNonNegativeInt(...), 'Enter a whole number ≥ 0.'),
+                ->validation(self::isNonNegativeInt(...), 'Enter a whole number of 0 or more.'),
         );
     }
 
@@ -1074,7 +1074,7 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
     private static function formBody(LiveTvEditSession $edit): string
     {
         $intro = $edit->kind === self::EDIT_RULE
-            ? 'Edit the series rule. Numeric fields take a whole number ≥ 0; leave a field blank to keep it.'
+            ? 'Edit the series rule. Numeric fields take a whole number of 0 or more; leave a field blank to keep it.'
             : 'Enter a new name.';
 
         return $intro . "\n" . $edit->form->view();

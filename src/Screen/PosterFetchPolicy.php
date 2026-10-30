@@ -20,6 +20,13 @@ use SugarCraft\Gallery\PosterCard;
  * screen's own `resolveUrl()` — to an absolute http/https target. Cells failing
  * the guard are never queued; they keep their skeleton.
  *
+ * Deliberate carve-out from the media-authority gate [M-CONSOLE-55]: artwork
+ * is NOT host-pinned to the configured server — the server hands absolute
+ * TMDB/CDN links by design — because these URLs only ever render as display
+ * rasters and are never passed to proc_open, the cast bridge, or the
+ * downloader. Playback/download sources use
+ * {@see \Phlix\Console\Screen\ResolvesUrls::resolveMediaUrl()} instead.
+ *
  * Requires the using class to define:
  *     private function resolveUrl(string $url): string
  * (resolve relative → server-base absolute; absolute/empty pass through).
