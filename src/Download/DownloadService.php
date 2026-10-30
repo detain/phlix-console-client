@@ -30,11 +30,54 @@ final class DownloadService
     /** Default download directory name when env var is not set. */
     private const DEFAULT_DOWNLOAD_DIR = 'Downloads';
 
+    /**
+     * Hard ceiling on a single download [review console__secaudit m5,
+     * M-CONSOLE-54]. Without it a hostile (or merely broken) server can stream
+     * unbounded bytes into the user's home directory. 64 GiB is far above any
+     * realistic Phlix asset — the limit only ever fires on something that has
+     * no business being that large — while still bounding the damage a
+     * misbehaving response can do. Callers with a different budget pass
+     * {@see $maxBytes}.
+     */
+    public const MAX_DOWNLOAD_BYTES = 68_719_476_736; // 64 GiB
+
     /** @var Browser */
     private readonly Browser $browser;
 
     /** @var string */
     private readonly string $downloadDir;
+
+    /** Per-download byte ceiling enforced on the declared and streamed size. */
+    private readonly int $maxBytes;
+
+    /**
+     * The mode the service gives the download directory WHEN IT CREATES IT, and
+     * the mode every file it downloads gets. 0700/0600 keeps the user's media —
+     * and the signed-URL filenames that ship alongside — private to the account
+     * instead of world-readable [review console__secaudit m5, M-CONSOLE-54].
+     * A directory that already exists (e.g. the desktop ~/Downloads) belongs to
+     * the user and is deliberately NOT re-chmodded; the files this client writes
+     * still land 0600.
+     */
+    private const PRIVATE_DIR_MODE = 0o700;
+    private const PRIVATE_FILE_MODE = 0o600;
+
+    /**
+     * The filename shape this client will write: word chars, dots, spaces,
+     * parentheses, square brackets and hyphens, at most 120 bytes, and never a
+     * leading dot (dotfiles hide themselves from the user's own file picker).
+     * Anything else — path separators, traversal fragments, control bytes,
+     * absurd lengths — falls back to the media-id name.
+     *
+     * The review's literal `/^[\w. ()\[-]{1,120}$/` shipped broken: the
+     * unescaped `]` terminated the class early (measured: it matches only one
+     * class character plus a run of hyphens). Both brackets are escaped here —
+     * the intent the review spelled out in prose.
+     */
+    private const FILENAME_PATTERN = '/^[\w. ()\[\]-]{1,120}$/';
+
+    /** The media-id shape the fallback name trusts. */
+    private const MEDIA_ID_PATTERN = '/^[\w-]{1,64}$/';
 
     /**
      * Host authority for media URLs this service may fetch [M-CONSOLE-55];
@@ -44,11 +87,17 @@ final class DownloadService
      */
     private readonly ?string $serverBase;
 
-    public function __construct(?Browser $browser = null, ?string $serverBase = null)
+    /**
+     * @param Browser|null    $browser     injected HTTP client (tests)
+     * @param string|null     $serverBase  host authority media URLs may come from
+     * @param int             $maxBytes    per-download ceiling, see {@see MAX_DOWNLOAD_BYTES}
+     */
+    public function __construct(?Browser $browser = null, ?string $serverBase = null, int $maxBytes = self::MAX_DOWNLOAD_BYTES)
     {
         $this->browser = $browser ?? new Browser();
         $this->downloadDir = $this->resolveDownloadDir();
         $this->serverBase = $serverBase;
+        $this->maxBytes = max(1, $maxBytes);
     }
 
     /**
@@ -87,13 +136,20 @@ final class DownloadService
             ));
         }
 
-        // Ensure download directory exists
-        if (!is_dir($this->downloadDir) && !@mkdir($this->downloadDir, 0o755, true) && !is_dir($this->downloadDir)) {
-            /** @var PromiseInterface<DownloadResult> */
-            return reject(new DownloadException(
-                "Cannot create download directory: {$this->downloadDir}",
-                0,
-            ));
+        // Ensure download directory exists — created PRIVATE (0700, chmod
+        // defeats the process umask so the mode is the declared one) [m5].
+        if (!is_dir($this->downloadDir)) {
+            $created = @mkdir($this->downloadDir, self::PRIVATE_DIR_MODE, true);
+            if (!$created && !is_dir($this->downloadDir)) {
+                /** @var PromiseInterface<DownloadResult> */
+                return reject(new DownloadException(
+                    "Cannot create download directory: {$this->downloadDir}",
+                    0,
+                ));
+            }
+            if ($created) {
+                @chmod($this->downloadDir, self::PRIVATE_DIR_MODE);
+            }
         }
 
         // Extract filename from URL and determine final path
@@ -115,12 +171,25 @@ final class DownloadService
                         $totalBytes = (int) $contentLength;
                     }
 
+                    // Declared-size guard [review console__secaudit m5, M-CONSOLE-54]:
+                    // a server that announces more than the ceiling is refused
+                    // before it opens a single file — no head start on the disk.
+                    if ($totalBytes > $this->maxBytes) {
+                        $deferred->reject(new DownloadException(
+                            "Download refused: it declared {$totalBytes} bytes, above the {$this->maxBytes} byte limit.",
+                            0,
+                        ));
+                        return;
+                    }
+
                     // Adjust filepath for content type if needed
                     $contentType = $response->getHeaderLine('Content-Type');
                     $finalFilepath = $this->ensureExtension($filepath, $contentType);
                     $finalTmpFilepath = $finalFilepath . '.tmp.' . bin2hex(random_bytes(8));
 
+                    $maxBytes = $this->maxBytes;
                     $receivedBytes = 0;
+                    $overflowed = false;
                     $handle = @fopen($finalTmpFilepath, 'wb');
 
                     if ($handle === false) {
@@ -131,20 +200,43 @@ final class DownloadService
                         return;
                     }
 
+                    // Downloads are written private regardless of the process
+                    // umask [m5]. (chmod-by-path, not fchmod: this estate's PHP
+                    // build has no fchmod — measured function_exists false.)
+                    @chmod($finalTmpFilepath, self::PRIVATE_FILE_MODE);
+
                     // The body from requestStreaming is a ReadableStreamInterface
                     $body = $response->getBody();
 
                     // Check if it's a React stream with 'data' event
                     if (method_exists($body, 'on')) {
                         // React stream - use 'data' event for streaming
-                        $body->on('data', static function ($chunk) use ($handle, &$receivedBytes): void {
+                        $body->on('data', static function ($chunk) use ($handle, $finalTmpFilepath, $deferred, &$receivedBytes, &$overflowed, $maxBytes): void {
+                            if ($overflowed) {
+                                return; // Already past the cap: discard, settled once.
+                            }
                             $written = fwrite($handle, (string) $chunk);
                             if ($written !== false) {
                                 $receivedBytes += $written;
                             }
+                            // Streamed-size guard [m5]: the cap is enforced on
+                            // bytes actually written, so an absent or lying
+                            // Content-Length cannot smuggle an unbounded body.
+                            if ($receivedBytes > $maxBytes) {
+                                $overflowed = true;
+                                fclose($handle);
+                                @unlink($finalTmpFilepath);
+                                $deferred->reject(new DownloadException(
+                                    "Download refused: it streamed past the {$maxBytes} byte limit.",
+                                    0,
+                                ));
+                            }
                         });
 
-                        $body->on('end', static function () use ($handle, $finalTmpFilepath, $finalFilepath, $filename, $deferred, &$receivedBytes, $totalBytes): void {
+                        $body->on('end', static function () use ($handle, $finalTmpFilepath, $finalFilepath, $filename, $deferred, &$receivedBytes, &$overflowed, $totalBytes): void {
+                            if ($overflowed) {
+                                return; // The data handler already cleaned up and rejected.
+                            }
                             fclose($handle);
                             if (@rename($finalTmpFilepath, $finalFilepath)) {
                                 $deferred->resolve(new DownloadResult(
@@ -162,7 +254,10 @@ final class DownloadService
                             }
                         });
 
-                        $body->on('error', static function (\Throwable $error) use ($handle, $finalTmpFilepath, $deferred): void {
+                        $body->on('error', static function (\Throwable $error) use ($handle, $finalTmpFilepath, $deferred, &$overflowed): void {
+                            if ($overflowed) {
+                                return; // Cap breach already settled this download.
+                            }
                             fclose($handle);
                             @unlink($finalTmpFilepath);
                             $deferred->reject(new DownloadException(
@@ -271,14 +366,31 @@ final class DownloadService
             $pathPart = $parsed['path'];
             if (is_string($pathPart) && $pathPart !== '') {
                 $basename = basename($pathPart);
-                if ($basename !== '' && str_contains($basename, '.')) {
+                // The name must survive the shape law [review console__secaudit
+                // m5, M-CONSOLE-54]: a leading dot hides the download from the
+                // user's own file picker, and any character outside the
+                // conservative printable class (path separators, traversal
+                // fragments, control bytes, absurd length) forfeits the
+                // server-supplied name. An extension is still required, as before.
+                if (
+                    $basename !== ''
+                    && !str_starts_with($basename, '.')
+                    && str_contains($basename, '.')
+                    && preg_match(self::FILENAME_PATTERN, $basename) === 1
+                ) {
                     return $basename;
                 }
             }
         }
 
-        // Default filename based on media ID
-        return "phlix_{$mediaId}.mp4";
+        // Default filename based on media ID — the ID embeds into the name, so
+        // it is trusted only to the same extent: anything outside the ID shape
+        // falls back to a constant rather than through the name.
+        if (preg_match(self::MEDIA_ID_PATTERN, $mediaId) === 1) {
+            return "phlix_{$mediaId}.mp4";
+        }
+
+        return 'phlix-download.mp4';
     }
 
     /**

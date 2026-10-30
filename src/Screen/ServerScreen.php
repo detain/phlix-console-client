@@ -119,6 +119,15 @@ final class ServerScreen implements Model, Themed, CapturesSlash
             $lines[] = '  ' . $this->error;
             $lines[] = '';
         }
+        // Live insecure warning [review console__secaudit, M-CONSOLE-52]: an
+        // explicitly typed http:// URL is accepted (LAN/dev reality) but the
+        // form says out loud what it means for the credentials about to move.
+        $typed = Config::normalizeUrl($this->form->getString('server'));
+        if ($typed !== '' && Config::isInsecureUrl($typed)) {
+            $lines[] = '  ⚠ http:// sends your password and session tokens unencrypted.';
+            $lines[] = '    Use https:// unless this is a trusted local network.';
+            $lines[] = '';
+        }
         $body = implode("\n", $lines) . $this->form->view();
 
         return Chrome::frame('Setup', $body, 'Enter  connect      Esc  quit', $this->cols, $this->rows, theme: $this->theme());

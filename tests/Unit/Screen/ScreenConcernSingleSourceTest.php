@@ -66,7 +66,7 @@ final class ScreenConcernSingleSourceTest extends TestCase
     private const DUPLICATE_BASELINE = [
         '__construct:57a5d6e63f58' => 2,
         '__construct:7301c5ce50ce' => 4,
-        '__construct:96a7fff081df' => 2,
+        '__construct:9c6e4b19ba43' => 2,
         '__construct:b26a51baffce' => 16,
         'afterGridChange:a62bcdf89148' => 2,
         'albumsByIndex:4243b72bcb43' => 2,
@@ -79,7 +79,7 @@ final class ScreenConcernSingleSourceTest extends TestCase
         'coerceError:596e227a29ed' => 2,
         'coerceJson:07adebc467f8' => 2,
         'columnWidth:484739ee9582' => 2,
-        'create:231107488a32' => 2,
+        'create:a512a4f206d7' => 2,
         'crumbLabel:a26cf16aa513' => 3,
         'crumbLabel:d5115694604e' => 3,
         'editingKey:c8c0a39d4bcf' => 2,

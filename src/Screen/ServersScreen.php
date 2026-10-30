@@ -359,6 +359,14 @@ final class ServersScreen implements Model, Themed, CapturesSlash
                 $lines[] = '  ' . $this->error;
                 $lines[] = '';
             }
+            // Live insecure warning while typing the URL [review
+            // console__secaudit, M-CONSOLE-52] — same law as ServerScreen.
+            $typed = Config::normalizeUrl($this->addForm->getString('server_url'));
+            if ($typed !== '' && Config::isInsecureUrl($typed)) {
+                $lines[] = '  ⚠ http:// sends your password and session tokens unencrypted.';
+                $lines[] = '    Use https:// unless this is a trusted local network.';
+                $lines[] = '';
+            }
             $formBody = implode("\n", $lines) . $this->addForm->view();
 
             return Chrome::frame(
@@ -392,13 +400,17 @@ final class ServersScreen implements Model, Themed, CapturesSlash
                 $prefix = $index === $this->selectedIndex ? '>' : ' ';
                 $active = $server->id === $this->activeServerId ? ' [active]' : '';
                 $hub = $server->hubId !== null ? ' [hub]' : '';
+                // A saved http:// server stays visible as what it is [review
+                // console__secaudit, M-CONSOLE-52].
+                $insecure = Config::isInsecureUrl($server->url) ? ' ⚠' : '';
 
                 $lines[] = sprintf(
-                    '%s %s%s%s  (%s)',
+                    '%s %s%s%s%s  (%s)',
                     $prefix,
                     $server->label,
                     $active,
                     $hub,
+                    $insecure,
                     $server->url,
                 );
             }

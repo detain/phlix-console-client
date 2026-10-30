@@ -405,197 +405,14 @@ final class App implements Model
 
             return $next;
         }
-        if ($msg instanceof SubmitServerMsg) {
-            return $this->onServerSubmitted($msg->url);
-        }
-        if ($msg instanceof SubmitLoginMsg) {
-            return $this->onLoginSubmitted($msg->username, $msg->password);
-        }
-        if ($msg instanceof LoginSucceededMsg) {
-            return $this->goBrowse($msg->user);
-        }
-        if ($msg instanceof LoginFailedMsg) {
-            return $this->goLogin($msg->reason);
-        }
-        if ($msg instanceof OpenRegisterMsg) {
-            return $this->goRegister(null);
-        }
-        if ($msg instanceof OpenLoginMsg) {
-            return $this->goLogin(null);
-        }
-        if ($msg instanceof SubmitRegisterMsg) {
-            return $this->onRegisterSubmitted($msg->username, $msg->email, $msg->password);
-        }
-        if ($msg instanceof RegisterSucceededMsg) {
-            return $this->goBrowse($msg->user);
-        }
-        if ($msg instanceof RegisterFailedMsg) {
-            return $this->goRegister($msg->reason);
-        }
-        if ($msg instanceof SessionExpiredMsg) {
-            return $this->goLogin($msg->reason);
-        }
-        if ($msg instanceof OpenLibraryMsg) {
-            return $this->openLibrary($msg->libraryId, $msg->name, $msg->type, $msg->itemCount);
-        }
-        if ($msg instanceof OpenAlbumMsg) {
-            return $this->openAlbum($msg->album);
-        }
-        if ($msg instanceof OpenMusicArtistsMsg) {
-            return $this->openMusicArtists();
-        }
-        if ($msg instanceof OpenMusicForArtistMsg) {
-            return $this->openMusicForArtist($msg->artistName);
-        }
-        if ($msg instanceof OpenBookMsg) {
-            return $this->openBook($msg->id, $msg->title);
-        }
-        if ($msg instanceof OpenAudiobookMsg) {
-            return $this->openAudiobook($msg->id, $msg->title);
-        }
-        if ($msg instanceof OpenPhotoAlbumMsg) {
-            return $this->openPhotoAlbum($msg->album);
-        }
-        if ($msg instanceof OpenPhotoMsg) {
-            return $this->openPhoto($msg->album, $msg->index);
-        }
-        if ($msg instanceof OpenPhotosMsg) {
-            return $this->openPhotos();
-        }
-        if ($msg instanceof OpenDetailMsg) {
-            return $this->openDetail($msg->id, $msg->name);
-        }
-        if ($msg instanceof OpenSearchMsg) {
-            return $this->openSearch();
-        }
-        if ($msg instanceof OpenSettingsMsg) {
-            return $this->openSettings();
-        }
-        if ($msg instanceof OpenStatsMsg) {
-            return $this->openStats();
-        }
-        if ($msg instanceof OpenRecommendationsMsg) {
-            return $this->openRecommendations();
-        }
-        if ($msg instanceof OpenWatchHistoryMsg) {
-            return $this->openWatchHistory();
-        }
-        if ($msg instanceof OpenFavoritesMsg) {
-            return $this->openFavorites();
-        }
-        if ($msg instanceof OpenPlaylistsMsg) {
-            return $this->openPlaylists();
-        }
-        if ($msg instanceof OpenCollectionsMsg) {
-            return $this->openCollections();
-        }
-        if ($msg instanceof OpenServersMsg) {
-            return $this->openServers();
-        }
-        if ($msg instanceof OpenSharedWithMeMsg) {
-            return $this->openSharedWithMe();
-        }
-        if ($msg instanceof OpenInviteLinksMsg) {
-            return $this->openInviteLinks();
-        }
-        if ($msg instanceof OpenFederationSharesMsg) {
-            return $this->openFederationShares();
-        }
-        if ($msg instanceof SwitchServerMsg) {
-            return $this->onServerSwitch($msg->serverId);
-        }
-        if ($msg instanceof AddServerMsg) {
-            return $this->onServerAdd($msg->url, $msg->label, $msg->hubId);
-        }
-        if ($msg instanceof RemoveServerMsg) {
-            return $this->onServerRemove($msg->serverId);
-        }
-        if ($msg instanceof OpenAdminMsg) {
-            return $this->openAdmin();
-        }
-        if ($msg instanceof OpenAdminSectionMsg) {
-            return $this->openAdminSection($msg->section);
-        }
-        if ($msg instanceof OpenAdminPluginDetailMsg) {
-            return $this->openPluginDetail($msg->name);
-        }
-        if ($msg instanceof OpenAdminUserProfilesMsg) {
-            return $this->openUserProfiles($msg->userId, $msg->userLabel);
-        }
-        if ($msg instanceof OpenAdminParentalControlsMsg) {
-            return $this->openParentalControls($msg->profileId, $msg->profileName);
-        }
-        if ($msg instanceof OpenAdminPluginCatalogMsg) {
-            return $this->openPluginCatalog();
-        }
-        if ($msg instanceof SettingsSavedMsg) {
-            return $this->saveSettings($msg->themeName, $msg->slideshowInterval);
-        }
-        if ($msg instanceof PlayTrackMsg) {
-            return $this->playTrack($msg->album, $msg->index);
-        }
-        if ($msg instanceof TrackResolvedMsg) {
-            return $this->onTrackResolved($msg->album, $msg->index, $msg->url);
-        }
-        if ($msg instanceof NowPlayingTickMsg) {
-            return $this->onNowPlayingTick($msg->epoch);
-        }
-        if ($msg instanceof ToggleAudioMsg) {
-            return $this->toggleAudio();
-        }
-        if ($msg instanceof AudioSkipMsg) {
-            return $this->skipAudio($msg->delta);
-        }
-        if ($msg instanceof StopAudioMsg) {
-            return $this->stopAudio();
-        }
-        if ($msg instanceof ToggleMetricsMsg) {
-            return [$this->withMetricsVisible(!$this->metricsVisible), null];
-        }
-        if ($msg instanceof PlayAudiobookMsg) {
-            return $this->playAudiobook($msg->audiobook, $msg->chapters, $msg->startMs);
-        }
-        if ($msg instanceof AudiobookTickMsg) {
-            return $this->onAudiobookTick($msg->epoch);
-        }
-        if ($msg instanceof PlayRequestedMsg) {
-            return $this->openPlayer($msg->item);
-        }
-        if ($msg instanceof CastRequestedMsg) {
-            return $this->openCast($msg->item);
-        }
-        if ($msg instanceof PlayNextMsg) {
-            // Replace the current player frame with the next episode's (binge
-            // without growing the stack): pop the ended player (tears it down)
-            // then push a fresh one beneath the same detail.
-            return $this->popScreen()->openPlayer($msg->item);
-        }
-        if ($msg instanceof NavigateBackMsg) {
-            return [$this->popScreen(), null];
-        }
-        if ($msg instanceof GoHomeMsg) {
-            return $this->goHome();
-        }
-        if ($msg instanceof RequestLogoutMsg) {
-            return $this->requestLogout();
-        }
-        if ($msg instanceof LogoutMsg) {
-            return $this->requestLogout();
-        }
-        if ($msg instanceof RequestQuitMsg) {
-            return $this->requestQuit();
-        }
-        if ($msg instanceof PaletteLibrariesLoadedMsg) {
-            return $this->onPaletteLibraries($msg->libraries);
-        }
-        if ($msg instanceof ShowToastMsg) {
-            return $this->showToast($msg);
-        }
-        if ($msg instanceof ToastTickMsg) {
-            return $this->onToastTick();
-        }
-        if ($msg instanceof ShimmerTickMsg) {
-            return $this->onShimmerTick();
+        // [review console__srphp, M-CONSOLE-59] the per-Msg delegate ladder is
+        // folded into self::msgHandlers(): one exact-class lookup replaces the
+        // 63 `if ($msg instanceof ...)` arms this used to carry. What remains
+        // above is real control flow (window/paste/boot + the KeyMsg gates),
+        // what follows is the top-screen fallback.
+        $handler = self::msgHandlers()[$msg::class] ?? null;
+        if ($handler !== null) {
+            return $handler($this, $msg);
         }
 
         // Anything else (keys, focus, async results) → the active (top) screen.
@@ -607,6 +424,249 @@ final class App implements Model
         }
 
         return [$this, null];
+    }
+
+    /**
+         * [review console__srphp, M-CONSOLE-59] the per-Msg delegate ladder, folded.
+         *
+         * One entry per message class replaces the ~66 near-identical
+         * `if ($msg instanceof ...)` arms {@see self::dispatch()} used to carry: what
+         * remains in the ladder is only real control flow (the WindowSize, Paste and
+         * BootResolved bespoke arms, the palette/search KeyMsg gates, the top-screen
+         * fallback). Keys are EXACT classes — every folded Msg is final with zero
+         * subclasses in the estate, so class-string lookup reproduces the instanceof
+         * chain arm-for-arm. The assert() bodies are type narrowing for the analyser
+         * (free at runtime with zend.assertions=-1); closures live in App scope, so
+         * the private handlers stay private. Memoized in a static: built once.
+         *
+         * @return array<class-string<Msg>, \Closure(App, Msg): array{App, ?\Closure}>
+         */
+    private static function msgHandlers(): array
+    {
+        /** @var array<class-string<Msg>, \Closure(App, Msg): array{App, ?\Closure}>|null $handlers */
+        static $handlers = null;
+
+        if ($handlers !== null) {
+            return $handlers;
+        }
+
+        $requestLogout = static fn (App $app, Msg $msg): array => $app->requestLogout();
+        return $handlers = [
+        SubmitServerMsg::class => static function (App $app, Msg $msg): array {
+            assert($msg instanceof SubmitServerMsg);
+
+            return $app->onServerSubmitted($msg->url);
+        },
+            SubmitLoginMsg::class => static function (App $app, Msg $msg): array {
+                assert($msg instanceof SubmitLoginMsg);
+
+                return $app->onLoginSubmitted($msg->username, $msg->password);
+            },
+            LoginSucceededMsg::class => static function (App $app, Msg $msg): array {
+                assert($msg instanceof LoginSucceededMsg);
+
+                return $app->goBrowse($msg->user);
+            },
+            LoginFailedMsg::class => static function (App $app, Msg $msg): array {
+                assert($msg instanceof LoginFailedMsg);
+
+                return $app->goLogin($msg->reason);
+            },
+            OpenRegisterMsg::class => static function (App $app, Msg $msg): array {
+                assert($msg instanceof OpenRegisterMsg);
+
+                return $app->goRegister(null);
+            },
+            OpenLoginMsg::class => static function (App $app, Msg $msg): array {
+                assert($msg instanceof OpenLoginMsg);
+
+                return $app->goLogin(null);
+            },
+            SubmitRegisterMsg::class => static function (App $app, Msg $msg): array {
+                assert($msg instanceof SubmitRegisterMsg);
+
+                return $app->onRegisterSubmitted($msg->username, $msg->email, $msg->password);
+            },
+            RegisterSucceededMsg::class => static function (App $app, Msg $msg): array {
+                assert($msg instanceof RegisterSucceededMsg);
+
+                return $app->goBrowse($msg->user);
+            },
+            RegisterFailedMsg::class => static function (App $app, Msg $msg): array {
+                assert($msg instanceof RegisterFailedMsg);
+
+                return $app->goRegister($msg->reason);
+            },
+            SessionExpiredMsg::class => static function (App $app, Msg $msg): array {
+                assert($msg instanceof SessionExpiredMsg);
+
+                return $app->goLogin($msg->reason);
+            },
+            OpenLibraryMsg::class => static function (App $app, Msg $msg): array {
+                assert($msg instanceof OpenLibraryMsg);
+
+                return $app->openLibrary($msg->libraryId, $msg->name, $msg->type, $msg->itemCount);
+            },
+            OpenAlbumMsg::class => static function (App $app, Msg $msg): array {
+                assert($msg instanceof OpenAlbumMsg);
+
+                return $app->openAlbum($msg->album);
+            },
+            OpenMusicArtistsMsg::class => static fn (App $app, Msg $msg): array => $app->openMusicArtists(),
+            OpenMusicForArtistMsg::class => static function (App $app, Msg $msg): array {
+                assert($msg instanceof OpenMusicForArtistMsg);
+
+                return $app->openMusicForArtist($msg->artistName);
+            },
+            OpenBookMsg::class => static function (App $app, Msg $msg): array {
+                assert($msg instanceof OpenBookMsg);
+
+                return $app->openBook($msg->id, $msg->title);
+            },
+            OpenAudiobookMsg::class => static function (App $app, Msg $msg): array {
+                assert($msg instanceof OpenAudiobookMsg);
+
+                return $app->openAudiobook($msg->id, $msg->title);
+            },
+            OpenPhotoAlbumMsg::class => static function (App $app, Msg $msg): array {
+                assert($msg instanceof OpenPhotoAlbumMsg);
+
+                return $app->openPhotoAlbum($msg->album);
+            },
+            OpenPhotoMsg::class => static function (App $app, Msg $msg): array {
+                assert($msg instanceof OpenPhotoMsg);
+
+                return $app->openPhoto($msg->album, $msg->index);
+            },
+            OpenPhotosMsg::class => static fn (App $app, Msg $msg): array => $app->openPhotos(),
+            OpenDetailMsg::class => static function (App $app, Msg $msg): array {
+                assert($msg instanceof OpenDetailMsg);
+
+                return $app->openDetail($msg->id, $msg->name);
+            },
+            OpenSearchMsg::class => static fn (App $app, Msg $msg): array => $app->openSearch(),
+            OpenSettingsMsg::class => static fn (App $app, Msg $msg): array => $app->openSettings(),
+            OpenStatsMsg::class => static fn (App $app, Msg $msg): array => $app->openStats(),
+            OpenRecommendationsMsg::class => static fn (App $app, Msg $msg): array => $app->openRecommendations(),
+            OpenWatchHistoryMsg::class => static fn (App $app, Msg $msg): array => $app->openWatchHistory(),
+            OpenFavoritesMsg::class => static fn (App $app, Msg $msg): array => $app->openFavorites(),
+            OpenPlaylistsMsg::class => static fn (App $app, Msg $msg): array => $app->openPlaylists(),
+            OpenCollectionsMsg::class => static fn (App $app, Msg $msg): array => $app->openCollections(),
+            OpenServersMsg::class => static fn (App $app, Msg $msg): array => $app->openServers(),
+            OpenSharedWithMeMsg::class => static fn (App $app, Msg $msg): array => $app->openSharedWithMe(),
+            OpenInviteLinksMsg::class => static fn (App $app, Msg $msg): array => $app->openInviteLinks(),
+            OpenFederationSharesMsg::class => static fn (App $app, Msg $msg): array => $app->openFederationShares(),
+            SwitchServerMsg::class => static function (App $app, Msg $msg): array {
+                assert($msg instanceof SwitchServerMsg);
+
+                return $app->onServerSwitch($msg->serverId);
+            },
+            AddServerMsg::class => static function (App $app, Msg $msg): array {
+                assert($msg instanceof AddServerMsg);
+
+                return $app->onServerAdd($msg->url, $msg->label, $msg->hubId);
+            },
+            RemoveServerMsg::class => static function (App $app, Msg $msg): array {
+                assert($msg instanceof RemoveServerMsg);
+
+                return $app->onServerRemove($msg->serverId);
+            },
+            OpenAdminMsg::class => static fn (App $app, Msg $msg): array => $app->openAdmin(),
+            OpenAdminSectionMsg::class => static function (App $app, Msg $msg): array {
+                assert($msg instanceof OpenAdminSectionMsg);
+
+                return $app->openAdminSection($msg->section);
+            },
+            OpenAdminPluginDetailMsg::class => static function (App $app, Msg $msg): array {
+                assert($msg instanceof OpenAdminPluginDetailMsg);
+
+                return $app->openPluginDetail($msg->name);
+            },
+            OpenAdminUserProfilesMsg::class => static function (App $app, Msg $msg): array {
+                assert($msg instanceof OpenAdminUserProfilesMsg);
+
+                return $app->openUserProfiles($msg->userId, $msg->userLabel);
+            },
+            OpenAdminParentalControlsMsg::class => static function (App $app, Msg $msg): array {
+                assert($msg instanceof OpenAdminParentalControlsMsg);
+
+                return $app->openParentalControls($msg->profileId, $msg->profileName);
+            },
+            OpenAdminPluginCatalogMsg::class => static fn (App $app, Msg $msg): array => $app->openPluginCatalog(),
+            SettingsSavedMsg::class => static function (App $app, Msg $msg): array {
+                assert($msg instanceof SettingsSavedMsg);
+
+                return $app->saveSettings($msg->themeName, $msg->slideshowInterval);
+            },
+            PlayTrackMsg::class => static function (App $app, Msg $msg): array {
+                assert($msg instanceof PlayTrackMsg);
+
+                return $app->playTrack($msg->album, $msg->index);
+            },
+            TrackResolvedMsg::class => static function (App $app, Msg $msg): array {
+                assert($msg instanceof TrackResolvedMsg);
+
+                return $app->onTrackResolved($msg->album, $msg->index, $msg->url);
+            },
+            NowPlayingTickMsg::class => static function (App $app, Msg $msg): array {
+                assert($msg instanceof NowPlayingTickMsg);
+
+                return $app->onNowPlayingTick($msg->epoch);
+            },
+            ToggleAudioMsg::class => static fn (App $app, Msg $msg): array => $app->toggleAudio(),
+            AudioSkipMsg::class => static function (App $app, Msg $msg): array {
+                assert($msg instanceof AudioSkipMsg);
+
+                return $app->skipAudio($msg->delta);
+            },
+            StopAudioMsg::class => static fn (App $app, Msg $msg): array => $app->stopAudio(),
+            ToggleMetricsMsg::class => static fn (App $app, Msg $msg): array => [$app->withMetricsVisible(!$app->metricsVisible), null],
+            PlayAudiobookMsg::class => static function (App $app, Msg $msg): array {
+                assert($msg instanceof PlayAudiobookMsg);
+
+                return $app->playAudiobook($msg->audiobook, $msg->chapters, $msg->startMs);
+            },
+            AudiobookTickMsg::class => static function (App $app, Msg $msg): array {
+                assert($msg instanceof AudiobookTickMsg);
+
+                return $app->onAudiobookTick($msg->epoch);
+            },
+            PlayRequestedMsg::class => static function (App $app, Msg $msg): array {
+                assert($msg instanceof PlayRequestedMsg);
+
+                return $app->openPlayer($msg->item);
+            },
+            CastRequestedMsg::class => static function (App $app, Msg $msg): array {
+                assert($msg instanceof CastRequestedMsg);
+
+                return $app->openCast($msg->item);
+            },
+            PlayNextMsg::class => static function (App $app, Msg $msg): array {
+                // Replace the current player frame with the next episode's (binge
+                // without growing the stack): pop the ended player (tears it down)
+                // then push a fresh one beneath the same detail.
+                assert($msg instanceof PlayNextMsg);
+
+                return $app->popScreen()->openPlayer($msg->item);
+            },
+            NavigateBackMsg::class => static fn (App $app, Msg $msg): array => [$app->popScreen(), null],
+            GoHomeMsg::class => static fn (App $app, Msg $msg): array => $app->goHome(),
+            RequestLogoutMsg::class => $requestLogout,
+            LogoutMsg::class => $requestLogout, // the alias rides the same handler
+            RequestQuitMsg::class => static fn (App $app, Msg $msg): array => $app->requestQuit(),
+            PaletteLibrariesLoadedMsg::class => static function (App $app, Msg $msg): array {
+                assert($msg instanceof PaletteLibrariesLoadedMsg);
+
+                return $app->onPaletteLibraries($msg->libraries);
+            },
+            ShowToastMsg::class => static function (App $app, Msg $msg): array {
+                assert($msg instanceof ShowToastMsg);
+
+                return $app->showToast($msg);
+            },
+            ToastTickMsg::class => static fn (App $app, Msg $msg): array => $app->onToastTick(),
+            ShimmerTickMsg::class => static fn (App $app, Msg $msg): array => $app->onShimmerTick(),
+        ];
     }
 
     public function view(): string|View
@@ -621,6 +681,14 @@ final class App implements Model
         // otherwise — is skipped while such a frame is on top.
         $topScreen = $this->topScreen();
         $opaqueFrame = $topScreen instanceof LineAligned && !$topScreen->isLineAligned();
+        // An http:// active server is the user's choice, but the credential
+        // exposure must not be a one-shot toast they can scroll away from: the
+        // banner rides the top border of every ordinary frame [review
+        // console__secaudit, M-CONSOLE-52]. Graphics frames opt out (their line
+        // zero is a pixel payload, like every other newline-indexed splice).
+        if (!$opaqueFrame && $this->insecureActiveServer()) {
+            $view = $this->withInsecureBanner($view);
+        }
         // The diagnostic HUD sits in the top-left UNDER everything else: drawn over
         // the base but before the now-playing bar + the modals.
         if ($this->metricsVisible) {
@@ -873,6 +941,46 @@ final class App implements Model
     }
 
     /**
+     * Banner sentence for a plain-http active server [review console__secaudit,
+     * M-CONSOLE-52]. Kept short so it survives narrow terminals; the full
+     * sentence rides the save-time warning toast.
+     */
+    private const INSECURE_SERVER_BANNER = '⚠ insecure http — password + tokens unprotected';
+
+    private function insecureActiveServer(): bool
+    {
+        $url = $this->config->activeServer()?->url;
+
+        return $url !== null && Config::isInsecureUrl($url);
+    }
+
+    /**
+     * Splice {@see INSECURE_SERVER_BANNER} into the rendered frame's top border
+     * at the same display width — rebuilding the rounded rule so every screen
+     * keeps its chrome. Frames that do not open with a rounded border (a
+     * bespoke layout) are left untouched rather than mangled; the entry-screen
+     * warnings and the save-time toast still cover the choice.
+     */
+    private function withInsecureBanner(string $view): string
+    {
+        $lines = explode("\n", $view);
+        if ($lines[0] === '' || !str_starts_with($lines[0], '╭')) {
+            return $view;
+        }
+
+        $cols = max(1, $this->cols);
+        $label = Width::truncate(self::INSECURE_SERVER_BANNER, max(4, $cols - 6));
+        $dashes = $cols - 4 - Width::string($label);
+        if ($dashes < 1) {
+            return $view; // Degenerate width: the shape check above already saved the frame.
+        }
+
+        $lines[0] = '╭ ' . $label . ' ' . str_repeat('─', $dashes) . '╮';
+
+        return implode("\n", $lines);
+    }
+
+    /**
      * If the update is about to leave a still-loading Loadable on top and no
      * shimmer tick is in flight, flip $shimmerTicking on and BATCH a shimmer tick
      * onto the outgoing Cmd (never dropping it). Otherwise the pair passes through
@@ -1004,10 +1112,13 @@ final class App implements Model
         if ($msg->type === KeyType::Backspace) {
             return [$this->withPalette($palette->backspace()), null];
         }
-        if ($msg->type === KeyType::Space) {
+        // Modifier-free typing only [review console__tuispec, M-CONSOLE-65]:
+        // ctrl/alt combos carry commands, not text — the rune the terminal
+        // reports under a modifier must not land in the filter buffer.
+        if ($msg->type === KeyType::Space && !$msg->ctrl && !$msg->alt) {
             return [$this->withPalette($palette->type(' ')), null];
         }
-        if ($msg->type === KeyType::Char && $msg->rune !== '') {
+        if ($msg->type === KeyType::Char && $msg->rune !== '' && !$msg->ctrl && !$msg->alt) {
             return [$this->withPalette($palette->type($msg->rune)), null];
         }
 
@@ -1199,8 +1310,19 @@ final class App implements Model
             return [$this->withStack([]), Cmd::batch(Cmd::send($toast), self::restoreCmd($this->auth, $this->api, $this->config))];
         }
         $this->api->setBaseUrl($url);
+        $restore = self::restoreCmd($this->auth, $this->api, $this->config);
 
-        return [$this->withStack([]), self::restoreCmd($this->auth, $this->api, $this->config)];
+        // Saving an http:// server stays possible but never silent [review
+        // console__secaudit, M-CONSOLE-52]: name the exposure at the moment of
+        // the choice, and the persistent banner in view() keeps naming it.
+        // A TLS server keeps the plain restore Cmd untouched.
+        if (!Config::isInsecureUrl($url)) {
+            return [$this->withStack([]), $restore];
+        }
+
+        return [$this->withStack([]), Cmd::batch($restore, Cmd::send(ShowToastMsg::warning(
+            'This server uses an insecure connection — your password and session tokens travel unprotected.',
+        )))];
     }
 
     /** @return array{App, ?\Closure} */
@@ -1246,7 +1368,13 @@ final class App implements Model
     private function goLogin(?string $error, ?Config $config = null): array
     {
         $config ??= $this->config;
-        $screen = LoginScreen::create($error, $this->cols, $this->rows);
+        $active = $config->activeServer();
+        $screen = LoginScreen::create(
+            $error,
+            $this->cols,
+            $this->rows,
+            insecureServer: $active !== null && Config::isInsecureUrl($active->url),
+        );
 
         return [$this->replace(Route::Login, $screen, $config), $screen->init()];
     }
@@ -1254,7 +1382,13 @@ final class App implements Model
     /** @return array{App, ?\Closure} */
     private function goRegister(?string $error): array
     {
-        $screen = RegisterScreen::create($error, $this->cols, $this->rows);
+        $active = $this->config->activeServer();
+        $screen = RegisterScreen::create(
+            $error,
+            $this->cols,
+            $this->rows,
+            insecureServer: $active !== null && Config::isInsecureUrl($active->url),
+        );
 
         return [$this->replace(Route::Register, $screen), $screen->init()];
     }

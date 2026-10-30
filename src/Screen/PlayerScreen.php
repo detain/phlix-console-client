@@ -2171,8 +2171,10 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
             return [$next, null];
         }
 
-        // Regular characters in creation state: append to room name
-        if ($msg->type === KeyType::Char && $menu->state() === 1) {
+        // Regular characters in creation state: append to room name.
+        // Modifier-free typing only [review console__tuispec, M-CONSOLE-65]:
+        // ctrl/alt combos carry commands, not text.
+        if ($msg->type === KeyType::Char && !$msg->ctrl && !$msg->alt && $menu->state() === 1) {
             $next = clone $this;
             $next->syncPlayModal = $menu->appendChar($msg->rune);
 

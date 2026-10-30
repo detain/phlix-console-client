@@ -39,12 +39,15 @@ final class RegisterScreen implements Model, Themed, CapturesSlash
         public readonly bool $submitting = false,
         public readonly int $cols = 80,
         public readonly int $rows = 24,
+        // True when the active server URL is plain http [M-CONSOLE-52] — the
+        // plaintext registration form must not be silent about it.
+        public readonly bool $insecureServer = false,
     ) {
     }
 
-    public static function create(?string $error = null, int $cols = 80, int $rows = 24): self
+    public static function create(?string $error = null, int $cols = 80, int $rows = 24, bool $insecureServer = false): self
     {
-        return new self(self::buildForm(), $error, false, $cols, $rows);
+        return new self(self::buildForm(), $error, false, $cols, $rows, $insecureServer);
     }
 
     private static function buildForm(): Form
@@ -64,7 +67,7 @@ final class RegisterScreen implements Model, Themed, CapturesSlash
     public function update(Msg $msg): array
     {
         if ($msg instanceof WindowSizeMsg) {
-            return [new self($this->form, $this->error, $this->submitting, $msg->cols, $msg->rows), null];
+            return [new self($this->form, $this->error, $this->submitting, $msg->cols, $msg->rows, $this->insecureServer), null];
         }
 
         // Freeze input while a registration request is in flight.
@@ -87,15 +90,22 @@ final class RegisterScreen implements Model, Themed, CapturesSlash
                 $form->getString('password'),
             );
 
-            return [new self($form, null, true, $this->cols, $this->rows), Cmd::send($submit)];
+            return [new self($form, null, true, $this->cols, $this->rows, $this->insecureServer), Cmd::send($submit)];
         }
 
-        return [new self($form, $this->error, false, $this->cols, $this->rows), $cmd];
+        return [new self($form, $this->error, false, $this->cols, $this->rows, $this->insecureServer), $cmd];
     }
 
     public function view(): string
     {
         $lines = ['Create your Phlix account.', ''];
+        // Same law as LoginScreen [review console__secaudit, M-CONSOLE-52]:
+        // signup credentials over http are as exposed as login ones.
+        if ($this->insecureServer) {
+            $lines[] = '  ⚠ This server uses an insecure connection (http) — your password';
+            $lines[] = '    and session tokens travel unprotected.';
+            $lines[] = '';
+        }
         if ($this->submitting) {
             $lines[] = '  Creating account…';
             $lines[] = '';

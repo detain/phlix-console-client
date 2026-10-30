@@ -182,7 +182,7 @@ final readonly class FilterBar
                 $this->genreCursor,
             );
         }
-        if ($msg->type === KeyType::Space) {
+        if ($msg->type === KeyType::Space && !$msg->ctrl && !$msg->alt) {
             return new self(
                 $this->search . ' ',
                 $this->sort,
@@ -193,7 +193,9 @@ final readonly class FilterBar
                 $this->genreCursor,
             );
         }
-        if ($msg->type === KeyType::Char && $msg->rune !== '') {
+        // Modifier-free typing only [review console__tuispec, M-CONSOLE-65]:
+        // ctrl/alt combos carry commands, not text.
+        if ($msg->type === KeyType::Char && $msg->rune !== '' && !$msg->ctrl && !$msg->alt) {
             return new self(
                 $this->search . $msg->rune,
                 $this->sort,

@@ -41,12 +41,15 @@ final class LoginScreen implements Model, Themed, CapturesSlash
         public readonly bool $submitting = false,
         public readonly int $cols = 80,
         public readonly int $rows = 24,
+        // True when the active server URL is plain http [M-CONSOLE-52] — the
+        // plaintext credential form must not be silent about it.
+        public readonly bool $insecureServer = false,
     ) {
     }
 
-    public static function create(?string $error = null, int $cols = 80, int $rows = 24): self
+    public static function create(?string $error = null, int $cols = 80, int $rows = 24, bool $insecureServer = false): self
     {
-        return new self(self::buildForm(), $error, false, $cols, $rows);
+        return new self(self::buildForm(), $error, false, $cols, $rows, $insecureServer);
     }
 
     private static function buildForm(): Form
@@ -65,7 +68,7 @@ final class LoginScreen implements Model, Themed, CapturesSlash
     public function update(Msg $msg): array
     {
         if ($msg instanceof WindowSizeMsg) {
-            return [new self($this->form, $this->error, $this->submitting, $msg->cols, $msg->rows), null];
+            return [new self($this->form, $this->error, $this->submitting, $msg->cols, $msg->rows, $this->insecureServer), null];
         }
 
         // 's' → go to the registration screen.
@@ -89,15 +92,23 @@ final class LoginScreen implements Model, Themed, CapturesSlash
         if ($form->isSubmitted()) {
             $submit = new SubmitLoginMsg($form->getString('username'), $form->getString('password'));
 
-            return [new self($form, null, true, $this->cols, $this->rows), Cmd::send($submit)];
+            return [new self($form, null, true, $this->cols, $this->rows, $this->insecureServer), Cmd::send($submit)];
         }
 
-        return [new self($form, $this->error, false, $this->cols, $this->rows), $cmd];
+        return [new self($form, $this->error, false, $this->cols, $this->rows, $this->insecureServer), $cmd];
     }
 
     public function view(): string
     {
         $lines = ['Sign in to Phlix.', ''];
+        // The credential form must say what the transport means [review
+        // console__secaudit, M-CONSOLE-52]: on an http server the password
+        // typed below crosses the wire unencrypted.
+        if ($this->insecureServer) {
+            $lines[] = '  ⚠ This server uses an insecure connection (http) — your password';
+            $lines[] = '    and session tokens travel unprotected.';
+            $lines[] = '';
+        }
         if ($this->submitting) {
             $lines[] = '  Signing in…';
             $lines[] = '';

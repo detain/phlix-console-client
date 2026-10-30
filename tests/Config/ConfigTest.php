@@ -361,4 +361,34 @@ final class ConfigTest extends TestCase
         self::assertNotSame('phlix-console-', $id, 'a host/dir-derived suffix is appended');
         self::assertSame($id, Config::deviceId(), 'stable across calls');
     }
+
+    /**
+     * [review console__secaudit, M-CONSOLE-52] single source for "this server
+     * speaks plaintext" — every warning surface (wizard, server manager, both
+     * credential forms, the persistent banner, the save toast) consumes exactly
+     * this predicate, so its edges are pinned here once.
+     *
+     * @return array<string, array{0: string, 1: bool}>
+     */
+    public static function provideUrlInsecurity(): array
+    {
+        return [
+            'plain http' => ['http://192.168.1.50:8096', true],
+            'http with surrounding space' => ['  http://a.tld ', true],
+            'uppercase scheme' => ['HTTP://a.tld', true],
+            'mixed-case scheme' => ['HtTp://a.tld', true],
+            'https is secure' => ['https://a.tld', false],
+            'uppercase HTTPS is secure' => ['HTTPS://a.tld', false],
+            'bare host is not http-prefixed' => ['a.tld:8096', false],
+            'lookalike scheme' => ['httpx://a.tld', false],
+            'schemeless http-ish text' => ['see http:// inside', false],
+            'empty' => ['', false],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('provideUrlInsecurity')]
+    public function testIsInsecureUrlFlagsOnlyTheHttpSchemePrefix(string $url, bool $expected): void
+    {
+        self::assertSame($expected, Config::isInsecureUrl($url));
+    }
 }

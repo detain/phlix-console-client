@@ -319,6 +319,51 @@ final class AppTest extends TestCase
         self::assertInstanceOf(BootResolvedMsg::class, $this->runCmd($cmd));
     }
 
+    /**
+     * [review console__secaudit, M-CONSOLE-52] saving an http:// server stays
+     * possible but never silent: the restore Cmd rides together with a warning
+     * toast naming the credential exposure. The https arm above pins that the
+     * plain Cmd shape (no batch) is untouched for TLS servers.
+     */
+    public function testSubmittingAnHttpServerWarnsWithAToastAlongsideTheRestore(): void
+    {
+        [$app, , $api] = $this->makeApp(null, new FakeTransport());
+
+        [, $cmd] = $app->update(new SubmitServerMsg('http://lab.local:8096'));
+
+        $result = $cmd !== null ? $cmd() : null;
+        self::assertInstanceOf(BatchMsg::class, $result, 'the restore and the security warning travel together');
+        self::assertSame('http://lab.local:8096', $api->baseUrl(), 'the save itself is not refused');
+
+        $toast = null;
+        foreach ($result->cmds as $child) {
+            $msg = $child();
+            if ($msg instanceof ShowToastMsg) {
+                $toast = $msg;
+            }
+        }
+
+        self::assertNotNull($toast, 'the exposure must reach the user as a toast');
+        self::assertStringContainsString('insecure connection', (string) $toast->message);
+    }
+
+    /**
+     * [review console__secaudit, M-CONSOLE-52] the persistent banner rides the
+     * frame's top border while the ACTIVE server is http — and only then.
+     */
+    public function testBannerRidesTheTopBorderWhileTheActiveServerIsHttp(): void
+    {
+        [$insecure] = $this->makeApp('http://lab.local:8096', new FakeTransport());
+
+        self::assertStringStartsWith('╭ ⚠ insecure http', $insecure->view(), 'the top border carries the warning');
+
+        [$secure] = $this->makeApp('https://good.tld', new FakeTransport());
+
+        $view = $secure->view();
+        self::assertStringStartsWith('╭', $view, 'the frame is still framed');
+        self::assertStringNotContainsString('insecure http', $view, 'TLS gets no banner');
+    }
+
     public function testEmptyServerSubmissionReturnsToWizardWithError(): void
     {
         [$app] = $this->makeApp(null, new FakeTransport());
@@ -1142,6 +1187,25 @@ final class AppTest extends TestCase
 
         self::assertSame('q', $typed->palette()->filterText());
         self::assertSame('Quit', $typed->palette()->visibleLabels()[0]);
+    }
+
+    /**
+     * [review console__tuispec, M-CONSOLE-65] ctrl/alt combos carry commands,
+     * never text: a modifier-flagged Char/Space must not land in the palette
+     * filter even though the terminal still reports a printable rune.
+     */
+    public function testModifierTypedCharactersDoNotEnterThePaletteFilter(): void
+    {
+        [$open] = $this->paletteApp()->update($this->ctrlK());
+
+        [$ctrlChar] = $open->update(new KeyMsg(KeyType::Char, 'q', ctrl: true));
+        self::assertSame('', $ctrlChar->palette()->filterText(), 'ctrl+q is a command, not text');
+
+        [$altChar] = $open->update(new KeyMsg(KeyType::Char, 'q', alt: true));
+        self::assertSame('', $altChar->palette()->filterText(), 'alt+q is a command, not text');
+
+        [$ctrlSpace] = $open->update(new KeyMsg(KeyType::Space, '', alt: false, ctrl: true));
+        self::assertSame('', $ctrlSpace->palette()->filterText(), 'ctrl+Space is a command, not text');
     }
 
     public function testPaletteUpDownMoveTheSelection(): void

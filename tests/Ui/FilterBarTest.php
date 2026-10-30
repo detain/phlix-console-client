@@ -35,6 +35,21 @@ final class FilterBarTest extends TestCase
         self::assertTrue($bar->isActive());
     }
 
+    /**
+     * [review console__tuispec, M-CONSOLE-65] modifier combos are commands,
+     * not text — neither ctrl/alt+Char nor ctrl/alt+Space appends.
+     */
+    public function testModifierTypedCharactersDoNotAppendToSearch(): void
+    {
+        $bar = FilterBar::new()
+            ->handleKey(new KeyMsg(KeyType::Char, 'm', ctrl: true))
+            ->handleKey(new KeyMsg(KeyType::Char, 'a', alt: true))
+            ->handleKey(new KeyMsg(KeyType::Space, '', alt: false, ctrl: true));
+
+        self::assertSame('', $bar->search);
+        self::assertFalse($bar->isActive());
+    }
+
     public function testSpaceAndBackspaceEditSearch(): void
     {
         $bar = FilterBar::new()

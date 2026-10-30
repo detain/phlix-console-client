@@ -177,10 +177,12 @@ final class SearchScreen implements Breadcrumbed, CapturesSlash, Loadable, Shimm
         if ($msg->type === KeyType::Backspace) {
             return $this->searchText === '' ? [$this, null] : $this->editSearch(mb_substr($this->searchText, 0, -1));
         }
-        if ($msg->type === KeyType::Space) {
+        // Modifier-free typing only [review console__tuispec, M-CONSOLE-65]:
+        // ctrl/alt combos carry commands, not text.
+        if ($msg->type === KeyType::Space && !$msg->ctrl && !$msg->alt) {
             return $this->editSearch($this->searchText . ' ');
         }
-        if ($msg->type === KeyType::Char && $msg->rune !== '') {
+        if ($msg->type === KeyType::Char && $msg->rune !== '' && !$msg->ctrl && !$msg->alt) {
             return $this->editSearch($this->searchText . $msg->rune);
         }
 

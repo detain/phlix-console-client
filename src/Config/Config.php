@@ -369,6 +369,18 @@ final class Config
     }
 
     /**
+     * Is this server URL plain HTTP — login passwords, API keys and session
+     * tokens crossing the wire unencrypted [review console__secaudit,
+     * M-CONSOLE-52]? The console keeps http:// usable (LAN and dev servers are
+     * a real user's reality) but never lets it be silent: this predicate is
+     * the single source for every insecure-connection warning surface.
+     */
+    public static function isInsecureUrl(string $url): bool
+    {
+        return str_starts_with(strtolower(trim($url)), 'http://');
+    }
+
+    /**
      * Normalise a user-entered server URL: trim, default to https://, and
      * strip any trailing slash. Returns '' for blank input.
      */

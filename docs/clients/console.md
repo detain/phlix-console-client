@@ -133,6 +133,17 @@ Within that directory:
 | `hub_id` | unset | Hub this server belongs to (relay/remote features) |
 | `ws_port` | `8097` | Dedicated SyncPlay WebSocket port. The client dials `ws(s)://{host}:{ws_port}/syncplay/{room}` and carries the JWT in the `Sec-WebSocket-Protocol: bearer, <jwt>` handshake header (since phlix-server 424c14d0 the JWT rides the handshake header; the `?token=` query is retired); omit it to use the server's stock `:8097` WS worker — the `:8096` HTTP worker never upgrades WebSockets. |
 
+#### Insecure (`http://`) servers
+
+An `http://` URL stays accepted — LAN and dev servers are a real user's
+reality — but it is never silent: the setup and add-server forms warn while you
+type one, saving one fires a warning toast, saved entries carry a `⚠` mark in
+the server switcher, and the Login/Sign-up screens repeat the exposure where the
+password is about to be typed. While an `http://` server is active, every
+ordinary frame carries an `⚠ insecure http` banner on its top border. Login
+passwords and session tokens on such a connection travel unencrypted; prefer
+`https://` anywhere the wire is not wholly under your control.
+
 ### Environment variables
 
 Every `PHLIX_*` variable is read from the process environment (`getenv`) and,

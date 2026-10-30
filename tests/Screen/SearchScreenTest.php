@@ -72,6 +72,25 @@ final class SearchScreenTest extends TestCase
         self::assertInstanceOf(MediaRangeLoadedMsg::class, $this->runCmd($fetch));
     }
 
+    /**
+     * [review console__tuispec, M-CONSOLE-65] the search field accepts text,
+     * never modifier combos: ctrl/alt+Char (and ctrl/alt+Space) must not inject
+     * the rune the terminal reports under the modifier.
+     */
+    public function testModifierTypedCharactersDoNotEnterTheSearchField(): void
+    {
+        $screen = $this->screenWith(new FakeTransport());
+
+        [$ctrlChar] = $screen->update(new KeyMsg(KeyType::Char, 'm', ctrl: true));
+        self::assertSame('', $ctrlChar->searchText(), 'ctrl+m is a command, not text');
+
+        [$altChar] = $screen->update(new KeyMsg(KeyType::Char, 'm', alt: true));
+        self::assertSame('', $altChar->searchText(), 'alt+m is a command, not text');
+
+        [$ctrlSpace] = $screen->update(new KeyMsg(KeyType::Space, '', alt: false, ctrl: true));
+        self::assertSame('', $ctrlSpace->searchText(), 'ctrl+Space is a command, not text');
+    }
+
     public function testAStaleDebounceTickIsIgnored(): void
     {
         $screen = $this->screenWith(new FakeTransport());
