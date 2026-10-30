@@ -1874,7 +1874,9 @@ final class App implements Model
     }
 
     /**
-     * Add a new server to the config (from manual entry or hub import).
+     * Add a new server to the config. The manual form always passes a null
+     * hubId; the hub_id slot serves a future hub import that is not wired
+     * today [review riders W14, R-CONSOLE-14].
      *
      * @return array{App, ?\Closure}
      */

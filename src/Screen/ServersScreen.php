@@ -35,14 +35,19 @@ use function trim;
 /**
  * Server list screen — shows all configured servers, highlights the active one,
  * and lets the user:
- *   - 'h'   import servers from the hub via myServers()
+ *   - 'h'   refresh the list from the saved config (transient loading frame
+ *           plus OpenServersMsg; App answers by rebuilding the screen —
+ *           ApiClient::myServers() has no production caller, so this key
+ *           never talks to the hub)
  *   - 'a'   add a server manually (URL + label, via an inline form that submits
  *           AddServerMsg, then reopens the list from the saved config)
  *   - 'r'   remove the selected server (submits RemoveServerMsg)
  *   - Enter  switch to the selected server (submits SwitchServerMsg)
  *   - Esc    pop back (or cancel the add-server form while it is open)
  *
- * The hub-imported servers carry a hub_id; locally-added ones have null hub_id.
+ * ServerEntry's hub_id is a reserved field for a hub import that is not
+ * wired today; nothing on this screen sets it (it survives only in a
+ * hand-written config row).
  *
  * Implements {@see CapturesSlash} for the same reason {@see ServerScreen} does:
  * while the add-server form is open the user types URLs full of `:` and `/`,
@@ -175,7 +180,10 @@ final class ServersScreen implements Model, Themed, CapturesSlash
             return [$this, null];
         }
 
-        // 'h' → import from hub (loading state, App fetches and sends back updated list)
+        // 'h' → refresh the list from the saved config: transient loading
+        // frame, then App rebuilds the screen on OpenServersMsg. The old
+        // comment promised a hub import via myServers(); that fetch never
+        // existed [review riders W14, R-CONSOLE-14].
         if ($msg->type === KeyType::Char && $msg->rune === 'h' && !$msg->ctrl) {
             return [new self(
                 $this->servers,
@@ -382,7 +390,7 @@ final class ServersScreen implements Model, Themed, CapturesSlash
         $lines = ['Servers', ''];
 
         if ($this->loading) {
-            $lines[] = '  Loading from hub…';
+            $lines[] = '  Refreshing…';
             $lines[] = '';
         }
 
@@ -393,7 +401,7 @@ final class ServersScreen implements Model, Themed, CapturesSlash
 
         if ($this->servers === []) {
             $lines[] = '  No servers configured.';
-            $lines[] = '  Press h to import from the hub, or a to add one manually.';
+            $lines[] = '  Press a to add one manually.';
             $lines[] = '';
         } else {
             foreach ($this->servers as $index => $server) {
@@ -422,7 +430,7 @@ final class ServersScreen implements Model, Themed, CapturesSlash
         return Chrome::frame(
             'Servers',
             $body,
-            'Enter  switch      a  add      h  import from hub      r  remove      Esc  back',
+            'Enter  switch      a  add      h  refresh      r  remove      Esc  back',
             $this->cols,
             $this->rows,
             theme: $this->theme(),

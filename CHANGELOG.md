@@ -5,6 +5,30 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — rider W14 R-CONSOLE-14: the Servers screen's 'h' key stopped claiming a hub import that was never wired — docblocks, key-hint strip, rendered copy and the manual all tell the refresh truth — 2026-10-30
+
+- **The observation.** The review (riders W14, R-CONSOLE-14) found the
+  claim "imports via myServers()" still fiction at tip: `ApiClient::myServers()`
+  has zero production callers (definition + its own ApiClientTest pin only),
+  while the 'h' arm returns a `loading=true` frame plus `OpenServersMsg` and
+  App's `openServers()` rebuilds the screen purely from the saved config.
+  The class docblock, the in-code comment, the rendered "Loading from hub…"
+  line, the empty-state "Press h to import from the hub" invitation, the
+  key-hint strip ("h  import from hub"), App's `onServerAdd` docblock and
+  the `docs/clients/console.md` Servers row all described a hub fetch that
+  no code path performs.
+- **The cure.** Truth pass, behavior untouched — 'h' keeps its existing
+  refresh-from-config semantics (R-CONSOLE-15's stack-growth custody is a
+  separate rider; wiring the real import is a design-level owner call, not
+  this one). The 'h' docblock arm and handler comment now say refresh; the
+  transient frame renders "Refreshing…"; the empty state offers only `a`;
+  the hint strip reads "h  refresh"; `myServers()` documents its no-caller
+  status as the reserved seam; App/AddServerMsg docblocks mark hubId as a
+  reserved field for the unwired import; the manual's Servers row matches
+  the shipped keys. No test pinned any of the changed strings; ServersScreen
+  is not an i18n-converted file, so the seven-locale parity checks are
+  untouched.
+
 ### Fixed — rider W12 R-CONSOLE-12: the T3 config-vocabulary scratch path gets a per-process token and a finally-unlink — 2026-10-31
 
 - **The observation.** M-CONSOLE-38__r1 (non-blocking #1): the runtime-derive

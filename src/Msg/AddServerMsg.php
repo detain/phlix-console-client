@@ -11,7 +11,7 @@ namespace Phlix\Console\Msg;
 
 use SugarCraft\Core\Msg;
 
-/** Add a new server entry (from manual URL+label or hub import). */
+/** Add a new server entry (manual URL+label; the hubId slot is reserved for a future hub import). */
 final readonly class AddServerMsg implements Msg
 {
     public function __construct(

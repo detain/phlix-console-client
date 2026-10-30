@@ -223,6 +223,9 @@ final class ApiClient
      * The list of servers the authenticated user has access to on the hub.
      * Each entry: {hub_id, name, url}.
      *
+     * No production caller: the Servers screen's 'h' key is a local refresh,
+     * not a hub import. Kept as the seam for a future import [R-CONSOLE-14].
+     *
      * @return PromiseInterface<list<array{hub_id:string,name:string,url:string}>>
      */
     public function myServers(): PromiseInterface
