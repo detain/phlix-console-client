@@ -5,6 +5,35 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — riders W8 R-CONSOLE-08: the download filename law pins the traversal NODE itself — 2026-10-30
+
+- **The class.** M-CONSOLE-33__r1 forwarded `extractFilename` `basename('..')`
+  dot-dot download-path traversal to the minors queue; M-CONSOLE-54 had
+  already cured it lawfully (the shape law's dot-prefix forfeiture convicts
+  '.' and '..' before they can join `$downloadDir . '/'`), but the committed
+  pins only named dotFILE shapes (`.hidden.mp4`, `...mp4`) — no row produced
+  basename === '..', and nothing pinned the sink-side property the traversal
+  ask is actually about. This rider closes the pin gap, not a live hole
+  (stale-cured, disclosed).
+- **The pins.** Two shape-law data rows (path tail `/media/..` → `phlix_m1.mp4`,
+  tail `/media/.` → fallback) plus a NEW property law,
+  `testTheExtractedNameIsAlwaysASingleInertComponent`, over nine traversal
+  candidates (dot-dot tails and chains, current-dir chains, percent-encoded
+  traversal, null-byte tails, hostile ids, both-sides-hostile): the extracted
+  name is always non-empty, never '.' or '..', equals its own basename,
+  carries no backslash (the separator reading another port would honour), no
+  control bytes, is fully printable, and length-bounded. Suite
+  `DownloadServiceHardeningTest` 12 → 23 tests (23/97 assertions exact).
+- **Teeth.** Guard `!str_starts_with($basename, '.')` stripped in a scratch
+  copy → 9 named reds, including every dot-dot/dot row of BOTH the shape law
+  and the property law; restore → 23/23 OK. Full serial suite 3478 tests /
+  21461 assertions / 0F 0E / 15 skipped / 15 legacy deprecations (parent
+  3467/21387, +11/+74 exactly the 2 rows + 9 legs); phpcs both legs exit 0
+  (the file's two pre-existing >120 prose lines untouched — warnings,
+  non-blocking by config); phpstan src carries only the inherited
+  `AdminClient.php:2697` error (stashed-parent probe: 1 → 1), phpstan-tests
+  [OK]; i18n guards green — catalogs untouched.
+
 ### Fixed — minors batch W-min24 tail (M-CONSOLE-31; 44 · 94 stale-verified): the graphics doc's Fallback Strategy stops attributing phantom terminal queries to the repo's own class — 2026-10-30
 
 - **The defect.** (console__docmaint m5, residual half.) The W-min24-rework

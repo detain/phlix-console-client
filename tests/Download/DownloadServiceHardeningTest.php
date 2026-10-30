@@ -21,6 +21,9 @@ use function React\Promise\resolve;
  * land 0600, a byte ceiling is enforced on both the declared and the streamed
  * size, and server-supplied filenames must survive a conservative shape law —
  * otherwise the media id (itself validated) or a constant names the file.
+ * R-CONSOLE-08 (riders W8) adds the traversal-node property law on top:
+ * whatever the guard config, the extracted name is a single inert path
+ * component that can never escape the download root.
  *
  * The signed-URL host-authority pin from the same review lives in
  * {@see DownloadServiceAuthorityGateTest} (shipped under W-min21).
@@ -246,6 +249,11 @@ final class DownloadServiceHardeningTest extends TestCase
             'percent-fragment falls back' => ['https://srv.example/evil%2Ftrav.mp4', 'm1', 'phlix_m1.mp4'],
             'non-ascii falls back (conservative ASCII class)' => ['https://srv.example/Мираж.mp4', 'm1', 'phlix_m1.mp4'],
             'dot-only candidate falls back' => ['https://srv.example/...mp4', 'm1', 'phlix_m1.mp4'],
+            // R-CONSOLE-08 (riders W8, from M-CONSOLE-33__r1 minors_forward):
+            // the class is the PATH traversal node, not the dotfile —
+            // basename('/x/..') returns '..' itself.
+            'dot-dot basename falls back' => ['https://srv.example/media/..', 'm1', 'phlix_m1.mp4'],
+            'dot basename falls back' => ['https://srv.example/media/.', 'm1', 'phlix_m1.mp4'],
             'hostile id cannot escape the constant' => ['https://srv.example/.hidden.mp4', '../evil', 'phlix-download.mp4'],
         ];
     }
@@ -261,5 +269,53 @@ final class DownloadServiceHardeningTest extends TestCase
         $method->setAccessible(true);
 
         self::assertSame($expected, $method->invoke($service, $url, $mediaId));
+    }
+
+    /**
+     * R-CONSOLE-08 (riders W8): the forward from M-CONSOLE-33__r1 named the
+     * PATH class specifically — `extractFilename` basename('..') dot-dot →
+     * download-path traversal. The M-CONSOLE-54 shape law answers it (a
+     * dot-prefixed candidate, which includes '.' and '..', forfeits the
+     * server name), but a dotfile-shaped row does not pin the traversal
+     * NODE. This law pins the sink-side property directly, whatever internal
+     * guard config stands: the extracted name is ALWAYS a single inert path
+     * component, so `$downloadDir . '/' . $name` can never escape the
+     * download root — on POSIX (no '/') and on the backslash-as-separator
+     * portability reading (no '\\') — never '.' or '..', printable-only,
+     * control-byte-free, and length-bounded.
+     *
+     * @return array<string, array{0: string, 1: string}>
+     */
+    public static function provideTraversalCandidates(): array
+    {
+        return [
+            'dot-dot tail' => ['https://srv.example/media/..', 'm1'],
+            'bare dot-dot' => ['https://srv.example/..', 'm1'],
+            'leading traversal chain' => ['https://srv.example/../../etc/passwd.mp4', 'm1'],
+            'dot tail' => ['https://srv.example/media/.', 'm1'],
+            'current-dir chain' => ['https://srv.example/a/./b.mp4', 'm1'],
+            'encoded traversal prefix' => ['https://srv.example/%2e%2e/show.mp4', 'm1'],
+            'null-byte tail' => ['https://srv.example/show.mp4%00', 'm1'],
+            'hostile dot-dot id' => ['https://srv.example/media/..', '../evil'],
+            'both sides hostile' => ['https://srv.example/..%2f..%2fx', '..'],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('provideTraversalCandidates')]
+    public function testTheExtractedNameIsAlwaysASingleInertComponent(string $url, string $mediaId): void
+    {
+        $service = new DownloadService();
+        $method = new \ReflectionMethod(DownloadService::class, 'extractFilename');
+        $method->setAccessible(true);
+        /** @var string $name */
+        $name = $method->invoke($service, $url, $mediaId);
+
+        self::assertNotSame('', $name, 'the extractor always names the file');
+        self::assertNotContains($name, ['.', '..'], 'the name is never a traversal node');
+        self::assertSame(basename($name), $name, 'the name never carries a POSIX path component');
+        self::assertStringNotContainsString('\\', $name, 'the name never carries a backslash separator');
+        self::assertStringNotContainsString(chr(0), $name, 'the name carries no control bytes');
+        self::assertTrue(ctype_print($name), 'the name is fully printable');
+        self::assertLessThanOrEqual(128, strlen($name), 'the name is length-bounded');
     }
 }
