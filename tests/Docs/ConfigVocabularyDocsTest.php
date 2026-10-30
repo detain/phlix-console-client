@@ -26,6 +26,11 @@
  * 5. Every settings-endpoint cite matches the REAL path derived from
  *    ApiClient.php's own request literals; the short fossil form
  *    `/api/v1/me/settings` appears nowhere.
+ * 6. The manual's config-directory precedence mirrors how Config::dir()
+ *    actually runs — `XDG_CONFIG_HOME` honoured on EVERY platform first
+ *    (derived live, not restated), no Linux/macOS-promise fallback split
+ *    (review M-CONSOLE-20 · 43 cured the inverted bullets; re-inverting
+ *    them reddens here).
  *
  * A future lane that wires persisted render mode (the review's other arm)
  * must move code, both docs, and this pin together — reddening here names
@@ -218,6 +223,52 @@ final class ConfigVocabularyDocsTest extends TestCase
             $hits,
             'a settings endpoint is cited with the fossil short path: '
             . self::describe($hits)
+        );
+    }
+
+    public function testTheManualStatesConfigDirPrecedenceAsCodeRunsIt(): void
+    {
+        // Derive the truth by running dir() under a scratch XDG_CONFIG_HOME.
+        $previous = getenv('XDG_CONFIG_HOME');
+        $probe = sys_get_temp_dir() . '/phlix-wmin12-xdg-probe';
+        putenv('XDG_CONFIG_HOME=' . $probe);
+        try {
+            $withXdg = Config::dir();
+        } finally {
+            if ($previous === false) {
+                putenv('XDG_CONFIG_HOME=');
+            } else {
+                putenv('XDG_CONFIG_HOME=' . $previous);
+            }
+        }
+
+        self::assertSame(
+            $probe . '/phlix',
+            $withXdg,
+            'Config::dir() no longer honours XDG_CONFIG_HOME unconditionally — '
+            . 'if a platform branch was added, the manual bullets must move with it.'
+        );
+
+        $manual = self::readRepoFile(self::MANUAL);
+        self::assertStringNotContainsString(
+            '**Linux/macOS:** `~/.config/phlix/`',
+            $manual,
+            'the manual re-promises the plain ~/.config path on Linux/macOS — '
+            . 'that was the inverted-precedence defect (review M-CONSOLE-20 · 43).'
+        );
+
+        $section = self::section($manual, "### Config directory\n");
+        self::assertStringContainsString(
+            '$XDG_CONFIG_HOME/phlix/',
+            $section,
+            'the Config directory section lost its statement that '
+            . 'XDG_CONFIG_HOME takes precedence.'
+        );
+        self::assertStringContainsString(
+            '%USERPROFILE%',
+            $section,
+            'the Config directory section no longer notes the Windows '
+            . 'HOME → USERPROFILE → temp fallback that dir() performs.'
         );
     }
 

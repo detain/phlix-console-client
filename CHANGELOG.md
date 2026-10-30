@@ -5,6 +5,12 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — minors batch W-min12 (M-CONSOLE-20 · 43 · 82): config-directory precedence told backwards vs `Config::dir()`, and "carrier law" estate jargon leaves the user manual — 2026-10-30
+
+- **The defects.** (console__devops · console__enduser · console__ipd · console__writer.) The manual's Config-directory bullets inverted the lookup order — they promised `~/.config/phlix/` on Linux/macOS and made `XDG_CONFIG_HOME` an "Other"-platforms courtesy, while `Config::dir()` honours `XDG_CONFIG_HOME` on every platform first; and the SyncPlay `ws_port` row spoke in internal shorthand ("phlix-server 424c14d0 carrier law") that no user-facing doc should require a campaign glossary to decode.
+- **The cures.** The bullets now mirror the code exactly — `$XDG_CONFIG_HOME/phlix/` whenever set (all platforms), else `~/.config/phlix/`, with the Windows `HOME`→`%USERPROFILE%`→temp resolution called out; the parenthetical is rewritten in plain prose per the queue fix-essence. Batch's other five items verified stale-cured at tips already in `master`'s ancestry: M-CONSOLE-02 @8e8b068, M-CONSOLE-36 @d8c1d2d, M-CONSOLE-38 @a2ae65d, M-CONSOLE-49 @6ef66fc (no `git@github` clone URL remains in docs or README), M-CONSOLE-80 @5b1a7ec — each proof `git merge-base --is-ancestor` in this repo.
+- **The pins.** `tests/Docs/ConfigVocabularyDocsTest.php` gains law 6: `Config::dir()` is RUN under a scratch `XDG_CONFIG_HOME` and the manual's Config-directory section must claim that unconditional precedence (plus the Windows fallback), while the fossil inverted bullet reddens the test — mutation-proven: re-injecting the old text fails exactly the new law, restoring greens all six.
+
 ### Fixed — minors batch W-min24 rework (M-CONSOLE-44): the README Test section stops generalizing past the one fixture it ships — 2026-10-30
 
 - **The defect.** (console__ipd m.) README.md claimed "the poster test

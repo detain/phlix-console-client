@@ -111,8 +111,9 @@ composer install
 
 The client stores configuration in:
 
-- **Linux/macOS:** `~/.config/phlix/`
-- **Other:** `$XDG_CONFIG_HOME/phlix/` if set, else `~/.config/phlix/`
+- `$XDG_CONFIG_HOME/phlix/` whenever `XDG_CONFIG_HOME` is set — on every platform
+- otherwise `~/.config/phlix/` — on Windows `~` resolves to `%USERPROFILE%` when
+  `HOME` is unset, and to the system temp directory when neither variable is set
 
 Within that directory:
 
@@ -130,7 +131,7 @@ Within that directory:
 | `label` | `Server` | Name shown in the server switcher |
 | `url` | — | API base URL (e.g. `https://host:8096` — the HTTP worker) |
 | `hub_id` | unset | Hub this server belongs to (relay/remote features) |
-| `ws_port` | `8097` | Dedicated SyncPlay WebSocket port. The client dials `ws(s)://{host}:{ws_port}/syncplay/{room}` and carries the JWT in the `Sec-WebSocket-Protocol: bearer, <jwt>` handshake header (phlix-server 424c14d0 carrier law; the `?token=` query is retired); omit it to use the server's stock `:8097` WS worker — the `:8096` HTTP worker never upgrades WebSockets. |
+| `ws_port` | `8097` | Dedicated SyncPlay WebSocket port. The client dials `ws(s)://{host}:{ws_port}/syncplay/{room}` and carries the JWT in the `Sec-WebSocket-Protocol: bearer, <jwt>` handshake header (since phlix-server 424c14d0 the JWT rides the handshake header; the `?token=` query is retired); omit it to use the server's stock `:8097` WS worker — the `:8096` HTTP worker never upgrades WebSockets. |
 
 ### Environment variables
 
