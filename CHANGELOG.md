@@ -5,6 +5,34 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — rider W15 R-CONSOLE-15: refreshing the Servers screen replaces its frame in place instead of pushing a second one — the stack no longer grows per add and per 'h' — 2026-10-30
+
+- **The observation.** The review (riders W15, R-CONSOLE-15, first named in
+  the M-CONSOLE-40 fixlog) found `openServers()` treated every
+  `OpenServersMsg` as navigation: it always called `App::push`, which has no
+  same-route replace. But the message carries a dual identity — navigation
+  (palette action, SettingsScreen `s`) AND refresh (`h` on the screen itself;
+  the add-server form submit, whose `Cmd::batch(AddServerMsg, OpenServersMsg)`
+  re-renders the list from the just-saved config). Each refresh pushed a
+  second `ServersScreen` frame: the stack grew one frame per add and per `h`,
+  the `h` arm's transient loading frame was permanently buried under the
+  fresh one instead of being replaced, and every extra frame cost one more
+  Esc to climb out. The rider had gated this on CON-45's file custody for
+  `App.php`; CON-45 landed at 2156f59 (verified ancestor of tip e58e400),
+  satisfying the serialization.
+- **The cure.** `openServers()` now swaps the top frame's screen in place
+  (`withTopScreen`, the same primitive the key-dispatch fallback uses) when
+  the top frame is already `Route::Servers`, and pushes otherwise — so the
+  navigation arms are untouched. `ServersScreen` is not `Teardownable`, so
+  the swap releases nothing beyond the discarded model itself; the PlayNext
+  arm's pop-then-push idiom exists only for the player's subprocess teardown.
+  A general same-route replace inside `push()` was rejected: Detail-over-
+  Detail drill-in is a legitimate stack growth. Four App-level pins:
+  navigation still pushes (control), refresh keeps depth 2, the post-`h`
+  loading frame is replaced rather than buried (fresh screen carries the
+  config list, `loading=false`), and five repeated refreshes never raise
+  the ceiling — one Esc is still one Esc.
+
 ### Fixed — rider W14 R-CONSOLE-14: the Servers screen's 'h' key stopped claiming a hub import that was never wired — docblocks, key-hint strip, rendered copy and the manual all tell the refresh truth — 2026-10-30
 
 - **The observation.** The review (riders W14, R-CONSOLE-14) found the

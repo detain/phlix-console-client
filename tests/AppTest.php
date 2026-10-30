@@ -43,6 +43,7 @@ use Phlix\Console\Msg\OpenLibraryMsg;
 use Phlix\Console\Msg\OpenPhotoAlbumMsg;
 use Phlix\Console\Msg\OpenPhotoMsg;
 use Phlix\Console\Msg\OpenSearchMsg;
+use Phlix\Console\Msg\OpenServersMsg;
 use Phlix\Console\Msg\OpenSettingsMsg;
 use Phlix\Console\Msg\OpenStatsMsg;
 use Phlix\Console\Msg\PaletteLibrariesLoadedMsg;
@@ -96,6 +97,7 @@ use Phlix\Console\Screen\CastScreen;
 use Phlix\Console\Screen\PlayerScreen;
 use Phlix\Console\Screen\SearchScreen;
 use Phlix\Console\Screen\ServerScreen;
+use Phlix\Console\Screen\ServersScreen;
 use Phlix\Console\Screen\SettingsScreen;
 use Phlix\Console\Screen\StatsScreen;
 use Phlix\Console\Screen\Teardownable;
@@ -865,6 +867,83 @@ final class AppTest extends TestCase
         self::assertInstanceOf(PlayerScreen::class, $app2->screen());
         self::assertSame(1, $oldPlayer->teardownCalls, 'the finished player is torn down');
         self::assertInstanceOf(\Closure::class, $cmd, 'the next player builds on push');
+    }
+
+    public function testOpenServersFromAnotherRouteStillPushesTheServersFrame(): void
+    {
+        // Navigation identity (palette action, SettingsScreen 's'): Servers is
+        // NOT the top frame, so OpenServersMsg pushes — the law the refresh
+        // cure below must not disturb.
+        $app = $this->browsing();
+
+        [$servers, $cmd] = $app->update(new OpenServersMsg());
+
+        self::assertSame(2, $servers->stackDepth(), 'first open pushes onto Browse');
+        self::assertSame(Route::Servers, $servers->route());
+        self::assertInstanceOf(ServersScreen::class, $servers->screen());
+        self::assertNull($cmd, 'the list renders from the saved config — no fetch command');
+    }
+
+    public function testRefreshOnTheServersRouteReplacesTheTopFrameWithoutGrowing(): void
+    {
+        // R-CONSOLE-15: OpenServersMsg is also the REFRESH verb ('h', the
+        // add-server form submit). At the parent every such refresh pushed a
+        // second Servers frame — the stack grew one frame per add and per 'h',
+        // and each extra frame cost one more Esc to climb out of.
+        $app = $this->browsing()->update(new OpenServersMsg())[0];
+
+        [$refreshed, $cmd] = $app->update(new OpenServersMsg());
+
+        self::assertSame(2, $refreshed->stackDepth(), 'a refresh on Servers swaps, never grows');
+        self::assertSame(Route::Servers, $refreshed->route());
+        self::assertInstanceOf(ServersScreen::class, $refreshed->screen());
+        self::assertNotSame($app->screen(), $refreshed->screen(), 'the swap installs a freshly built screen');
+        self::assertNull($cmd);
+    }
+
+    public function testHRefreshLoadingFrameIsReplacedNotBuried(): void
+    {
+        // The exact post-'h' shape: ServersScreen swapped itself for its
+        // loading model (top frame still Route::Servers) and emitted
+        // OpenServersMsg. At the parent the rebuild pushed ON TOP of the
+        // loading frame, permanently burying it; now it lands in its place.
+        $loading = ServersScreen::create([], null)->update(
+            new KeyMsg(KeyType::Char, 'h'),
+        )[0];
+        self::assertInstanceOf(ServersScreen::class, $loading);
+        self::assertTrue($loading->loading, 'the h arm leaves a loading screen on top');
+
+        $app = $this->appWithStack([
+            ['route' => Route::Browse, 'screen' => new SpyTeardownScreen()],
+            ['route' => Route::Servers, 'screen' => $loading],
+        ]);
+
+        [$next] = $app->update(new OpenServersMsg());
+
+        self::assertSame(
+            2,
+            $next->stackDepth(),
+            'one Esc from the refreshed list is back to Browse, not to a stuck loading frame',
+        );
+        $screen = $next->screen();
+        self::assertInstanceOf(ServersScreen::class, $screen);
+        self::assertFalse($screen->loading, 'the loading frame is gone — the swap replaced it');
+        self::assertCount(1, $screen->servers, 'the rebuild reads the App config (the s1 entry appWithStack carries)');
+    }
+
+    public function testRepeatedRefreshesNeverGrowTheStack(): void
+    {
+        // One add per form-submit means the defect used to compound: hammer
+        // the refresh and the stack grew without bound. Pin the ceiling.
+        $app = $this->browsing()->update(new OpenServersMsg())[0];
+
+        for ($i = 0; $i < 5; $i++) {
+            [$app] = $app->update(new OpenServersMsg());
+            self::assertSame(2, $app->stackDepth(), "refresh #{$i} stays at depth 2");
+        }
+
+        [$back] = $app->update(new NavigateBackMsg());
+        self::assertSame(1, $back->stackDepth(), 'one Esc after repeated refreshes is one Esc');
     }
 
     public function testDetailCanBePushedOntoALibraryAndPoppedBack(): void

@@ -1774,7 +1774,22 @@ final class App implements Model
         return [$this->push(Route::Collections, $screen), $screen->init()];
     }
 
-    /** @return array{App, ?\Closure} */
+    /**
+     * Open (or refresh) the Servers screen. OpenServersMsg carries a dual
+     * identity: NAVIGATION (palette action, SettingsScreen 's') and REFRESH
+     * ('h' on the screen itself, and the add-server form submit, whose batched
+     * OpenServersMsg re-renders the list from the just-saved config). When the
+     * top frame is already Route::Servers, the rebuild swaps that frame's
+     * screen IN PLACE — {@see self::push()} has no same-route replace, so the
+     * old shape grew the stack one frame per add and per 'h', burying a stale
+     * frame (the 'h' arm's loading screen) under each fresh one and costing
+     * one extra Esc per refresh [review riders W15, R-CONSOLE-15]. ServersScreen
+     * holds no external resources (not {@see Teardownable}), so the swap needs
+     * no release — the PlayNext arm's pop-then-push (:644) exists only for the
+     * player's subprocess teardown, not for the stack arithmetic.
+     *
+     * @return array{App, ?\Closure}
+     */
     private function openServers(): array
     {
         $screen = ServersScreen::create(
@@ -1784,7 +1799,11 @@ final class App implements Model
             $this->rows,
         );
 
-        return [$this->push(Route::Servers, $screen), $screen->init()];
+        $next = ($this->topFrame()['route'] ?? null) === Route::Servers
+            ? $this->withTopScreen($screen)
+            : $this->push(Route::Servers, $screen);
+
+        return [$next, $screen->init()];
     }
 
     /** @return array{App, ?\Closure} */
