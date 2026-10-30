@@ -14,12 +14,21 @@ as poster rails and virtualized grids, drill media detail and
 series → season → episode, open music, book, audiobook and photo libraries in
 browsers built for each; global search; a command palette wired to every
 screen in the client (its full shipped census is under **Run it** below);
-**SyncPlay watch parties**; casting to **Chromecast / Roku / AirPlay / DLNA**;
+**SyncPlay watch party** rooms; casting to **Chromecast / Roku / AirPlay / DLNA**;
 item **downloads**; a **full admin client** — and an in-terminal video player
 that **direct-plays** HEVC/AV1 the browser can't, with **trickplay** sprite
 thumbnails previewing while you scrub. Posters and video render as
 **sixel / kitty / iTerm2 / half-block ANSI** via the
 [SugarCraft](https://sugarcraft.github.io/) stack.
+
+The command palette is the one keypress to all of it — **Search**, **Home**,
+**Settings**, **Stats**, **Watch History**, **Favorites**, **Photos**,
+**Music Artists**, **Playlists**, **Collections**, **Servers**,
+**Shared With Me**, **Invite Links**, **Federation Shares**,
+**Show metrics** / **Hide metrics**, **Admin** (admins only),
+**Resume playback** / **Pause playback** / **Stop playback** (while a
+music or audiobook session is live), **Log out** and **Quit** — plus a
+**Go to <library>** jump per library.
 
 ## Documentation
 
@@ -41,147 +50,6 @@ Further reading: [i18n](docs/i18n.md) (the env locale chain),
 [terminal graphics](docs/terminal-graphics.md) (protocol capabilities),
 [upgrade notes](docs/upgrade/v1.md). Issues and questions:
 [the issue tracker](https://github.com/detain/phlix-console-client/issues).
-
-## Render modes
-
-The same screen rendered with each `--mode`, cycling every few seconds.
-**Graphics** protocols emit a real image (highest fidelity, terminal-dependent);
-**cell** modes tile coloured text and work in any terminal, trading detail for
-compatibility.
-
-![render modes](docs/images/modes.gif)
-
-<details>
-<summary>Side-by-side stills</summary>
-
-| Mode | Type | Preview |
-| --- | --- | --- |
-| `sixel` | graphics — sixel protocol | ![sixel](docs/images/sixel.png) |
-| `iterm2` | graphics — iTerm2 inline images | ![iterm2](docs/images/iterm2.png) |
-| `truecolor` | cell — 24-bit colour character ramp | ![truecolor](docs/images/truecolor.png) |
-| `ansi256` | cell — 256-colour character ramp | ![ansi256](docs/images/ansi256.png) |
-| `quarterblock` | cell — dense 24-bit colour blocks | ![quarterblock](docs/images/quarterblock.png) |
-| `halfblock` (≡ `ansi`) | cell — 24-bit colour half-blocks (universal fallback) | ![halfblock](docs/images/halfblock.png) |
-| `ascii` | cell — monochrome character ramp | ![ascii](docs/images/ascii.png) |
-
-</details>
-
-> `kitty` is also supported (graphics, kitty protocol) but renders identically to
-> the other graphics modes in a capable terminal.
-
-> **Status: Phases 0–10 complete.** Working today: log
-> in, browse your libraries as poster rails beside a sidebar, open a library into
-> a virtualized poster grid (scroll, filter, sort, A–Z jump), open any poster
-> into a **detail screen** (hero poster, metadata, synopsis, and a **Cast** list
-> with initials-based ANSI avatars), and drill
-> **series → season → episode**, with a **breadcrumb trail** in the header.
->
-> Press `p` to launch the **in-terminal player** (Phase 4): it **direct-plays**
-> the item's signed stream straight through ffmpeg — decoding HEVC/MKV/AV1 the
-> browser can't and bypassing the server transcode — with a **scrubber** (chapter
-> ticks + intro/outro skip + **trickplay** sprite thumbnails previewing while
-> you drag, where the server publishes them for the item), **resume** from
-> where you left off, **progress reporting**, **up-next** auto-advance
-> between episodes, on-demand **subtitles**,
-> and a **transcode fallback** when a file can't be direct-played.
->
-> Phase 5 adds **global search** (`/` from anywhere → a debounced query over a
-> virtualized poster grid of `/media?search=` results), a **command palette**
-> (Ctrl-K or `:` → fuzzy-ranked actions), and **toasts**
-> — transient top-right notifications that surface errors
-> which used to fail silently. The palette has since grown into the client's
-> universal navigator, registered screen-by-screen in `src/App.php`: **Search**,
-> **Home**, **Settings**, **Stats**, **Watch History**, **Favorites**,
-> **Photos**, **Music Artists**, **Playlists**, **Collections**, **Servers**,
-> **Shared With Me**, **Invite Links**, **Federation Shares**, **Show metrics**
-> / **Hide metrics**, **Admin** (offered only while signed in as an admin),
-> **Resume playback** / **Pause playback** and **Stop playback** (while a music
-> or audiobook session is live), **Log out**, and **Quit** — plus a `Go to
-> <library>` jump per library. The same census with what each action opens is
-> under **Run it** below and in the manual's [Screens](docs/clients/console.md#screens)
-> section.
->
-> Phase 6 makes **every library type browsable** and audio + photos fully usable —
-> opening a library now routes to a browser built for its type:
->
-> - **Music** — an album list (Album · Artist · Year · Tracks) → a track table;
->   Enter **direct-plays** the audio through ffplay/mpv, with `Space` pause and
->   `n`/`p` for the next/previous track. (No server cover art → text-forward.)
-> - **Books** — a virtualized cover grid (lazy covers) → a detail screen with the
->   cover, metadata, and a copyable **download URL** (there is no in-terminal
->   reader).
-> - **Audiobooks** — a list (Title · Author · Narrator · Duration) → a chapter
->   table; Enter plays a chapter, `r` **resumes** from your saved position, `Space`
->   pauses, and your **progress is saved back to the server**. (Text-forward.)
-> - **Photos** — a grid of album covers (by date) → an album's thumbnail grid → a
->   **fullscreen photo** (`←`/`→` prev/next) with an **EXIF panel** (`i`) and an
->   auto-advancing **slideshow** (`s`). Thumbnails and full images render directly
->   from signed URLs.
->
-> Phase 7 adds **theming, settings, and polish**: three built-in themes —
-> **Nocturne** (default), **Daylight**, and **Midnight** — plus a **Settings**
-> screen (reachable from the command palette) for picking the theme and the
-> photo-slideshow interval, applied live. A persistent **Now-Playing bar** spans
-> every screen so music and audiobook audio keeps playing (and stays controllable)
-> as you navigate; the palette also toggles a diagnostic **metrics HUD** overlay
-> and opens a read-only **Stats** screen, and lists load behind **animated shimmer
-> skeletons**.
->
-> Phase 8 adds **full admin parity plus casting** (the **Admin** action appears in
-> the command palette only when you're signed in as an admin). It opens an **admin
-> menu** with every section wired:
->
-> - **Dashboard** — now-playing sessions, storage usage, top users, top media, and
->   recent activity.
-> - **Users** — list with a status filter (All / Pending / Active / Disabled) and
->   per-row actions: approve, disable, reject, delete, toggle admin, reset password
->   (the new password is revealed once); `P` opens that user's viewer profiles.
-> - **Plugins** — list with enable / disable / uninstall and install-from-URL.
-> - **Plugin Updates** — available updates with an auto-update toggle, a catalog
->   channel setting, and a confirmed apply.
-> - **Logs** — a file list with a single-file or merged "all logs" tail viewer.
-> - **Backup** — list / create / delete / restore / upload-to-S3, plus a backup
->   schedule editor.
-> - **Server Settings** — per-key typed editing (bool toggles inline; int / float /
->   string / JSON via a validated input).
-> - **Transcoding** — read-only hardware-accelerator introspection plus editable
->   HDR tone-mapping settings.
-> - **Libraries** — scan / rescan / match-metadata with a live scan-status readout.
-> - **DLNA server** — status with start / stop.
-> - **Remote Access** — Hub, subdomain, relay, and port-forward status with their
->   toggles, plus an in-console Hub **pairing wizard**.
-> - **Live TV** — five tabbed sections (Tuners · Channels · Guide · Recordings ·
->   Series Rules) with list + simple actions (create / edit are deferred to the web
->   admin).
-> - **Parental Controls** — per-profile tags, access schedules, and stream limits.
-> - **Metrics** — read-only snapshot / history / connections / routes panels.
-> - **Watch History** — every user's recently-watched items with an optional
->   filter-by-user.
-> - **Duplicates** — duplicate groups per library, with an armed merge.
-> - **Webhooks** — subscriptions with their URL, events, and enabled status.
-> - **Auth Providers** — OIDC / LDAP / GitHub providers with enable / disable and a
->   per-provider settings form.
-> - **Server Restart** — a graceful worker reload, confirmed by the server's own
->   ack (no polling).
-> - **Filesystem** — a navigable listing of the server's configured browse roots
->   and their subdirectories.
->
-> **Cast** is not an admin section — press `C` on a media **detail** screen to
-> discover **Chromecast / Roku / AirPlay / DLNA** devices on the network, send the
-> item, and drive a transport overlay (pause / resume / stop). Seek is intentionally
-> omitted — the cast backends don't expose a uniform playback position.
->
-> Also working today, inside the player: `a`, shift-`S` and shift-`C` open the
-> **track pickers** — the audio, subtitle (with an explicit Off) and chapter
-> tracks the item exposes; picking a chapter jumps to it, and picking a subtitle
-> turns the caption overlay on. `v` selects the playback **quality** of a
-> transcoded item, and `w` opens **"For You"** recommendations without leaving
-> playback. `y` opens the **SyncPlay watch party** modal — create your own room
-> (public or private) or join one the server lists; while you are in a room an
-> overlay tracks the room, its member count and the sync status, and the room's
-> play / pause / seek commands drive your player in step. `z` sets an in-player
-> **sleep timer** (presets 15 / 30 / 45 / 60 / 90 / 120 min; playback pauses
-> when the countdown expires, and the last preset you used is remembered).
 
 ## Requirements
 
@@ -319,7 +187,7 @@ screen, **Watch History**, **Favorites**, **Photos**, **Music Artists**,
 **Playlists**, **Collections**, **Servers**, **Shared With Me**, **Invite
 Links**, **Federation Shares**, **Show metrics** / **Hide metrics**, **Log out**,
 **Quit** — plus a `Go to <library>` jump per library, the **Admin** menu
-when you're signed in as an admin (see *Status* above), and **Resume
+when you're signed in as an admin (see *Status* below), and **Resume
 playback** / **Pause playback** and **Stop playback** while a music or
 audiobook session is live. Every live screen is listed with how to reach
 it in the manual's [Screens](docs/clients/console.md#screens) section.
@@ -393,6 +261,149 @@ world-readable via `ps(1)`, so the plain-token flags are deprecated and warn on 
 use. `--once` waits for a single play command and exits, giving up after `--timeout`
 seconds (default 30). Exit codes: 0 = a command was dispatched (with `--once`, also on
 a clean run), 1 = watch failed, 2 = usage error.
+
+## Render modes
+
+The same screen rendered with each `--mode`, cycling every few seconds.
+**Graphics** protocols emit a real image (highest fidelity, terminal-dependent);
+**cell** modes tile coloured text and work in any terminal, trading detail for
+compatibility.
+
+![render modes](docs/images/modes.gif)
+
+<details>
+<summary>Side-by-side stills</summary>
+
+| Mode | Type | Preview |
+| --- | --- | --- |
+| `sixel` | graphics — sixel protocol | ![sixel](docs/images/sixel.png) |
+| `iterm2` | graphics — iTerm2 inline images | ![iterm2](docs/images/iterm2.png) |
+| `truecolor` | cell — 24-bit colour character ramp | ![truecolor](docs/images/truecolor.png) |
+| `ansi256` | cell — 256-colour character ramp | ![ansi256](docs/images/ansi256.png) |
+| `quarterblock` | cell — dense 24-bit colour blocks | ![quarterblock](docs/images/quarterblock.png) |
+| `halfblock` (≡ `ansi`) | cell — 24-bit colour half-blocks (universal fallback) | ![halfblock](docs/images/halfblock.png) |
+| `ascii` | cell — monochrome character ramp | ![ascii](docs/images/ascii.png) |
+
+</details>
+
+> `kitty` is also supported (graphics, kitty protocol) but renders identically to
+> the other graphics modes in a capable terminal.
+
+> **Status: every screen and subsystem below is shipped.** Working today: log
+> in, browse your libraries as poster rails beside a sidebar, open a library into
+> a virtualized poster grid (scroll, filter, sort, A–Z jump), open any poster
+> into a **detail screen** (hero poster, metadata, synopsis, and a **Cast** list
+> with initials-based ANSI avatars), and drill
+> **series → season → episode**, with a **breadcrumb trail** in the header.
+>
+> Press `p` to launch the **in-terminal player**: it **direct-plays**
+> the item's signed stream straight through ffmpeg — decoding HEVC/MKV/AV1 the
+> browser can't and bypassing the server transcode — with a **scrubber** (chapter
+> ticks + intro/outro skip + **trickplay** sprite thumbnails previewing while
+> you drag, where the server publishes them for the item), **resume** from
+> where you left off, **progress reporting**, **up-next** auto-advance
+> between episodes, on-demand **subtitles**,
+> and a **transcode fallback** when a file can't be direct-played.
+>
+> Also shipped: **global search** (`/` from anywhere → a debounced query over a
+> virtualized poster grid of `/media?search=` results), a **command palette**
+> (Ctrl-K or `:` → fuzzy-ranked actions), and **toasts**
+> — transient top-right notifications that surface errors
+> which used to fail silently. The palette has since grown into the client's
+> universal navigator, registered screen-by-screen in `src/App.php`: **Search**,
+> **Home**, **Settings**, **Stats**, **Watch History**, **Favorites**,
+> **Photos**, **Music Artists**, **Playlists**, **Collections**, **Servers**,
+> **Shared With Me**, **Invite Links**, **Federation Shares**, **Show metrics**
+> / **Hide metrics**, **Admin** (offered only while signed in as an admin),
+> **Resume playback** / **Pause playback** and **Stop playback** (while a music
+> or audiobook session is live), **Log out**, and **Quit** — plus a `Go to
+> <library>` jump per library. The same census with what each action opens is
+> under **Run it** above and in the manual's [Screens](docs/clients/console.md#screens)
+> section.
+>
+> **Every library type is browsable**, and audio + photos are fully usable —
+> opening a library now routes to a browser built for its type:
+>
+> - **Music** — an album list (Album · Artist · Year · Tracks) → a track table;
+>   Enter **direct-plays** the audio through ffplay/mpv, with `Space` pause and
+>   `n`/`p` for the next/previous track. (No server cover art → text-forward.)
+> - **Books** — a virtualized cover grid (lazy covers) → a detail screen with the
+>   cover, metadata, and a copyable **download URL** (there is no in-terminal
+>   reader).
+> - **Audiobooks** — a list (Title · Author · Narrator · Duration) → a chapter
+>   table; Enter plays a chapter, `r` **resumes** from your saved position, `Space`
+>   pauses, and your **progress is saved back to the server**. (Text-forward.)
+> - **Photos** — a grid of album covers (by date) → an album's thumbnail grid → a
+>   **fullscreen photo** (`←`/`→` prev/next) with an **EXIF panel** (`i`) and an
+>   auto-advancing **slideshow** (`s`). Thumbnails and full images render directly
+>   from signed URLs.
+>
+> **Theming, settings, and polish**: three built-in themes —
+> **Nocturne** (default), **Daylight**, and **Midnight** — plus a **Settings**
+> screen (reachable from the command palette) for picking the theme and the
+> photo-slideshow interval, applied live. A persistent **Now-Playing bar** spans
+> every screen so music and audiobook audio keeps playing (and stays controllable)
+> as you navigate; the palette also toggles a diagnostic **metrics HUD** overlay
+> and opens a read-only **Stats** screen, and lists load behind **animated shimmer
+> skeletons**.
+>
+> **Full admin parity plus casting** (the **Admin** action appears in
+> the command palette only when you're signed in as an admin). It opens an **admin
+> menu** with every section wired:
+>
+> - **Dashboard** — now-playing sessions, storage usage, top users, top media, and
+>   recent activity.
+> - **Users** — list with a status filter (All / Pending / Active / Disabled) and
+>   per-row actions: approve, disable, reject, delete, toggle admin, reset password
+>   (the new password is revealed once); `P` opens that user's viewer profiles.
+> - **Plugins** — list with enable / disable / uninstall and install-from-URL.
+> - **Plugin Updates** — available updates with an auto-update toggle, a catalog
+>   channel setting, and a confirmed apply.
+> - **Logs** — a file list with a single-file or merged "all logs" tail viewer.
+> - **Backup** — list / create / delete / restore / upload-to-S3, plus a backup
+>   schedule editor.
+> - **Server Settings** — per-key typed editing (bool toggles inline; int / float /
+>   string / JSON via a validated input).
+> - **Transcoding** — read-only hardware-accelerator introspection plus editable
+>   HDR tone-mapping settings.
+> - **Libraries** — scan / rescan / match-metadata with a live scan-status readout.
+> - **DLNA server** — status with start / stop.
+> - **Remote Access** — Hub, subdomain, relay, and port-forward status with their
+>   toggles, plus an in-console Hub **pairing wizard**.
+> - **Live TV** — five tabbed sections (Tuners · Channels · Guide · Recordings ·
+>   Series Rules), all operated in-terminal: scan / toggle / rename / delete
+>   tuners, toggle / rename channels, refresh the guide and load EPG, record a
+>   program (`R`) or an entire series (`S`) from the guide, delete recordings,
+>   and edit or delete series rules.
+> - **Parental Controls** — per-profile tags, access schedules, and stream limits.
+> - **Metrics** — read-only snapshot / history / connections / routes panels.
+> - **Watch History** — every user's recently-watched items with an optional
+>   filter-by-user.
+> - **Duplicates** — duplicate groups per library, with an armed merge.
+> - **Webhooks** — subscriptions with their URL, events, and enabled status.
+> - **Auth Providers** — OIDC / LDAP / GitHub providers with enable / disable and a
+>   per-provider settings form.
+> - **Server Restart** — a graceful worker reload, confirmed by the server's own
+>   ack (no polling).
+> - **Filesystem** — a navigable listing of the server's configured browse roots
+>   and their subdirectories.
+>
+> **Cast** is not an admin section — press `C` on a media **detail** screen to
+> discover **Chromecast / Roku / AirPlay / DLNA** devices on the network, send the
+> item, and drive a transport overlay (pause / resume / stop). Seek is intentionally
+> omitted — the cast backends don't expose a uniform playback position.
+>
+> Also working today, inside the player: `a`, shift-`S` and shift-`C` open the
+> **track pickers** — the audio, subtitle (with an explicit Off) and chapter
+> tracks the item exposes; picking a chapter jumps to it, and picking a subtitle
+> turns the caption overlay on. `v` selects the playback **quality** of a
+> transcoded item, and `w` opens **"For You"** recommendations without leaving
+> playback. `y` opens the **SyncPlay watch party** modal — create your own room
+> (public or private) or join one the server lists; while you are in a room an
+> overlay tracks the room, its member count and the sync status, and the room's
+> play / pause / seek commands drive your player in step. `z` sets an in-player
+> **sleep timer** (presets 15 / 30 / 45 / 60 / 90 / 120 min; playback pauses
+> when the countdown expires, and the last preset you used is remembered).
 
 ## Test
 

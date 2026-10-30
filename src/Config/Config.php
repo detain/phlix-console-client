@@ -178,10 +178,21 @@ final class Config
         );
 
         $tmp = $path . '.' . bin2hex(random_bytes(4)) . '.tmp';
+        // Create the temp file under a 0o077 umask so its inode is born 0600:
+        // file_put_contents alone creates 0666 & ~umask (commonly 0644, world
+        // readable) and could only chmod after the fact - the plaintext window
+        // this closes. If pre-creation fails, the write below surfaces the same
+        // error it always did.
+        $previousUmask = umask(0o077);
+        $handle = @fopen($tmp, 'x');
+        umask($previousUmask);
+        if (is_resource($handle)) {
+            fclose($handle);
+        }
         if (@file_put_contents($tmp, $json) === false) {
+            @unlink($tmp);
             throw new \RuntimeException("Cannot write config file: {$path}");
         }
-        @chmod($tmp, 0o600);
 
         if (!@rename($tmp, $path)) {
             @unlink($tmp);

@@ -5,7 +5,7 @@ protocols, each with different capabilities and terminal support.
 
 ## Supported Protocols
 
-| Protocol | Terminal Support | Animation | Transparency | Max Colors |
+| Protocol | Terminal Support | Animation | Transparency | Max Colours |
 |----------|-----------------|-----------|--------------|------------|
 | **Half-block** (ANSI) | All | No | No | 16.7M (24-bit) |
 | **SIXEL** (DEC) | xterm, Mintty, mlterm, iTerm2 | Yes | Yes | 4096 |
@@ -24,7 +24,7 @@ protocols, each with different capabilities and terminal support.
    produce escape-sequence blobs for the graphics protocols, while the
    cell-based renderers (`HalfBlockRenderer`, `QuarterBlockRenderer`,
    `AsciiRenderer` — ANSI256 and TrueColor are tinted ASCII ramps) produce
-   colored characters, one terminal line per cell row.
+   coloured characters, one terminal line per cell row.
 3. **Overlay vs inline** — Graphics-protocol output is an opaque blob
    (`Mosaic::isInline()` is false), so `PosterLoader` hands it to
    sugar-image's `ImageLayer`: the text layout reserves marker blocks and
@@ -36,7 +36,7 @@ protocols, each with different capabilities and terminal support.
 ### SIXEL (DEC Standard Graphics)
 
 SIXEL encodes images as a series of 6-pixel-tall "decks" (attribute blocks).
-Each deck is transmitted as a bitmap with a color palette index. The sequence
+Each deck is transmitted as a bitmap with a colour palette index. The sequence
 is wrapped in a DCS (Device Control String) with ST (String Terminator).
 
 ```
@@ -45,7 +45,7 @@ ESC P p ... p ESC \
 
 - **Strengths**: Widest terminal support among graphics protocols, built into
   DEC terminals since the 1980s.
-- **Limitations**: 6-pixel row granularity, limited color depth on older
+- **Limitations**: 6-pixel row granularity, limited colour depth on older
   emulators.
 
 ### iTerm2 Inline Images
@@ -57,7 +57,7 @@ stream using the DCS sequence with the `i` parameter:
 ESC ]1337;File=name=...;size=...;inline=1:base64data ESC \
 ```
 
-- **Strengths**: True 24-bit color, animation support, no external tools
+- **Strengths**: True 24-bit colour, animation support, no external tools
   needed when images are pre-encoded.
 - **Limitations**: iTerm2-specific — does not work in other terminals.
 

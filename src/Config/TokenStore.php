@@ -14,8 +14,9 @@ namespace Phlix\Console\Config;
  * `~/.config/phlix/token.json`). Tokens are keyed by server id so multiple
  * servers can each have their own token set.
  *
- * The token file is written 0600 (owner-only) via a temp-file + rename so it
- * is never momentarily world-readable.
+ * The token file is written 0600 (owner-only): the temp file is created under
+ * a 0o077 umask so it is born 0600 - never even momentarily world-readable -
+ * and renamed into place atomically.
  *
  * Migration: on load, if the legacy flat TokenBundle format is detected (a
  * single `access_token` key without `by_server` wrapper), the existing bundle
@@ -213,10 +214,21 @@ final class TokenStore
         $json = json_encode($out, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 
         $tmp = $this->path . '.' . bin2hex(random_bytes(4)) . '.tmp';
+        // Create the temp file under a 0o077 umask so its inode is born 0600:
+        // file_put_contents alone creates 0666 & ~umask (commonly 0644, world
+        // readable) and could only chmod after the fact - the plaintext window
+        // this closes. If pre-creation fails, the write below surfaces the same
+        // error it always did.
+        $previousUmask = umask(0o077);
+        $handle = @fopen($tmp, 'x');
+        umask($previousUmask);
+        if (is_resource($handle)) {
+            fclose($handle);
+        }
         if (@file_put_contents($tmp, $json) === false) {
+            @unlink($tmp);
             throw new \RuntimeException("Cannot write token file: {$this->path}");
         }
-        @chmod($tmp, 0o600);
 
         if (!@rename($tmp, $this->path)) {
             @unlink($tmp);

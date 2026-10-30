@@ -255,6 +255,7 @@ bin/phlix poster /path/to/poster.jpg 40
 | Key | Action |
 | --- | --- |
 | `/` | Global search (or filter within a grid) |
+| Filter bar keys | While the library filter bar is open: `Tab` cycles to the next field (shift-`Tab` back), `←`/`→` change the focused field's value, `c` clears all filters, `Esc` closes the bar (applied filters stay) |
 | `Ctrl-K` or `:` | Open command palette |
 
 #### Media playback
@@ -355,7 +356,7 @@ show yet, the screen says so.
 | **Playlists** | Your playlists — the same server-side list as Collections (`GET /api/v1/collections`), with the same keys including the notice-only `a`/`r` pair |
 | **Favorites** | Everything you favorited (`F` toggles on a detail screen); `Enter` opens |
 | **Recently Watched** | Your watch history — `H` on the home sidebar or the palette's Watch History action; `Enter` opens the recorded item's detail screen |
-| **Recommendations** | "For You" — personal suggestions built from your watching (`GET /api/v1/me/recommendations`); opened with `w` in the player, `Enter` opens, `x` dismisses a suggestion |
+| **Recommendations** | "For You" — personal suggestions built from your watching (`GET /api/v1/me/recommendations`); opened with `w` in the player. Navigate with `↑`/`↓` (or `j`/`k`), `Enter` opens, `x`/`X` dismisses a suggestion, `q`/`Q`/`Esc` goes back |
 | **Servers** | Multi-server switcher — `Enter` switches the active server, `a` adds one manually (inline URL + label form; blank label falls back to the host), `h` imports from your hub, `r` removes; opened from the palette or Settings |
 | **Shared With Me** | Incoming hub shares — currently a placeholder view (it fetches the shares but lists nothing on screen; `a`/`r` still act on the first entry) |
 | **Invite Links** | Hub invite links — currently a placeholder view (no list rendered; `c` creates a link, `r` revokes the first entry) |

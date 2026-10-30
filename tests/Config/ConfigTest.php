@@ -59,6 +59,28 @@ final class ConfigTest extends TestCase
         self::assertSame('0600', substr(sprintf('%o', fileperms($path)), -4));
     }
 
+    public function testSaveUnderAnOpenUmaskStillLandsOwnerOnlyAndRestoresTheCaller(): void
+    {
+        $path = $this->dir . '/config.json';
+        $previous = umask(0o000);
+
+        try {
+            $config = new Config(
+                servers: [new ServerEntry(id: 's1', label: 'Server', url: 'https://srv')],
+                activeServerId: 's1',
+            );
+            $config->save($path);
+
+            // Same contract as TokenStore: the temp file is created under a
+            // 0o077 mask (born 0600, never momentarily world-readable) and the
+            // caller's umask is restored before save() returns.
+            self::assertSame(0o000, umask());
+            self::assertSame('0600', substr(sprintf('%o', fileperms($path)), -4));
+        } finally {
+            umask($previous);
+        }
+    }
+
     public function testLoadMissingFileReturnsDefaults(): void
     {
         $config = Config::load($this->dir . '/does-not-exist.json');

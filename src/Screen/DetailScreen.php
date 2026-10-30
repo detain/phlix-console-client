@@ -1428,21 +1428,24 @@ final class DetailScreen implements Breadcrumbed, Themed
 
     /**
      * Extract a two-character initials abbreviation from a name.
+     *
+     * Codepoint cuts (mb_substr) and codepoint case folding
+     * (mb_strtoupper), never byte substr()/strtoupper(): on UTF-8 names the
+     * byte pair split accented and non-Latin characters into mojibake tails,
+     * and byte strtoupper corrupts them outright (house idiom - see Truncate,
+     * FilterBar, SyncPlayModal).
      */
     private function initials(string $name): string
     {
         $trimmed = trim($name);
         $parts = preg_split('/\s+/', $trimmed);
-        if ($parts === false) {
-            return strtoupper(substr($trimmed, 0, 2));
+        if ($parts === false || count($parts) === 1) {
+            return mb_strtoupper(mb_substr($trimmed, 0, 2, 'UTF-8'), 'UTF-8');
         }
-        if (count($parts) === 1) {
-            return strtoupper(substr($trimmed, 0, 2));
-        }
-        $first = substr($parts[count($parts) - 1], 0, 1);
-        $second = substr($parts[0], 0, 1);
+        $first = mb_substr($parts[count($parts) - 1], 0, 1, 'UTF-8');
+        $second = mb_substr($parts[0], 0, 1, 'UTF-8');
 
-        return strtoupper($first . $second);
+        return mb_strtoupper($first . $second, 'UTF-8');
     }
 
     /** A human runtime — TMDB minutes if present, else the probed duration seconds. */

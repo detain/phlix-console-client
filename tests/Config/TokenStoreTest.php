@@ -61,6 +61,24 @@ final class TokenStoreTest extends TestCase
         self::assertSame('0600', substr(sprintf('%o', fileperms($this->path)), -4));
     }
 
+    public function testSaveUnderAnOpenUmaskStillLandsOwnerOnlyAndRestoresTheCaller(): void
+    {
+        $previous = umask(0o000);
+
+        try {
+            (new TokenStore($this->path))->save(new TokenBundle('a', 'r'));
+
+            // The temp file is created under a 0o077 mask, so the end state is
+            // 0600 even when the caller's umask would admit world reads - and
+            // persist() must restore the caller's umask on the way out (a 0o077
+            // leak would poison every later file the process creates).
+            self::assertSame(0o000, umask());
+            self::assertSame('0600', substr(sprintf('%o', fileperms($this->path)), -4));
+        } finally {
+            umask($previous);
+        }
+    }
+
     public function testSaveLeavesNoTempFilesBehind(): void
     {
         $store = new TokenStore($this->path);
