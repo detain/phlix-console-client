@@ -90,6 +90,9 @@ final class SyncPlayModalBackspaceTest extends TestCase
             // Two women joined by ZWJ: one keystroke removes the last
             // codepoint; the ZWJ is its own deletion step afterwards.
             'zwj sequence' => ["\u{1F469}\u{200D}\u{1F469}", "\u{1F469}\u{200D}", "\u{1F469}"],
+            // M43's headline example: CJK — every character is a 3-byte BMP
+            // codepoint, the width the 2B/4B pins only bounded by sandwich.
+            'cjk characters' => ["\u{4F1A}\u{8B70}\u{5BA4}", "\u{4F1A}\u{8B70}", "\u{4F1A}"],
         ];
     }
 

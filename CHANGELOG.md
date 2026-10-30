@@ -5,6 +5,33 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — rider W16 R-CONSOLE-16: the M43 backspace battery gains its headline CJK case — one provider row for 会議室, the 3-byte BMP width the 2- and 4-byte pins previously only bounded by sandwich — 2026-10-30
+
+- **The ask.** M-CONSOLE-43__r2 (non-blocking note): "No dedicated CJK test
+  case despite the item's headline example — subsumed by codepoint semantics
+  and bounded by 2B/4B pins; if a rider lane ever touches this file, add one
+  line to the provider." Condition proven on disk: `src/Ui/SyncPlayModal.php`
+  was touched by later cures after the M43 landing (`65a31fa` M42 display
+  width, `0c78bfd`/`b2ee856`/`84c03d6` minors clusters) while
+  `combiningSequenceProvider` still carried only the 2-byte accent, the
+  combining acute and the ZWJ rows — no 3-byte case existed anywhere in
+  `tests/` (CJK grep rc=1). No labeled R-CONSOLE-16 landing existed.
+- **The cure.** One dataset row, exactly as the review prescribed: `'cjk
+  characters' => ["\u{4F1A}\u{8B70}\u{5BA4}", "\u{4F1A}\u{8B70}",
+  "\u{4F1A}"]` — the item's headline `会議室` typed, then cut per codepoint
+  (one keystroke sheds 室, the next 議). Written as `\u{}` escapes per the
+  file's own fixture-source law, never literals. Zero product behavior
+  touched: the pin documents the shipped codepoint rule at the width that
+  motivated the fix.
+- **Gates.** File alone 7/32 → 8/38 (+1 test / +6 assertions — `createMode`
+  contributes two assertions per dataset); FULL serial 3492/21510 →
+  **3493 tests / 21516 assertions**, dep-15/skip-15 baseline held, exit 0.
+  phpcs repo `phpcs-tests.xml` and bare PSR12 on the changed file both rc 0.
+  i18n catalogs 6×68 parity and the hardcoded-string gate pass — no catalog
+  touched (the ask is the display-width/encoding family, not the lang
+  vocabulary), no rotation. Historical entries verbatim; this forward entry
+  prepended.
+
 ### Fixed — rider W15 R-CONSOLE-15: refreshing the Servers screen replaces its frame in place instead of pushing a second one — the stack no longer grows per add and per 'h' — 2026-10-30
 
 - **The observation.** The review (riders W15, R-CONSOLE-15, first named in
