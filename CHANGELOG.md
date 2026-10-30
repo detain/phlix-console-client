@@ -5,6 +5,40 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — rider W22 R-CONSOLE-22: law 5 of `TerminalGraphicsDocsTest` gains the docblock word on its mention-form tolerance — the word-boundary regex is deliberately satisfied by unbackticked doc mentions (the Architecture diagram's box text counts), because the law guards name presence, not typography — 2026-10-30
+
+- **The ask.** M-CONSOLE-49__r1 non-blocking note, queued as rider
+  R-CONSOLE-22: "Law 5 `\b` regex is satisfied by unbackticked mentions
+  (diagram box text counts) — deliberate tolerance, worth a docblock word
+  only." Condition checked first per the CON-19/21 model: no R-CONSOLE-22
+  landing on origin/master (`git log --grep` empty), `git log -S` for the
+  ask's exact strings ("unbackticked", "worth a docblock word") empty, and
+  no tolerance note anywhere in tests/Docs or docs at tip — not landed.
+- **The cure.** Exactly the ask's scope — a note on the law's own method:
+  `testEncoderClassesTheDocNamesStillExist` gains a docblock recording the
+  tolerance and its reason — the law's duty is that every class the poster
+  pipeline is built on stays NAMED in the doc (the vendor-rename and
+  doc-sweep alarm this file exists for), not how a mention is typeset, and
+  ASCII-art columns cannot carry backticks without tearing the diagram's
+  alignment. The note states the measured tip truth: no mention form is
+  load-bearing alone today — all twelve `CITED_CLASSES` names carry a
+  backticked prose mention, and the Architecture diagram's boxes
+  independently satisfy seven of them (measured: `grep -w` over the fenced
+  block: MosaicFactory, Mosaic, ImageSource and the four contiguous
+  renderer names; HalfBlock/QuarterBlock split across box lines, so those
+  ride prose only). Docs untouched; zero behavior change.
+- **Gates.** Comment-only change, every count held from tip and re-
+  measured with the CHANGELOG entry in place: FULL serial 3501 tests /
+  21558 assertions / dep-15 / skip-15, exit 0, IDENTICAL before and after
+  (targeted file 8 tests / 60 assertions green both sides); phpstan prod
+  shows only the inherited AdminClient:2697 return.type pin (do-not-fix,
+  src/ untouched), phpstan-tests [OK]; phpcs repo tests config AND bare
+  PSR12 on the changed file both rc 0; i18n hardcoded + catalogs gates
+  rc 0, no catalog touched. No new test methods — the eight-law census is
+  unchanged (law 5's bullet untouched; the note rides the method).
+  Historical CHANGELOG verbatim, forward entry prepended
+  [review riders W22].
+
 ### Fixed — rider W21 R-CONSOLE-21: the Architecture diagram's mode edge no longer compresses the chronology — argv parsing runs at bin/phlix top level and buildContainer only CONSUMES the parsed mode — the label mirrors the two-step phrasing the CHANGELOG already states, and law 6 pins both sides — 2026-10-30
 
 - **The ask.** M-CONSOLE-49__r2 minor N2, queued as rider R-CONSOLE-21:

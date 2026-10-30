@@ -186,6 +186,23 @@ final class TerminalGraphicsDocsTest extends TestCase
         }
     }
 
+    /**
+     * Law 5, and the tolerance the M-CONSOLE-49 r1 review asked to have on
+     * record (rider R-CONSOLE-22, "worth a docblock word"): the doc-side
+     * check is a word-boundary regex on the short name, so it is DELIBERATELY
+     * satisfied by unbackticked mentions too — the Architecture diagram's box
+     * text (the MosaicFactory header, the ImageSource row, the renderer row)
+     * counts just like the backticked prose mentions. The law guards that
+     * every class the poster pipeline is built on stays NAMED in the doc —
+     * the vendor-rename and doc-sweep alarm this file exists for — not how a
+     * mention is typeset. A backtick-requiring regex would redden on
+     * legitimate box-width reality: ASCII art cannot carry backticks without
+     * tearing the diagram's column alignment. Today no mention form is
+     * load-bearing alone — all twelve cited names carry a backticked prose
+     * mention at tip — so the tolerance costs nothing now and keeps the
+     * diagram's own boxes from being deleted out from under a future prose
+     * edit. The class-exists half of the law is unaffected by this note.
+     */
     public function testEncoderClassesTheDocNamesStillExist(): void
     {
         $doc = self::readRepoFile(self::GRAPHICS_DOC);
