@@ -5,6 +5,8 @@
  * @license   MIT
  */
 
+declare(strict_types=1);
+
 namespace Phlix\Console\Store;
 
 use Phlix\Console\Api\ApiClient;

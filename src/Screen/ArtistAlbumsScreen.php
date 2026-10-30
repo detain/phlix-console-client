@@ -5,6 +5,8 @@
  * @license   MIT
  */
 
+declare(strict_types=1);
+
 namespace Phlix\Console\Screen;
 
 use Phlix\Console\Api\AuthError;

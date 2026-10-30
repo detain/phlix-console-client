@@ -693,9 +693,9 @@ final class BrowseScreenTest extends TestCase
 
     public function testFailedLibrariesShowsError(): void
     {
-        [$next] = $this->screen()->update(new LibrariesFailedMsg('Could not load your libraries.'));
+        [$next] = $this->screen()->update(new LibrariesFailedMsg('Could not load libraries.'));
 
-        self::assertStringContainsString('Could not load your libraries.', $next->view());
+        self::assertStringContainsString('Could not load libraries.', $next->view());
     }
 
     public function testViewRendersPopulatedRail(): void

@@ -23,6 +23,7 @@ use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\SubscriptionCapable;
+use SugarCraft\Core\Util\Width;
 
 /**
  * The admin Metrics & Traffic screen: read-only panels showing server metrics
@@ -248,9 +249,12 @@ final class AdminMetricsScreen implements Breadcrumbed, Themed
             $count = is_numeric($countVal) ? (int) $countVal : 0;
             /** @var float $p95 */
             $p95 = is_numeric($p95Val) ? (float) $p95Val : 0.0;
-            // Truncate long routes
-            if (strlen($path) > 30) {
-                $path = '...' . substr($path, -27);
+            // One clipping convention estate-wide (M-CONSOLE-74): cell-aware
+            // middle truncation keeps BOTH ends of the route grapheme-safe —
+            // the old byte cut ('...' . substr(-27)) corrupted non-ASCII
+            // paths and hid the head the operator scans for.
+            if (Width::string($path) > 30) {
+                $path = Width::truncateMiddle($path, 30);
             }
             $lines[] = "{$method} {$path}  {$count}  p95:" . $this->formatMs($p95);
         }

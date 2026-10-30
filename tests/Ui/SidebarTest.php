@@ -164,6 +164,30 @@ final class SidebarTest extends TestCase
         }
     }
 
+    public function testClippedLabelsSayTruncatedWithTheSharedEllipsisChoke(): void
+    {
+        // M-CONSOLE-74 — one clipping convention estate-wide: the shared
+        // Truncate::withEllipsis choke, not the old silent character chop.
+        $bar = Sidebar::new(12)->withEntries($this->entries('Synthwave Playlists', 'Jazz'));
+        $clipLine = null;
+        $fitLine = null;
+        foreach ($this->lines($bar->render(4)) as $line) {
+            $plain = $this->strip($line);
+            if (str_contains($plain, 'Synthwave')) {
+                $clipLine = $plain;
+            }
+            if (str_contains($plain, 'Jazz')) {
+                $fitLine = $plain;
+            }
+        }
+
+        self::assertNotNull($clipLine, 'the clipped entry must still be on screen');
+        self::assertSame(12, mb_strlen($clipLine));
+        self::assertStringEndsWith('…', rtrim($clipLine), 'a clipped label ends with the ellipsis, never a silent cut');
+        self::assertNotNull($fitLine, 'the fitting entry renders');
+        self::assertStringNotContainsString('…', rtrim($fitLine), 'a label within budget is returned untouched');
+    }
+
     public function testRenderWindowsALongListAroundTheSelection(): void
     {
         // 20 entries, a 6-row block (1 title + 5 list rows). Selecting deep in

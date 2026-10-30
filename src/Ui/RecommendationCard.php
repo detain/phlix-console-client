@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Ui;
 
+use SugarCraft\Core\Util\Width;
 use SugarCraft\Style\Style;
 
 /**
@@ -16,7 +17,10 @@ use SugarCraft\Style\Style;
  *
  * Shows title, year, "Because You Watched" badge, and match score.
  * All colour comes from the active {@see Theme} (M-CONSOLE-48) — the card
- * itself carries no hexes.
+ * itself carries no hexes. The title line is cell-aware end to end: it is
+ * ellipsis-truncated by the shared {@see Truncate} choke and padded by
+ * {@see Width} to the caller's width, so a long server title can never
+ * push the card past the terminal (M-CONSOLE-68 · 72).
  */
 final readonly class RecommendationCard
 {
@@ -56,7 +60,7 @@ final readonly class RecommendationCard
         return new self($id, $title, $year, $score);
     }
 
-    public function render(Theme $theme): string
+    public function render(Theme $theme, int $titleWidth = 50): string
     {
         $accent = $theme->widgetStyle(Theme::ROLE_STAR);
         $badge = $theme->widgetStyle(Theme::ROLE_BADGE);
@@ -66,7 +70,8 @@ final readonly class RecommendationCard
         $scorePercent = (int) ($this->score * 100);
         $yearStr = $this->year !== null ? (string) $this->year : '';
 
-        $line1 = $accent->render('★ ') . $title->render(str_pad($this->title, 50));
+        $line1 = $accent->render('★ ')
+            . $title->render(Width::padRight(Truncate::withEllipsis($this->title, $titleWidth), $titleWidth));
         $line2 = '  ' . $dim->render($yearStr);
         $line2 .= '  ' . $badge->render('Because You Watched');
         $line2 .= '  ' . $accent->render($scorePercent . '% match');

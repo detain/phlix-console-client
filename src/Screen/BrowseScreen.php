@@ -237,7 +237,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
             static fn (array $libs): Msg => new LibrariesLoadedMsg($libs),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
-                : new LibrariesFailedMsg('Could not load your libraries.'),
+                : new LibrariesFailedMsg('Could not load libraries.'),
         ));
     }
 
@@ -257,7 +257,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
             static fn (\Phlix\Console\Api\Dto\MediaPage $page): BrowseFavoritesLoadedMsg => new BrowseFavoritesLoadedMsg($page->items),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
-                : new FavoritesFailedMsg('Could not load your favorites.'),
+                : new FavoritesFailedMsg('Could not load favorites.'),
         ));
     }
 

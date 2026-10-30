@@ -124,7 +124,9 @@ final readonly class Sidebar
     /** Truncate then pad a label to exactly {@see width} display columns. */
     private function cell(string $label): string
     {
-        return Width::padRight(Width::truncate($label, $this->width), $this->width);
+        // One clipping convention estate-wide (M-CONSOLE-74): the shared
+        // ellipsis choke, then cell-aware pad back to the exact width.
+        return Width::padRight(Truncate::withEllipsis($label, $this->width), $this->width);
     }
 
     /**

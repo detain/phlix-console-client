@@ -127,7 +127,7 @@ final class AdminUsersScreenTest extends TestCase
         self::assertFalse($failed->isLoaded());
         self::assertNotNull($failed->error());
         $view = $failed->view();
-        self::assertStringContainsString('Could not load the users', $view);
+        self::assertStringContainsString('Could not load users', $view);
         self::assertStringContainsString('Press r to retry', $view);
     }
 

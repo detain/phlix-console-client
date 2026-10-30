@@ -15,6 +15,8 @@ use PHPUnit\Framework\TestCase;
 use SugarCraft\Core\BatchMsg;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Msg\KeyMsg;
+use SugarCraft\Core\Util\Ansi;
+use SugarCraft\Core\Util\Width;
 
 final class RecommendationsScreenTest extends TestCase
 {
@@ -309,6 +311,31 @@ final class RecommendationsScreenTest extends TestCase
     }
 
     // ---- helpers -------------------------------------------------------
+
+    public function testANarrowViewportTruncatesTheCardLineInsteadOfWrappingIt(): void
+    {
+        $transport = new FakeTransport();
+        $api = new ApiClient('https://srv', $transport);
+        $screen = new RecommendationsScreen($api, 30, 24);
+
+        [$loaded] = $screen->update(new RecommendationsLoadedMsg([
+            ['id' => 'rec-1', 'title' => 'The Extremely Long Title That Will Never Fit Any Terminal', 'year' => 2024, 'score' => 0.95],
+        ]));
+
+        $cardLines = 0;
+        foreach (explode("\n", $loaded->view()) as $line) {
+            if (str_contains($line, '★')) {
+                $cardLines++;
+                self::assertLessThanOrEqual(
+                    30,
+                    Width::string(Ansi::strip($line)),
+                    'a recommendation line must fit the viewport instead of wrapping it (M-CONSOLE-72)'
+                );
+            }
+        }
+
+        self::assertSame(1, $cardLines, 'the loaded card must be on screen');
+    }
 
     private function screenWith(): RecommendationsScreen
     {

@@ -1481,7 +1481,9 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
         }
 
         // s → skip the intro/outro segment under the playhead (if any).
-        if ($msg->type === KeyType::Char && ($msg->rune === 's' || $msg->rune === 'S')) {
+        // Uppercase 'S' never reaches here: the subtitle picker arm above
+        // consumes it (docs law — shift-runes open pickers, plain-runes act).
+        if ($msg->type === KeyType::Char && ($msg->rune === 's')) {
             return $this->skipMarker();
         }
 
@@ -1491,7 +1493,9 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
         }
 
         // c → toggle captions (lazily fetching the track on first enable).
-        if ($msg->type === KeyType::Char && ($msg->rune === 'c' || $msg->rune === 'C')) {
+        // Uppercase 'C' never reaches here: the chapter picker arm above
+        // consumes it (docs law — shift-runes open pickers, plain-runes act).
+        if ($msg->type === KeyType::Char && ($msg->rune === 'c')) {
             return $this->toggleCaptions();
         }
 

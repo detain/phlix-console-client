@@ -2258,7 +2258,7 @@ final class App implements Model
     // same epoch discipline relocated VERBATIM from AudiobookDetailScreen.
 
     /** A toast shown when an audiobook can't be played (missing stream URL). */
-    private const PLAY_AUDIOBOOK_FAILED = 'Cannot play this audiobook.';
+    private const PLAY_AUDIOBOOK_FAILED = 'Could not play this audiobook.';
 
     /**
      * Play (or seek) $audiobook at $startMs (a chapter start, or a resume

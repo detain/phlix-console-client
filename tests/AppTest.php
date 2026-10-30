@@ -2601,7 +2601,7 @@ final class AppTest extends TestCase
         $toast = $cmd?->__invoke();
         self::assertInstanceOf(ShowToastMsg::class, $toast);
         self::assertSame(ToastType::Error, $toast->type);
-        self::assertStringContainsString('Cannot play', $toast->message);
+        self::assertStringContainsString('Could not play', $toast->message);
         self::assertNull($after->nowPlaying(), 'nothing starts playing');
         self::assertCount(0, $this->abPlays, 'the factory is never called');
     }
