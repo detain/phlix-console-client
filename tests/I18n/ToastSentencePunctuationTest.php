@@ -113,7 +113,7 @@ final class ToastSentencePunctuationTest extends TestCase
         $pins = [
             'src/Screen/AdminUsersScreen.php' => ['User updated', 'User created'],
             'src/Screen/AdminLibrariesScreen.php' => ['Library job queued'],
-            'src/Ui/SyncPlayModal.php' => ['An error occurred'],
+            'src/Ui/SyncPlayModal.php' => ['Could not complete the action'],
             'src/Screen/AdminServerRestartScreen.php' => ['Restart signal sent'],
         ];
         foreach ($pins as $relative => $sentences) {
@@ -141,8 +141,8 @@ final class ToastSentencePunctuationTest extends TestCase
     {
         $source = (string) file_get_contents(__DIR__ . '/../../src/Screen/PlayerScreen.php');
 
-        $this->assertStringContainsString("'Subtitles failed to load.'", $source);
-        $this->assertStringNotContainsString("'Subtitles failed to load'", $source);
+        $this->assertStringContainsString("'Could not load subtitles.'", $source);
+        $this->assertStringNotContainsString("'Could not load subtitles'", $source);
     }
 
     /** @return iterable<string> every src/ PHP file, path-normalized */

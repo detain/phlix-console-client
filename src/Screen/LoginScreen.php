@@ -107,6 +107,6 @@ final class LoginScreen implements Model, Themed, CapturesSlash
         }
         $body = implode("\n", $lines) . $this->form->view();
 
-        return Chrome::frame('Login', $body, 'Tab  next      Enter  sign in      s  sign up      Esc  quit', $this->cols, $this->rows, theme: $this->theme());
+        return Chrome::frame('Sign in', $body, 'Tab  next      Enter  sign in      s  sign up      Esc  quit', $this->cols, $this->rows, theme: $this->theme());
     }
 }

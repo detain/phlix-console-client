@@ -363,7 +363,7 @@ final class AppTest extends TestCase
 
         $text = $method->invoke($app, new \RuntimeException('SQLSTATE[HY000] [1045] /home/deploy/.phlix/keys.json'));
 
-        self::assertSame('Login failed. Please try again.', $text);
+        self::assertSame('Could not sign in. Please try again.', $text);
     }
 
     public function testLoginSucceededRoutesToBrowse(): void

@@ -298,8 +298,12 @@ bin/phlix run
 
 Keys: `↑↓←→` move · `⏎` open · `/` search (or filter, in a grid) · Ctrl-K / `:`
 command palette · A–Z jump · `p` play · `C` cast (on a detail screen) · `d`
-download (on a detail screen) · `Tab` switch focus on the home screen · `Esc`
-back · `Ctrl-C` quit.
+download (on a detail screen) · `R` refresh (home rails / library grids) · `s`
+shuffle-play the focused item (home rails / library grids) · `c` clear the grid
+filter · `u` / `n` jump to the Up Next rail (home) · `[` / `]` page the Most
+Watched rail (home) · `q` quit the home browse view · `H` history, `P` playlists
+and the `a` watch filter on the home sidebar · `Tab` switch focus on the
+home screen · `Esc` back · `Ctrl-C` quit.
 
 **Watch state** — on a media detail screen: `r` rate (a star picker, 1–5 stars =
 ratings 2–10), `F` favorite, `w` watched, `l` / `j` thumbs up / down (every one

@@ -107,7 +107,7 @@ final class LoginScreenTest extends TestCase
     {
         $view = LoginScreen::create('Invalid username or password.')->view();
 
-        self::assertStringContainsString('Login', $view);
+        self::assertStringContainsString('Sign in', $view);
         self::assertStringContainsString('Invalid username or password.', $view);
     }
 }

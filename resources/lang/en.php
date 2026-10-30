@@ -23,7 +23,7 @@ return [
 
     // ---- RecommendationsScreen ----------------------------------------
     'recommendations.title' => 'For You',
-    'recommendations.hint' => 'Q: Back  ↑↓: Navigate  Enter: Open  X: Dismiss',
+    'recommendations.hint' => 'q  back      ↑↓  navigate      ⏎  open      x  dismiss',
     'recommendations.load_failed' => 'Could not load recommendations.',
     'recommendations.loading' => 'Loading recommendations…',
     'recommendations.empty' => "No recommendations yet.\n  Start watching to get personalized suggestions!",
@@ -35,9 +35,9 @@ return [
     'detail.similar_load_failed' => 'Could not load similar titles.',
     'detail.missing_episodes_load_failed' => 'Could not load missing episodes.',
     'detail.children_load_failed' => 'Could not load this content.',
-    'detail.rating_save_failed' => 'Rating failed to save: ',
+    'detail.rating_save_failed' => 'Could not save the rating: ',
     'detail.play_notice' => '▶  This title has no playable source.',
-    'detail.actions_hint' => '▶  p  Play        Esc  Back',
+    'detail.actions_hint' => '▶  p  play        Esc  back',
     'detail.hint' => '↑↓  scroll synopsis      p  play      s  shuffle      C  cast      r  rate      F  favorite      w  watched      l  thumbs up      j  thumbs down      d  download      Esc  back',
     'detail.container_hint' => '↑↓←→  move      ⏎  open      s  shuffle      Esc  back',
     'detail.loading_hint' => 'Esc  back',

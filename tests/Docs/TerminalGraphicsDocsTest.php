@@ -25,7 +25,7 @@ use SugarCraft\Testing\Graphics\Mode;
  * MosaicFactory → sugar-image Mosaic → the protocol/cell renderers.
  *
  * Doctrine, per TokenFileNameDocsTest and ConfigVocabularyDocsTest: real state
- * is DERIVED from the code at runtime, never restated from prose. Six laws:
+ * is DERIVED from the code at runtime, never restated from prose. Seven laws:
  *
  * 1. README and docs/** name none of the retired decoder doubles. A doc
  *    re-advertising them reddens here until the prose AND this pin move again.
@@ -47,6 +47,9 @@ use SugarCraft\Testing\Graphics\Mode;
  *    the mode's source). The r1 review caught the diagram re-rooted on a
  *    "PlayerScreen —render mode→ MosaicFactory" edge the code contradicts; this
  *    law pins the true root so the diagram and the call graph move together.
+ * 7. The half-block colour depth is stated as 24-bit on every doc surface
+ *    and matches what HalfBlockRenderer actually emits (Ansi::fgRgb/bgRgb);
+ *    the fossil 16/256 claim reddens here (review M-CONSOLE-06).
  *
  * Historical CHANGELOG entries are exempt forever (history is verbatim); the
  * doc sweep deliberately never reads it.
@@ -237,6 +240,65 @@ final class TerminalGraphicsDocsTest extends TestCase
                 . 'rooted at the CLI mode source with PlayerScreen shown downstream (law 6).'
             );
         }
+    }
+
+    /**
+     * M-CONSOLE-06: the half-block colour-depth claim must say the same
+     * truecolor thing on all three doc surfaces — the graphics protocol
+     * table, the README mode table, and the manual's Render modes row —
+     * and must match the code: HalfBlockRenderer tints every cell through
+     * Ansi::fgRgb()/Ansi::bgRgb() (24-bit escapes, no palette quantizing
+     * path). The fossil table cell claimed "16/256" and contradicted the
+     * other two docs; re-inverting either side reddens here.
+     */
+    public function testHalfBlockDepthIsStatedConsistentlyAcrossDocs(): void
+    {
+        $renderer = self::repoFile('vendor/sugarcraft/sugar-image/src/Renderer/HalfBlockRenderer.php');
+        self::assertStringContainsString(
+            'Ansi::fgRgb(',
+            $renderer,
+            'HalfBlockRenderer no longer tints cells through Ansi::fgRgb() — '
+            . 'the half-block depth claims in three docs need re-deriving.'
+        );
+
+        $surfaces = [
+            'docs/terminal-graphics.md' => '/^\| \*\*Half-block\*\*.*$/m',
+            'README.md' => '/^\| `halfblock`.*$/m',
+            'docs/clients/console.md' => '/^\| `halfblock`.*$/m',
+        ];
+        foreach ($surfaces as $relative => $rowPattern) {
+            $text = self::repoFile($relative);
+            if (!preg_match($rowPattern, $text, $row)) {
+                throw new RuntimeException(
+                    $relative . ' lost the half-block mode row this law guards.'
+                );
+            }
+
+            self::assertStringContainsString(
+                '24-bit',
+                $row[0],
+                $relative . ' no longer states the half-block row as 24-bit.'
+            );
+        }
+
+        foreach (['docs/terminal-graphics.md', 'README.md', 'docs/clients/console.md'] as $relative) {
+            self::assertStringNotContainsString(
+                '16/256',
+                self::repoFile($relative),
+                $relative . ' re-claims a 16/256 colour half-block — the '
+                . 'renderer emits per-cell Ansi::fgRgb()/Ansi::bgRgb() truecolor.'
+            );
+        }
+    }
+
+    private static function repoFile(string $relative): string
+    {
+        $contents = @file_get_contents(self::repoRoot() . '/' . $relative);
+        if ($contents === false) {
+            throw new RuntimeException('cannot read repo file: ' . $relative);
+        }
+
+        return $contents;
     }
 
     /**

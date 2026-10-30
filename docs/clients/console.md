@@ -243,6 +243,12 @@ bin/phlix poster /path/to/poster.jpg 40
 | `Tab` | Switch focus (e.g., sidebar ↔ poster grid on home) |
 | `Ctrl-C` | Quit |
 | `A–Z` | Jump to a letter in a grid (A–Z rail) |
+| `R` | Refresh — re-fetch the home rails or the current library grid (`r` works there too) |
+| `s` | Shuffle-play the focused card (home rails and library grids) |
+| `c` | Clear the grid filter (library grids) |
+| `u` / `n` | Jump to the Up Next rail (home) |
+| `[` / `]` | Page the Most Watched rail (home, while it is focused) |
+| `q` | Quit the home browse view |
 
 #### Search and commands
 

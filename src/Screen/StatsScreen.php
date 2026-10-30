@@ -6,6 +6,7 @@ namespace Phlix\Console\Screen;
 
 use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\AuthError;
+use Phlix\Console\I18n\ExceptionSentences;
 use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\InitMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
@@ -100,7 +101,7 @@ final class StatsScreen implements Model
             ->then(fn ($stats) => new StatsLoadedMsg($stats))
             ->catch(fn (\Throwable $e): Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
-                : ShowToastMsg::error('Failed: ' . $e->getMessage()));
+                : ShowToastMsg::error(ExceptionSentences::sentence($e, 'stats overview', 'Could not load server statistics.')));
     }
 
     /** @return array{self, null} */

@@ -43,7 +43,7 @@ final class CollectionsScreen implements Model, Teardownable, Breadcrumbed, Them
     use SelectsNext;
     use SelectsPrevious;
 
-    private const HINT = 'Q: Back  ↑↓: Navigate  Enter: Open  A: Add item  R: Remove item  D: Delete';
+    private const HINT = 'q  back      ↑↓  navigate      ⏎  open      a  add      r  remove      d  delete';
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load collections.';
     private const ADD_ITEM_NOT_IMPLEMENTED = 'Add/remove items from the collection detail screen.';

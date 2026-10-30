@@ -991,7 +991,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
      * Fetch the subtitle tracks, pick the default (or first), fetch + parse its
      * WebVTT → SubtitleVttLoadedMsg(?WebVtt). If no track is available, returns
      * SubtitleVttLoadedMsg(null). On VTT fetch failure, returns ShowToastMsg::error
-     * ('Subtitles failed to load.') — the promise chain uses ->then(success)->catch(error)
+     * ('Could not load subtitles.') — the promise chain uses ->then(success)->catch(error)
      * rather than the two-argument .then(success, error) form to satisfy PHPStan level 9
      * type inference on ReactPHP promises.
      *
@@ -1014,10 +1014,10 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
                             try {
                                 return new SubtitleVttLoadedMsg(\SugarCraft\Video\Subtitle\WebVtt::parse($vttBody));
                             } catch (\Throwable $e) {
-                                return ShowToastMsg::error('Subtitles failed to load.');
+                                return ShowToastMsg::error('Could not load subtitles.');
                             }
                         },
-                        static fn (): Msg => ShowToastMsg::error('Subtitles failed to load.'),
+                        static fn (): Msg => ShowToastMsg::error('Could not load subtitles.'),
                     );
             },
             static fn (): Msg => new SubtitleVttLoadedMsg(null),
@@ -1197,7 +1197,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
                     $following();
                 }
 
-                return ShowToastMsg::error('Failed to mark as watched.');
+                return ShowToastMsg::error('Could not mark as watched.');
             },
         );
 
@@ -2047,7 +2047,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
         $loadRooms = Cmd::promise(
             fn (): PromiseInterface => $this->api->listSyncPlayGroups()->then(
                 static fn (array $rooms): Msg => new SyncPlayGroupsLoadedMsg($rooms),
-                static fn (\Throwable $e): Msg => new SyncPlayFailedMsg(ExceptionSentences::composed('Failed to load rooms', $e)),
+                static fn (\Throwable $e): Msg => new SyncPlayFailedMsg(ExceptionSentences::composed('Could not load rooms', $e)),
             ),
         );
 
@@ -2134,7 +2134,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
                                 1,
                             ));
                         },
-                        static fn (\Throwable $e): Msg => new SyncPlayFailedMsg(ExceptionSentences::composed('Failed to create room', $e)),
+                        static fn (\Throwable $e): Msg => new SyncPlayFailedMsg(ExceptionSentences::composed('Could not create room', $e)),
                     ),
                 );
 
@@ -2152,7 +2152,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
                             1,
                         ));
                     },
-                    static fn (\Throwable $e): Msg => new SyncPlayFailedMsg(ExceptionSentences::composed('Failed to join room', $e)),
+                    static fn (\Throwable $e): Msg => new SyncPlayFailedMsg(ExceptionSentences::composed('Could not join room', $e)),
                 ),
             );
 

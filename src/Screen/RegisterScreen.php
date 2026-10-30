@@ -105,6 +105,6 @@ final class RegisterScreen implements Model, Themed, CapturesSlash
         }
         $body = implode("\n", $lines) . $this->form->view();
 
-        return Chrome::frame('Register', $body, 'Tab  next      Enter  create account      Esc  back to login', $this->cols, $this->rows, theme: $this->theme());
+        return Chrome::frame('Sign up', $body, 'Tab  next      Enter  sign up      Esc  back to sign in', $this->cols, $this->rows, theme: $this->theme());
     }
 }

@@ -193,7 +193,7 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
             static fn (mixed $message): Msg => new ParentalActionDoneMsg(is_string($message) ? ($message === '' ? $fallback : $message) : $fallback),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
-                : ShowToastMsg::error(ExceptionSentences::sentence($e, 'parental controls action', 'Action failed.')),
+                : ShowToastMsg::error(ExceptionSentences::sentence($e, 'parental controls action', 'Could not update parental controls.')),
         ))];
     }
 

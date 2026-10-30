@@ -2487,7 +2487,7 @@ final class App implements Model
 
     private function friendlyError(\Throwable $error): string
     {
-        return ExceptionSentences::sentence($error, 'login', 'Login failed. Please try again.');
+        return ExceptionSentences::sentence($error, 'login', 'Could not sign in. Please try again.');
     }
 
     private function isInterrupt(KeyMsg $msg): bool

@@ -30,7 +30,7 @@ return [
     'recommendations.load_failed' => 'Impossible de charger les recommandations.',
     'recommendations.loading' => 'Chargement des recommandations…',
     'recommendations.empty' => "Pas encore de recommandations.\n  Regardez des titres pour recevoir des suggestions personnalisées !",
-    'recommendations.dismiss_failed' => "Impossible d'ignorer la recommandation.",
+    'recommendations.dismiss_failed' => "Impossible d’ignorer la recommandation.",
     'recommendations.crumb' => 'Pour vous',
 
     // ---- DetailScreen -------------------------------------------------
@@ -38,10 +38,10 @@ return [
     'detail.similar_load_failed' => 'Impossible de charger les titres similaires.',
     'detail.missing_episodes_load_failed' => 'Impossible de charger les épisodes manquants.',
     'detail.children_load_failed' => 'Impossible de charger ce contenu.',
-    'detail.rating_save_failed' => "Échec de l'enregistrement de la note : ",
-    'detail.play_notice' => "▶  Ce titre n'a aucune source lisible.",
+    'detail.rating_save_failed' => "Échec de l’enregistrement de la note : ",
+    'detail.play_notice' => "▶  Ce titre n’a aucune source lisible.",
     'detail.actions_hint' => '▶  p  Lire    Esc  Retour',
-    'detail.hint' => "↑↓  défilez le résumé      p  lire      s  aléatoire      C  distribution      r  noter      F  favori      w  vu      l  j'aime      j  je n'aime pas      d  télécharger      Esc  retour",
+    'detail.hint' => "↑↓  défilez le résumé      p  lire      s  aléatoire      C  distribution      r  noter      F  favori      w  vu      l  j’aime      j  je n’aime pas      d  télécharger      Esc  retour",
     'detail.container_hint' => '↑↓←→  déplacer      ⏎  ouvrir      s  aléatoire      Esc  retour',
     'detail.loading_hint' => 'Esc  retour',
     'detail.loading' => 'Chargement…',

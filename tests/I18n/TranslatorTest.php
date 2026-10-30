@@ -88,7 +88,7 @@ final class TranslatorTest extends TestCase
     {
         // Verify all RecommendationsScreen translation keys are accessible.
         self::assertSame('For You', Lang::t('recommendations.title'));
-        self::assertSame('Q: Back  ↑↓: Navigate  Enter: Open  X: Dismiss', Lang::t('recommendations.hint'));
+        self::assertSame('q  back      ↑↓  navigate      ⏎  open      x  dismiss', Lang::t('recommendations.hint'));
         self::assertSame('Your session expired. Please sign in again.', Lang::t('auth.session_expired'));
         self::assertSame('Could not load recommendations.', Lang::t('recommendations.load_failed'));
         self::assertSame('Loading recommendations…', Lang::t('recommendations.loading'));
