@@ -328,9 +328,9 @@ modal steps back to the room list before closing when you are mid-creation).
 
 | Key | Action |
 | --- | --- |
+| `p` | Play this title in the in-terminal player |
 | `C` | Cast to Chromecast/DLNA/AirPlay/Roku (on detail screen) |
-| `Space` | Play / pause (for music/audiobook) |
-| `r` | Resume audiobook from saved position |
+| `r` | Rate — opens the star picker (the full `r`/`F`/`w`/`l`/`j` loop is in Watching & ratings below) |
 | `u` | Search external subtitles for this title (candidates reported as a toast) |
 | `s` | Shuffle-play from this title (the footer spells it `s shuffle`; home rails and grids carry the same key) |
 
