@@ -1061,7 +1061,7 @@ final class AppTest extends TestCase
         self::assertNotNull($next->palette());
         self::assertInstanceOf(\Closure::class, $cmd, 'opening fires the libraries fetch');
         $labels = array_map(static fn ($a): string => $a->label, $next->palette()->actions());
-        self::assertSame(['Search', 'Home', 'Settings', 'Stats', 'Watch History', 'Favorites', 'Photos', 'Music Artists', 'Playlists', 'Collections', 'Servers', 'Shared With Me', 'Invite Links', 'Federation Shares', 'Show metrics', 'Log out', 'Quit'], $labels);
+        self::assertSame(['Search', 'Home', 'Settings', 'Stats', 'Watch History', 'Favorites', 'Photos', 'Music Artists', 'Playlists', 'Collections', 'Servers', 'Shared With Me', 'Invite Links', 'Federation Shares', 'Show metrics', 'Sign out', 'Quit'], $labels);
     }
 
     public function testCtrlKTogglesThePaletteClosed(): void
@@ -1158,7 +1158,7 @@ final class AppTest extends TestCase
     public function testPaletteEnterWithNoMatchClosesWithoutDispatch(): void
     {
         [$open] = $this->paletteApp()->update($this->ctrlK());
-        // none of Home / Log out / Quit contains a 'z'.
+        // none of Home / Sign out / Quit contains a 'z'.
         [$typed] = $open->update(new KeyMsg(KeyType::Char, 'z'));
         self::assertNull($typed->palette()->selectedAction());
 

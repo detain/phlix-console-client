@@ -2447,13 +2447,13 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
         $glyph = $inner->paused ? '⏸' : '▶';
         // A live resume hint wins over the skip prompt (resume usually clears the intro).
         $prompt = $this->resumeHint($inner) ?? $this->skipPrompt($inner);
-        $nav = $this->nextItem() !== null ? '  n next' : '';
-        $cc = $this->captionsOn ? '  c cc✓' : '  c cc';
-        $quality = $this->variants !== [] ? '  v quality' : '';
+        $nav = $this->nextItem() !== null ? Lang::t('player.hint_next') : '';
+        $cc = $this->captionsOn ? Lang::t('player.hint_captions_on') : Lang::t('player.hint_captions_off');
+        $quality = $this->variants !== [] ? Lang::t('player.hint_quality') : '';
         $sleepTimerDisplay = $this->sleepTimer->isActive()
-            ? '  z ⏰ ' . $this->sleepTimer->formatRemaining()
+            ? Lang::t('player.hint_sleep') . $this->sleepTimer->formatRemaining()
             : '';
-        $hint = 'Space ⏯  ←→ ±10s  [ ] speed  m mode' . $cc . $quality . $nav . $sleepTimerDisplay . '  q back';
+        $hint = Lang::t('player.hint_main') . $cc . $quality . $nav . $sleepTimerDisplay . Lang::t('player.hint_back');
 
         $title = Width::truncate($this->item->name, max(8, $this->cols - 60));
         $line = sprintf('%s %s%s   ·   %s', $glyph, $title, $prompt, $hint);

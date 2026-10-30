@@ -1046,7 +1046,7 @@ final class App implements Model
             );
             $actions[] = new PaletteAction('Stop playback', new StopAudioMsg());
         }
-        $actions[] = new PaletteAction('Log out', new RequestLogoutMsg());
+        $actions[] = new PaletteAction('Sign out', new RequestLogoutMsg());
         $actions[] = new PaletteAction('Quit', new RequestQuitMsg());
 
         return $actions;

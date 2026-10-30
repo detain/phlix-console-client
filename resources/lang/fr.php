@@ -61,6 +61,15 @@ return [
     'detail.missing_episodes_many' => '⚠  {count} épisodes manquants',
     'detail.loading_content' => 'Chargement…',
 
+    // ---- Player -------------------------------------------------------
+    'player.hint_main' => 'Space ⏯  ←→ ±10s  [ ] vitesse  m mode',
+    'player.hint_captions_off' => '  c ST',
+    'player.hint_captions_on' => '  c ST✓',
+    'player.hint_quality' => '  v qualité',
+    'player.hint_next' => '  n suivant',
+    'player.hint_sleep' => '  z ⏰ ',
+    'player.hint_back' => '  q retour',
+
     // ---- FilterBar ----------------------------------------------------
     'filter.search_placeholder' => '(tapez pour filtrer)',
     'filter.search_label' => 'Recherche : ',

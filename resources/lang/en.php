@@ -58,6 +58,18 @@ return [
     'detail.missing_episodes_many' => '⚠  {count} episodes missing',
     'detail.loading_content' => 'Loading…',
 
+    // ---- Player -------------------------------------------------------
+    // Fragments compose PlayerScreen's status-line hints: leading double
+    // spaces separate tokens, the key glyph stays untranslated, only the
+    // word moves (house doctrine, review M-CONSOLE-11/91).
+    'player.hint_main' => 'Space ⏯  ←→ ±10s  [ ] speed  m mode',
+    'player.hint_captions_off' => '  c cc',
+    'player.hint_captions_on' => '  c cc✓',
+    'player.hint_quality' => '  v quality',
+    'player.hint_next' => '  n next',
+    'player.hint_sleep' => '  z ⏰ ',
+    'player.hint_back' => '  q back',
+
     // ---- FilterBar ----------------------------------------------------
     'filter.search_placeholder' => '(type to filter)',
     'filter.search_label' => 'Search: ',

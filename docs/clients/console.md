@@ -176,9 +176,9 @@ bin/phlix run
 bin/phlix run --mode=sixel
 ```
 
-The first run asks for your Phlix server URL, then presents a login prompt.
+The first run asks for your Phlix server URL, then presents a sign-in prompt.
 On subsequent runs the stored tokens are used automatically. If you don't have
-an account on that server yet, press `s` at the login prompt to open the
+an account on that server yet, press `s` at the sign-in prompt to open the
 **Register** form and sign up in place (username, email, password — sent to
 `POST /api/v1/auth/register`); a server that requires approval reports your
 account as pending, and one with signups disabled says so.
@@ -261,7 +261,7 @@ bin/phlix poster /path/to/poster.jpg 40
 | `Ctrl-C` | Quit |
 | `A–Z` | Jump to a letter in a grid (A–Z rail) |
 | `R` | Refresh — re-fetch the home rails or the current library grid (`r` works there too) |
-| `s` | Shuffle-play the focused card (home rails and library grids) |
+| `s` | Shuffle-play the focused card (home rails, library grids, media detail) |
 | `c` | Clear the grid filter (library grids) |
 | `u` / `n` | Jump to the Up Next rail (home) |
 | `[` / `]` | Page the Most Watched rail (home, while it is focused) |
@@ -312,6 +312,7 @@ modal steps back to the room list before closing when you are mid-creation).
 | `Space` | Play / pause (for music/audiobook) |
 | `r` | Resume audiobook from saved position |
 | `u` | Search external subtitles for this title (candidates reported as a toast) |
+| `s` | Shuffle-play from this title (the footer spells it `s shuffle`; home rails and grids carry the same key) |
 
 #### Watching & ratings
 
@@ -363,9 +364,9 @@ show yet, the screen says so.
 | **Player** | In-terminal video player with scrubber and controls |
 | **Cast** | Casting target list — Chromecast/DLNA/AirPlay/Roku — opened with `C` on a detail screen (works on streamable items) |
 | **Search** | Global debounced search over virtualized results grid |
-| **Command palette** | Fuzzy-ranked actions: Search, Home, Settings, Stats, Watch History, Favorites, Photos, Music Artists, Playlists, Collections, Servers, Shared With Me, Invite Links, Federation Shares, Show metrics / Hide metrics, Log out, Quit — plus a `Go to <library>` jump per library, Admin when signed in as an admin, and Resume playback / Pause playback and Stop playback while a music or audiobook session is live |
+| **Command palette** | Fuzzy-ranked actions: Search, Home, Settings, Stats, Watch History, Favorites, Photos, Music Artists, Playlists, Collections, Servers, Shared With Me, Invite Links, Federation Shares, Show metrics / Hide metrics, Sign out, Quit — plus a `Go to <library>` jump per library, Admin when signed in as an admin, and Resume playback / Pause playback and Stop playback while a music or audiobook session is live |
 | **Admin** | Admin menu over the server: dashboard, users, auth providers, backups, plugins (install / catalog / edit / updates), logs, metrics, server settings, transcoding, libraries, filesystem, DLNA, port-forward candidates, server restart, live TV, parental profiles and controls, watch history, webhooks, duplicates |
-| **Settings** | Theme selection, photo slideshow interval; `s` opens **Servers**, `l` logs out |
+| **Settings** | Theme selection, photo slideshow interval; `s` opens **Servers**, `l` signs out |
 | **Stats** | Read-only server statistics screen — counts and health reported by the server via the admin API; the live metrics HUD is separate, toggled by the palette's Show/Hide metrics actions |
 | **Server Setup** | The first-run server-URL form — `Enter` connects, `Esc` quits |
 | **Login** | Sign-in form — `Tab` moves fields, `Enter` signs in, `s` opens **Register**, `Esc` quits |

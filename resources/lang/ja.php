@@ -61,6 +61,15 @@ return [
     'detail.missing_episodes_many' => '⚠  欠落エピソード {count} 話',
     'detail.loading_content' => '読み込み中…',
 
+    // ---- Player -------------------------------------------------------
+    'player.hint_main' => 'Space ⏯  ←→ ±10s  [ ] 再生速度  m モード',
+    'player.hint_captions_off' => '  c 字幕',
+    'player.hint_captions_on' => '  c 字幕✓',
+    'player.hint_quality' => '  v 画質',
+    'player.hint_next' => '  n 次へ',
+    'player.hint_sleep' => '  z ⏰ ',
+    'player.hint_back' => '  q 戻る',
+
     // ---- FilterBar ----------------------------------------------------
     'filter.search_placeholder' => '(入力して絞り込み)',
     'filter.search_label' => '検索: ',

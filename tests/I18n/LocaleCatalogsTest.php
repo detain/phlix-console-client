@@ -43,12 +43,15 @@ final class LocaleCatalogsTest extends TestCase
      * @var array<string, list<string>>
      */
     private const EN_IDENTITY_WHITELIST = [
-        'es' => ['filter.order_asc', 'filter.order_desc'],
-        'fr' => ['filter.order_asc', 'filter.order_desc'],
-        'de' => ['filter.order_asc', 'filter.order_desc'],
-        'it' => ['detail.cast_label', 'filter.order_asc', 'filter.order_desc'],
-        'pt-br' => ['detail.item', 'filter.order_asc', 'filter.order_desc'],
-        'ja' => [],
+        // 'player.hint_sleep' is the glyph-only countdown token ('  z ⏰ ') —
+        // there is no word to translate, so every locale mirrors en byte-for-
+        // byte (review M-CONSOLE-64; same class as the asc/desc order labels).
+        'es' => ['filter.order_asc', 'filter.order_desc', 'player.hint_sleep'],
+        'fr' => ['filter.order_asc', 'filter.order_desc', 'player.hint_sleep'],
+        'de' => ['filter.order_asc', 'filter.order_desc', 'player.hint_sleep'],
+        'it' => ['detail.cast_label', 'filter.order_asc', 'filter.order_desc', 'player.hint_sleep'],
+        'pt-br' => ['detail.item', 'filter.order_asc', 'filter.order_desc', 'player.hint_sleep'],
+        'ja' => ['player.hint_sleep'],
     ];
 
     /**
@@ -250,9 +253,23 @@ final class LocaleCatalogsTest extends TestCase
         }
     }
 
+    /**
+     * ja values that are translation-free glyph/whitespace tokens (the sleep
+     * countdown is '  z ⏰ ' + a number in every locale, review M-CONSOLE-64)
+     * — exempt from the "contains CJK" law, same family as the EN-identity
+     * whitelist above.
+     *
+     * @var list<string>
+     */
+    private const JA_GLYPH_ONLY_KEYS = ['player.hint_sleep'];
+
     public function testJapaneseCatalogContainsJapanese(): void
     {
         foreach ($this->catalog('ja') as $key => $value) {
+            if (in_array($key, self::JA_GLYPH_ONLY_KEYS, true)) {
+                continue;
+            }
+
             self::assertSame(
                 1,
                 preg_match('/[\x{3040}-\x{30FF}\x{4E00}-\x{9FFF}]/u', $value),

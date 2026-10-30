@@ -27,7 +27,7 @@ The command palette is the one keypress to all of it — **Search**, **Home**,
 **Shared With Me**, **Invite Links**, **Federation Shares**,
 **Show metrics** / **Hide metrics**, **Admin** (admins only),
 **Resume playback** / **Pause playback** / **Stop playback** (while a
-music or audiobook session is live), **Log out** and **Quit** — plus a
+music or audiobook session is live), **Sign out** and **Quit** — plus a
 **Go to <library>** jump per library.
 
 ## Documentation
@@ -157,7 +157,7 @@ composer update 'sugarcraft/*'
 
 ```sh
 # Launch the full-window app (needs a real TTY): first run asks for your server
-# URL, then log in. Browse rails + sidebar → open a library → grid → open a
+# URL, then sign in. Browse rails + sidebar → open a library → grid → open a
 # poster → detail → drill series/season/episode. Opening a music, book,
 # audiobook, or photo library routes to its own browser instead (album list /
 # book grid / audiobook list / photo albums). Press `/` to search and Ctrl-K
@@ -168,7 +168,7 @@ bin/phlix run
 Keys: `↑↓←→` move · `⏎` open · `/` search (or filter, in a grid) · Ctrl-K / `:`
 command palette · A–Z jump · `p` play · `C` cast (on a detail screen) · `d`
 download (on a detail screen) · `R` refresh (home rails / library grids) · `s`
-shuffle-play the focused item (home rails / library grids) · `c` clear the grid
+shuffle-play the focused item (home rails / library grids / media detail) · `c` clear the grid
 filter · `u` / `n` jump to the Up Next rail (home) · `[` / `]` page the Most
 Watched rail (home) · `q` quit the home browse view · `H` history, `P` playlists
 and the `a` watch filter on the home sidebar · `Tab` switch focus on the
@@ -186,7 +186,7 @@ The command palette (`Ctrl-K` or `:`) is the universal navigator: **Search**,
 **Home**, **Settings** (theme + slideshow interval), the read-only **Stats**
 screen, **Watch History**, **Favorites**, **Photos**, **Music Artists**,
 **Playlists**, **Collections**, **Servers**, **Shared With Me**, **Invite
-Links**, **Federation Shares**, **Show metrics** / **Hide metrics**, **Log out**,
+Links**, **Federation Shares**, **Show metrics** / **Hide metrics**, **Sign out**,
 **Quit** — plus a `Go to <library>` jump per library, the **Admin** menu
 when you're signed in as an admin (see *Status* below), and **Resume
 playback** / **Pause playback** and **Stop playback** while a music or
@@ -317,7 +317,7 @@ compatibility.
 > **Shared With Me**, **Invite Links**, **Federation Shares**, **Show metrics**
 > / **Hide metrics**, **Admin** (offered only while signed in as an admin),
 > **Resume playback** / **Pause playback** and **Stop playback** (while a music
-> or audiobook session is live), **Log out**, and **Quit** — plus a `Go to
+> or audiobook session is live), **Sign out**, and **Quit** — plus a `Go to
 > <library>` jump per library. The same census with what each action opens is
 > under **Run it** above and in the manual's [Screens](docs/clients/console.md#screens)
 > section.

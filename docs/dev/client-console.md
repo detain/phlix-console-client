@@ -554,6 +554,10 @@ reachability against the configured server.
   `src/`, `phpcs-tests.xml` for `tests/`)
 - **PHPStan level 9** (strict types, no mixed, no nullable returns unless documented)
 - All user-facing strings routed through `Lang::t()` / `Lang::_()` for i18n
+- User-facing account vocabulary is **sign in / sign out** everywhere: the
+  catalogs (`auth.*`), the command-palette labels in `App::staticActions()`,
+  and the docs all spell it the same way — do not mix in "log out"/"log in"
+  for surfaces the user reads (review M-CONSOLE-89)
 - Docblocks on all public methods
 - No `var_dump`, `print_r`, or debug output
 - Promises are React\Promise — never `yield` (no async/await syntax)

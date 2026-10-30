@@ -61,6 +61,15 @@ return [
     'detail.missing_episodes_many' => '⚠  {count} Folgen fehlen',
     'detail.loading_content' => 'Wird geladen…',
 
+    // ---- Player -------------------------------------------------------
+    'player.hint_main' => 'Space ⏯  ←→ ±10s  [ ] Tempo  m Modus',
+    'player.hint_captions_off' => '  c UT',
+    'player.hint_captions_on' => '  c UT✓',
+    'player.hint_quality' => '  v Qualität',
+    'player.hint_next' => '  n weiter',
+    'player.hint_sleep' => '  z ⏰ ',
+    'player.hint_back' => '  q zurück',
+
     // ---- FilterBar ----------------------------------------------------
     'filter.search_placeholder' => '(Tippen zum Filtern)',
     'filter.search_label' => 'Suchen: ',
