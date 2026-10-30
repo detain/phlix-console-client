@@ -45,6 +45,7 @@ Straight to the answers:
 | How do rating / favorite / watched persist? | [Watching & ratings](docs/clients/console.md#watching--ratings) |
 | How do I consume hub-relay play commands headless? | [Hub relay consumer](docs/clients/console.md#hub-relay-consumer-watch) |
 | "needs a TTY" / no graphics / expired session? | [Troubleshooting](docs/clients/console.md#troubleshooting) |
+| Which languages does the interface speak? | [Languages](docs/clients/console.md#languages) |
 
 Further reading: [i18n](docs/i18n.md) (the env locale chain),
 [terminal graphics](docs/terminal-graphics.md) (protocol capabilities),

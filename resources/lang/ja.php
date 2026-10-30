@@ -26,7 +26,7 @@ return [
 
     // ---- RecommendationsScreen ----------------------------------------
     'recommendations.title' => 'おすすめ',
-    'recommendations.hint' => 'Q: 戻る  ↑↓: 移動  Enter: 開く  X: 非表示',
+    'recommendations.hint' => 'Q: 戻る  ↑↓: 移動  ⏎: 開く  X: 非表示',
     'recommendations.load_failed' => 'おすすめを読み込めませんでした。',
     'recommendations.loading' => 'おすすめを読み込み中…',
     'recommendations.empty' => "まだおすすめはありません。\n  視聴を始めると、あなた向けの提案が表示されます！",
@@ -74,8 +74,8 @@ return [
     'syncplay.not_authenticated' => 'ウォッチグループを使う前にサインインしてください。',
     'syncplay.not_in_group' => '現在グループに参加していません。',
     'syncplay.not_host' => 'この操作はグループのホストだけが行えます。',
-    'syncplay.unknown_message' => 'サーバーが認識できないリクエストを拒否しました。',
-    'syncplay.handler_error' => '同期サーバーで問題が発生しました。',
+    'syncplay.unknown_message' => 'サーバーがそのリクエストを認識できませんでした。',
+    'syncplay.handler_error' => 'サーバーで問題が発生しました。',
     'syncplay.protocol_version_mismatch' => 'このアプリはサーバーのバージョンと互換性がありません。',
     'syncplay.invalid_new_host' => '要求された新しいホストは有効ではありません。',
     'syncplay.member_not_found' => 'そのメンバーはグループ内に見つかりませんでした。',

@@ -26,7 +26,7 @@ return [
 
     // ---- RecommendationsScreen ----------------------------------------
     'recommendations.title' => 'Für dich',
-    'recommendations.hint' => 'Q: Zurück  ↑↓: Navigieren  Enter: Öffnen  X: Verwerfen',
+    'recommendations.hint' => 'Q: Zurück  ↑↓: Navigieren  ⏎: Öffnen  X: Verwerfen',
     'recommendations.load_failed' => 'Empfehlungen konnten nicht geladen werden.',
     'recommendations.loading' => 'Empfehlungen werden geladen…',
     'recommendations.empty' => "Noch keine Empfehlungen.\n  Fange an zu schauen, um personalisierte Vorschläge zu erhalten!",
@@ -74,8 +74,8 @@ return [
     'syncplay.not_authenticated' => 'Melde dich an, bevor du synchronisierte Gruppen nutzt.',
     'syncplay.not_in_group' => 'Du bist in keiner synchronisierten Gruppe.',
     'syncplay.not_host' => 'Nur der Gruppenhost kann das tun.',
-    'syncplay.unknown_message' => 'Der Server hat eine unbekannte Anfrage abgelehnt.',
-    'syncplay.handler_error' => 'Auf dem Sync-Server ist etwas schiefgelaufen.',
+    'syncplay.unknown_message' => 'Der Server hat die Anfrage nicht erkannt.',
+    'syncplay.handler_error' => 'Auf dem Server ist etwas schiefgelaufen.',
     'syncplay.protocol_version_mismatch' => 'Diese App ist mit der Serverversion nicht kompatibel.',
     'syncplay.invalid_new_host' => 'Der angeforderte neue Host ist ungültig.',
     'syncplay.member_not_found' => 'Dieses Mitglied wurde in der Gruppe nicht gefunden.',

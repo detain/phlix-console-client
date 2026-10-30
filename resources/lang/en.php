@@ -27,7 +27,7 @@ return [
     'recommendations.load_failed' => 'Could not load recommendations.',
     'recommendations.loading' => 'Loading recommendations…',
     'recommendations.empty' => "No recommendations yet.\n  Start watching to get personalized suggestions!",
-    'recommendations.dismiss_failed' => 'Could not dismiss recommendation.',
+    'recommendations.dismiss_failed' => 'Could not dismiss the recommendation.',
     'recommendations.crumb' => 'For You',
 
     // ---- DetailScreen -------------------------------------------------
@@ -71,8 +71,8 @@ return [
     'syncplay.not_authenticated' => 'Sign in before using watch groups.',
     'syncplay.not_in_group' => 'You are not in a watch group.',
     'syncplay.not_host' => 'Only the group host can do that.',
-    'syncplay.unknown_message' => 'The server rejected an unrecognized request.',
-    'syncplay.handler_error' => 'Something went wrong on the sync server.',
+    'syncplay.unknown_message' => 'The server did not recognize that request.',
+    'syncplay.handler_error' => 'Something went wrong on the server.',
     'syncplay.protocol_version_mismatch' => 'This app is not compatible with the server version.',
     'syncplay.invalid_new_host' => 'The requested new host is not valid.',
     'syncplay.member_not_found' => 'That member was not found in the group.',

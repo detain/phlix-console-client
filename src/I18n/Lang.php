@@ -19,11 +19,11 @@ use SugarCraft\Core\I18n\T;
  * resources/lang/ directory as the translation catalog root.
  *
  * Usage:
- *   Lang::t('login.title');                  // => "Sign in to Phlix."
+ *   Lang::t('recommendations.title');        // => "For You"
  *   Lang::t('filter.search_placeholder');   // => "(type to filter)"
  *
  * Interpolation with {name} placeholders:
- *   Lang::t('errors.not_found', ['id' => $id]);
+ *   Lang::t('detail.more_cast', ['count' => 5]);  // => "  +5 more"
  */
 final class Lang extends BaseLang
 {

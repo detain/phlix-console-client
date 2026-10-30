@@ -93,7 +93,7 @@ final class TranslatorTest extends TestCase
         self::assertSame('Could not load recommendations.', Lang::t('recommendations.load_failed'));
         self::assertSame('Loading recommendations…', Lang::t('recommendations.loading'));
         self::assertNotEmpty(Lang::t('recommendations.empty'));
-        self::assertSame('Could not dismiss recommendation.', Lang::t('recommendations.dismiss_failed'));
+        self::assertSame('Could not dismiss the recommendation.', Lang::t('recommendations.dismiss_failed'));
     }
 
     public function testDetailScreenKeysExist(): void

@@ -150,7 +150,7 @@ final class LocaleCatalogsTest extends TestCase
      * anywhere in its catalog (pt-br's net is deliberately the compound
      * 'sessões sincronizadas': the bare 'sessão' stem is the legitimate
      * 'session' term in auth.session_expired and 'sincronização' the
-     * 'sync server' term in syncplay.handler_error, both probed at the
+     * 'sync error' term in syncplay.unknown_error, both probed at the
      * parent catalogs; it's bare 'sala' likewise appears nowhere else).
      *
      * @var array<string, string>

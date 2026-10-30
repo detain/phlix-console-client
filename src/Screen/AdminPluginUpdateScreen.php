@@ -171,7 +171,7 @@ final class AdminPluginUpdateScreen implements Breadcrumbed, Themed
         if ($msg->string() === 'Escape') {
             return [$this->withPendingApply(null)->withTyped(''), null];
         }
-        $newTyped = strlen($this->typed) < 6 ? $this->typed . $msg->rune : $this->typed;
+        $newTyped = mb_strlen($this->typed, 'UTF-8') < 6 ? $this->typed . $msg->rune : $this->typed;
 
         return [$this->withTyped($newTyped), null];
     }

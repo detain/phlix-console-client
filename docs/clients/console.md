@@ -144,6 +144,23 @@ Within that directory:
 | `PHLIX_HUB_TOKEN` | — | `watch`: hub user access token used to mint relay tokens (preferred over `--hub-token`) |
 | `PHLIX_RELAY_TOKEN` | — | `watch`: ready-made relay token, skips minting (preferred over `--relay-token`) |
 
+## Languages
+
+The interface ships seven catalogs: English (`en`), German (`de`), Spanish
+(`es`), French (`fr`), Italian (`it`), Japanese (`ja`) and Brazilian
+Portuguese (`pt-br`). The locale is picked at launch from the environment
+chain `LC_ALL` → `LC_MESSAGES` → `LANG`, so
+
+```bash
+LC_ALL=de_DE.UTF-8 phlix run
+```
+
+runs the German UI. Region and encoding suffixes are normalized
+(`pt_BR.UTF-8` → `pt-br`), anything unsupported falls back to English, and a
+locale that lags the English catalog degrades per key to English rather than
+rendering blanks. The contributor-side story (adding screens, adding locales)
+is in [the i18n guide](../i18n.md).
+
 ## Usage
 
 ### Starting the client

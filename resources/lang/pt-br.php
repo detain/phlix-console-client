@@ -31,7 +31,7 @@ return [
 
     // ---- RecommendationsScreen ----------------------------------------
     'recommendations.title' => 'Para você',
-    'recommendations.hint' => 'Q: Voltar  ↑↓: Navegar  Enter: Abrir  X: Dispensar',
+    'recommendations.hint' => 'Q: Voltar  ↑↓: Navegar  ⏎: Abrir  X: Dispensar',
     'recommendations.load_failed' => 'Não foi possível carregar as recomendações.',
     'recommendations.loading' => 'Carregando recomendações…',
     'recommendations.empty' => "Ainda não há recomendações.\n  Comece a assistir para receber sugestões personalizadas!",
@@ -43,7 +43,7 @@ return [
     'detail.similar_load_failed' => 'Não foi possível carregar títulos semelhantes.',
     'detail.missing_episodes_load_failed' => 'Não foi possível carregar os episódios faltantes.',
     'detail.children_load_failed' => 'Não foi possível carregar este conteúdo.',
-    'detail.rating_save_failed' => 'Falha ao salvar a avaliação: ',
+    'detail.rating_save_failed' => 'Não foi possível salvar a avaliação: ',
     'detail.play_notice' => '▶  Este título não tem uma fonte reproduzível.',
     'detail.actions_hint' => '▶  p  Reproduzir  Esc  Voltar',
     'detail.hint' => '↑↓  rolar sinopse      p  reproduzir      s  aleatório      C  elenco      r  avaliar      F  favorito      w  assistido      l  curtir      j  não curtir      d  baixar      u  legendas      Esc  voltar',
@@ -79,8 +79,8 @@ return [
     'syncplay.not_authenticated' => 'Entre na sua conta antes de usar os grupos de exibição.',
     'syncplay.not_in_group' => 'Você não está em um grupo de exibição.',
     'syncplay.not_host' => 'Somente o anfitrião do grupo pode fazer isso.',
-    'syncplay.unknown_message' => 'O servidor rejeitou uma solicitação não reconhecida.',
-    'syncplay.handler_error' => 'Algo deu errado no servidor de sincronização.',
+    'syncplay.unknown_message' => 'O servidor não reconheceu a solicitação.',
+    'syncplay.handler_error' => 'Algo deu errado no servidor.',
     'syncplay.protocol_version_mismatch' => 'Este aplicativo não é compatível com a versão do servidor.',
     'syncplay.invalid_new_host' => 'O novo anfitrião solicitado não é válido.',
     'syncplay.member_not_found' => 'Esse membro não foi encontrado no grupo.',

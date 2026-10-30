@@ -26,7 +26,7 @@ return [
 
     // ---- RecommendationsScreen ----------------------------------------
     'recommendations.title' => 'Pour vous',
-    'recommendations.hint' => 'Q : Retour  ↑↓ : Naviguer  Entrée : Ouvrir  X : Ignorer',
+    'recommendations.hint' => 'Q : Retour  ↑↓ : Naviguer  ⏎ : Ouvrir  X : Ignorer',
     'recommendations.load_failed' => 'Impossible de charger les recommandations.',
     'recommendations.loading' => 'Chargement des recommandations…',
     'recommendations.empty' => "Pas encore de recommandations.\n  Regardez des titres pour recevoir des suggestions personnalisées !",
@@ -38,7 +38,7 @@ return [
     'detail.similar_load_failed' => 'Impossible de charger les titres similaires.',
     'detail.missing_episodes_load_failed' => 'Impossible de charger les épisodes manquants.',
     'detail.children_load_failed' => 'Impossible de charger ce contenu.',
-    'detail.rating_save_failed' => "Échec de l’enregistrement de la note : ",
+    'detail.rating_save_failed' => "Impossible d’enregistrer la note : ",
     'detail.play_notice' => "▶  Ce titre n’a aucune source lisible.",
     'detail.actions_hint' => '▶  p  Lire    Esc  Retour',
     'detail.hint' => "↑↓  défilez le résumé      p  lire      s  aléatoire      C  distribution      r  noter      F  favori      w  vu      l  j’aime      j  je n’aime pas      d  télécharger      u  sous-titres      Esc  retour",
@@ -74,8 +74,8 @@ return [
     'syncplay.not_authenticated' => 'Connectez-vous avant d’utiliser les groupes synchronisés.',
     'syncplay.not_in_group' => 'Vous ne faites pas partie d’un groupe synchronisé.',
     'syncplay.not_host' => 'Seul l’hôte du groupe peut faire cela.',
-    'syncplay.unknown_message' => 'Le serveur a rejeté une demande non reconnue.',
-    'syncplay.handler_error' => 'Une erreur est survenue sur le serveur de synchronisation.',
+    'syncplay.unknown_message' => "Le serveur n’a pas reconnu la demande.",
+    'syncplay.handler_error' => 'Une erreur est survenue sur le serveur.',
     'syncplay.protocol_version_mismatch' => 'Cette application est incompatible avec la version du serveur.',
     'syncplay.invalid_new_host' => 'Le nouvel hôte demandé n’est pas valide.',
     'syncplay.member_not_found' => 'Ce membre est introuvable dans le groupe.',
