@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Phlix\Console\Tests\Screen;
 
 use Phlix\Console\Api\ApiClient;
+use Phlix\Console\Api\Dto\MediaRatings;
+use Phlix\Console\Api\Dto\Rating;
 use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Msg\ChildPosterLoadedMsg;
 use Phlix\Console\Msg\ChildrenFailedMsg;
@@ -23,6 +25,7 @@ use Phlix\Console\Store\FavoritesStore;
 use Phlix\Console\Store\MediaRange;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Tests\Api\FakeTransport;
+use Phlix\Console\Ui\UserRatingPicker;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ServerRequestInterface;
 use React\EventLoop\Loop;
@@ -456,6 +459,153 @@ final class DetailScreenTest extends TestCase
         self::assertSame($loaded, $same);
         self::assertFalse($same->isContainer());
         self::assertNull($cmd);
+    }
+
+    // ---- rating picker compositing (R-CONSOLE-18) ----------------------
+
+    private function pickerOf(DetailScreen $screen): ?UserRatingPicker
+    {
+        $property = (new \ReflectionClass($screen))->getProperty('ratingPicker');
+        $property->setAccessible(true);
+        /** @var UserRatingPicker|null $picker */
+        $picker = $property->getValue($screen);
+
+        return $picker;
+    }
+
+    private function pickerWinWidth(UserRatingPicker $picker): int
+    {
+        $property = (new \ReflectionClass($picker))->getProperty('winWidth');
+        $property->setAccessible(true);
+
+        return (int) $property->getValue($picker);
+    }
+
+    public function testClosedPickerLeavesTheLeafFrameUnoverlaid(): void
+    {
+        $view = $this->loaded()->view();
+
+        // The title box only exists in the composited frame; assert its absence.
+        self::assertStringNotContainsString('Rate this title', $view);
+    }
+
+    public function testOpenPickerCompositesItsBoxOverTheLeafFrame(): void
+    {
+        $loaded = $this->loaded();
+        [$withPicker] = $loaded->update(new KeyMsg(KeyType::Char, 'r'));
+
+        self::assertNotNull($this->pickerOf($withPicker), 'the r arm opens the picker');
+
+        $view = $withPicker->view();
+        self::assertStringContainsString(
+            'Rate this title',
+            $view,
+            'the open picker must ride over the frame it captures input from',
+        );
+        self::assertStringContainsString('The Matrix', $view, 'compositing dims the leaf, it does not replace it');
+        self::assertStringContainsString(
+            'confirm',
+            $view,
+            'the hint the key-capture law binds is visible (panel wrap reflows it at the 30-col cap)',
+        );
+        self::assertStringContainsString("\u{2715}", $view, 'a fresh open puts the cursor on clear');
+        self::assertStringContainsString("\u{2606}", $view, 'all five stars are unfilled at the clear cursor');
+    }
+
+    public function testOpenWithAnExistingUserRatingOpensPreSelected(): void
+    {
+        $loaded = $this->loaded();
+        $ratings = new MediaRatings(
+            itemId: 'm1',
+            ratings: [new Rating(id: 7, mediaItemId: 'm1', source: 'user', type: 'user', score: 6.0, votes: 0)],
+            aggregateScore: null,
+        );
+        [$withRating] = $loaded->update(new RatingsLoadedMsg($ratings));
+        [$opened] = $withRating->update(new KeyMsg(KeyType::Char, 'r'));
+
+        $view = $opened->view();
+
+        self::assertStringContainsString('Rate this title', $view);
+        self::assertStringContainsString('6/10', $view, 'the picker opens at the existing user rating');
+        self::assertStringContainsString("\u{2605}", $view, 'stars up to the cursor are filled');
+    }
+
+    public function testArrowMovesTheCompositedCursorAndReadout(): void
+    {
+        $loaded = $this->loaded();
+        [$opened] = $loaded->update(new KeyMsg(KeyType::Char, 'r'));
+        [$moved] = $opened->update(new KeyMsg(KeyType::Right));
+
+        self::assertStringContainsString(
+            '2/10',
+            $moved->view(),
+            'one star right of clear reads 2/10 in the composited box',
+        );
+        self::assertStringNotContainsString(
+            '2/10',
+            $opened->view(),
+            'the fresh clear cursor carries no numeric rating',
+        );
+    }
+
+    public function testOpenPickerCapturesLeafKeysWhileVisible(): void
+    {
+        $loaded = $this->loaded();
+        [$opened] = $loaded->update(new KeyMsg(KeyType::Char, 'r'));
+
+        [$same, $cmd] = $opened->update(new KeyMsg(KeyType::Char, 'p'));
+
+        self::assertSame($opened, $same, 'the visible picker holds input: no new screen state');
+        self::assertNull($cmd, 'no playback starts behind the overlay');
+        self::assertStringContainsString('Rate this title', $same->view(), 'the overlay survives swallowed keys');
+    }
+
+    public function testEnterCommitsTheSelectionAndWithdrawsTheOverlay(): void
+    {
+        $loaded = $this->loaded();
+        [$opened] = $loaded->update(new KeyMsg(KeyType::Char, 'r'));
+        [$moved] = $opened->update(new KeyMsg(KeyType::Right));
+        self::assertStringContainsString('Rate this title', $moved->view());
+
+        [$committed, $cmd] = $moved->update(new KeyMsg(KeyType::Enter));
+
+        self::assertNotNull($cmd, 'confirm dispatches the rating request');
+        self::assertNull($this->pickerOf($committed));
+        self::assertStringNotContainsString('Rate this title', $committed->view());
+    }
+
+    public function testEscapeClosesTheVisiblePickerWithoutARequestOrNavigation(): void
+    {
+        $loaded = $this->loaded();
+        [$opened] = $loaded->update(new KeyMsg(KeyType::Char, 'r'));
+        self::assertStringContainsString('Rate this title', $opened->view());
+
+        [$closed, $cmd] = $opened->update(new KeyMsg(KeyType::Escape));
+
+        self::assertNull($cmd, 'cancel dispatches nothing — it must not fall through to Esc-navigation');
+        self::assertNull($this->pickerOf($closed));
+        self::assertStringNotContainsString('Rate this title', $closed->view());
+    }
+
+    public function testResizeWhilePickerOpenRescalesTheCompositedBox(): void
+    {
+        $loaded = $this->loaded();
+        [$opened] = $loaded->update(new KeyMsg(KeyType::Char, 'r'));
+
+        $openedPicker = $this->pickerOf($opened);
+        self::assertNotNull($openedPicker);
+        self::assertSame(30, $this->pickerWinWidth($openedPicker), 'opened at 120 cols the box sits at its 30-col cap');
+
+        [$narrow] = $opened->update(new WindowSizeMsg(24, 20));
+
+        $picker = $this->pickerOf($narrow);
+        self::assertNotNull($picker, 'a WindowSizeMsg must not drop the open picker');
+        self::assertSame(
+            20,
+            $this->pickerWinWidth($picker),
+            'the box tracks the shrunk frame: max(20, min(24-8, 30)) = 20',
+        );
+        self::assertStringContainsString('Rate this title', $narrow->view());
     }
 
     // ---- container mode: series → season → episode ---------------------

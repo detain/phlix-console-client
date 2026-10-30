@@ -386,6 +386,23 @@ final class DetailScreen implements Breadcrumbed, Themed
 
     public function view(): string
     {
+        $frame = $this->baseFrame();
+
+        // While the rating picker is open it captures every keystroke (the
+        // handleKey arm below), so it must ride over the very frame it
+        // captured from — an invisible capture mode was the R-CONSOLE-18
+        // display defect. The dim + centred box idiom mirrors the
+        // PlayerScreen overlay menus (render($background, ...)).
+        if ($this->ratingPicker !== null) {
+            return $this->ratingPicker->render($frame, $this->theme());
+        }
+
+        return $frame;
+    }
+
+    /** The screen's own frame (error / loading / container / leaf); overlays composite over this in view(). */
+    private function baseFrame(): string
+    {
         if ($this->error !== null) {
             return Chrome::frame($this->headerTitle(), "\n  {$this->error}", Lang::t(self::LOADING_HINT_KEY), $this->cols, $this->rows, $this->crumbs, $this->theme());
         }
@@ -915,6 +932,13 @@ final class DetailScreen implements Breadcrumbed, Themed
         $next = clone $this;
         $next->cols = $cols;
         $next->rows = $rows;
+
+        // A composited overlay must track the frame it rides on; a stale box
+        // width on a shrunk terminal is a torn render (PlayerScreen applies
+        // the same law to its overlay menus).
+        if ($this->ratingPicker !== null) {
+            $next->ratingPicker = $this->ratingPicker->resizedTo($cols, $rows);
+        }
 
         if ($this->childGrid !== null) {
             $grid = $this->childGrid->withViewport($this->containerViewportCols($cols), $this->containerViewportRows($rows));

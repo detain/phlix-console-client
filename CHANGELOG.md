@@ -5,6 +5,49 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — rider W18 R-CONSOLE-18: the detail screen now SHOWS its rating picker — view() composites the open overlay over the frame it captured, and a live picker rescales with the terminal — 2026-10-30
+
+- **The ask.** M-CONSOLE-48__r1 INFO row, banked into the minors
+  accumulator and queued as rider R-CONSOLE-18:
+  "UserRatingPicker::render() has zero production callers — picker never
+  composited (pre-existing display defect)." Condition checked first: no
+  R-CONSOLE-18 landing on origin/master, and at tip `efde521` the state machine
+  was fully alive — 'r' opens `UserRatingPicker`, `handleKey` routes EVERY
+  subsequent keystroke through `handleRatingPickerKey` (←/→, 1-6, Enter, Esc)
+  and Enter commits via `applyRatingSelection` — while `view()` never called
+  `$this->ratingPicker->render(...)`. Pressing 'r' entered an invisible capture
+  mode: keystrokes vanished into a cursor nobody could see, and the user was
+  left guessing what Esc had cancelled.
+- **The cure.** Two arms, both mirroring the PlayerScreen overlay law (base
+  frame; each open overlay renders over it): (1) `view()` now computes the
+  screen's own frame through a new private `baseFrame()` (the four existing
+  arms verbatim) and composites an open picker over it via
+  `UserRatingPicker::render($frame, $this->theme())` — dim Veil + centred box,
+  the idiom the player's whole overlay-menu set already follows. (2) `onResize` rescales an
+  open picker with `resizedTo($cols, $rows)` before anything else, because a
+  composited box frozen at a 30-col width on a 24-col terminal is a torn
+  render — the stale-dims bug was harmless only while nothing rendered.
+  The picker class itself is untouched; no new strings; no catalog rotation.
+- **Tests.** +8 cases in `DetailScreenTest` (suite 3493/21518 → 3501/21554,
+  dep-15/skip-15 held, exit 0): the closed frame carries no overlay (control);
+  'r' composites box, hint and star field over a still-visible leaf; an
+  existing user rating opens pre-selected; an arrow move is VISIBLE in the
+  rating readout; the visible picker swallows 'p' (no playback starts behind
+  the overlay); Enter commits and withdraws; Esc closes without dispatching
+  anything (no fall-through to Esc-navigation); WindowSizeMsg rescales the
+  live box (30 → 20 at 24 cols). Measure-at-red at parent `efde521`: 7 of 8
+  red — only the closed-frame control is green, which is exactly the
+  no-regression pin.
+- **Adjacent findings (disclosed, NOT fixed — minors accumulator).**
+  (1) The picker's 1-6 direct-select calls `right()` N−1 times from the LIVE
+  cursor — a relative move that contradicts its own docblock ("directly select
+  a position") and the hint it now prints; it becomes reachable precisely
+  because this cure makes the picker visible. (2) The 46-cell hint overflows
+  `MAX_WIDTH = 30` and wraps across two box lines with inter-word spacing
+  collapsed — copy-vs-box-width mismatch, cosmetic. (3) All picker strings are
+  unconverted English; i18n adoption of this widget is a separate
+  feature-level item.
+
 ### Fixed — rider W17 R-CONSOLE-17: composer.json now declares ext-intl + ext-mbstring — src has been living on them and the production lock already enforced them hard — 2026-10-30
 
 - **The ask.** M-CONSOLE-47__r1 minors-accumulator row, queued as rider
