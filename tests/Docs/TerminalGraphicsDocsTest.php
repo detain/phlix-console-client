@@ -50,6 +50,9 @@ use SugarCraft\Testing\Graphics\Mode;
  *    The r2 follow-up (rider R-CONSOLE-20) adds the box's SYMBOL truth: a
  *    box line truncated to fit may not invent `Mosaic::forPosterGrid` — the
  *    method belongs to MosaicFactory, which the box header already names.
+ *    Rider R-CONSOLE-21 adds the edge's CHRONOLOGY truth: the argv parse is
+ *    a top-level bin/phlix statement; buildContainer only CONSUMES the
+ *    parsed mode, so the label must state the two steps, not one.
  * 7. The half-block colour depth is stated as 24-bit on every doc surface
  *    and matches what HalfBlockRenderer actually emits (Ansi::fgRgb/bgRgb);
  *    the fossil 16/256 claim reddens here (review M-CONSOLE-06).
@@ -255,6 +258,44 @@ final class TerminalGraphicsDocsTest extends TestCase
             self::GRAPHICS_DOC . ' re-claims `Mosaic::forPosterGrid` — no such symbol '
             . '(review M-CONSOLE-49 r2 N1). The method belongs to MosaicFactory: under the '
             . 'box header spell the line forPosterGrid($mode), or the full class if it fits.'
+        );
+
+        // Review M-CONSOLE-49 r2 N2 (rider R-CONSOLE-21): the edge label once
+        // read "mode string, parsed at / container build (no screen yet)" —
+        // a chronology compression. The argv parse is NOT part of the
+        // container build: it runs as column-0 (file-scope) statements at
+        // bin/phlix top level ($KNOWN_MODES :653, the $argv flag foreach
+        // :657), and the parsed $mode is only CONSUMED later, inside
+        // buildContainer() — MosaicFactory::forPosterGrid($mode) at :110 —
+        // which the top-level dispatch reaches only when a command needs
+        // the graph (:787). The CHANGELOG has stated it exactly right all
+        // along ("parsed from CLI argv and consumed at container-build
+        // time"); the diagram now mirrors the two-step phrasing. The ban
+        // reddens a revert to the single-step label; the pins hold the
+        // two verbs present in order with their true locations; the
+        // code-side check derives top-level-ness from whitespace — a parse
+        // hoisted into a function no longer matches the column-0 literal.
+        self::assertStringNotContainsString(
+            'parsed at',
+            $doc,
+            self::GRAPHICS_DOC . ' re-claims the mode is "parsed at container build" — '
+            . 'review M-CONSOLE-49 r2 N2: the parse runs at bin/phlix top level and the '
+            . 'container build only consumes it. Mirror the two-step phrasing.'
+        );
+        self::assertMatchesRegularExpression(
+            '/parsed from CLI argv[^\n]*\n\s*│\s*consumed in buildContainer/',
+            $doc,
+            self::GRAPHICS_DOC . ' no longer states the edge chronology in two steps '
+            . '("parsed from CLI argv" then "consumed in buildContainer", adjacent label '
+            . 'lines) — review M-CONSOLE-49 r2 N2.'
+        );
+        $knownModesAtTop = "\n" . '$KNOWN_MODES = [';
+        self::assertStringContainsString(
+            $knownModesAtTop,
+            $bin,
+            'bin/phlix no longer starts the mode parse as a column-0 (top-level) statement; '
+            . 'the edge label says parse and container-build consumption are separate steps, '
+            . 'so code, label and this law must move together (review M-CONSOLE-49 r2 N2).'
         );
 
         foreach (['forPosterGrid', 'PlayerScreen', 'productionFactory'] as $anchor) {

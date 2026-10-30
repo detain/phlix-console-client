@@ -5,6 +5,54 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — rider W21 R-CONSOLE-21: the Architecture diagram's mode edge no longer compresses the chronology — argv parsing runs at bin/phlix top level and buildContainer only CONSUMES the parsed mode — the label mirrors the two-step phrasing the CHANGELOG already states, and law 6 pins both sides — 2026-10-30
+
+- **The ask.** M-CONSOLE-49__r2 minor N2, queued as rider R-CONSOLE-21:
+  "edge label 'parsed at container build' compresses chronology — argv parse
+  runs at bin/phlix top level (:612-622) and the parsed $mode is CONSUMED in
+  buildContainer (:109). The CHANGELOG states it exactly right ('parsed from
+  CLI argv and consumed at container-build time'); diagram prose could mirror
+  the two-step phrasing." Condition checked first: no R-CONSOLE-21 landing on
+  origin/master, and `git log -S` shows the compressed label was introduced
+  together with the diagram re-root commit `74175be` and still lived at
+  `docs/terminal-graphics.md:85-86` at tip. Coordinates re-verified against
+  current code before curing (the review's line numbers are the 74175be era):
+  the parse is column-0 file-scope code today at `:653` (`$KNOWN_MODES = [`),
+  `:657` (the `--mode` flag `foreach ($argv ...)`), `:669`/`:675`; the
+  consumption is `MosaicFactory::forPosterGrid($mode)` at `:110`, inside
+  `buildContainer()` (fn `:94`), reached only from the selftest arm (`:144`)
+  and the top-level `run` dispatch (`:787`) — after the parse block has run.
+  The "no screen yet" nuance the r2 review validated stays true.
+- **The cure.** The edge label now reads, in three lines:
+  `parsed from CLI argv →` / `consumed in buildContainer` /
+  `(mode string; no screen yet)` — the two verbs in their true order with
+  their true locations, naming the real function `buildContainer` rather
+  than a hyphenated abstraction, and keeping the payload name and the
+  no-screen note. Docs-side only: no other README/docs surface carries the
+  compressed phrasing (the only other "parsed at" hits —
+  `src/Api/SyncPlay/HubRelayConsumer.php:38` and historical CHANGELOG rows —
+  are a different boundary and verbatim history).
+- **Tests.** `TerminalGraphicsDocsTest` law 6 (the diagram-edge tripwire,
+  extended by riders R-CONSOLE-20/21 as the docs-truth family for this file —
+  pattern of `testFallbackProseIsDelegationTrue`'s fiction bans) gains three
+  pins with measure-at-red attribution: the doc must not contain the literal
+  `parsed at` (the compressed label reddens it alone, failure named at the
+  ban, 1 test/6 assertions), the two-step label must sit on adjacent lines
+  matching `parsed from CLI argv` then `consumed in buildContainer` (a
+  reworded-away revert still reddens: 7 assertions, named), and code-side
+  `bin/phlix` must start the mode parse as a column-0 statement
+  (`\n$KNOWN_MODES = [`) — a parse hoisted into function scope breaks the
+  whitespace literal (isolated probe: only the code mutation, named failure).
+  Cured law passes 1 test / 11 assertions (+3 exact); FULL serial
+  3501/21555 → 3501/21558 (test count held — no new method; the +3 are the
+  three new asserts inside law 6), dep-15/skip-15 held, exit 0; the header's
+  eight-law census is unchanged (law 6's bullet gained the chronology
+  sentence). phpstan prod shows only the inherited AdminClient:2697
+  return.type pin; phpstan-tests [OK]; phpcs repo tests config and bare PSR12
+  on the changed file both rc 0; i18n hardcoded + catalogs gates rc 0 — no
+  catalog touched. Historical CHANGELOG verbatim (the :662 row the rider
+  praised as correct is left exactly as written), forward entry prepended.
+
 ### Fixed — rider W20 R-CONSOLE-20: the Architecture diagram's factory box no longer truncates into a phantom symbol — `Mosaic::forPosterGrid($mode)` was never a real symbol; under the `MosaicFactory` header the line reads `forPosterGrid($mode)`, and law 6 now bans the invented prefix — 2026-10-30
 
 - **The ask.** M-CONSOLE-49__r2 minor N1, queued as rider R-CONSOLE-20:

@@ -82,8 +82,9 @@ ESC [ G ... ESC \
                       │    bin/phlix — CLI argv      │
                       │  --mode=… / --mode … / bare  │
                       └──────────────┬───────────────┘
-                                     │ mode string, parsed at
-                                     │ container build (no screen yet)
+                                     │ parsed from CLI argv →
+                                     │ consumed in buildContainer
+                                     │ (mode string; no screen yet)
                       ┌──────────────▼───────────────┐
                       │        MosaicFactory         │
                       │     forPosterGrid($mode)     │
