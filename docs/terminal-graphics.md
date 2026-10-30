@@ -128,12 +128,16 @@ format:
 
 ## Fallback Strategy
 
-When a terminal does not support the requested graphics protocol, phlix
-falls back to the best available ANSI-based cell mode:
+Detection is delegated wholesale: the `Capabilities` class asks sugar-image's
+`Mosaic::auto()` what the terminal can render and reports the answer — it
+issues no terminal queries of its own. The probing machinery lives vendor-side
+(`SugarCraft\Image\Detect::probe()`): environment variables first, then a DA1
+device-attributes query (`ESC [ c`) to fill the gaps the env table leaves
+(chiefly sixel on xterm-compatible terminals), with XTWINOPS replies for cell
+geometry.
 
-```
-graphics mode → halfblock → quarterblock → ansi256 → ascii
-```
-
-The `Capabilities` class detects terminal support at startup using DECRQSS
-queries and OSC 10/110/111 responses.
+`Mosaic::auto()` never throws, and its protocol precedence is
+kitty → iterm2 → sixel → chafa → halfblock: a terminal with no usable
+graphics protocol lands on the half-block cell mode. The other cell modes
+(`quarterblock`, `ascii`, and its `ansi256`/`truecolor` tinted ramps) are
+explicit `--mode` picks at launch, not stages of an automatic fallback ladder.

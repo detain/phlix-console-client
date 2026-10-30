@@ -5,6 +5,43 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — minors batch W-min24 tail (M-CONSOLE-31; 44 · 94 stale-verified): the graphics doc's Fallback Strategy stops attributing phantom terminal queries to the repo's own class — 2026-10-30
+
+- **The defect.** (console__docmaint m5, residual half.) The W-min24-rework
+  entry below recorded M-CONSOLE-31 as fully cured by the writer-M49 wave —
+  true only of the Testing-section half. The review's second cure ask survived
+  unfixed at tip: docs/terminal-graphics.md still claimed the repo's
+  `Capabilities` class "detects terminal support at startup using DECRQSS
+  queries and OSC 10/110/111 responses" over a `halfblock → quarterblock →
+  ansi256 → ascii` fallback ladder. Code truth: `Capabilities` is pure
+  delegation to sugar-image's `Mosaic::auto()` (its own docblock says so), the
+  vendor's `Detect::probe()` queries are env-first plus DA1 (`ESC [ c`) and
+  XTWINOPS replies — DECRQSS and OSC 10/110/111 are sent by nobody
+  estate-wide — and the cell-mode ladder never existed: `auto()` precedence
+  is kitty → iterm2 → sixel → chafa → halfblock, while quarterblock/ascii/
+  ansi256/truecolor are explicit `--mode` picks that `MosaicFactory` never
+  auto-degrades.
+- **The cure.** The Fallback Strategy section rewritten delegation-true:
+  detection named at the seam the code calls (`Mosaic::auto()`), the vendor
+  probe family (DA1 gap-fill, XTWINOPS geometry) credited to `Detect::probe()`
+  where it lives, the real precedence stated, and the cell modes reclassified
+  as launch-time picks instead of fictional fallback stages.
+- **The pins.** `tests/Docs/TerminalGraphicsDocsTest.php` law 8
+  (testFallbackProseIsDelegationTrue): code side pins `Capabilities` to the
+  delegation and zero DECRQSS; doc side bans the retired attribution and the
+  invented ladder and requires `Mosaic::auto()` as the named seam; the
+  precedence chain the doc states is byte-pinned to the vendor `Mosaic`
+  docblock's own Precedence line (fail-loud throw if the vendor line moves
+  shape). Mutation-proven: pre-cure doc reddens the new regex, planting
+  DECRQSS back into the prose reddens the ban — 1 failure each, restored OK.
+  Stale-verified in passing: M-CONSOLE-44 (cured in-lineage at `ad7b937`, its
+  `ReadmeTestFixturesDocsTest` re-run green 3/3 here) and M-CONSOLE-94 (the
+  `braille`/`terminal_render_mode` vocabulary purged at `1d42d37`, zero
+  occurrences repo-wide at tip). Suite 3450/21315 → **3451/21322** (exactly
+  +1 test/+7 assertions from law 8; Skipped 15, Deprecations 15, 0F/0E held).
+  With W-min24 the M-CONSOLE
+  vein is exhausted — 94 items, none remain queued for this repo.
+
 ### Fixed — minors batch W-min23 (M-CONSOLE-70 · 71 · 73 · 75 · 76): narrow bodies stop wrapping — server-named titles, search echoes and error sentences truncate to the frame, the browse screen stands its rails down below 42 columns instead of overflowing them, the six windowed table lists finally show position in their totals, and three static loading screens join the shimmer family — 2026-10-30
 
 - **The defects.** (console__uxdesign ×5.) Four were LIVE at tip; one verified stale-cured. Strings nobody width-managed reached the frame raw: `Chrome::headerLabel()` echoed a bare title verbatim (library names are server-supplied), `SearchScreen` echoed the whole search text in its input line and inside the `No results for "…"` sentence, and the search/library/browse error lines printed arbitrary-length wire sentences — every overrun forced a terminal wrap, silently stealing a row from the grid viewports the frame had budgeted [M-CONSOLE-70]. `BrowseScreen` always laid sidebar and rails side-by-side, so below 42 columns the horizontal join overflowed the panel into gutter mush instead of collapsing to the one pane that stays useful [M-CONSOLE-71]. The `Table`-driven lists (admin users, cast devices, music albums and artists, watch history, audiobook chapters) showed which rows were visible but never WHERE you were — no `x/N` affordance while the sibling poster grids had always carried one [M-CONSOLE-75]. And three loading screens (collections, admin users, music) rendered static single-line text while four others shimmerred `Skeleton::bars` — two generations of waiting-room polish side by side [M-CONSOLE-76]. The byte-based room-name backspace (M-CONSOLE-73) was already cured before this branch.

@@ -25,7 +25,7 @@ use SugarCraft\Testing\Graphics\Mode;
  * MosaicFactory → sugar-image Mosaic → the protocol/cell renderers.
  *
  * Doctrine, per TokenFileNameDocsTest and ConfigVocabularyDocsTest: real state
- * is DERIVED from the code at runtime, never restated from prose. Seven laws:
+ * is DERIVED from the code at runtime, never restated from prose. Eight laws:
  *
  * 1. README and docs/** name none of the retired decoder doubles. A doc
  *    re-advertising them reddens here until the prose AND this pin move again.
@@ -50,6 +50,12 @@ use SugarCraft\Testing\Graphics\Mode;
  * 7. The half-block colour depth is stated as 24-bit on every doc surface
  *    and matches what HalfBlockRenderer actually emits (Ansi::fgRgb/bgRgb);
  *    the fossil 16/256 claim reddens here (review M-CONSOLE-06).
+ * 8. The Fallback Strategy prose is delegation-true (review M-CONSOLE-31,
+ *    residual half): detection is attributed to the vendor seam the code
+ *    actually calls (`Mosaic::auto()`), the retired DECRQSS / OSC 10/110/111
+ *    and the invented cell-mode ladder fictions stay banned, and the
+ *    precedence chain the doc states is byte-pinned to the vendor Mosaic
+ *    docblock's own Precedence line.
  *
  * Historical CHANGELOG entries are exempt forever (history is verbatim); the
  * doc sweep deliberately never reads it.
@@ -289,6 +295,74 @@ final class TerminalGraphicsDocsTest extends TestCase
                 . 'renderer emits per-cell Ansi::fgRgb()/Ansi::bgRgb() truecolor.'
             );
         }
+    }
+
+    /**
+     * M-CONSOLE-31 (residual half of review m5): the Fallback Strategy prose
+     * must be delegation-true. src/Capabilities.php issues no terminal queries
+     * itself — it asks sugar-image's Mosaic::auto(), and the probing machinery
+     * (env table first, then a DA1 device-attributes query to fill gaps the
+     * env leaves, XTWINOPS cell-size replies) lives vendor-side. Code side:
+     * Capabilities is pinned to the delegation and to zero DECRQSS. Doc side:
+     * the retired "DECRQSS … OSC 10/110/111" attribution and the invented
+     * halfblock → quarterblock → ansi256 → ascii ladder stay banned, and the
+     * precedence chain the doc claims must be byte-identical to the vendor
+     * Mosaic docblock's own Precedence line, so a vendor reorder reddens the
+     * prose too instead of letting it drift into fiction.
+     */
+    public function testFallbackProseIsDelegationTrue(): void
+    {
+        $cap = self::repoFile('src/Capabilities.php');
+        self::assertStringContainsString(
+            'Mosaic::auto()',
+            $cap,
+            'src/Capabilities.php no longer delegates detection to Mosaic::auto(); the doc '
+            . 'Fallback section and this law must be re-derived from the new code shape.'
+        );
+        self::assertStringNotContainsString(
+            'DECRQSS',
+            $cap,
+            'src/Capabilities.php now issues DECRQSS queries itself. If the repo really grew '
+            . 'its own probing, the delegation prose and this law move together deliberately.'
+        );
+
+        $doc = self::readRepoFile(self::GRAPHICS_DOC);
+        self::assertMatchesRegularExpression(
+            '/`Mosaic::auto\(\)`/',
+            $doc,
+            'the graphics doc no longer names `Mosaic::auto()` as the detection seam — '
+            . 'review M-CONSOLE-31: attribute detection to the vendor delegation, not to Capabilities.'
+        );
+        foreach (
+            [
+                'DECRQSS',
+                'OSC 10/110/111',
+                'halfblock → quarterblock → ansi256 → ascii',
+            ] as $fiction
+        ) {
+            self::assertStringNotContainsString(
+                $fiction,
+                $doc,
+                'the graphics doc re-claims "' . $fiction . '" — retired fiction per review '
+                . 'M-CONSOLE-31 (the vendor probes are DA1/XTWINOPS; no cell-mode fallback ladder '
+                . 'ever existed — quarterblock/ansi256/ascii are explicit --mode picks).'
+            );
+        }
+
+        $mosaic = self::repoFile('vendor/sugarcraft/sugar-image/src/Mosaic.php');
+        if (!preg_match('/^\s*\*\s*Precedence: (kitty[^\n]*)$/m', $mosaic, $m)) {
+            throw new RuntimeException(
+                'sugar-image Mosaic lost the "Precedence: kitty …" docblock line law 8 derives '
+                . 'from — re-derive the doc Fallback chain from the vendor source deliberately.'
+            );
+        }
+
+        self::assertStringContainsString(
+            rtrim($m[1]),
+            $doc,
+            'the doc Fallback precedence chain no longer matches the vendor Mosaic docblock '
+            . '(vendor states "' . rtrim($m[1]) . '"); doc and vendor prose move together.'
+        );
     }
 
     private static function repoFile(string $relative): string
