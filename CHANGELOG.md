@@ -5,6 +5,42 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — rider W20 R-CONSOLE-20: the Architecture diagram's factory box no longer truncates into a phantom symbol — `Mosaic::forPosterGrid($mode)` was never a real symbol; under the `MosaicFactory` header the line reads `forPosterGrid($mode)`, and law 6 now bans the invented prefix — 2026-10-30
+
+- **The ask.** M-CONSOLE-49__r2 minor N1, queued as rider R-CONSOLE-20:
+  "diagram box line 2 reads `Mosaic::forPosterGrid($mode)` — no such symbol;
+  the method is `MosaicFactory::forPosterGrid` (box header disambiguates;
+  box-width truncation) … a future polish should drop the `Mosaic::` prefix
+  or spell the real class." Condition checked first: no R-CONSOLE-20 landing
+  on origin/master, and `git log -S` shows the phantom was introduced by the
+  diagram re-root commit `74175be` itself and still lived at
+  `docs/terminal-graphics.md:89`. Symbol re-verified against current code:
+  `forPosterGrid(?string $mode): Mosaic` is a static of
+  `Phlix\Console\Media\MosaicFactory` (src/Media/MosaicFactory.php:71, unmoved
+  since the review era); the vendor `SugarCraft\Image\Mosaic` it returns has
+  no such method — the other `Mosaic::` mentions in the doc (`render`,
+  `isInline`, `auto`) are all real vendor symbols and stay.
+- **The cure.** The box is 30 columns wide and `MosaicFactory::forPosterGrid($mode)`
+  needs 35, so spelling the class outright would break every box in the
+  diagram; the rider's primary direction — drop the `Mosaic::` prefix and let
+  the header carry the class — keeps the geometry: line 2 now reads
+  `forPosterGrid($mode)`, and box header + method line compose to the true
+  symbol. Docs-only on the prose side; the diagram's edges and the bin/phlix
+  call site were already code-true (that is what r2 adjudicated).
+- **Tests.** `TerminalGraphicsDocsTest` law 6 (the diagram-edge tripwire that
+  introduced the phantom) gains its symbol-truth ban: the doc must not contain
+  the literal `Mosaic::forPosterGrid` — a re-truncated box line reddens there,
+  and the exact literal keeps a future fully-spelled `MosaicFactory::…` green
+  (no substring collision). Measure-at-red: the new assert failed alone on the
+  unfixed doc (1 test, 5 assertions, failure named); after the cure the law
+  passes 1 test / 8 assertions (+1 exact). Suite 3501/21554 → 3501/21555 full
+  serial, dep-15/skip-15 held, exit 0; no new test method, so the header's
+  eight-law census is unchanged (law 6's bullet gained the symbol-truth
+  sentence). phpstan prod shows only the inherited AdminClient:2697
+  return.type pin; phpcs repo src/tests configs 0E on the changed file and
+  bare PSR12 zero-new; i18n 6×68 parity + hardcoded gate pass — no catalog
+  touched. Historical CHANGELOG verbatim, forward entry prepended.
+
 ### Fixed — rider W18 R-CONSOLE-18: the detail screen now SHOWS its rating picker — view() composites the open overlay over the frame it captured, and a live picker rescales with the terminal — 2026-10-30
 
 - **The ask.** M-CONSOLE-48__r1 INFO row, banked into the minors

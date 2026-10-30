@@ -47,6 +47,9 @@ use SugarCraft\Testing\Graphics\Mode;
  *    the mode's source). The r1 review caught the diagram re-rooted on a
  *    "PlayerScreen —render mode→ MosaicFactory" edge the code contradicts; this
  *    law pins the true root so the diagram and the call graph move together.
+ *    The r2 follow-up (rider R-CONSOLE-20) adds the box's SYMBOL truth: a
+ *    box line truncated to fit may not invent `Mosaic::forPosterGrid` — the
+ *    method belongs to MosaicFactory, which the box header already names.
  * 7. The half-block colour depth is stated as 24-bit on every doc surface
  *    and matches what HalfBlockRenderer actually emits (Ansi::fgRgb/bgRgb);
  *    the fossil 16/256 claim reddens here (review M-CONSOLE-06).
@@ -238,6 +241,22 @@ final class TerminalGraphicsDocsTest extends TestCase
         );
 
         $doc = self::readRepoFile(self::GRAPHICS_DOC);
+
+        // Review M-CONSOLE-49 r2 N1 (rider R-CONSOLE-20): the diagram's second
+        // box once read `Mosaic::forPosterGrid($mode)` — a box-width truncation
+        // that invented a symbol. forPosterGrid lives on MosaicFactory (the box
+        // header), never on the vendor Mosaic. Ban the phantom prefix so a
+        // re-truncated box line reddens here. The literal is exact:
+        // `MosaicFactory::forPosterGrid` does NOT contain `Mosaic::forPosterGrid`,
+        // so a future fully-spelled class name stays green on its own merits.
+        self::assertStringNotContainsString(
+            'Mosaic::forPosterGrid',
+            $doc,
+            self::GRAPHICS_DOC . ' re-claims `Mosaic::forPosterGrid` — no such symbol '
+            . '(review M-CONSOLE-49 r2 N1). The method belongs to MosaicFactory: under the '
+            . 'box header spell the line forPosterGrid($mode), or the full class if it fits.'
+        );
+
         foreach (['forPosterGrid', 'PlayerScreen', 'productionFactory'] as $anchor) {
             self::assertMatchesRegularExpression(
                 '/\b' . preg_quote($anchor, '/') . '\b/',

@@ -86,7 +86,7 @@ ESC [ G ... ESC \
                                      │ container build (no screen yet)
                       ┌──────────────▼───────────────┐
                       │        MosaicFactory         │
-                      │ Mosaic::forPosterGrid($mode) │
+                      │     forPosterGrid($mode)     │
                       │  (mode → backend policy)     │
                       └──────────────┬───────────────┘
                                      │ builds
