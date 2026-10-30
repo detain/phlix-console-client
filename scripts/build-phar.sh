@@ -6,7 +6,9 @@
 #
 # Requires:
 #   - PHP >= 8.3 with ext-gd, ext-phar, ext-zlib
-#   - box (https://box-project.github.io/box4/)
+#   - box (https://box-project.github.io/box4/) — resolved from PATH, from the
+#     declared humbug/box dev dependency via `composer install`, or downloaded
+#     by this script. It never mutates the tracked composer.json/composer.lock.
 #
 # The PHAR will be built at build/phlix.phar
 
@@ -27,50 +29,44 @@ echo "PHP version: $PHP_VERSION"
 
 # Check required extensions
 for ext in gd phar zlib; do
-    if ! php -m | grep -q "^${ext}$"; then
-        echo "ERROR: Required PHP extension '$ext' is not loaded."
-        exit 1
-    fi
+	if ! php -m | grep -q "^${ext}$"; then
+		echo "ERROR: Required PHP extension '$ext' is not loaded."
+		exit 1
+	fi
 done
 echo "Required extensions: OK (gd, phar, zlib)"
 
 # Ensure build directory exists
 mkdir -p "$BUILD_DIR"
 
-# Check for box
+# Resolve box without touching tracked composer files (review console minors
+# M-CONSOLE-24/28: this used to run `composer require --dev humbug/box`
+# mid-build, dirtying composer.json + composer.lock for anyone who ran it).
 BOX_BIN=""
-if command -v box &> /dev/null; then
-    BOX_BIN="box"
+if command -v box &>/dev/null; then
+	BOX_BIN="box"
 elif [ -f "$PROJECT_DIR/vendor/bin/box" ]; then
-    BOX_BIN="$PROJECT_DIR/vendor/bin/box"
+	BOX_BIN="$PROJECT_DIR/vendor/bin/box"
 else
-    echo ""
-    echo "box not found. Installing via composer..."
-    cd "$PROJECT_DIR"
-    composer require --dev humbug/box --no-interaction 2>&1 || {
-        echo "Failed to install box via composer. Trying to download..."
-        # Fallback: download box.phar directly
-        BOX_BIN="/tmp/box.phar"
-        curl -fsSL https://github.com/box-project/box/releases/latest/download/box.phar \
-            -o "$BOX_BIN" 2>/dev/null || {
-            echo "ERROR: Could not install box. Please install it manually:"
-            echo "  composer require --dev humbug/box"
-            echo "  or download from: https://box-project.github.io/box4/"
-            exit 1
-        }
-        chmod +x "$BOX_BIN"
-    }
-    cd - > /dev/null
-fi
-
-BOX_BIN="${BOX_BIN:-$(command -v box)}"
-if [ -z "$BOX_BIN" ] || [ ! -x "$BOX_BIN" ]; then
-    if [ -f "$PROJECT_DIR/vendor/bin/box" ]; then
-        BOX_BIN="$PROJECT_DIR/vendor/bin/box"
-    else
-        echo "ERROR: box executable not found"
-        exit 1
-    fi
+	echo ""
+	echo "box not found. Installing declared dev dependencies via composer install..."
+	cd "$PROJECT_DIR"
+	composer install --no-interaction 2>&1 || echo "composer install failed; falling back to box.phar download."
+	cd - >/dev/null
+	if [ -f "$PROJECT_DIR/vendor/bin/box" ]; then
+		BOX_BIN="$PROJECT_DIR/vendor/bin/box"
+	else
+		echo "Downloading latest box release as a fallback..."
+		BOX_BIN="/tmp/box.phar"
+		curl -fsSL https://github.com/box-project/box/releases/latest/download/box.phar \
+			-o "$BOX_BIN" 2>/dev/null || {
+			echo "ERROR: Could not obtain box. Please install it manually:"
+			echo "  composer install   # box is a declared dev dependency"
+			echo "  or download from: https://box-project.github.io/box4/"
+			exit 1
+		}
+		chmod +x "$BOX_BIN"
+	fi
 fi
 
 echo "Using box: $BOX_BIN"
@@ -79,9 +75,9 @@ echo "box version: $BOX_VERSION"
 
 # Check box.json exists
 if [ ! -f "$BOX_JSON" ]; then
-    echo "ERROR: box.json not found at $BOX_JSON"
-    echo "Please create box.json with PHAR configuration"
-    exit 1
+	echo "ERROR: box.json not found at $BOX_JSON"
+	echo "Please create box.json with PHAR configuration"
+	exit 1
 fi
 
 # Build the PHAR
@@ -89,14 +85,14 @@ echo ""
 echo "Building PHAR..."
 cd "$PROJECT_DIR"
 "$BOX_BIN" compile --no-progress 2>&1 || {
-    echo "ERROR: PHAR build failed"
-    exit 1
+	echo "ERROR: PHAR build failed"
+	exit 1
 }
 
 # Verify the PHAR was created
 if [ ! -f "$PHAR_PATH" ]; then
-    echo "ERROR: PHAR not found at $PHAR_PATH after build"
-    exit 1
+	echo "ERROR: PHAR not found at $PHAR_PATH after build"
+	exit 1
 fi
 
 PHAR_SIZE=$(stat -c%s "$PHAR_PATH" 2>/dev/null || stat -f%z "$PHAR_PATH" 2>/dev/null)
@@ -109,10 +105,10 @@ echo "Size: $PHAR_SIZE bytes"
 echo ""
 echo "Verifying PHAR..."
 if php "$PHAR_PATH" --version; then
-    echo "PHAR verification: OK"
+	echo "PHAR verification: OK"
 else
-    echo "ERROR: PHAR --version failed"
-    exit 1
+	echo "ERROR: PHAR --version failed"
+	exit 1
 fi
 
 echo ""
