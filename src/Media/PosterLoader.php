@@ -114,9 +114,11 @@ final class PosterLoader
      */
     private static function concurrencyLimit(): int
     {
-        $env = $_ENV['PHLIX_POSTER_CONCURRENCY'] ?? $_SERVER['PHLIX_POSTER_CONCURRENCY'] ?? null;
+        // getenv() is the one true process-environment read (putenv and the
+        // real env both land here; $_ENV only when variables_order says so).
+        $env = getenv('PHLIX_POSTER_CONCURRENCY');
 
-        if ($env === null) {
+        if ($env === false || $env === '') {
             return self::DEFAULT_CONCURRENCY;
         }
 

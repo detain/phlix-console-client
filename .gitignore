@@ -6,5 +6,9 @@
 /.caliber/
 .phpstan.cache/
 /phlix.phar
+# CI and release builds compile their own PHAR (`box compile` writes
+# build/phlix.phar fresh); a committed build output only duplicates — and
+# drifts from — the release artifact (review M-CONSOLE-25).
+/build/
 # Cobertura report written by phpunit.xml.dist; uploaded to Codacy from CI.
 /coverage.xml

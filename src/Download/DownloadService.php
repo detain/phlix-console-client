@@ -178,7 +178,9 @@ final class DownloadService
      */
     private function resolveDownloadDir(): string
     {
-        $dir = $_ENV[self::ENV_DOWNLOAD_DIR] ?? $_SERVER[self::ENV_DOWNLOAD_DIR] ?? null;
+        // getenv() over the superglobals: one true process-environment read
+        // (putenv lands here; $_ENV only when variables_order says so).
+        $dir = getenv(self::ENV_DOWNLOAD_DIR);
 
         if (is_string($dir) && $dir !== '') {
             return $this->expandPath($dir);
@@ -186,7 +188,7 @@ final class DownloadService
 
         // Default to ~/Downloads
         /** @var string $home */
-        $home = $_ENV['HOME'] ?? $_SERVER['HOME'] ?? $_ENV['USERPROFILE'] ?? '';
+        $home = getenv('HOME') ?: (getenv('USERPROFILE') ?: '');
         if ($home === '') {
             /** @var string $home */
             $home = sys_get_temp_dir();
@@ -204,7 +206,7 @@ final class DownloadService
     {
         if (str_starts_with($path, '~')) {
             /** @var string $home */
-            $home = $_ENV['HOME'] ?? $_SERVER['HOME'] ?? '';
+            $home = getenv('HOME') ?: '';
             if ($home !== '') {
                 $path = $home . substr($path, 1);
             }
@@ -215,7 +217,7 @@ final class DownloadService
             '/\$(\w+|\{([^}]+)\})/',
             static function (array $matches): string {
                 $name = $matches[2] ?? $matches[1];
-                $value = $_ENV[$name] ?? $_SERVER[$name] ?? null;
+                $value = getenv($name);
 
                 return is_string($value) ? $value : $matches[0];
             },

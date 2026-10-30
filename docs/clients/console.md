@@ -135,10 +135,17 @@ Within that directory:
 
 ### Environment variables
 
+Every `PHLIX_*` variable is read from the process environment (`getenv`) and,
+where it exists, takes precedence over the stored `config.json` value. The
+diagnostics commands probe over HTTP with fixed timeouts (10 s in `doctor`,
+20 s in `run --selftest`).
+
 | Variable | Default | Description |
 | --- | --- | --- |
 | `PHLIX_SERVER_URL` | from config | Override the server URL (useful for CI/testing) |
 | `PHLIX_POSTER_CACHE_ENTRIES` | `16384` | Max poster cache entries |
+| `PHLIX_POSTER_CONCURRENCY` | `6` | Max posters fetched simultaneously |
+| `PHLIX_DOWNLOAD_DIR` | `~/Downloads` | Where downloads are saved (`~`, `$VAR` and `${VAR}` are expanded) |
 | `PHLIX_HUB_URL` | — | `watch`: hub base URL (preferred over `--hub`) |
 | `PHLIX_HUB_SERVER_ID` | — | `watch`: hub-side server id (preferred over `--server-id`) |
 | `PHLIX_HUB_TOKEN` | — | `watch`: hub user access token used to mint relay tokens (preferred over `--hub-token`) |
@@ -434,12 +441,17 @@ bin/phlix run
 
 ### PHP segfaults or memory errors
 
-Increase PHP memory limit for very large libraries:
+On very large libraries the client can hit PHP's memory limit (or the poster
+cache grows unwieldy). Two levers, and they are different levers: cap the
+poster cache to shrink what gets held, and raise the memory limit to give PHP
+more room:
 
 ```sh
-PHLIX_POSTER_CACHE_ENTRIES=8192 bin/phlix run
-# or in php.ini: memory_limit = 512M
+PHLIX_POSTER_CACHE_ENTRIES=8192 bin/phlix run   # half the default 16384 cached tiles
+php -d memory_limit=512M bin/phlix run          # raise PHP's memory ceiling
 ```
+
+Or persist the limit in your `php.ini`: `memory_limit = 512M`.
 
 ## Getting help
 

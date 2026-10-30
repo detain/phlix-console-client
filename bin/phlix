@@ -217,46 +217,54 @@ function runSelftest(?string $mode): bool
     // 3. http-reachable — make one real HTTP request to GET /api/v1/libraries
     // 4. decode-ok — the response body decodes without throwing
     if ($allPassed && $serverUrl !== null && $serverUrl !== '') {
-        $url = rtrim($serverUrl, '/') . '/api/v1/libraries';
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 20);  // 20-second timeout (C0.3 timeout + overhead)
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 20);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Accept: application/json',
-        ]);
-        $response = @curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlError = curl_error($ch);
-        curl_close($ch);
-
-        if ($response === false || $curlError !== '') {
-            $checks[] = 'FAIL http-reachable curl error: ' . $curlError;
+        if (!function_exists('curl_init')) {
+            // ext-curl is not a declared dependency: without it this ladder
+            // rung reports an honest FAIL instead of fataling on undefined
+            // functions (mirrors the mintRelayToken guard; review M-CONSOLE-40).
+            $checks[] = 'FAIL http-reachable ext-curl not loaded (install php-curl)';
             $allPassed = false;
-        } elseif ($httpCode === 0) {
-            // HTTP code 0 means couldn't connect (e.g., DNS failure, connection refused)
-            $checks[] = 'FAIL http-reachable connection failed (HTTP 0)';
-            $allPassed = false;
-        } elseif ($httpCode >= 200 && $httpCode < 300) {
-            $checks[] = 'OK http-reachable';
-        } elseif ($httpCode === 401) {
-            // 401 means server is up and we're unauthenticated — which is fine
-            $checks[] = 'OK http-reachable (401 unauthenticated)';
         } else {
-            $checks[] = "FAIL http-reachable unexpected HTTP $httpCode";
-            $allPassed = false;
-        }
+            $url = rtrim($serverUrl, '/') . '/api/v1/libraries';
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, $url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 20);  // 20-second timeout (C0.3 timeout + overhead)
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 20);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Accept: application/json',
+            ]);
+            $response = @curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch);
+            curl_close($ch);
 
-        // 4. decode-ok
-        if ($allPassed && $response !== false) {
-            try {
-                json_decode($response, false, 512, JSON_THROW_ON_ERROR);
-                $checks[] = 'OK decode-ok';
-            } catch (\JsonException $e) {
-                $checks[] = 'FAIL decode-ok json error: ' . $e->getMessage();
+            if ($response === false || $curlError !== '') {
+                $checks[] = 'FAIL http-reachable curl error: ' . $curlError;
                 $allPassed = false;
+            } elseif ($httpCode === 0) {
+                // HTTP code 0 means couldn't connect (e.g., DNS failure, connection refused)
+                $checks[] = 'FAIL http-reachable connection failed (HTTP 0)';
+                $allPassed = false;
+            } elseif ($httpCode >= 200 && $httpCode < 300) {
+                $checks[] = 'OK http-reachable';
+            } elseif ($httpCode === 401) {
+                // 401 means server is up and we're unauthenticated — which is fine
+                $checks[] = 'OK http-reachable (401 unauthenticated)';
+            } else {
+                $checks[] = "FAIL http-reachable unexpected HTTP $httpCode";
+                $allPassed = false;
+            }
+
+            // 4. decode-ok
+            if ($allPassed && $response !== false) {
+                try {
+                    json_decode($response, false, 512, JSON_THROW_ON_ERROR);
+                    $checks[] = 'OK decode-ok';
+                } catch (\JsonException $e) {
+                    $checks[] = 'FAIL decode-ok json error: ' . $e->getMessage();
+                    $allPassed = false;
+                }
             }
         }
     }
@@ -679,27 +687,34 @@ try {
 
             if ($serverUrl !== null && $serverUrl !== '') {
                 echo "\nServer reachability:\n";
-                $ch = curl_init();
-                curl_setopt($ch, CURLOPT_URL, rtrim($serverUrl, '/') . '/api/v1/libraries');
-                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($ch, CURLOPT_TIMEOUT, 10);
-                curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
-                $response = @curl_exec($ch);
-                $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                $curlError = curl_error($ch);
-                curl_close($ch);
-
-                if ($response === false || $curlError !== '') {
-                    echo "  FAIL: " . ($curlError ?: 'Connection failed') . "\n";
-                } elseif ($httpCode === 0) {
-                    echo "  FAIL: Connection failed (HTTP 0)\n";
-                } elseif ($httpCode >= 200 && $httpCode < 300) {
-                    echo "  OK: Server is reachable\n";
-                } elseif ($httpCode === 401) {
-                    echo "  OK: Server is reachable (401 unauthenticated)\n";
+                if (!function_exists('curl_init')) {
+                    // ext-curl is not a declared dependency: report the missing
+                    // probe honestly instead of fataling on undefined functions
+                    // (same law as mintRelayToken; review M-CONSOLE-40).
+                    echo "  FAIL: PHP extension curl is not loaded — install php-curl to probe reachability\n";
                 } else {
-                    echo "  WARN: Unexpected HTTP $httpCode\n";
+                    $ch = curl_init();
+                    curl_setopt($ch, CURLOPT_URL, rtrim($serverUrl, '/') . '/api/v1/libraries');
+                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+                    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+                    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+                    $response = @curl_exec($ch);
+                    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                    $curlError = curl_error($ch);
+                    curl_close($ch);
+
+                    if ($response === false || $curlError !== '') {
+                        echo "  FAIL: " . ($curlError ?: 'Connection failed') . "\n";
+                    } elseif ($httpCode === 0) {
+                        echo "  FAIL: Connection failed (HTTP 0)\n";
+                    } elseif ($httpCode >= 200 && $httpCode < 300) {
+                        echo "  OK: Server is reachable\n";
+                    } elseif ($httpCode === 401) {
+                        echo "  OK: Server is reachable (401 unauthenticated)\n";
+                    } else {
+                        echo "  WARN: Unexpected HTTP $httpCode\n";
+                    }
                 }
             }
             break;

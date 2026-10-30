@@ -47,12 +47,14 @@
     },
     "autoload": {
         "psr-4": {
-            "Phlix\\Console\\": "src/",
-            "SugarCraft\\Video\\Tests\\": "vendor/sugarcraft/sugar-video/tests/"
+            "Phlix\\Console\\": "src/"
         }
     },
     "autoload-dev": {
-        "psr-4": { "Phlix\\Console\\Tests\\": "tests/" }
+        "psr-4": {
+            "Phlix\\Console\\Tests\\": "tests/",
+            "SugarCraft\\Video\\Tests\\": "vendor/sugarcraft/sugar-video/tests/"
+        }
     },
     "minimum-stability": "dev",
     "prefer-stable": true,
