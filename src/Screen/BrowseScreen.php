@@ -926,7 +926,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
     {
         $filter = self::FILTER_LABELS[$this->watchFilter] ?? 'All';
 
-        return "↑↓  rails      ←→  items      ⏎  open      Tab  menu      a  filter({$filter})      R  refresh      s  shuffle      q  quit";
+        return "↑↓  rails      ←→  items      ⏎  open      Tab  menu      a  filter({$filter})      R  refresh      s  shuffle      u  up-next      [ ]  page      q  quit";
     }
 
     /**
