@@ -108,53 +108,66 @@ final class ConfigVocabularyDocsTest extends TestCase
     public function testTheManualConfigRowMatchesTheRuntimePersistedKeys(): void
     {
         // Derive, do not restate: run the real writer into a scratch file.
-        $path = sys_get_temp_dir() . '/phlix-m38-config-vocabulary.json';
-        $config = new Config(
-            servers: [],
-            activeServerId: 'srv-derived',
-            theme: 'nocturne',
-            slideshowInterval: 7,
-        );
-        $config->save($path);
+        // The name carries a per-process token (rider R-CONSOLE-12): the old
+        // fixed name was safe only under the serial-phpunit law and CI's
+        // separate runners — a suite parallelizing on one host would race two
+        // processes through one path. The unlink is part of the same deal:
+        // tokenised names that leak on every run are worse hygiene than the
+        // fixed name they replace, so the scratch is removed in `finally`
+        // (assertion throws included).
+        $path = sys_get_temp_dir() . '/phlix-m38-config-vocabulary-' . getmypid() . '.json';
+        try {
+            $config = new Config(
+                servers: [],
+                activeServerId: 'srv-derived',
+                theme: 'nocturne',
+                slideshowInterval: 7,
+            );
+            $config->save($path);
 
-        $raw = file_get_contents($path);
-        if ($raw === false) {
-            throw new RuntimeException('could not read scratch config at ' . $path);
+            $raw = file_get_contents($path);
+            if ($raw === false) {
+                throw new RuntimeException('could not read scratch config at ' . $path);
+            }
+
+            $decoded = json_decode($raw, true);
+            if (!is_array($decoded)) {
+                throw new RuntimeException('scratch config is not JSON at ' . $path);
+            }
+
+            $persisted = array_keys($decoded);
+            sort($persisted);
+            self::assertSame(
+                self::PERSISTED_KEYS,
+                $persisted,
+                'Config::save() now persists ' . implode(', ', $persisted)
+                . ' — the manual row, the dev-guide split, and PERSISTED_KEYS here '
+                . 'must all move together.'
+            );
+
+            $row = self::configJsonRow();
+            self::assertStringContainsString(
+                'theme',
+                $row,
+                'the manual config.json row no longer names the synced theme key.'
+            );
+            self::assertStringContainsString(
+                'slideshow',
+                $row,
+                'the manual config.json row no longer names the slideshow interval '
+                . 'that save() provably persists.'
+            );
+            self::assertStringNotContainsString(
+                'render mode preferences',
+                $row,
+                'the manual again advertises persisted render-mode preferences — '
+                . 'render mode is per-invocation only (review M-CONSOLE-38).'
+            );
+        } finally {
+            if (is_file($path)) {
+                unlink($path);
+            }
         }
-
-        $decoded = json_decode($raw, true);
-        if (!is_array($decoded)) {
-            throw new RuntimeException('scratch config is not JSON at ' . $path);
-        }
-
-        $persisted = array_keys($decoded);
-        sort($persisted);
-        self::assertSame(
-            self::PERSISTED_KEYS,
-            $persisted,
-            'Config::save() now persists ' . implode(', ', $persisted)
-            . ' — the manual row, the dev-guide split, and PERSISTED_KEYS here '
-            . 'must all move together.'
-        );
-
-        $row = self::configJsonRow();
-        self::assertStringContainsString(
-            'theme',
-            $row,
-            'the manual config.json row no longer names the synced theme key.'
-        );
-        self::assertStringContainsString(
-            'slideshow',
-            $row,
-            'the manual config.json row no longer names the slideshow interval '
-            . 'that save() provably persists.'
-        );
-        self::assertStringNotContainsString(
-            'render mode preferences',
-            $row,
-            'the manual again advertises persisted render-mode preferences — '
-            . 'render mode is per-invocation only (review M-CONSOLE-38).'
-        );
     }
 
     public function testTheManualStatesRenderModeIsNeverStored(): void

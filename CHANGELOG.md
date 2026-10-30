@@ -5,6 +5,33 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — rider W12 R-CONSOLE-12: the T3 config-vocabulary scratch path gets a per-process token and a finally-unlink — 2026-10-31
+
+- **The observation.** M-CONSOLE-38__r1 (non-blocking #1): the runtime-derive
+  test wrote its scratch to a FIXED name
+  (`sys_get_temp_dir()/phlix-m38-config-vocabulary.json`). Safe under the
+  house serial-phpunit law and CI's separate runners, but a future lane
+  parallelizing suites on one host would race two processes through one
+  path — and the fixed-name file also leaked in `/tmp` forever (nothing
+  unlinked it).
+- **The cure.** `tests/Docs/ConfigVocabularyDocsTest.php` now names the
+  scratch with `getmypid()` (the per-process token the review asked for) and
+  removes it in a `finally` — tokenised names that leaked on every run would
+  be worse hygiene than the fixed name they replace, so the unlink covers
+  assertion-throw paths too. Test-internal only: zero product behavior, zero
+  pin semantics, zero wire surface moved.
+- **Gates.** Full serial suite 3488 tests / 21489 assertions — counts and
+  the box's 15 deprecations / 15 skips baseline unchanged from the W11-era
+  measurement (no new or moved assertions; the cure is a rename-plus-cleanup
+  inside one existing test); the file's own 6/13 green; a second run after a
+  first leaves no `/tmp` residual (mutation: with the old fixed name the
+  stale `/tmp/phlix-m38-config-vocabulary.json` was still sitting there);
+  phpstan prod shows only the inherited `AdminClient::alternatePosters`
+  error (do-not-fix pin), phpstan-tests [OK]; phpcs repo `phpcs.xml` src and
+  `phpcs-tests.xml` tests exit 0, and bare PSR12 on the changed file is
+  clean (ScopeIndent law); i18n hardcoded + catalogs gates exit 0 with the
+  6-catalogs × 68-keys parity held untouched.
+
 ### Fixed — riders W11 R-CONSOLE-11: the argv-secret deprecation warning moves to parse-capture, making the M-CONSOLE-35 "never silent" prose true on the parse-error path — 2026-10-31
 
 - **The overclaim.** The 2026-10-29 M-CONSOLE-35 entry below promises the
