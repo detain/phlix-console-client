@@ -444,7 +444,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
             $next->currentIndex = $msg->currentIndex;
 
             if ($msg->currentIndex === -1) {
-                return [$next, Cmd::send(ShowToastMsg::error('Could not locate this episode in its series'))];
+                return [$next, Cmd::send(ShowToastMsg::error('Could not locate this episode in its series.'))];
             }
 
             return [$next, null];
@@ -991,7 +991,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
      * Fetch the subtitle tracks, pick the default (or first), fetch + parse its
      * WebVTT → SubtitleVttLoadedMsg(?WebVtt). If no track is available, returns
      * SubtitleVttLoadedMsg(null). On VTT fetch failure, returns ShowToastMsg::error
-     * ('Subtitles failed to load') — the promise chain uses ->then(success)->catch(error)
+     * ('Subtitles failed to load.') — the promise chain uses ->then(success)->catch(error)
      * rather than the two-argument .then(success, error) form to satisfy PHPStan level 9
      * type inference on ReactPHP promises.
      *
@@ -1014,10 +1014,10 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
                             try {
                                 return new SubtitleVttLoadedMsg(\SugarCraft\Video\Subtitle\WebVtt::parse($vttBody));
                             } catch (\Throwable $e) {
-                                return ShowToastMsg::error('Subtitles failed to load');
+                                return ShowToastMsg::error('Subtitles failed to load.');
                             }
                         },
-                        static fn (): Msg => ShowToastMsg::error('Subtitles failed to load'),
+                        static fn (): Msg => ShowToastMsg::error('Subtitles failed to load.'),
                     );
             },
             static fn (): Msg => new SubtitleVttLoadedMsg(null),
@@ -1197,7 +1197,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
                     $following();
                 }
 
-                return ShowToastMsg::error('Failed to mark as watched');
+                return ShowToastMsg::error('Failed to mark as watched.');
             },
         );
 

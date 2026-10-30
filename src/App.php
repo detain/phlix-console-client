@@ -2063,7 +2063,7 @@ final class App implements Model
     // superseded chain is dropped as stale — never two heartbeats at once.
 
     /** A toast shown when a track can't be resolved/played. */
-    private const PLAY_TRACK_FAILED = 'Could not play this track';
+    private const PLAY_TRACK_FAILED = 'Could not play this track.';
 
     /**
      * Start playing track $index of $album: resolve its signed stream URL
@@ -2258,7 +2258,7 @@ final class App implements Model
     // same epoch discipline relocated VERBATIM from AudiobookDetailScreen.
 
     /** A toast shown when an audiobook can't be played (missing stream URL). */
-    private const PLAY_AUDIOBOOK_FAILED = 'Cannot play this audiobook';
+    private const PLAY_AUDIOBOOK_FAILED = 'Cannot play this audiobook.';
 
     /**
      * Play (or seek) $audiobook at $startMs (a chapter start, or a resume

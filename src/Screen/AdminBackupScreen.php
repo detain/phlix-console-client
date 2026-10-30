@@ -400,7 +400,7 @@ final class AdminBackupScreen implements Breadcrumbed, Themed
         $next = $this->idle();
         $next->schedule = $msg->schedule;
 
-        return [$next, Cmd::send(ShowToastMsg::success('Schedule updated'))];
+        return [$next, Cmd::send(ShowToastMsg::success('Schedule updated.'))];
     }
 
     /** @return array{self, ?\Closure} */

@@ -604,7 +604,7 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
         $next = $this->idle();
         $next->pollEpoch = $this->pollEpoch + 1;
         $library = $next->selectedLibrary();
-        $toast = Cmd::send(ShowToastMsg::success($msg->message === '' ? 'Library job queued' : $msg->message));
+        $toast = Cmd::send(ShowToastMsg::success($msg->message === '' ? 'Library job queued.' : $msg->message));
         if ($library === null) {
             return [$next, $toast];
         }

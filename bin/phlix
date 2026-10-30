@@ -22,9 +22,10 @@ usage:
   phlix watch [--hub URL] [--server-id ID] [--once] [--timeout SECS]
                     consume hub-relay "play X" commands
                     (tokens: env PHLIX_*_TOKEN or --hub-token-stdin / --relay-token-stdin)
-  phlix run [--mode=…]                      launch the full-window app (needs a TTY)
-  phlix version                             print version information
-  phlix help                                show this help message
+  phlix run [--mode=…] [--selftest]         launch the full-window app (needs a TTY);
+                                            --selftest runs the wiring ladder headless
+  phlix version  (-V / --version)           print version information
+  phlix help     (-h / --help)              show this help message
 
 render modes:
   halfblock | quarterblock | ascii | ansi256 | truecolor (cell modes)
@@ -606,21 +607,48 @@ function runWatch(array $argv): int
     return $received ? 0 : 1;
 }
 
-/** Pull a render mode out of argv: --mode=sixel, --mode sixel, or a bare `sixel`. */
+/**
+ * Pull a render mode out of argv: --mode=sixel, --mode sixel, or a bare
+ * `sixel` trailing on run/poster/frame (review M-CONSOLE-61).
+ *
+ * The flag form is validated against $KNOWN_MODES right here and exits 2 —
+ * the usage-error code this entrypoint's own contract reserves (:9-10,
+ * honoured by parseWatchArgs). Letting a typo reach MosaicFactory::forMode()
+ * made it a thrown InvalidArgumentException caught by the outer handler:
+ * exit 1, the generic-exception code, for the textbook usage error.
+ *
+ * The bare form is restricted to the commands that actually consume $mode
+ * and to the final argv position: a mode word in the middle of `phlix frame`
+ * used to be silently absorbed as the decode mode while still being skipped
+ * as a positional number, mutating the behaviour of what looked like a
+ * plain frame extraction.
+ */
 $KNOWN_MODES = ['auto', 'halfblock', 'half', 'ansi', 'quarterblock', 'quarter',
     'ascii', 'ansi256', 'truecolor', 'sixel', 'kitty', 'iterm2'];
 $mode = null;
+$modeFromFlag = false;
 foreach ($argv as $i => $arg) {
     if (!is_string($arg)) {
         continue;
     }
     if (str_starts_with($arg, '--mode=')) {
         $mode = substr($arg, 7);              // --mode=sixel
+        $modeFromFlag = true;
     } elseif ($arg === '--mode' && isset($argv[$i + 1]) && is_string($argv[$i + 1])) {
         $mode = $argv[$i + 1];                // --mode sixel
-    } elseif ($i >= 2 && in_array($arg, $KNOWN_MODES, true)) {
-        $mode = $arg;                         // a bare mode name, e.g. `phlix run sixel`
+        $modeFromFlag = true;
     }
+}
+if ($mode === null && count($argv) >= 3 && in_array($cmd, ['run', 'poster', 'frame'], true)) {
+    $last = $argv[count($argv) - 1];
+    if (is_string($last) && in_array($last, $KNOWN_MODES, true)) {
+        $mode = $last;                        // trailing bare mode, e.g. `phlix run sixel`
+    }
+}
+if ($modeFromFlag && !in_array(strtolower(trim((string) $mode)), $KNOWN_MODES, true)) {
+    fwrite(STDERR, "Error: unknown render mode: {$mode}\n");
+    fwrite(STDERR, 'usage: --mode one of ' . implode(' | ', $KNOWN_MODES) . "  (see: phlix help)\n");
+    exit(2);
 }
 $intArg = static fn(int $i, int $default): int =>
     isset($argv[$i]) && ctype_digit((string) $argv[$i]) ? (int) $argv[$i] : $default;
@@ -745,6 +773,8 @@ try {
             exit(0);
 
         case 'help':
+        case '--help':
+        case '-h':
             fwrite(STDOUT, HELP_TEXT);
             exit(0);
 

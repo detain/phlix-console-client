@@ -234,7 +234,7 @@ final class AdminUsersScreen implements Breadcrumbed, Themed
 
         return [$this->closeForm()->working(), $this->mutationCmd(
             $this->admin->createUser($username, $email, $password, $isAdmin),
-            'User created',
+            'User created.',
         )];
     }
 
@@ -265,7 +265,7 @@ final class AdminUsersScreen implements Breadcrumbed, Themed
 
         return [$this->closeForm()->working(), $this->mutationCmd(
             $this->admin->updateUser($user->id, $newUsername, $newEmail, $newPassword),
-            'User updated',
+            'User updated.',
         )];
     }
 

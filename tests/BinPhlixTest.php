@@ -430,6 +430,103 @@ final class BinPhlixTest extends TestCase
         $this->assertStringContainsString('DEPRECATED', $result['stdout']);
     }
 
+    // ------------------------------------------------------------------
+    // M-CONSOLE-60 / M-CONSOLE-61 (review console__tuiarch): the usage
+    // surface promises what the parser delivers, and every accepted form
+    // is advertised. `--help`/`-h` are the most expected flags in the CLI
+    // ecosystem — answering them with "Unknown command: --help" reads as
+    // breakage; and a malformed `--mode` value is the textbook usage
+    // error, which this entrypoint's own header contract (:9-10) prices at
+    // exit 2, not the generic caught-exception exit 1 it leaked to.
+    // ------------------------------------------------------------------
+
+    public function testHelpFlagsExitZeroAndPrintUsage(): void
+    {
+        foreach (['--help', '-h'] as $flag) {
+            $output = $this->runPhlix([$flag]);
+            $this->assertSame(0, $output['exitCode'], $flag . ' should exit with code 0');
+            $this->assertStringContainsString(
+                'phlix — Phlix console client',
+                $output['stdout'],
+                $flag . ' should print the usage block on stdout',
+            );
+        }
+    }
+
+    public function testHelpTextAdvertisesEveryAcceptedInvocationForm(): void
+    {
+        $stdout = $this->runPhlix(['help'])['stdout'];
+
+        foreach (['-V', '--version', '-h', '--help', '--selftest'] as $token) {
+            $this->assertStringContainsString(
+                $token,
+                $stdout,
+                "HELP_TEXT must advertise the accepted form {$token}",
+            );
+        }
+    }
+
+    /**
+     * The README's "full command inventory" sentence and HELP_TEXT must
+     * carry the same alias set — the help-is-SSOT convention holds only
+     * when both advertised surfaces agree.
+     */
+    public function testReadmeCommandInventoryCarriesEveryAliasHelpAdvertises(): void
+    {
+        $readme = (string) file_get_contents(__DIR__ . '/../README.md');
+
+        $this->assertStringContainsString('(`-V` / `--version`)', $readme);
+        $this->assertStringContainsString('(`-h` / `--help`)', $readme);
+        $this->assertStringContainsString('`run --selftest`', $readme);
+    }
+
+    public function testMalformedModeFlagIsAUsageErrorExitTwo(): void
+    {
+        $output = $this->runPhlix(['run', '--mode=banana']);
+
+        $this->assertSame(2, $output['exitCode'], 'a bad --mode value must exit 2 (usage-error contract)');
+        $this->assertStringContainsString('unknown render mode', $output['stderr']);
+        $this->assertStringNotContainsString(
+            'needs a TTY',
+            $output['stderr'],
+            'mode validation must run at the scan, before the run-case TTY gate',
+        );
+    }
+
+    public function testMalformedModeFlagReddensEvenForModelessCommands(): void
+    {
+        // `doctor` never consumes $mode; the review-era run accepted
+        // --mode=banana with exit 0. A usage error is a usage error at the
+        // entrypoint boundary, whichever command follows it.
+        $output = $this->runPhlix(['doctor', '--mode=banana']);
+
+        $this->assertSame(2, $output['exitCode']);
+        $this->assertStringContainsString('unknown render mode', $output['stderr']);
+    }
+
+    /**
+     * Structural pin (tests/Docs doctrine: parse the code side, never
+     * restate prose): the bare-mode absorption is gated by the
+     * mode-consuming command allow-list AND final argv position, and the
+     * flag form is validated post-scan against $KNOWN_MODES. The pure
+     * behavioural vector for the restriction (a mid-argv mode word for
+     * `frame`) needs an ffmpeg fixture, so the scan law is pinned at the
+     * source — a regression to the `$i >= 2` anywhere-scan reddens this.
+     */
+    public function testBareModeScanIsRestrictedToTrailingArgsOfModeConsumingCommands(): void
+    {
+        $source = (string) file_get_contents($this->binPath);
+
+        $this->assertStringContainsString("in_array(\$cmd, ['run', 'poster', 'frame'], true)", $source);
+        $this->assertStringContainsString('$argv[count($argv) - 1]', $source);
+        $this->assertStringContainsString('!in_array(strtolower(trim((string) $mode)), $KNOWN_MODES, true)', $source);
+        $this->assertStringNotContainsString(
+            '$i >= 2 && in_array($arg, $KNOWN_MODES, true)',
+            $source,
+            'the anywhere-position bare-mode absorption must not come back',
+        );
+    }
+
     /**
      * Run the phlix binary with given arguments and capture output.
      *

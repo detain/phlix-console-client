@@ -361,9 +361,10 @@ bin/phlix frame /path/to/movie.mkv 3 60 20
 ```
 
 `doctor`, `poster`, and `frame` are non-interactive and work over a pipe;
-`run` needs an interactive terminal. The full command inventory is `run`,
+`run` needs an interactive terminal — `run --selftest` is the headless wiring
+ladder and does not. The full command inventory is `run`,
 `doctor`, `poster`, `frame`, `watch` (below), `version` (`-V` / `--version`)
-and `help` — the latter two print and exit, no terminal required.
+and `help` (`-h` / `--help`) — the latter two print and exit, no terminal required.
 
 ### Hub relay watch
 

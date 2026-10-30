@@ -5,6 +5,67 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — minors batch W-min11 (M-CONSOLE-09 · 60 · 61): CLI usage surface made self-honest, malformed `--mode` priced at its contract exit code, one toast-sentence grammar — 2026-10-30
+
+- **The defects.** (console__tuiarch m2×2, console__copywriter m2.)
+  `--help`/`-h` fell to `default:` — "Unknown command: --help" on stderr,
+  exit 2 — while `--version`/`-V` and `run --selftest` worked unadvertised:
+  HELP_TEXT listed none of the accepted alias forms. A malformed `--mode`
+  value (`--mode=banana`) was never validated at the scan; it reached
+  `MosaicFactory::forMode()`'s throw and the outer catch, exiting 1 — the
+  generic-exception code — for the textbook usage error the file's own
+  header contract prices at 2. The bare-mode scan absorbed any known mode
+  word anywhere in any argv (`$i >= 2`), so `phlix doctor sixel` and a mode
+  word mid-`frame` silently mutated command behaviour. And the toast family
+  carried two grammars: period-less standalone sentences ('Could not play
+  this track', 'Cannot play this audiobook', 'Could not locate this episode
+  in its series', 'Subtitles failed to load', 'Failed to mark as watched',
+  'An error occurred', 'User updated'/'User created', 'Schedule updated',
+  'Library job queued', 'Type "restart" to confirm') beside period-ed
+  siblings ('Setting updated.', 'Server removed.', 'PIN must be 4 or 6
+  digits.').
+- **The cures.** `--help`/`-h` map to the `help` case; HELP_TEXT and the
+  README command-inventory sentence advertise every accepted form
+  (`-V`/`--version`, `-h`/`--help`, `run --selftest`). The mode scan
+  validates flag-form values against `$KNOWN_MODES` at the boundary —
+  exit 2 with the usage line, before any TTY gate or command dispatch —
+  and restricts bare absorption to a trailing argv element of
+  run/poster/frame. Every named toast literal takes its period (the
+  ExceptionSentences composed family already normalized its own via
+  `terminate()`), and the PlayerScreen docblock echo moves with its
+  literal.
+- **The pins.** BinPhlixTest +6: both help flags exit 0 printing usage;
+  HELP_TEXT advertises all five alias tokens; README inventory carries the
+  same alias set (help-is-SSOT both-sides); `--mode=banana` exits 2 naming
+  the mode (on `run` before the TTY refusal — the review-era exit-2
+  message differs — and on modeless `doctor`, review-era exit 0); the
+  scan-law structural pin refuses the `$i >= 2` anywhere-absorption shape.
+  New ToastSentencePunctuationTest (4): token_get_all sweep pinning every
+  direct `ShowToastMsg::kind('<literal>')` first-arg as terminated (or an
+  explicit `:` prefix), the App playback consts pinned by reflection, and
+  named guards for the fallback shapes the parser cannot see through.
+  Mutation teeth: parent-shape bin → all 5 behavioural/alias pins red
+  (measured); one reverted period pair → 2 punctuation pins red (measured);
+  restored both ways green.
+- **Measured.** Full serial run 3302 → 3312 tests, 20028 → 20068
+  assertions, Skipped 9 → 9 (the pre-existing 14 collection deprecations
+  held on both sides); phpstan prod corpus unchanged (the single inherited
+  AdminClient.php:2697 `return.type` error, file untouched — non-attribution
+  by zero diff), tests corpus 0; phpcs `phpcs.xml` src + `phpcs-tests.xml`
+  tests exit 0 (raw PSR12 clean on the new/edited test code;
+  AdminLibrariesScreenTest's raw-PSR12 line-length report is pre-existing
+  prose untouched apart from its one re-pinned assertion). One local test
+  pin (`AdminLibrariesScreenTest`) moved with its cured literal — from
+  measured red.
+- **The stale.** Queue siblings M-CONSOLE-07 (watch docs — README 'Hub
+  relay watch' + manual 'Hub relay consumer' sections +
+  WatchCommandDocsTest), M-CONSOLE-29 (manual Admin row to the full shipped
+  surface + ScreenInventoryDocsTest drift pin), M-CONSOLE-35 (render-mode
+  config claim purged — a2ae65d lineage, console.md:121 states the truth),
+  M-CONSOLE-93 (both Config.php cites read `/api/v1/users/me/settings`),
+  M-CONSOLE-94 (no invented mode list, `braille` gone — 1d42d37) verified
+  cured at HEAD, no edits.
+
 ### Changed — paste-replay prose to reviewer-exact truth: CapturesSlash enumeration completed, per-PasteMsg chunk law stated, mutation-teeth header measured; the M44 landed-parent absolutes folded and the OSC-52 channel note faded (review console__tuispec, M-CONSOLE-44 r4) — 2026-10-29
 
 - **The defect.** r2's SHIP verdict queued four prose minors on the M44

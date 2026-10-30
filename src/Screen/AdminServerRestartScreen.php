@@ -177,7 +177,7 @@ final class AdminServerRestartScreen implements Breadcrumbed, Themed
                 return [$next, $this->restartCmd()];
             }
 
-            return [$this->withTyped(''), Cmd::send(ShowToastMsg::error('Type "restart" to confirm'))];
+            return [$this->withTyped(''), Cmd::send(ShowToastMsg::error('Type "restart" to confirm.'))];
         }
 
         // Accumulate character input (up to 10 chars)

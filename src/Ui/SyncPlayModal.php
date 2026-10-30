@@ -396,7 +396,7 @@ final class SyncPlayModal
         $lines = [];
         $lines[] = Style::new()->bold()->render('  Error');
         $lines[] = '';
-        $lines[] = '  ' . ($this->error ?? 'An error occurred');
+        $lines[] = '  ' . ($this->error ?? 'An error occurred.');
         $lines[] = '';
         $lines[] = '  Press any key to continue';
 

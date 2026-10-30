@@ -687,7 +687,7 @@ final class AdminLibrariesScreenTest extends TestCase
 
         $toast = $this->firstToast($this->collectCmd($cmd));
         self::assertNotNull($toast);
-        self::assertSame('Library job queued', $toast->message);
+        self::assertSame('Library job queued.', $toast->message);
     }
 
     public function testActionFailureToastsTheErrorAndLeavesTheListUnchanged(): void
