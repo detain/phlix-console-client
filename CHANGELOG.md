@@ -1898,7 +1898,7 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   and albums via `Coerce::stringList()`; the render arms via `Coerce::str()`
   plus a new `Coerce::sanitizedTree()` that neutralises every string key/leaf
   of json-typed values BEFORE encoding — required because `json_encode`
-  leaves DEL/NUL raw and returns false on malformed UTF-8 (folding the whole
+  leaves DEL raw and returns false on malformed UTF-8 (folding the whole
   display to `''`), while the deep-sanitised result is inert terminal text
   AND valid JSON for the editor round-trip (non-string leaves keep their
   types). Law note: `stringList` coerces scalars (int 7 → `'7'` survives;
