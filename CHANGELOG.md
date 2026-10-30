@@ -5,6 +5,41 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — riders W11 R-CONSOLE-11: the argv-secret deprecation warning moves to parse-capture, making the M-CONSOLE-35 "never silent" prose true on the parse-error path — 2026-10-31
+
+- **The overclaim.** The 2026-10-29 M-CONSOLE-35 entry below promises the
+  `warning:` line fires "on EVERY use (before validation, so it is never
+  silent)". M-CONSOLE-35__r1 minor #1 measured the exception: the warn
+  calls lived in `runWatch` AFTER `parseWatchArgs` returned, so
+  `watch --hub-token SEC --timeout abc` threw at the bad flag and exited 2
+  with usage lines and zero warnings — while the secret had already been
+  in `ps(1)` since exec time. Historical entry kept verbatim per history
+  law; this entry cures the behavior so the sentence is true going forward.
+- **The cure.** `parseWatchArgs` now emits `warnArgvSecretCarrier` at the
+  instant a non-empty literal is accepted for `--hub-token` /
+  `--relay-token` (both the space-separated and inline `=` forms), before
+  any later flag can throw; the post-parse calls in `runWatch` are gone.
+  The empty-literal law is untouched (`--hub-token ''` sets no provenance
+  bit and warns nothing — no secret was exposed). A literal behind an
+  EARLIER malformed flag still dies silent — the parser never reached it,
+  which the helper docblock now states precisely instead of claiming
+  "EVERY use".
+- **Tests.** +2 pins in `tests/BinPhlixTest.php`
+  (`...SurvivesLaterParseError`, red at parent on the missing warning):
+  `--hub-token SEC --timeout abc` and `--relay-token=SEC --timeout abc`
+  each exit 2 WITH the line-anchored warning and no secret echo.
+- **Gates.** Full serial suite 3486→3488 tests, 21480→21489 assertions
+  (+2/+9 exact; parent re-measured on this box at the same 15 deprecations
+  / 15 skips baseline — both counts held, exit 0), `tests/BinPhlixTest.php`
+  37→39 all green; phpstan prod shows only the inherited
+  `AdminClient::alternatePosters` error (untouched, do-not-fix pin),
+  phpstan-tests [OK]; phpcs repo `phpcs.xml` src + `phpcs-tests.xml`
+  changed file: 0 findings on `BinPhlixTest.php`; bare PSR12 `bin/phlix`
+  at exact parent parity (8 pre-existing script-style findings, zero new —
+  the file is outside both repo corpora by established convention); i18n
+  hardcoded + catalogs gates exit 0 (6 catalogs, 68 keys — no user-visible
+  strings added). No PHAR built or committed (stable-PHAR law).
+
 ### Fixed — riders W9b R-CONSOLE-09: trickplay sprite/timeline URLs fold to null when the wire (or a stale cache blob) names a host outside the server's own authority — 2026-10-31
 
 - **The class.** M-CONSOLE-33__r1 forwarded the trickplay host-trust gap as

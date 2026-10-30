@@ -287,9 +287,11 @@ $cmd = $argv[1] ?? 'help';
  * (M-CONSOLE-35, CWE-214): env first, then `--hub-token-stdin` /
  * `--relay-token-stdin` (read from STDIN at resolution time), then the
  * DEPRECATED literal argv flags — which still parse (scripts stay alive)
- * but set a provenance bit so `runWatch` can warn loudly. Unknown options,
- * value-taking options without a value, and malformed values (e.g. a
- * non-numeric `--timeout`) are usage errors (exit 2).
+ * but warn loudly the instant the literal is accepted (R-CONSOLE-11: the
+ * warning was moved from `runWatch` to here, so a later malformed flag
+ * can no longer kill the run before the exposure is named). Unknown
+ * options, value-taking options without a value, and malformed values
+ * (e.g. a non-numeric `--timeout`) are usage errors (exit 2).
  *
  * @param list<string> $argv Full argv (index 0 = script, 1 = "watch").
  *
@@ -342,6 +344,15 @@ function parseWatchArgs(array $argv): array
                 case 'hub-token':
                     $args['hubToken'] = $value;
                     $args['hubTokenFromArgv'] = $value !== null && $value !== '';
+                    // Warn at capture, not after parsing (R-CONSOLE-11):
+                    // the secret is already in ps(1) from exec time, and a
+                    // later flag's throw must not silence the warning.
+                    warnArgvSecretCarrier(
+                        $args['hubTokenFromArgv'],
+                        'hub-token',
+                        'PHLIX_HUB_TOKEN',
+                        '--hub-token-stdin',
+                    );
                     break;
                 case 'hub-token-stdin':
                     if ($value !== null) {
@@ -352,6 +363,13 @@ function parseWatchArgs(array $argv): array
                 case 'relay-token':
                     $args['relayToken'] = $value;
                     $args['relayTokenFromArgv'] = $value !== null && $value !== '';
+                    // Same warn-at-capture law as --hub-token (R-CONSOLE-11).
+                    warnArgvSecretCarrier(
+                        $args['relayTokenFromArgv'],
+                        'relay-token',
+                        'PHLIX_RELAY_TOKEN',
+                        '--relay-token-stdin',
+                    );
                     break;
                 case 'relay-token-stdin':
                     if ($value !== null) {
@@ -388,7 +406,11 @@ function parseWatchArgs(array $argv): array
 
 /**
  * Name the CWE-214 exposure of a literal secret that arrived in argv —
- * loud, before any connection or further validation, and on EVERY use.
+ * emitted by `parseWatchArgs` the moment the literal is accepted, before
+ * any connection or further validation, so even a run that dies on a
+ * LATER malformed flag names the exposure (R-CONSOLE-11: this used to run
+ * after parsing, where an earlier flag's throw silenced it — see the
+ * `--hub-token SEC --timeout abc` pins).
  * The process still proceeds: silently breaking existing scripts is its
  * own honesty violation (the `phlix run` non-TTY refusal, 1b7dd9e, sets
  * the bar for how deprecations exit in this CLI — this one is a warning,
@@ -503,12 +525,9 @@ function runWatch(array $argv): int
         return 2;
     }
 
-    // CWE-214 exposure named BEFORE anything else — even when the run dies
-    // on a later usage error, the operator learned the secret is already in
-    // ps(1) output. (M-CONSOLE-35)
-    warnArgvSecretCarrier($args['hubTokenFromArgv'], 'hub-token', 'PHLIX_HUB_TOKEN', '--hub-token-stdin');
-    warnArgvSecretCarrier($args['relayTokenFromArgv'], 'relay-token', 'PHLIX_RELAY_TOKEN', '--relay-token-stdin');
-
+    // The CWE-214 warning for literal argv secrets fires at parse-capture
+    // inside parseWatchArgs (R-CONSOLE-11), so a run that dies on a later
+    // usage error still named the exposure. (M-CONSOLE-35)
     $hub = $args['hub'];
     $serverId = $args['serverId'];
     if ($hub === null || $hub === '' || $serverId === null || $serverId === '') {
