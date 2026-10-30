@@ -266,6 +266,36 @@ bin/phlix run --mode=halfblock
 bin/phlix poster /path/to/poster.jpg 40
 ```
 
+### Accessibility and basic terminals
+
+The client reads two standard environment variables before any colour is
+emitted, and honours them across every styled surface (header brand, status
+hints, rating stars, badges, danger marks, cast-avatar fields):
+
+| Signal | Effect |
+| --- | --- |
+| `NO_COLOR` set to **any non-empty value** | Colour drops out entirely — text and layout unchanged. A literal `NO_COLOR=0` still disables (the convention is presence-based; an empty value does **not** disable). |
+| `TERM=dumb` | Same suppression — for line-mode terminals (`ed`-style linters, some screen sessions) that render SGR poorly or not at all. |
+
+Suppression is colour-only by design: the structural attributes — **bold**
+emphasis, faint avatar initials, reverse-video selection cursor — survive, so
+what is selected and what is emphasized stays visible without any palette.
+The default theme (Nocturne) carries no colours at all, so a screen reader or
+a `TERM=dumb` session sees the same plain text a coloured theme is reduced to.
+
+Small and basic setups:
+
+- The interface is designed for at least **80×24**. Below that nothing
+  crashes: the body area is `rows − 8` lines deep (floored at zero) and the
+  status hint line is fitted by whole-word middle elision (` … ` marks the
+  gap) while each hint's safety key — `q  quit`, `Esc  back` — stays anchored
+  at the end.
+- Posters never need colour or graphics protocols: `bin/phlix doctor` reports
+  what your terminal supports, and `bin/phlix run --mode=ascii` renders
+  posters as a monochrome character ramp on any terminal.
+- Themes are chosen on the **Settings** screen and follow your account; an
+  unknown stored value falls back to Nocturne rather than failing.
+
 ### Keybindings
 
 #### Navigation

@@ -32,6 +32,16 @@ use SugarCraft\Style\Style;
  * {@see Style::resolveProfile()} so a truecolor accent downgrades to 256 / ANSI
  * per the terminal's capability.
  *
+ * ## Colour suppression — NO_COLOR / TERM=dumb
+ *
+ * A user who exports {@see colorSuppressed()} — `NO_COLOR` with any non-empty
+ * value (the no-color.org convention: the mere presence disables, an empty
+ * value does not) or `TERM=dumb` (the classic line-mode terminal) — gets
+ * COLOR-FREE output from every styled surface here, regardless of theme.
+ * Suppression is colour-only, exactly as the two conventions specify: bold,
+ * faint and reverse attributes survive, so emphasis and selection stay
+ * visible on terminals that render colour poorly or not at all.
+ *
  * ## Content-widget roles (M-CONSOLE-48)
  *
  * Beyond the two chrome tokens, widgets (rating stars, badges, card titles,
@@ -78,14 +88,38 @@ final readonly class Theme
     }
 
     /**
+     * Whether the process environment asks for colour-free output: `NO_COLOR`
+     * set to any non-empty value (no-color.org: presence disables, an empty
+     * value does not) or the classic `TERM=dumb` line-mode terminal.
+     *
+     * Read fresh per call — the same per-decision-snapshot posture the rest of
+     * the estate takes: a TUI process's environment does not change under it,
+     * and a memoised flag is one more stale state to test against. The house
+     * env doctrine (PosterLoader/DownloadService): getenv() is the one true
+     * process-environment read — putenv lands here; $_ENV only when
+     * variables_order says so.
+     */
+    public static function colorSuppressed(): bool
+    {
+        $noColor = getenv('NO_COLOR');
+
+        if (is_string($noColor) && $noColor !== '') {
+            return true;
+        }
+
+        return getenv('TERM') === 'dumb';
+    }
+
+    /**
      * A ready style for the " Phlix " brand token. Under Nocturne (accent null)
      * this is a plain {@see Style::new()} that renders text unchanged (zero SGR),
      * keeping the header byte-identical to today. Otherwise it carries the accent
-     * foreground, profile-resolved for the terminal.
+     * foreground, profile-resolved for the terminal. Under {@see colorSuppressed()}
+     * the colour is dropped — same zero-SGR identity as Nocturne.
      */
     public function brandStyle(): Style
     {
-        if ($this->accent === null) {
+        if ($this->accent === null || self::colorSuppressed()) {
             return Style::new();
         }
 
@@ -94,11 +128,12 @@ final readonly class Theme
 
     /**
      * A ready style for the status-hint line. Null muted → plain (unchanged)
-     * style; otherwise the muted foreground, profile-resolved.
+     * style; otherwise the muted foreground, profile-resolved. Under
+     * {@see colorSuppressed()} the colour is dropped (plain style).
      */
     public function statusStyle(): Style
     {
-        if ($this->muted === null) {
+        if ($this->muted === null || self::colorSuppressed()) {
             return Style::new();
         }
 
@@ -168,7 +203,9 @@ final readonly class Theme
      * The ready style for a content-widget role: the role's attributes (bold
      * when it carries emphasis, reverse for an interactive cursor) plus the
      * theme's hex for it, profile-resolved exactly like {@see brandStyle()}.
-     * A null role hex renders attribute-only (terminal default colour).
+     * A null role hex renders attribute-only (terminal default colour) — and
+     * under {@see colorSuppressed()} every role renders that way: attributes
+     * kept, colour dropped.
      *
      * Unknown theme id or unknown role is a programming error — fail loud at
      * the boundary rather than silently render someone's stale guess (the
@@ -188,7 +225,7 @@ final readonly class Theme
         if ($reversed) {
             $style = $style->reverse();
         }
-        if ($hex !== null) {
+        if ($hex !== null && !self::colorSuppressed()) {
             $style = $style->fg(Color::hex($hex));
         }
 
@@ -199,6 +236,8 @@ final readonly class Theme
      * A cast-avatar chip style: the dimmed initials look the widgets shipped
      * with, on the theme's ramp slot ($slot is the historical crc32 of the
      * member name — the call site keeps the slotting, the theme keeps the hues).
+     * Under {@see colorSuppressed()} the chip keeps its faint attribute and
+     * loses only the coloured field.
      */
     public function avatarStyle(int $slot): Style
     {
@@ -209,7 +248,12 @@ final readonly class Theme
         $ramp = self::AVATAR_RAMPS[$this->id]
             ?? throw new InvalidArgumentException("Theme '{$this->id}' has no avatar ramp");
 
-        return Style::new()->faint()->bg(Color::hex($ramp[$slot % count($ramp)]))->resolveProfile();
+        $style = Style::new()->faint();
+        if (!self::colorSuppressed()) {
+            $style = $style->bg(Color::hex($ramp[$slot % count($ramp)]));
+        }
+
+        return $style->resolveProfile();
     }
 
     /**
@@ -227,10 +271,16 @@ final readonly class Theme
         return new self('Daylight', 'daylight', '#005f87', '#6b6b6b');
     }
 
-    /** Accent + muted tuned for DARK terminals (bright blue on a dark field). */
+    /**
+     * Accent + muted tuned for DARK terminals (bright blue on a dark field).
+     * The muted grey clears WCAG AA on every common dark backdrop: measured
+     * 5.19:1 on #1e1e1e, 5.11:1 on #1e1e2e, 5.84:1 on #11111b, 6.54:1 on
+     * #000000 (the pre-lift #6c7086 sat at 3.41:1 on #1e1e1e — below the
+     * 4.5:1 body-text floor; ThemeMutedContrastTest re-measures and pins it).
+     */
     public static function midnight(): self
     {
-        return new self('Midnight', 'midnight', '#5fafff', '#6c7086');
+        return new self('Midnight', 'midnight', '#5fafff', '#8a8fa3');
     }
 
     /**

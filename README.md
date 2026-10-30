@@ -46,6 +46,7 @@ Straight to the answers:
 | How do I consume hub-relay play commands headless? | [Hub relay consumer](docs/clients/console.md#hub-relay-consumer-watch) |
 | "needs a TTY" / no graphics / expired session? | [Troubleshooting](docs/clients/console.md#troubleshooting) |
 | Which languages does the interface speak? | [Languages](docs/clients/console.md#languages) |
+| `NO_COLOR`, `TERM=dumb`, tiny or basic terminal? | [Accessibility and basic terminals](docs/clients/console.md#accessibility-and-basic-terminals) |
 
 Further reading: [i18n](docs/i18n.md) (the env locale chain),
 [terminal graphics](docs/terminal-graphics.md) (protocol capabilities),
@@ -343,7 +344,9 @@ compatibility.
 > **Theming, settings, and polish**: three built-in themes —
 > **Nocturne** (default), **Daylight**, and **Midnight** — plus a **Settings**
 > screen (reachable from the command palette) for picking the theme and the
-> photo-slideshow interval, applied live. A persistent **Now-Playing bar** spans
+> photo-slideshow interval, applied live. `NO_COLOR` and `TERM=dumb` are
+> honoured: colour drops out everywhere while bold/faint/reverse structure
+> stays ([Accessibility and basic terminals](docs/clients/console.md#accessibility-and-basic-terminals)). A persistent **Now-Playing bar** spans
 > every screen so music and audiobook audio keeps playing (and stays controllable)
 > as you navigate; the palette also toggles a diagnostic **metrics HUD** overlay
 > and opens a read-only **Stats** screen, and lists load behind **animated shimmer
