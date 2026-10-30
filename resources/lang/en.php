@@ -38,7 +38,7 @@ return [
     'detail.rating_save_failed' => 'Could not save the rating: ',
     'detail.play_notice' => '▶  This title has no playable source.',
     'detail.actions_hint' => '▶  p  play        Esc  back',
-    'detail.hint' => '↑↓  scroll synopsis      p  play      s  shuffle      C  cast      r  rate      F  favorite      w  watched      l  thumbs up      j  thumbs down      d  download      Esc  back',
+    'detail.hint' => '↑↓  scroll synopsis      p  play      s  shuffle      C  cast      r  rate      F  favorite      w  watched      l  thumbs up      j  thumbs down      d  download      u  subtitles      Esc  back',
     'detail.container_hint' => '↑↓←→  move      ⏎  open      s  shuffle      Esc  back',
     'detail.loading_hint' => 'Esc  back',
     'detail.loading' => 'Loading…',

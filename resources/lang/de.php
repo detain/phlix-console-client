@@ -41,7 +41,7 @@ return [
     'detail.rating_save_failed' => 'Bewertung konnte nicht gespeichert werden: ',
     'detail.play_notice' => '▶  Dieser Titel hat keine abspielbare Quelle.',
     'detail.actions_hint' => '▶  p  Abspielen   Esc  Zurück',
-    'detail.hint' => '↑↓  Handlung scrollen      p  abspielen      s  Zufall      C  Besetzung      r  bewerten      F  Favorit      w  gesehen      l  Daumen hoch      j  Daumen runter      d  herunterladen      Esc  zurück',
+    'detail.hint' => '↑↓  Handlung scrollen      p  abspielen      s  Zufall      C  Besetzung      r  bewerten      F  Favorit      w  gesehen      l  Daumen hoch      j  Daumen runter      d  herunterladen      u  Untertitel      Esc  zurück',
     'detail.container_hint' => '↑↓←→  bewegen      ⏎  öffnen      s  Zufall      Esc  zurück',
     'detail.loading_hint' => 'Esc  zurück',
     'detail.loading' => 'Wird geladen…',

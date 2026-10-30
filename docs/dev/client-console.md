@@ -69,6 +69,7 @@ src/
 │   ├── BrowserTransport.php # Default React-based HTTP transport
 │   ├── Transport.php      # HTTP transport interface
 │   ├── MediaQuery.php     # Media list query builder
+│   ├── NetworkError.php   # Transport-level failure (no HTTP response)
 │   ├── Admin/              # Admin API sub-client
 │   ├── Cast/               # Cast (Chromecast/DLNA/AirPlay/Roku) client
 │   ├── Hub/                # Multi-server hub relay client
@@ -120,7 +121,10 @@ src/
 │   ├── CommandPalette.php  # Ctrl-K / `:` palette modal
 │   └── ...                 # Reusable UI components
 ├── I18n/
-│   └── Lang.php            # i18n wrapper (Lang::t(), Lang::_())
+│   ├── ExceptionSentences.php # User-facing sentences for API/network exceptions
+│   ├── Lang.php            # i18n wrapper (Lang::t(), Lang::_())
+│   ├── Locale.php          # Env locale resolution (LC_ALL → LC_MESSAGES → LANG → catalog code)
+│   └── SyncPlayErrors.php  # Watch-group (SyncPlay) wire error codes → syncplay.* keys
 ├── Msg/                    # Message classes (internal events, ~280 files)
 │   ├── LoginSucceededMsg.php, LoginFailedMsg.php
 │   ├── OpenDetailMsg.php, PlayRequestedMsg.php, etc.

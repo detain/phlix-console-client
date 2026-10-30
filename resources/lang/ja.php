@@ -41,7 +41,7 @@ return [
     'detail.rating_save_failed' => '評価を保存できませんでした: ',
     'detail.play_notice' => '▶  このタイトルには再生可能なソースがありません。',
     'detail.actions_hint' => '▶  p  再生        Esc  戻る',
-    'detail.hint' => '↑↓  あらすじをスクロール      p  再生      s  シャッフル      C  キャスト      r  評価      F  お気に入り      w  視聴済み      l  高評価      j  低評価      d  ダウンロード      Esc  戻る',
+    'detail.hint' => '↑↓  あらすじをスクロール      p  再生      s  シャッフル      C  キャスト      r  評価      F  お気に入り      w  視聴済み      l  高評価      j  低評価      d  ダウンロード      u  字幕      Esc  戻る',
     'detail.container_hint' => '↑↓←→  移動      ⏎  開く      s  シャッフル      Esc  戻る',
     'detail.loading_hint' => 'Esc  戻る',
     'detail.loading' => '読み込み中…',

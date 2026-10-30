@@ -41,7 +41,7 @@ return [
     'detail.rating_save_failed' => 'Error al guardar la valoración: ',
     'detail.play_notice' => '▶  Este título no tiene una fuente reproducible.',
     'detail.actions_hint' => '▶  p  Reproducir  Esc  Atrás',
-    'detail.hint' => '↑↓  mover sinopsis      p  reproducir      s  aleatorio      C  reparto      r  valorar      F  favorito      w  visto      l  me gusta      j  no me gusta      d  descargar      Esc  atrás',
+    'detail.hint' => '↑↓  mover sinopsis      p  reproducir      s  aleatorio      C  reparto      r  valorar      F  favorito      w  visto      l  me gusta      j  no me gusta      d  descargar      u  subtítulos      Esc  atrás',
     'detail.container_hint' => '↑↓←→  mover      ⏎  abrir      s  aleatorio      Esc  atrás',
     'detail.loading_hint' => 'Esc  atrás',
     'detail.loading' => 'Cargando…',

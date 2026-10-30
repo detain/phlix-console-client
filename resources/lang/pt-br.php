@@ -46,7 +46,7 @@ return [
     'detail.rating_save_failed' => 'Falha ao salvar a avaliação: ',
     'detail.play_notice' => '▶  Este título não tem uma fonte reproduzível.',
     'detail.actions_hint' => '▶  p  Reproduzir  Esc  Voltar',
-    'detail.hint' => '↑↓  rolar sinopse      p  reproduzir      s  aleatório      C  elenco      r  avaliar      F  favorito      w  assistido      l  curtir      j  não curtir      d  baixar      Esc  voltar',
+    'detail.hint' => '↑↓  rolar sinopse      p  reproduzir      s  aleatório      C  elenco      r  avaliar      F  favorito      w  assistido      l  curtir      j  não curtir      d  baixar      u  legendas      Esc  voltar',
     'detail.container_hint' => '↑↓←→  mover      ⏎  abrir      s  aleatório      Esc  voltar',
     'detail.loading_hint' => 'Esc  voltar',
     'detail.loading' => 'Carregando…',

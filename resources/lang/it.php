@@ -41,7 +41,7 @@ return [
     'detail.rating_save_failed' => 'Salvataggio della valutazione non riuscito: ',
     'detail.play_notice' => '▶  Questo titolo non ha una sorgente riproducibile.',
     'detail.actions_hint' => '▶  p  Riproduci   Esc  Indietro',
-    'detail.hint' => '↑↓  scorri sinossi      p  riproduci      s  casuale      C  cast      r  valuta      F  preferito      w  visto      l  mi piace      j  non mi piace      d  scarica      Esc  indietro',
+    'detail.hint' => '↑↓  scorri sinossi      p  riproduci      s  casuale      C  cast      r  valuta      F  preferito      w  visto      l  mi piace      j  non mi piace      d  scarica      u  sottotitoli      Esc  indietro',
     'detail.container_hint' => '↑↓←→  sposta      ⏎  apri      s  casuale      Esc  indietro',
     'detail.loading_hint' => 'Esc  indietro',
     'detail.loading' => 'Caricamento…',

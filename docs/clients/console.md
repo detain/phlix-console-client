@@ -294,6 +294,7 @@ modal steps back to the room list before closing when you are mid-creation).
 | `C` | Cast to Chromecast/DLNA/AirPlay/Roku (on detail screen) |
 | `Space` | Play / pause (for music/audiobook) |
 | `r` | Resume audiobook from saved position |
+| `u` | Search external subtitles for this title (candidates reported as a toast) |
 
 #### Watching & ratings
 

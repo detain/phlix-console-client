@@ -41,7 +41,7 @@ return [
     'detail.rating_save_failed' => "Échec de l’enregistrement de la note : ",
     'detail.play_notice' => "▶  Ce titre n’a aucune source lisible.",
     'detail.actions_hint' => '▶  p  Lire    Esc  Retour',
-    'detail.hint' => "↑↓  défilez le résumé      p  lire      s  aléatoire      C  distribution      r  noter      F  favori      w  vu      l  j’aime      j  je n’aime pas      d  télécharger      Esc  retour",
+    'detail.hint' => "↑↓  défilez le résumé      p  lire      s  aléatoire      C  distribution      r  noter      F  favori      w  vu      l  j’aime      j  je n’aime pas      d  télécharger      u  sous-titres      Esc  retour",
     'detail.container_hint' => '↑↓←→  déplacer      ⏎  ouvrir      s  aléatoire      Esc  retour',
     'detail.loading_hint' => 'Esc  retour',
     'detail.loading' => 'Chargement…',
