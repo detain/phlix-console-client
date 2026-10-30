@@ -904,12 +904,17 @@ final class ApiClient
      */
     public function trickplay(string $id): PromiseInterface
     {
+        // R-CONSOLE-09: the media-authority clamp needs the configured server
+        // host at parse time; captured here so the resolver stays static.
+        $base = $this->baseUrl;
+
         return $this->authed('GET', '/api/v1/media/' . rawurlencode($id) . '/trickplay')
-            ->then(static function (array $data): Trickplay {
+            ->then(static function (array $data) use ($base): Trickplay {
                 // The server response is {sprite_url, timeline_url}, each possibly
                 // null. ONE parse choke: the DTO boundary sanitizer (Coerce) runs
-                // inside fromArray — hostile wire bytes never enter the DTO.
-                return Trickplay::fromArray($data);
+                // inside fromArray — hostile wire bytes never enter the DTO; the
+                // host-trust fold (ServerAuthority) rides the same choke.
+                return Trickplay::fromArray($data, $base);
             });
     }
 

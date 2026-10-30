@@ -9,6 +9,8 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Api\Dto;
 
+use Phlix\Console\Api\ServerAuthority;
+
 /**
  * Trickplay sprite + timeline URLs for a media item's scrubber thumbnail preview.
  *
@@ -23,6 +25,18 @@ namespace Phlix\Console\Api\Dto;
  * surfaces, so no raw wire bytes may be stored here (M-CONSOLE-33 census).
  * An empty or all-noise URL folds to null, which is exactly "unavailable".
  *
+ * R-CONSOLE-09 adds the SECOND fold law: host trust. These are server-chosen
+ * URLs destined for sprite/timeline retrieval, so they obey the media-authority
+ * law ({@see ServerAuthority}, M-CONSOLE-55 lineage) — NOT the artwork
+ * carve-out: trickplay is server-generated content, never a third-party CDN
+ * hand-off. An ABSOLUTE URL survives parse only when it shares the configured
+ * server's host authority (exact host or subdomain); anything else folds to
+ * null — "unavailable" — so a hostile server cannot park foreign URLs in the
+ * DTO, the memory tier, or the on-disk cache blob. Hostless (relative) URLs
+ * resolve against the configured server by construction and pass untouched.
+ * Callers that carry the base URL MUST pass it; the `''` default fail-closes
+ * every absolute candidate while leaving relative ones available.
+ *
  * @see \Phlix\Console\Api\ApiClient::trickplay()
  */
 final readonly class Trickplay
@@ -36,11 +50,30 @@ final readonly class Trickplay
     }
 
     /** @param array{sprite_url?:mixed, timeline_url?:mixed} $data */
-    public static function fromArray(array $data): self
+    public static function fromArray(array $data, string $baseUrl = ''): self
     {
         return new self(
-            Coerce::nstr($data['sprite_url'] ?? null),
-            Coerce::nstr($data['timeline_url'] ?? null),
+            self::hostPinned(Coerce::nstr($data['sprite_url'] ?? null), $baseUrl),
+            self::hostPinned(Coerce::nstr($data['timeline_url'] ?? null), $baseUrl),
         );
+    }
+
+    /**
+     * R-CONSOLE-09: the media-authority clamp applied to each parsed URL.
+     * null passes through; a URL with no host component (relative to the
+     * configured server) is same-origin by construction; an absolute URL with
+     * a foreign, malformed, or unattributable host folds to null.
+     */
+    private static function hostPinned(?string $url, string $baseUrl): ?string
+    {
+        if ($url === null) {
+            return null;
+        }
+
+        if (ServerAuthority::hostOf($url) === null) {
+            return $url;
+        }
+
+        return ServerAuthority::trusted($baseUrl, $url) ? $url : null;
     }
 }

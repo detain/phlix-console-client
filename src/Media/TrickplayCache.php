@@ -69,7 +69,11 @@ final class TrickplayCache
                     && array_key_exists('timeline_url', $data)
                 ) {
                     /** @var array{sprite_url: ?string, timeline_url: ?string} $data */
-                    $tp = Trickplay::fromArray($data);
+                    // R-CONSOLE-09: persisted blobs re-enter through the SAME
+                    // clamp as the wire — a cache file written before the cure
+                    // (or tampered on disk) cannot smuggle foreign hosts back
+                    // into the DTO or the memory tier.
+                    $tp = Trickplay::fromArray($data, $this->api->baseUrl());
                     $this->memory->put($mediaId, $tp);
 
                     return resolve($tp);

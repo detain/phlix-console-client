@@ -447,13 +447,16 @@ final class ServerTextControlInjectionTest extends TestCase
      * Coerce DTO law at parse ({@see Trickplay::fromArray()}). The only reader
      * today null-checks them, but the values also round-trip the on-disk
      * TrickplayCache blob — hostile bytes must not persist anywhere.
+     * (R-W9b: the hosts sit INSIDE the base authority on purpose — since
+     * R-CONSOLE-09 a foreign host folds to null before the sanitizer would
+     * even be visible; host trust is pinned in TrickplayHostTrustTest.)
      */
     public function testTrickplayUrlsAreNeutralisedAtTheParseBoundary(): void
     {
-        $hostileSprite = 'https://srv/sprites/' . self::HOSTILE . '.png';
+        $hostileSprite = 'https://srv.example/sprites/' . self::HOSTILE . '.png';
         $transport = (new FakeTransport())->json(200, [
             'sprite_url' => $hostileSprite,
-            'timeline_url' => "\x1b[2Jhttps://srv/t.json",
+            'timeline_url' => "\x1b[2Jhttps://srv.example/t.json",
         ]);
         $client = new ApiClient('https://srv.example', $transport);
         $client->setToken(new TokenBundle('tok-abc', 'ref', 'Bearer', null));
@@ -471,9 +474,9 @@ final class ServerTextControlInjectionTest extends TestCase
         self::assertTerminalInert((string) $captured->spriteUrl, 'trickplay sprite_url');
         self::assertTerminalInert((string) $captured->timelineUrl, 'trickplay timeline_url');
         // Non-vacuity: the honest path and words survive the sanitizer.
-        self::assertStringStartsWith('https://srv/sprites/', (string) $captured->spriteUrl);
+        self::assertStringStartsWith('https://srv.example/sprites/', (string) $captured->spriteUrl);
         self::assertStringContainsString('Red', (string) $captured->spriteUrl);
-        self::assertSame('https://srv/t.json', $captured->timelineUrl);
+        self::assertSame('https://srv.example/t.json', $captured->timelineUrl);
 
         // Empty noise folds to null — "unavailable", matching the null contract.
         $noise = Trickplay::fromArray(['sprite_url' => "\x1b[31m\x07\x7f", 'timeline_url' => '']);

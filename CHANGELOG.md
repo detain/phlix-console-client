@@ -5,6 +5,48 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — riders W9b R-CONSOLE-09: trickplay sprite/timeline URLs fold to null when the wire (or a stale cache blob) names a host outside the server's own authority — 2026-10-31
+
+- **The class.** M-CONSOLE-33__r1 forwarded the trickplay host-trust gap as
+  an SSRF-adjacent transport-trust item: the DTO took `sprite_url` /
+  `timeline_url` verbatim from the wire, so a compromised or MITM'd server
+  response — or a tampered `trickplay:<id>` disk blob — could park a
+  metadata-endpoint or internal-network URL (e.g. `169.254.169.254`) inside
+  the client. The console itself never fetches those bytes (scrub preview is
+  local `Player::frameAt()` decode), but every future consumer of the DTO,
+  plus the mirrored `TrickplayCache` copy, inherited the trust.
+- **The cure.** `Trickplay::fromArray` now takes the configured base URL and
+  applies the M-CONSOLE-55 `ServerAuthority` law at the same redact-then-parse
+  choke: relative (hostless) URLs ride through untouched — they resolve
+  against the trusted base downstream; absolute URLs must be the server's own
+  host or a subdomain of it, else they fold to `null` (the same value an
+  absent key produces, so every consumer's null-check already speaks it).
+  Unparseable base or candidate fails closed. Both producers thread the
+  authority: `ApiClient::trickplay()` captures `$this->baseUrl` for the wire
+  resolver, and the `TrickplayCache` disk-hit parse re-checks the blob against
+  `baseUrl()` so a pre-cure or crafted blob cannot smuggle a foreign host
+  back in. Server-generated trickplay paths are intentionally held to the
+  same standard as `media()`'s poster/backdrop URLs (no artwork carve-out —
+  trickplay is never a signed-CDN-absolute path in this estate).
+- **Tests.** NEW `tests/Api/Dto/TrickplayHostTrustTest.php` (8 tests / 19
+  assertions): foreign-host fold, link-local SSRF fold, protocol-relative
+  fold, relative pass-through, exact-host (case-insensitive) and cdn-subdomain
+  survival, empty-base fail-close, wire-path fold and survive via
+  `ApiClient`+`FakeTransport`, and the tampered-disk-blob path (0 transport
+  requests, foreign folded). `ServerTextControlInjectionTest`'s trickplay
+  rows rotated to in-authority hosts (base `https://srv.example`) so its
+  control-byte law stays non-vacuous under the new clamp — disclosed
+  conversion, host trust is pinned in the new file, not diluted there.
+- **Teeth.** `hostPinned` clamp stripped in place → 5 named reds (every fold
+  pin; the survive/relative pins stay green by design); restore → 13/13
+  green. Full serial suite 3486 tests / 21480 assertions / 0F 0E / 15
+  skipped / 15 legacy deprecations (+8 tests / +19 assertions exact vs the
+  R-CONSOLE-08-blessed parent 3478/21461). phpstan: sole error remains the
+  inherited `AdminClient.php:2697` `return.type` pin (untouched per
+  standing); changed files clean under repo phpcs standard AND bare PSR12
+  (the 8 `ApiClient` line-length warnings are HEAD-pre-existing, re-counted
+  at the parent blob); i18n catalog check 7 locales × 68 keys in sync.
+
 ### Fixed — riders W8 R-CONSOLE-08: the download filename law pins the traversal NODE itself — 2026-10-30
 
 - **The class.** M-CONSOLE-33__r1 forwarded `extractFilename` `basename('..')`
