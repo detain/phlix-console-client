@@ -140,7 +140,9 @@ final class AudiobookDetailScreen implements Breadcrumbed, Themed
             return Chrome::frame($this->headerTitle(), "\n  Loading…", self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
         }
 
-        return Chrome::frame($this->headerTitle(), $this->body($this->audiobook), self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
+        // M-CONSOLE-75: chapter lists are exactly the long windowed tables the
+        // tail is for; the tail rides the width-managed hint, not a body row.
+        return Chrome::frame($this->headerTitle(), $this->body($this->audiobook), self::HINT . Table::positionIndicator(count($this->chapters), $this->selected), $this->cols, $this->rows, $this->crumbs, $this->theme());
     }
 
     // ---- data ----------------------------------------------------------

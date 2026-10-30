@@ -190,12 +190,15 @@ final class Chrome
      */
     private static function headerLabel(string $title, array $trail, int $cols): string
     {
-        if ($trail === []) {
-            return $title;
-        }
-
         // Reserve the " Phlix  ·  " prefix (~11 cols) and a small margin.
         $maxWidth = max(10, $cols - 14);
+
+        if ($trail === []) {
+            // A bare title is server/user text on several screens (a library
+            // name, a media title) — it gets the SAME budget law the crumb
+            // path already pays, or it pushes the header line past the frame.
+            return Truncate::withEllipsis($title, $maxWidth);
+        }
 
         return (new Breadcrumb())->setMaxWidth($maxWidth)->renderTitles($trail);
     }

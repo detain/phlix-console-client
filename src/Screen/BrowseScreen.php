@@ -42,6 +42,7 @@ use Phlix\Console\Store\LibrariesStore;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\Sidebar;
+use Phlix\Console\Ui\Truncate;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Model;
@@ -202,14 +203,29 @@ final class BrowseScreen implements Breadcrumbed, Themed
 
         if ($ids === []) {
             $name = $this->displayName();
+            // Server-supplied display names and wire reasons are unbounded user
+            // data [review console__uxdesign, M-CONSOLE-70]: both lines ride the
+            // content panel at a 2-space indent, so each gets the cols - 6 budget.
             $body = $this->error !== null
-                ? "\n  {$this->error}"
-                : "\n  Welcome, {$name}.\n\n  Loading your libraries…";
+                ? "\n  " . Truncate::withEllipsis($this->error, $this->cols - 6)
+                : "\n  " . Truncate::withEllipsis("Welcome, {$name}.", $this->cols - 6) . "\n\n  Loading your libraries…";
 
             return Chrome::frame('Browse', $body, 'q  quit', $this->cols, $this->rows, $this->crumbs, $this->theme());
         }
 
-        $railsFocused = $this->focus->isFocused(self::RAILS);
+        // Collapse law (M-CONSOLE-71): below the threshold the join cannot pay
+        // for sidebar + one rail column, so the rails hide and the library list
+        // (the sidebar) shows alone instead of overflowing the panel.
+        $railsVisible = $this->railsFit();
+        $railsFocused = $railsVisible && $this->focus->isFocused(self::RAILS);
+
+        if (!$railsVisible) {
+            $body = $this->sidebar->render($this->contentHeight());
+            // Same hint minus the key that no longer leads anywhere.
+            $hint = str_replace('      Tab  rails', '', self::SIDEBAR_HINT);
+
+            return Chrome::frame('Browse', $body, $hint, $this->cols, $this->rows, $this->crumbs, $this->theme());
+        }
 
         $railWidth = $this->railWidth();
         $visible = array_slice($ids, $this->railScroll, $this->visibleRailCount());
@@ -537,10 +553,17 @@ final class BrowseScreen implements Breadcrumbed, Themed
             return [$this, Cmd::quit()];
         }
         if ($msg->type === KeyType::Tab) {
+            // The rails are collapsed — there is nothing to tab to, and a
+            // screen that lost its rails to a resize must not drive invisible
+            // ones (M-CONSOLE-71).
+            if (!$this->railsFit()) {
+                return [$this, null];
+            }
+
             return [$this->withFocus($msg->shift ? $this->focus->previous() : $this->focus->next()), null];
         }
 
-        return $this->focus->isFocused(self::SIDEBAR)
+        return $this->focus->isFocused(self::SIDEBAR) || !$this->railsFit()
             ? $this->handleSidebarKey($msg)
             : $this->handleRailsKey($msg);
     }
@@ -862,6 +885,24 @@ final class BrowseScreen implements Breadcrumbed, Themed
     {
         // The sidebar takes a fixed left column; the rails get the rest.
         return max(self::CARD_WIDTH, $this->cols - 4 - self::SIDEBAR_WIDTH - self::SIDEBAR_GAP);
+    }
+
+    /**
+     * The narrowest terminal whose content panel can pay for the fixed sidebar,
+     * the join gap, and ONE rail column ({@see railWidth()}'s floor) plus the
+     * 4-cell Chrome border: 22 + 2 + 14 + 4 = 42 columns.
+     */
+    private const RAILS_MIN_COLS = self::SIDEBAR_WIDTH + self::SIDEBAR_GAP + self::CARD_WIDTH + 4;
+
+    /**
+     * Do the rails fit beside the sidebar [review console__uxdesign, M-CONSOLE-71]?
+     * Below the threshold the floor in railWidth() let the horizontal join
+     * overflow the content panel instead of collapsing; Browse then shows the
+     * library list (the sidebar) alone.
+     */
+    private function railsFit(): bool
+    {
+        return $this->cols >= self::RAILS_MIN_COLS;
     }
 
     private function visibleRailCount(): int

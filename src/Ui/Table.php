@@ -89,6 +89,31 @@ final class Table
     }
 
     /**
+     * The compact position tail a windowed list shows its reader [review
+     * console__uxdesign, M-CONSOLE-75]: the poster grids already carry
+     * `· {cursor+1}/{total}` (the LibraryScreen count-line idiom) while long
+     * tables showed nothing, so a scrolled-off cursor looked like the whole
+     * list. Callers append this to a line they already render (their header or
+     * their status hint) — never as a new body line, which would cost the
+     * table a viewport row it has not budgeted for.
+     *
+     * `''` for a list of 0 or 1 (nothing to position); the selection is
+     * clamped into range so a mid-mutation index can never render `0/3` or
+     * `9/3`. The digits are caller data — the tail can only shrink a hint
+     * (Chrome::fitHint owns that budget), never a fixed-width header.
+     */
+    public static function positionIndicator(int $count, int $selected): string
+    {
+        if ($count <= 1) {
+            return '';
+        }
+
+        $position = min(max(0, $selected), $count - 1) + 1;
+
+        return ' · ' . $position . '/' . $count;
+    }
+
+    /**
      * Degrade a table whose declared columns do not fit (M-CONSOLE-46).
      *
      * The `width: 0` column is the table's primary — sugar-table solves it as

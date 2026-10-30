@@ -127,7 +127,8 @@ final class AdminWatchHistoryScreen implements Breadcrumbed, Themed
         return Chrome::frame(
             'Admin · Watch History',
             $this->body(),
-            self::HINT,
+            // M-CONSOLE-75 position tail on the width-managed hint line.
+            self::HINT . Table::positionIndicator(count($this->entries), $this->selectedIndex),
             $this->cols,
             $this->rows,
             $this->crumbs,

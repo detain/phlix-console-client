@@ -22,6 +22,7 @@ use Phlix\Console\Msg\OpenAdminUserProfilesMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Ui\Chrome;
+use Phlix\Console\Ui\Skeleton;
 use Phlix\Console\Ui\Table;
 use React\Promise\PromiseInterface;
 use SugarCraft\Core\Cmd;
@@ -67,10 +68,11 @@ use SugarCraft\Forms\Form;
  * SCOPE: list + filter + per-row actions + create / edit forms + the profiles
  * jump-off.
  */
-final class AdminUsersScreen implements Breadcrumbed, Themed
+final class AdminUsersScreen implements Breadcrumbed, Themed, Loadable, Shimmering
 {
     use SubscriptionCapable;
     use ThemedScreen;
+    use ShimmeringScreen;
     use ResizesTo;
 
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
@@ -660,8 +662,10 @@ final class AdminUsersScreen implements Breadcrumbed, Themed
 
     private function body(): string
     {
-        if (!$this->loaded && $this->error === null) {
-            return "\n  Loading users…";
+        if ($this->isLoading()) {
+            // M-CONSOLE-76: the App's gated shimmer tick animates this skeleton
+            // while the first page is in flight (see isLoading()).
+            return "\n  Loading users…\n\n" . Skeleton::bars($this->cols - 4, max(1, Chrome::bodyHeight($this->rows) - 3), $this->shimmerPhase(), $this->theme());
         }
         if ($this->error !== null) {
             return "\n  {$this->error}\n\n  Press r to retry.";
@@ -697,7 +701,9 @@ final class AdminUsersScreen implements Breadcrumbed, Themed
     {
         $filter = self::FILTER_LABELS[$this->filter];
 
-        return "  Filter: {$filter}   ({$this->countLabel()})";
+        // Position tail so a scrolled user sees where the cursor sits in the
+        // full list (M-CONSOLE-75, the LibraryScreen count-line idiom).
+        return "  Filter: {$filter}   ({$this->countLabel()})" . Table::positionIndicator(count($this->users), $this->selected);
     }
 
     private function countLabel(): string
@@ -774,6 +780,16 @@ final class AdminUsersScreen implements Breadcrumbed, Themed
     public function isLoaded(): bool
     {
         return $this->loaded;
+    }
+
+    /**
+     * True exactly while the body renders the loading skeleton [review
+     * console__uxdesign, M-CONSOLE-76]: the App gates its shimmer tick on this
+     * (a failed first page falls to the retry screen instead of ticking forever).
+     */
+    public function isLoading(): bool
+    {
+        return !$this->isLoaded() && $this->error === null;
     }
 
     /** @return list<AdminUser> */

@@ -142,7 +142,7 @@ final class ScreenConcernSingleSourceTest extends TestCase
         'update:1bbbc8158a55' => 2,
         'update:b40497285a79' => 2,
         'updateForm:4d71c619238d' => 2,
-        'view:0f8763f5dde2' => 3,
+        'view:0f8763f5dde2' => 2,
         'view:1a5a675a1be7' => 2,
         'view:74abae5c3026' => 2,
         'viewportCols:af50dbe7fc01' => 5,

@@ -36,6 +36,7 @@ use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\FilterBar;
 use Phlix\Console\Ui\LetterRail;
 use Phlix\Console\Ui\Skeleton;
+use Phlix\Console\Ui\Truncate;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Model;
@@ -171,7 +172,10 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
     public function view(): string
     {
         if ($this->error !== null) {
-            return Chrome::frame($this->name, "\n  {$this->error}", self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
+            // Wire-reason text is server data [review console__uxdesign,
+            // M-CONSOLE-70]: budget it to the content panel (2-space indent,
+            // cols - 6) or it wraps and steals a body row.
+            return Chrome::frame($this->name, "\n  " . Truncate::withEllipsis($this->error, $this->cols - 6), self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
         }
 
         if (!$this->loaded) {

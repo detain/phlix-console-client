@@ -25,6 +25,7 @@ use Phlix\Console\Store\MediaRange;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\Skeleton;
+use Phlix\Console\Ui\Truncate;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Model;
@@ -124,10 +125,17 @@ final class SearchScreen implements Breadcrumbed, CapturesSlash, Loadable, Shimm
 
     public function view(): string
     {
-        $inputLine = 'Search: ' . ($this->searchText === '' ? '' : $this->searchText) . '▏';
+        // The typed query is arbitrary user text [review console__uxdesign,
+        // M-CONSOLE-70]: unbounded, it wraps inside the content panel and
+        // silently steals a row from the results viewport below. The panel is
+        // cols - 4 cells; 'Search: ' costs 8, the ▏ cursor costs 1.
+        $query = Truncate::withEllipsis($this->searchText, $this->cols - 13);
+        $inputLine = 'Search: ' . $query . '▏';
 
         if ($this->error !== null) {
-            $body = $inputLine . "\n\n  {$this->error}";
+            // Same law for the wire reason (capped at 160 cells upstream, still
+            // wider than a 40-col panel): 2-space indent, budget cols - 6.
+            $body = $inputLine . "\n\n  " . Truncate::withEllipsis($this->error, $this->cols - 6);
 
             return Chrome::frame('Search', $body, self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
         }
@@ -149,7 +157,8 @@ final class SearchScreen implements Breadcrumbed, CapturesSlash, Loadable, Shimm
 
         $total = $this->grid->total();
         if ($total === 0) {
-            $count = 'No results for "' . $this->searchText . '"';
+            // The quoted query rides this line too — whole-line budget cols - 4.
+            $count = Truncate::withEllipsis('No results for "' . $this->searchText . '"', $this->cols - 4);
         } else {
             $count = $total . ' result' . ($total === 1 ? '' : 's') . '   ·   ' . ($this->grid->cursorIndex() + 1) . '/' . $total;
         }

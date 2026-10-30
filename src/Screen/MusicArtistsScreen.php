@@ -102,7 +102,15 @@ final class MusicArtistsScreen implements Breadcrumbed, Themed
 
     public function view(): string
     {
-        return Chrome::frame('Music Artists', $this->body(), self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
+        return Chrome::frame('Music Artists', $this->body(), $this->hint(), $this->cols, $this->rows, $this->crumbs, $this->theme());
+    }
+
+    /** The M-CONSOLE-75 position tail, on the width-managed hint line (as in MusicScreen). */
+    private function hint(): string
+    {
+        $count = $this->total > 0 ? $this->total : count($this->artists);
+
+        return self::HINT . Table::positionIndicator($count, $this->selected);
     }
 
     // ---- input ---------------------------------------------------------

@@ -20,6 +20,7 @@ use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Store\MusicRange;
 use Phlix\Console\Store\MusicStore;
 use Phlix\Console\Ui\Chrome;
+use Phlix\Console\Ui\Skeleton;
 use Phlix\Console\Ui\Table;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
@@ -40,10 +41,11 @@ use SugarCraft\Core\SubscriptionCapable;
  * scrolls smoothly. Stable collaborators are readonly; the mutable view state
  * is private and copied via clone-mutate (the established screen idiom).
  */
-final class MusicScreen implements Breadcrumbed, Themed
+final class MusicScreen implements Breadcrumbed, Themed, Loadable, Shimmering
 {
     use SubscriptionCapable;
     use ThemedScreen;
+    use ShimmeringScreen;
     use ResizesTo;
 
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
@@ -105,7 +107,20 @@ final class MusicScreen implements Breadcrumbed, Themed
 
     public function view(): string
     {
-        return Chrome::frame('Music', $this->body(), self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
+        return Chrome::frame('Music', $this->body(), $this->hint(), $this->cols, $this->rows, $this->crumbs, $this->theme());
+    }
+
+    /**
+     * The hint plus the position tail [review console__uxdesign, M-CONSOLE-75]:
+     * this table windows a server-counted list, so the cursor's place belongs
+     * on a line the chrome already width-manages (Chrome::fitHint) — not on a
+     * new body row the viewport math has not budgeted for.
+     */
+    private function hint(): string
+    {
+        $count = $this->total > 0 ? $this->total : count($this->albums);
+
+        return self::HINT . Table::positionIndicator($count, $this->selected);
     }
 
     // ---- input ---------------------------------------------------------
@@ -215,7 +230,9 @@ final class MusicScreen implements Breadcrumbed, Themed
     private function body(): string
     {
         if (!$this->loaded) {
-            return "\n  Loading music…";
+            // M-CONSOLE-76: a live shimmer skeleton (the App's gated tick drives
+            // it while isLoading() holds), not a static line that reads like a freeze.
+            return "\n  Loading music…\n\n" . Skeleton::bars($this->cols - 4, max(1, Chrome::bodyHeight($this->rows) - 3), $this->shimmerPhase(), $this->theme());
         }
         if ($this->error !== null) {
             return "\n  {$this->error}";
@@ -297,6 +314,16 @@ final class MusicScreen implements Breadcrumbed, Themed
     }
 
     // ---- accessors (for tests) ----------------------------------------
+
+    /**
+     * True exactly while the body renders the loading skeleton (M-CONSOLE-76):
+     * the App gates its shimmer tick on this, and a failed first page lands on
+     * the error screen with loaded set — no free-running tick.
+     */
+    public function isLoading(): bool
+    {
+        return !$this->loaded;
+    }
 
     public function isLoaded(): bool
     {
