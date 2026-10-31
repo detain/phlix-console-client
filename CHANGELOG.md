@@ -5,6 +5,36 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — M-CONSOLE-31 review-carried MINOR: assertion-count forward-correction `17017`→`17005` for the 2026-10-29 manual-linking entry — 2026-10-31
+
+- **The defect.** The 2026-10-29 entry "console manual linked from the
+  README" (review console__newcomer, M-CONSOLE-31) records its Measured
+  bullet as full suite `16999→17017` assertions. The post-cure figure is a
+  phantom: the independent review (`M-CONSOLE-31__r1`, verdict SHIP)
+  measured **3202 tests / 17005 assertions** at anchor `e85d41a4` in two
+  clean serial runs — +6 over the confirmed `16999` parent baseline, exactly
+  the new pin's own assertion count — and the direct child `9cd33c2`
+  independently corroborates, recording its pre-baseline as
+  `17005→17239`. The fix log carried the same internal inconsistency: its
+  pin row discloses 4 tests / 6 assertions while its totals row claimed +18.
+  The entry's test counts (`3198→3202`), skipped 9 and deprecations 13→14
+  lines are true and stand unchanged.
+- **The correction.** The authoritative post-cure figures for `e85d41a4`
+  are **3202 tests / 17005 assertions** (skipped 9, deprecations 14). Per
+  the verbatim-history law the historical entry is not rewritten; this
+  forward entry is the record's amendment. Re-verified at today's tip:
+  `ManualLinkingDocsTest` measures 4 tests / 6 assertions green, and a
+  repo-wide grep shows the stale `17017` survives only inside the
+  historical entry this commit disavows. An append-only currency
+  annotation was likewise recorded on the estate fix log
+  `.reviews/fixlog/M-CONSOLE-31__fix.md`.
+- **Gates.** Docs-only commit: `CHANGELOG.md` alone, no `src/`, no
+  `tests/`, no docs or catalogs. No test reads the root CHANGELOG (grep of
+  `tests/` — the file is exempt from the prose-scan families), so the suite
+  is inert by diff; targeted `ManualLinkingDocsTest` re-run green (4/6).
+  Historical CHANGELOG verbatim, forward entry prepended
+  [review M-CONSOLE-31__r1 carried MINOR].
+
 ### Fixed — rider W22 R-CONSOLE-22: law 5 of `TerminalGraphicsDocsTest` gains the docblock word on its mention-form tolerance — the word-boundary regex is deliberately satisfied by unbackticked doc mentions (the Architecture diagram's box text counts), because the law guards name presence, not typography — 2026-10-30
 
 - **The ask.** M-CONSOLE-49__r1 non-blocking note, queued as rider
