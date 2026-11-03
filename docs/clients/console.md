@@ -56,9 +56,11 @@ talk to your server's own sync endpoint, not to a hub.
 
 ## Installation
 
-> Front door first: the repository [README](../../README.md#install) carries the same
-> install steps where GitHub readers arrive; the two lists are kept in lockstep,
-> so either page is current. This section repeats them for manual-only readers.
+> Front door first: the repository [README](../../README.md#install) carries the
+> same install steps in the short form GitHub readers arrive at; this section is
+> the manual's full version. The pages are not word-identical — they are
+> maintained against the same scripts, so a changed install step changes on
+> both pages in the same commit.
 
 ### Composer (for development)
 
@@ -156,7 +158,7 @@ Within that directory:
 | `label` | `Server` | Name shown in the server switcher |
 | `url` | — | API base URL (e.g. `https://host:8096` — the HTTP worker) |
 | `hub_id` | unset | Hub this server belongs to (relay/remote features) |
-| `ws_port` | `8097` | Dedicated SyncPlay WebSocket port. The client dials `ws(s)://{host}:{ws_port}/syncplay/{room}` and carries the JWT in the `Sec-WebSocket-Protocol: bearer, <jwt>` handshake header (since phlix-server 424c14d0 the JWT rides the handshake header; the `?token=` query is retired); omit it to use the server's stock `:8097` WS worker — the `:8096` HTTP worker never upgrades WebSockets. |
+| `ws_port` | `8097` | Dedicated SyncPlay WebSocket port: the client dials `ws(s)://{host}:{ws_port}/syncplay/{room}` and carries the JWT in the `Sec-WebSocket-Protocol: bearer, <jwt>` handshake header (never in the URL). Keep the stock `8097` — the `:8096` HTTP worker never upgrades WebSockets. |
 
 #### Insecure (`http://`) servers
 
@@ -266,6 +268,12 @@ they still work, but print a `warning:` line on stderr naming the env and
 STDIN replacements. (`--hub-token-stdin` / `--relay-token-stdin` read the
 whole of STDIN as the token, trailing newline trimmed.)
 
+`--once` is the one-shot form of the same consumer: `watch` waits for a single
+`play_media` command, dispatches it, and exits; `--timeout SECS` (default 30)
+bounds that wait. Exit codes: 0 = a command was dispatched, 1 = the run ended
+without one (the connection failed, or a `--once` wait timed out), 2 = usage
+error (bad flag or value).
+
 ### Render modes
 
 Render modes control how posters and images are displayed. The mode is a
@@ -358,7 +366,18 @@ line-mode terminal still sees the same text and structure as everywhere else.
   what your terminal supports, and `bin/phlix run --mode=ascii` renders
   posters as a monochrome character ramp on any terminal.
 - Themes are chosen on the **Settings** screen and follow your account; an
-  unknown stored value falls back to Nocturne rather than failing.
+  unknown stored value falls back to Nocturne rather than failing. The two
+  non-default themes exist for terminals the default palette cannot serve:
+  **Daylight** remaps every role that is illegible on a light background
+  (Nocturne's pale text and badges vanish there), and **Midnight** lifts the
+  recommendation badge onto its accent because the blue `#0066cc` disappears
+  on a dark field.
+- Loading grids animate: a shimmer band sweeps the skeleton at about 8
+  frames per second. The heartbeat is armed only while the top screen is
+  actually loading and stops the moment it is not, so an idle screen is
+  perfectly still. The sweep is a position animation, not a colour one:
+  `NO_COLOR` removes its palette but the band still moves while a list
+  loads, and there is no static-skeleton opt-out yet.
 
 ### Keybindings
 
@@ -463,6 +482,25 @@ trending rail, not a personal one. The "For You" recommendations (`GET
 /api/v1/me/recommendations`) build from your watching — with nothing to
 show yet, the screen says so.
 
+#### Screen-specific keys
+
+Navigation, search, palette and playback keys are covered above; these are the
+keys each individual screen adds, consolidated from the handlers (the
+[Screens](#screens) table keeps the prose descriptions):
+
+| Screen | Keys |
+| --- | --- |
+| All screens | `Ctrl-Z` suspends the client to the background; resume it with `fg` |
+| Photos → viewer | `←`/`→` previous/next photo (no wrap; manual paging resets the slideshow countdown), `i` EXIF panel on/off, `s` start/stop the slideshow, `Esc` back |
+| Cast — device list | `↑`/`↓` select, `Enter` start casting, `r` rescan for devices, `q`/`Esc` leave |
+| Cast — transport (session live) | `Space` play/pause, `r` refresh status, `x` stop the session (when the device allows stopping), `←`/`→` seek ∓10 s (`Shift`+arrow: ∓60 s, when the device allows seeking), `Esc` back to the device list |
+| Music / Audiobooks | `↑`/`↓` select, `Enter` play (in Audiobooks, `r` resumes the last chapter); next/previous/pause are palette actions, not keys |
+| Collections / Playlists | `↑`/`↓` select, `Enter` open, `d` delete (type the word `delete` to confirm); `a`/`r` answer with a notice — see the Screens table |
+| Servers | `↑`/`↓` select, `Enter` switch to it, `a` add one manually, `h` reload the list from the saved config, `r` remove |
+| Settings | Move between the fields per the on-screen hints; `s` opens **Servers**, `l` signs out (both letter cases accepted) |
+| Live TV (admin) | `r` refresh anywhere; in the Tuners section `s` rescans tuner hardware; on the Guide `R` records the selected program and `S` records its whole series (only offered when the program carries a series id) |
+| Recommendations | `↑`/`↓` (or `j`/`k`) navigate, `Enter` opens, `x`/`X` dismiss a suggestion, `q`/`Q`/`Esc` back |
+
 ### Downloads
 
 On the media detail screen, `d` downloads the focused item to disk: the client
@@ -478,6 +516,33 @@ Books are not downloaded in-terminal: the book detail screen shows the signed
 download URL as copyable text with a hint to open it in a browser or e-reader.
 
 ### Screens
+
+While a music or audiobook session is live, the bottom row of every screen is
+taken by a persistent **Now-Playing bar** — track or chapter title, artist or
+album, position — and the audio keeps playing (and stays controllable) as you
+navigate. The bar itself is display-only: transport (Resume playback / Pause
+playback / Stop playback) rides the command palette, which is why it works
+from any screen.
+
+Every screen renders into the same shell — a borderless header line, a
+bordered content region, and a bottom status row:
+
+```text
+ Phlix  ·  Home › Movies › The Matrix      ← header (brand · title/breadcrumb)
+┌────────────────────────────────────────┐
+│                                        │
+│   the screen's body — rails, poster    │   ← bordered content region
+│   grid, table, hero art, …             │     (`rows − 8` lines deep)
+│                                        │
+└────────────────────────────────────────┘
+ p play · / search · Esc back             ← status hint row (replaced by the
+                                             Now-Playing bar while audio plays)
+```
+
+The breadcrumb replaces the plain title as you drill in (truncating from the
+left so the deepest, most relevant crumb survives), toasts float over the body
+without moving it, and a screen's own keys are consolidated under
+[Screen-specific keys](#screen-specific-keys) in Keybindings.
 
 | Screen | Description |
 | --- | --- |
@@ -500,7 +565,7 @@ download URL as copyable text with a hint to open it in a browser or e-reader.
 | **Server Setup** | The first-run server-URL form — `Enter` connects, `Esc` quits |
 | **Login** | Sign-in form — `Tab` moves fields, `Enter` signs in, `s` opens **Register**, `Esc` quits |
 | **Register** | Sign-up form (username, email, password); on success you are signed straight in |
-| **Collections** | Your collections; `Enter` opens one, `d` deletes it (typed `delete` confirms); `a`/`r` show a notice only — item add/remove is NOT implemented in the console (the detail screen has no membership surface; collection contents are managed on the server's web portal) |
+| **Collections** | Your collections; `Enter` opens one, `d` deletes it (typed `delete` confirms); `a`/`r` are notice-only — adding and removing items is not a console feature; it happens on the server's web portal |
 | **Playlists** | Your playlists — the same server-side list as Collections (`GET /api/v1/collections`), with the same keys including the notice-only `a`/`r` pair |
 | **Favorites** | Everything you favorited (`F` toggles on a detail screen); `Enter` opens |
 | **Recently Watched** | Your watch history — `H` on the home sidebar or the palette's Watch History action; `Enter` opens the recorded item's detail screen |

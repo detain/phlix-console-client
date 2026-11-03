@@ -50,9 +50,12 @@ Straight to the answers:
 | Which languages does the interface speak? | [Languages](docs/clients/console.md#languages) |
 | `NO_COLOR`, `TERM=dumb`, tiny or basic terminal? | [Accessibility and basic terminals](docs/clients/console.md#accessibility-and-basic-terminals) |
 
-Further reading: [i18n](docs/i18n.md) (the env locale chain),
+Further reading: [the full manual](docs/clients/console.md) (keys, screens,
+configuration), [i18n](docs/i18n.md) (the env locale chain),
 [terminal graphics](docs/terminal-graphics.md) (protocol capabilities),
-[upgrade notes](docs/upgrade/v1.md). Issues and questions:
+[upgrade notes](docs/upgrade/v1.md),
+[development guide](docs/dev/client-console.md) (architecture and gates).
+Issues and questions:
 [the issue tracker](https://github.com/detain/phlix-console-client/issues).
 
 ## Requirements
@@ -431,7 +434,7 @@ wire URL against.
 
 ## Static analysis
 
-`src/` is checked with **PHPStan at level 9** (its strictest level), enforced in
+`src/` is checked with **PHPStan at level 9 of 10**, enforced in
 CI — any new type error fails the build. Config lives in `phpstan.neon`;
 `tests/` is analysed separately at level 2 via `phpstan-tests.neon`. There is
 **no baseline file and no `ignoreErrors`** in either config; the honest

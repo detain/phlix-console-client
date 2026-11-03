@@ -52,9 +52,8 @@ final class CollectionsClaimsDocsTest extends TestCase
      */
     private const PINNED_ROWS = [
         'Collections' => 'Your collections; `Enter` opens one, `d` deletes it (typed `delete` confirms);'
-            . ' `a`/`r` show a notice only — item add/remove is NOT implemented in the console'
-            . ' (the detail screen has no membership surface; collection contents are managed'
-            . ' on the server\'s web portal)',
+            . ' `a`/`r` are notice-only — adding and removing items is not a console feature;'
+            . ' it happens on the server\'s web portal',
         'Playlists' => 'Your playlists — the same server-side list as Collections'
             . ' (`GET /api/v1/collections`), with the same keys including the notice-only `a`/`r` pair',
         'Series' => 'Not a screen of its own — `Enter` on a series opens nested **Detail** screens'

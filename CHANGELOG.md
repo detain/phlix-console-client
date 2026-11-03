@@ -5,8 +5,8 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-> **How to read this file (two conventions, added 2026-11-03 with reviews
-> M7/M8).** (1) Since the October review→fix campaign, the `###` blocks under
+> **How to read this file (three conventions, added 2026-11-03 with reviews
+> M7/M8; the third amended the same day with review m26).** (1) Since the October review→fix campaign, the `###` blocks under
 > this heading are campaign worklog entries: they carry ticket ids and
 > engineer-facing detail, not just user-visible lines, and corrections ride
 > forward as new entries — nothing recorded here is rewritten or deleted
@@ -16,6 +16,71 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > bump, **not a shipped release**: no `v1.0.0` (or any `v*.*.*`) tag was ever
 > cut, and the only published artifact remains the rolling prerelease built
 > from `master` under the `latest` tag (README, “PHAR (end user)”).
+> (3) The `###` stamps record when an entry was **written**, not when the
+> underlying change merged: campaign rider entries are grouped by fix family
+> and batch, so stamps inside `## [Unreleased]` are deliberately not in
+> strictly descending date order (a 2026-10-31-stamped rider written in a
+> later batch sits below 2026-10-30 ones — newest batch on top still wins).
+
+### Fixed — production phpstan gate, honestly green (fresh-cache) + C1 disclosure — 2026-11-03
+
+- **The cure.** `AdminClient::updateSeriesRule()` (code unchanged since
+  26a1f8c, June) trips phpstan 2.3.1 `identical.alwaysFalse` at the
+  `$payload === [] ? null : $payload` send: the optional-title guard makes
+  the analyser CERTAIN the body is a non-empty-array — demonstrably false
+  at runtime (the all-null update genuinely sends `null`, pinned by
+  AdminClientTest:2530). A `/** @var array<string, int|non-empty-string> */`
+  re-declaration at the decision point states the real contract; wire and
+  behavior are byte-identical. `count() === 0` was tried first and inherits
+  the same false certainty.
+- **The disclosure (forward-correction of review-C1's entry, which stays
+  verbatim).** C1 recorded "phpstan prod NOW 0 errors" from an incremental
+  cache over a main-tree that had been round-tripping probe worktrees; with
+  a cleared cache, `AdminClient.php:1876` errored at EVERY tip including
+  `1e88a21` — and origin CI's phpstan jobs (8.3/8.4/8.5) were in fact
+  failing on every run back through at least twelve pushes. C1's
+  alternatePosters hoist was real and is still needed; the gate was not
+  green yet. This entry closes that last error: `phpstan analyse` on a
+  FRESH cache is now `[OK] No errors`, and the CI phpstan jobs can go green
+  on the next push (owner pushes; verification owed at that push, not
+  claimed here).
+
+### Fixed — review m14–m27 (minors batch 3: manual completeness, key consolidation, doc truth) — 2026-11-03
+
+- **The manual grew up (m14, m15, m16, m17).** `docs/clients/console.md`
+  now documents the persistent Now-Playing bar (what it shows, that it is
+  display-only, transport rides the palette), the `--once`/`--timeout`
+  one-shot mode and the `watch` exit-code contract (0 dispatched / 1 ended
+  without a command / 2 usage), a consolidated **Screen-specific keys**
+  table (Ctrl-Z suspend, photos viewer, cast list + transport,
+  music/audiobooks, collections, servers, settings, live-TV admin,
+  recommendations — every row re-verified against the handlers on disk
+  this batch), and an ASCII screen-anatomy wireframe at the head of the
+  Screens section (borderless header · bordered body at `rows − 8` ·
+  status row the bar replaces).
+- **Claims trued (m18–m20, m22–m25, m27).** `phlix help` now points at the
+  manual; the reduced-motion story is stated honestly (8 fps shimmer,
+  load-gated heartbeat, no static opt-out yet); Daylight/Midnight gain
+  their legibility rationale (Theme.php's own words); the two "PHPStan
+  level 9 (strictest)" sites become "level 9 of 10" (PHPStan's max is 10);
+  the install-lockstep promise now says what is actually true (same
+  scripts, changed together — not word-identical); the `ws_port` cell lost
+  its 60-word SHA archaeology; the Collections cell's nested parenthetical
+  was rewritten flat (its Docs pin rotated in the same change);
+  `docs/upgrade/v1.md` speaks "pre-1.0", not "pre-C7", the README Further
+  reading links the manual and the development guide, and the internal CI
+  baseline file's orphan-ness was found already cured (it is linked and
+  self-labelled).
+- **Reading convention (m26).** The CHANGELOG's how-to-read note gained a
+  third clause: stamps record when an entry was written, so stamps inside
+  `[Unreleased]` are grouped by batch, not date-sorted. No entry moved.
+- **Deferred (m21).** Mixed British/American orthography across doc files
+  is real (user docs are consistently `-our`, dev docs consistently `-or`)
+  but unifying the estate one way is an owner style call touching
+  test-pinned phrases — registered, untouched.
+
+Gates: full suite 3522/21719 held, Docs subset green, phpstan prod+tests
+[OK], phpcs both configs clean, i18n gates green.
 
 ### Fixed — review m6-m13 (minors batch 2: documentation truth pass) — 2026-11-03
 

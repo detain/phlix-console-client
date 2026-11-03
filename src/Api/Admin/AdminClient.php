@@ -1873,7 +1873,17 @@ final class AdminClient
         }
         $body += self::ruleOptionals($priority, $prePad, $postPad, $maxRecordings, $daysAhead);
 
-        return $this->api->send('PUT', self::LIVETV . '/series-rules/' . rawurlencode($id), [], $body === [] ? null : $body)->then(
+        // The docblock re-declaration is load-bearing: the optional-title
+        // guard above makes phpstan 2.3.1 CERTAIN $body is a non-empty-array
+        // (it flags `=== []` identical.alwaysFalse — a false positive; the
+        // all-null call genuinely sends a null body, pinned by
+        // AdminClientTest). Re-stating the possible-empty map type at the
+        // decision point expresses the real contract; behavior is
+        // byte-identical.
+        /** @var array<string, int|non-empty-string> $payload */
+        $payload = $body;
+
+        return $this->api->send('PUT', self::LIVETV . '/series-rules/' . rawurlencode($id), [], $payload === [] ? null : $payload)->then(
             static fn (array $resp): string => 'Series rule updated',
             self::reThrowFriendly(...),
         );

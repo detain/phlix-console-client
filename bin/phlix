@@ -36,6 +36,7 @@ render modes:
 
 In-app keys: ↑↓←→ navigate · / search · Ctrl-K / : command palette
  · Enter open · p play · A–Z jump · Esc back · Ctrl-C quit
+Full reference (all keys, screens, config): docs/clients/console.md
 
 watch options:
   --hub URL            hub base URL (env PHLIX_HUB_URL)
