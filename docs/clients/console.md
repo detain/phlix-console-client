@@ -73,6 +73,9 @@ composer install
 bin/phlix run    # needs a real TTY; first run asks for your server URL
 ```
 
+(Examples below run `bin/phlix …`, the checkout layout; a PATH-installed PHAR
+takes the same commands as `phlix …`.)
+
 ### PHAR (for end users)
 
 CI publishes a **rolling pre-built PHAR** of the tip of `master` on every push,
@@ -111,7 +114,8 @@ sha256sum -c SHA256SUMS
 
 - PHP ≥ 8.3 with ext-gd, ext-mbstring, ext-intl, ext-ffi, ext-json (composer
   enforces these at install; a PHAR skips that check, so at runtime they are
-  on you). ext-curl additionally powers the `doctor` / `run --selftest`
+  on you). `ext-ffi` is a hard runtime dependency: sugar-pty drives the
+  terminal through it, so without it the client dies at boot. ext-curl additionally powers the `doctor` / `run --selftest`
   reachability probes and `watch`'s hub relay-token mint (without it `watch`
   needs an explicit `--relay-token`); pcntl/posix are optional (Ctrl-Z
   suspend, test harness).
@@ -185,7 +189,7 @@ diagnostics commands probe over HTTP with fixed timeouts (10 s in `doctor`,
 | `PHLIX_POSTER_CONCURRENCY` | `6` | Max posters fetched simultaneously |
 | `PHLIX_DOWNLOAD_DIR` | `~/Downloads` | Where downloads are saved (`~`, `$VAR` and `${VAR}` are expanded) |
 | `PHLIX_HUB_URL` | — | `watch`: hub base URL (preferred over `--hub`) |
-| `PHLIX_HUB_SERVER_ID` | — | `watch`: hub-side server id (preferred over `--server-id`) |
+| `PHLIX_HUB_SERVER_ID` | — | `watch`: hub-side server id — the id the hub assigns your server when it pairs (list yours with `GET /api/v1/me/servers` on the hub; preferred over `--server-id`) |
 | `PHLIX_HUB_TOKEN` | — | `watch`: hub user access token used to mint relay tokens (preferred over `--hub-token`) |
 | `PHLIX_RELAY_TOKEN` | — | `watch`: ready-made relay token, skips minting (preferred over `--relay-token`) |
 

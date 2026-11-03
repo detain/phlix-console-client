@@ -13,7 +13,8 @@ this repository is its full-window **terminal (TUI) client**: browse libraries
 as poster rails and virtualized grids, drill media detail and
 series → season → episode, open music, book, audiobook and photo libraries in
 browsers built for each; global search; a command palette wired to every
-screen in the client (its full shipped census is under **Run it** below);
+screen in the client (the full screen-by-screen list lives in the
+manual's [Screens section](docs/clients/console.md#screens));
 **SyncPlay watch party** rooms; casting to **Chromecast / Roku / AirPlay / DLNA**;
 item **downloads**; a **full admin client** — and an in-terminal video player
 that **direct-plays** HEVC/AV1 the browser can't, with **trickplay** sprite
@@ -66,7 +67,10 @@ Issues and questions:
 - **PHP ≥ 8.3** with `ext-gd` (image decode), `ext-mbstring` (multibyte text
   width — src/ and sugar-image), `ext-intl` (sugar-core), `ext-ffi` (PTY
   control via sugar-pty) and `ext-json` (required by workerman; bundled in
-  PHP ≥ 8.0). Composer enforces all five at install.
+  PHP ≥ 8.0). Composer enforces all five at install. `ext-ffi` is not
+  peripheral: sugar-pty drives the terminal through it, so a lean PHP build
+  without it hard-fails `composer install` at the platform check — and inside
+  a PHAR (which skips that check) the client dies at boot.
 - `ext-curl` — the `doctor` / `run --selftest` server-reachability probes and
   `watch`'s hub relay-token mint call it; the TUI itself needs no curl.
 - `pcntl` + `posix` are **optional**: SugarCraft enables Ctrl-Z suspend with
@@ -136,6 +140,7 @@ sha256sum -c SHA256SUMS
   `watch`'s hub relay-token mint)
 - A terminal with sixel/kitty/iTerm2 support (or use `--mode=halfblock` as fallback)
 - ffmpeg + ffprobe (for video frame grabs)
+- ffplay or mpv (audio playback — video, music, audiobooks)
 
 To build your own PHAR from source (`humbug/box` is already a declared dev
 dependency and `scripts/build-phar.sh` auto-detects `vendor/bin/box`, so no
@@ -160,6 +165,9 @@ composer config repositories.sugarcraft path '../../sugarcraft/*'
 composer update 'sugarcraft/*'
 # revert before committing:  git checkout composer.json
 ```
+
+Below, examples are written `bin/phlix …` — the checkout layout. Once you have
+installed the PHAR on your PATH, the same commands run as `phlix …`.
 
 ## Run it
 
@@ -268,12 +276,18 @@ and dispatches every delivered `play_media` command to the player. Four environm
 variables drive it — `PHLIX_HUB_URL`, `PHLIX_HUB_SERVER_ID`, `PHLIX_HUB_TOKEN` (a hub
 user access token, exchanged for a relay token on each connect) and `PHLIX_RELAY_TOKEN`
 (a ready-made relay token; skips minting) — each overridden by its flag (`--hub`,
-`--server-id`, `--hub-token`, `--relay-token`). For the two token values prefer the
+`--server-id`, `--hub-token`, `--relay-token`). The `--server-id` value is the
+hub's own identifier for your server — assigned when the server pairs with the
+hub; `GET /api/v1/me/servers` on the hub lists the ids of the servers on your
+account (the hub web portal's My Servers view shows the same), and `watch`
+mints its short-lived relay token against `POST /api/v1/me/servers/{id}/relay-token`.
+For the two token values prefer the
 environment or `--hub-token-stdin` / `--relay-token-stdin`: literal argv secrets are
 world-readable via `ps(1)`, so the plain-token flags are deprecated and warn on every
 use. `--once` waits for a single play command and exits, giving up after `--timeout`
-seconds (default 30). Exit codes: 0 = a command was dispatched (with `--once`, also on
-a clean run), 1 = watch failed, 2 = usage error.
+seconds (default 30). Exit codes: 0 = a command was dispatched, 1 = the run ended
+without one (the connection failed, or a `--once` wait timed out), 2 = usage
+error (bad flag or value).
 
 ## Render modes
 
@@ -329,8 +343,8 @@ compatibility.
 > / **Hide metrics**, **Admin** (offered only while signed in as an admin),
 > **Resume playback** / **Pause playback** and **Stop playback** (while a music
 > or audiobook session is live), **Sign out**, and **Quit** — plus a `Go to
-> <library>` jump per library. The same census with what each action opens is
-> under **Run it** above and in the manual's [Screens](docs/clients/console.md#screens)
+> <library>` jump per library. The same list, with what each action opens, is
+> in the manual's [Screens](docs/clients/console.md#screens)
 > section.
 >
 > **Every library type is browsable**, and audio + photos are fully usable —
@@ -441,7 +455,7 @@ CI — any new type error fails the build. Config lives in `phpstan.neon`;
 qualifier is that `src/` carries **3 inline suppressions**, all
 `@phpstan-ignore-next-line property.onlyWritten`, each on a deliberately
 write-only field (`tests/Docs/StaticAnalysisClaimsDocsTest.php` re-derives
-this census from the tree — plant or remove a suppression and the table must
+this count from the tree — plant or remove a suppression and the table must
 move with it; two former `SyncPlayModal` terminal-size rows retired when the
 opaque-frame graft made those fields read):
 

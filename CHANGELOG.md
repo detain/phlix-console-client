@@ -22,6 +22,40 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > strictly descending date order (a 2026-10-31-stamped rider written in a
 > later batch sits below 2026-10-30 ones — newest batch on top still wins).
 
+### Fixed — review minors m28–m33 — documentation truth pass (README + manual) — 2026-11-03
+
+- **m28.** The README PHAR requirements box omitted `ffplay`/`mpv` while the
+  checkout Requirements list and the manual both named them — audio playback
+  silently unlisted for the end-user install path. Bullet added.
+- **m29.** Every command example is checkout-flavored `bin/phlix …`; nothing
+  said the PATH-installed PHAR takes the identical commands as `phlix …`.
+  One-line note each at README (before *Run it*) and console.md (after the
+  clone quickstart).
+- **m30.** `ext-ffi` was listed but implied peripheral (the adjacent prose
+  discussed pcntl/raw-mode). Stated the hard truth in both files: sugar-pty
+  drives the terminal through FFI, so a lean PHP build fails the composer
+  platform check — and inside a PHAR (which skips the check) the client dies
+  at boot.
+- **m31.** The jargon "census" (×3) replaced with plain "list"/"count" in the
+  README, and the feature-intro pointer "its full shipped census is under
+  **Run it** below" corrected to the manual's Screens section — Run it is a
+  narrative walkthrough, not the screen inventory. The
+  `ReadmeFeatureIntroDocsTest` dead-pointer guard passes unchanged.
+- **m32.** `watch` docs never said where the hub-side server id comes from.
+  README now states it is the id the hub assigns the server at pairing,
+  discoverable via `GET /api/v1/me/servers` (hub `ServerListController`),
+  and names the mint endpoint `watch` calls internally,
+  `POST /api/v1/me/servers/{id}/relay-token` (`bin/phlix` docblock truth);
+  the manual's env-table row carries the same.
+- **m33.** The README exit-code sentence was unparseable ("0 = dispatched
+  (with --once, also on a clean run)" alongside a bare "1 = watch failed").
+  Rewritten to the manual's m15-era contract verbatim: 0 = a command was
+  dispatched, 1 = the run ended without one (connection failed, or a
+  `--once` wait timed out), 2 = usage error.
+
+Gates: Docs 132/689 held (zero pin rotation needed), full suite unchanged
+(0 src/), i18n rc 0, `php -l bin/phlix` rc 0.
+
 ### Fixed — production phpstan gate, honestly green (fresh-cache) + C1 disclosure — 2026-11-03
 
 - **The cure.** `AdminClient::updateSeriesRule()` (code unchanged since
