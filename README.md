@@ -30,6 +30,8 @@ The command palette is the one keypress to all of it — **Search**, **Home**,
 music or audiobook session is live), **Sign out** and **Quit** — plus a
 **Go to <library>** jump per library.
 
+![The console rendering the same screen in every mode](docs/images/modes.gif)
+
 ## Documentation
 
 This page is the front door. The full user manual — config-file layout, every
@@ -269,12 +271,11 @@ a clean run), 1 = watch failed, 2 = usage error.
 
 ## Render modes
 
-The same screen rendered with each `--mode`, cycling every few seconds.
+The same screen rendered with each `--mode`, cycling every few seconds
+(the animated tour above).
 **Graphics** protocols emit a real image (highest fidelity, terminal-dependent);
 **cell** modes tile coloured text and work in any terminal, trading detail for
 compatibility.
-
-![render modes](docs/images/modes.gif)
 
 <details>
 <summary>Side-by-side stills</summary>

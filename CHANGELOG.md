@@ -17,6 +17,22 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > cut, and the only published artifact remains the rolling prerelease built
 > from `master` under the `latest` tag (README, “PHAR (end user)”).
 
+### Changed — review M12 (product image at the front door) + M13 deferral — 2026-11-03
+
+- **M12.** The animated render-modes tour (`docs/images/modes.gif`) lived at
+  ~line 277 — the first product image a visitor met was below the fold. It
+  now sits directly under the opening feature paragraphs, and the Render
+  modes section points back at it ("the animated tour above").
+- **M13 deferred (with reason).** The requested 2-sentence intro / single
+  census / relocated Status block is exactly the surface the deliberate
+  anti-undersell guards pin: `ReadmeFeatureIntroDocsTest` token-parses the
+  live palette registry out of `App.php` and requires the README **feature
+  intro** to enumerate every label (the M-CONSOLE-29 cure), and
+  `PlayerKeyDocsTest` narrative-pins the Status blockquote's feature areas.
+  A restructure that drops or relocates those censuses needs a coordinated
+  rotation of several guard suites and an editorial decision about what the
+  front page should say — owner territory, logged for the close report.
+
 ### Changed — review M7–M11 (reading the changelog, version truth, i18n coverage, the phantom pointer, hub vocabulary) — 2026-11-03
 
 - **M7 (partial) / M8 — how to read this file.** A note under
