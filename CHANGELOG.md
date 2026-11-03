@@ -22,6 +22,22 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > strictly descending date order (a 2026-10-31-stamped rider written in a
 > later batch sits below 2026-10-30 ones — newest batch on top still wins).
 
+### Fixed — review minor m49 — a mistyped password no longer costs the username — 2026-11-03
+
+- **m49.** A failed sign-in rebuilt the login form from scratch, so the
+  typed username vanished with the rejected attempt — retype everything,
+  every time. `LoginFailedMsg` now carries the username (client-internal;
+  nothing of it reaches the wire), the login rejection hands it over, and
+  `goLogin()` pre-fills it into the rebuilt form — only the password is
+  thrown away with the failed attempt. `AppTest` pins the full loop
+  (submit → 401 → rebuilt form shows the name, password empty) plus the
+  fresh-surface leg (a failure without a name still rebuilds empty).
+  Disclosed ratchet rotation: the consolidation broke the byte-identity
+  of the pinned `create:a512a4f206d7` duplicate family — the key dropped
+  from the measured census and `DUPLICATE_BASELINE` was re-blessed from
+  that measured state (vanished-side conviction, per the ratchet's own
+  regeneration law), not loosened.
+
 ### Fixed — review minor m48 — the servers list selects in ink, not just a byte — 2026-11-03
 
 - **m48.** The highest-stakes switch in the app — the servers cursor —

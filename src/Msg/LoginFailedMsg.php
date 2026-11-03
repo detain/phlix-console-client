@@ -16,6 +16,11 @@ final readonly class LoginFailedMsg implements Msg
 {
     public function __construct(
         public string $reason,
+        // The typed username travels with the failure so the rebuilt login
+        // form can pre-fill it — only the password is thrown away with the
+        // failed attempt [review console m49]. Client-internal msg: nothing
+        // of this reaches the wire.
+        public string $username = '',
     ) {
     }
 }

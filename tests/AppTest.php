@@ -431,6 +431,37 @@ final class AppTest extends TestCase
         self::assertSame('Invalid username or password', $result->reason);
     }
 
+    public function testFailedLoginCarriesTheTypedUsernameBackToTheForm(): void
+    {
+        // [review m49] a mistyped password must not make the user retype the
+        // part they got right — the username travels with the failure and
+        // pre-fills the rebuilt form; only the password is discarded.
+        [$app] = $this->makeApp('https://srv', (new FakeTransport())->json(401, ['error' => 'Invalid username or password']));
+
+        [, $cmd] = $app->update(new SubmitLoginMsg('joe', 'bad'));
+        $result = $this->runCmd($cmd);
+
+        self::assertInstanceOf(LoginFailedMsg::class, $result);
+        self::assertSame('joe', $result->username, 'the failure msg carries the typed username');
+
+        [$next] = $app->update($result);
+        $screen = $next->screen();
+        self::assertInstanceOf(LoginScreen::class, $screen);
+        self::assertSame('joe', $screen->form->getString('username'), 'the rebuilt form is pre-filled');
+        self::assertSame('', $screen->form->getString('password'), '... and only the password starts empty');
+    }
+
+    public function testLoginRebuiltWithoutAFailedAttemptStaysEmpty(): void
+    {
+        // The pre-fill must not leak into fresh login surfaces: sessions
+        // expired and cold opens rebuild the empty form (default '').
+        [$app] = $this->makeApp('https://srv', new FakeTransport());
+
+        [$next] = $app->update(new LoginFailedMsg('Your session expired.'));
+
+        self::assertSame('', $next->screen()->form->getString('username'));
+    }
+
     public function testLoginSubmittedSurfacesNetworkErrorFriendly(): void
     {
         [$app] = $this->makeApp('https://srv', (new FakeTransport())->fail(new \RuntimeException('refused')));

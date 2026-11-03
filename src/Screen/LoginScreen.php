@@ -47,15 +47,22 @@ final class LoginScreen implements Model, Themed, CapturesSlash
     ) {
     }
 
-    public static function create(?string $error = null, int $cols = 80, int $rows = 24, bool $insecureServer = false): self
+    public static function create(?string $error = null, int $cols = 80, int $rows = 24, bool $insecureServer = false, string $prefillUsername = ''): self
     {
-        return new self(self::buildForm(), $error, false, $cols, $rows, $insecureServer);
+        return new self(self::buildForm($prefillUsername), $error, false, $cols, $rows, $insecureServer);
     }
 
-    private static function buildForm(): Form
+    private static function buildForm(string $prefillUsername = ''): Form
     {
+        $username = Input::new('username')->withTitle('Username');
+        if ($prefillUsername !== '') {
+            // [review console m49] a failed sign-in must not make the user
+            // retype the part they got right — the username is not secret.
+            $username = $username->withValue($prefillUsername);
+        }
+
         return Form::new(
-            Input::new('username')->withTitle('Username')->required(),
+            $username->required(),
             Input::new('password')->withTitle('Password')->withPassword()->required(),
         );
     }

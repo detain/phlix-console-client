@@ -568,7 +568,7 @@ final class App implements Model
             LoginFailedMsg::class => static function (App $app, Msg $msg): array {
                 assert($msg instanceof LoginFailedMsg);
 
-                return $app->goLogin($msg->reason);
+                return $app->goLogin($msg->reason, prefillUsername: $msg->username);
             },
             OpenRegisterMsg::class => static function (App $app, Msg $msg): array {
                 assert($msg instanceof OpenRegisterMsg);
@@ -1436,7 +1436,7 @@ final class App implements Model
     {
         $cmd = Cmd::promise(fn () => $this->auth->login($username, $password)->then(
             static fn (AuthUser $user): Msg => new LoginSucceededMsg($user),
-            fn (\Throwable $error): Msg => new LoginFailedMsg($this->friendlyError($error)),
+            fn (\Throwable $error): Msg => new LoginFailedMsg($this->friendlyError($error), $username),
         ));
 
         // The LoginScreen already shows its "signing in" state.
@@ -1463,7 +1463,7 @@ final class App implements Model
     }
 
     /** @return array{App, ?\Closure} */
-    private function goLogin(?string $error, ?Config $config = null): array
+    private function goLogin(?string $error, ?Config $config = null, string $prefillUsername = ''): array
     {
         $config ??= $this->config;
         $active = $config->activeServer();
@@ -1472,6 +1472,7 @@ final class App implements Model
             $this->cols,
             $this->rows,
             insecureServer: $active !== null && Config::isInsecureUrl($active->url),
+            prefillUsername: $prefillUsername,
         );
 
         return [$this->replace(Route::Login, $screen, $config), $screen->init()];
