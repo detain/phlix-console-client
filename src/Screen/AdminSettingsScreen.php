@@ -13,6 +13,7 @@ use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Admin\ServerSetting;
 use Phlix\Console\Api\Dto\Admin\ServerSettings;
+use Phlix\Console\I18n\ExceptionSentences;
 use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\AdminSettingActionDoneMsg;
 use Phlix\Console\Msg\AdminSettingActionFailedMsg;
@@ -128,7 +129,7 @@ final class AdminSettingsScreen implements Breadcrumbed, Themed
             static fn (string $message): Msg => new AdminSettingActionDoneMsg($message === '' ? 'Settings updated.' : $message),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
-                : new AdminSettingActionFailedMsg($e->getMessage()),
+                : new AdminSettingActionFailedMsg(ExceptionSentences::sentence($e, 'admin-settings-screen')),
         ));
     }
 

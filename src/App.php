@@ -1484,7 +1484,7 @@ final class App implements Model
                         // Password too weak — server message contains "password" hint
                         $error->statusCode === 400 && stripos($error->getMessage(), 'password') !== false
                             => 'Your password is too weak. Please choose a stronger one.',
-                        default => $error->getMessage(),
+                        default => ExceptionSentences::sentence($error, 'auth.register'),
                     }
                     : 'Registration failed. Please try again.';
 

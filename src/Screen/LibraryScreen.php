@@ -12,6 +12,7 @@ namespace Phlix\Console\Screen;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\LetterIndex;
 use Phlix\Console\Api\MediaQuery;
+use Phlix\Console\I18n\ExceptionSentences;
 use Phlix\Console\I18n\Lang;
 use Phlix\Console\Media\PosterCardFactory;
 use Phlix\Console\Media\PosterLoadResult;
@@ -248,7 +249,7 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
                 static fn (array $result): Msg => new ShufflePlayMsg($mediaId, $result['shuffled_ids'], $result['mode']),
                 static fn (\Throwable $e): Msg => $e instanceof AuthError
                     ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
-                    : new ShufflePlayFailedMsg($mediaId, $e->getMessage()),
+                    : new ShufflePlayFailedMsg($mediaId, ExceptionSentences::sentence($e, 'library-screen')),
             ))];
         }
         // '/' opens the filter/sort bar; other letters (and # / digit) jump A–Z.

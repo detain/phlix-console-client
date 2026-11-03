@@ -13,6 +13,7 @@ use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Admin\PluginDetail;
 use Phlix\Console\Api\Dto\Admin\PluginSettingField;
+use Phlix\Console\I18n\ExceptionSentences;
 use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\AdminPluginDetailFailedMsg;
 use Phlix\Console\Msg\AdminPluginDetailLoadedMsg;
@@ -133,7 +134,7 @@ final class AdminPluginDetailScreen implements Breadcrumbed, Themed
             static fn (PluginDetail $detail): Msg => new AdminPluginSettingSavedMsg($detail),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
-                : new AdminPluginSettingFailedMsg($e->getMessage()),
+                : new AdminPluginSettingFailedMsg(ExceptionSentences::sentence($e, 'admin-plugin-detail-screen')),
         ));
     }
 

@@ -20,6 +20,7 @@ use SugarCraft\Core\SubscriptionCapable;
 use SugarCraft\Core\View;
 use Phlix\Console\SugarCraft\Screen\Breadcrumbed;
 use Phlix\Console\SugarCraft\Screen\Themed;
+use Phlix\Console\I18n\ExceptionSentences;
 
 final class SharedWithMeScreen implements Model, Breadcrumbed, Themed
 {
@@ -58,7 +59,7 @@ final class SharedWithMeScreen implements Model, Breadcrumbed, Themed
         $promise = $this->hub->sharedWithMe()->then(
             /** @param list<array<string, mixed>> $items */
             static fn (array $items): Msg => new SharedWithMeLoadedMsg($items),
-            static fn (\Throwable $e): Msg => new SharedWithMeFailedMsg($e->getMessage()),
+            static fn (\Throwable $e): Msg => new SharedWithMeFailedMsg(ExceptionSentences::sentence($e, 'shared-with-me-screen')),
         );
 
         return Cmd::promise(static fn (): PromiseInterface => $promise);
@@ -122,7 +123,7 @@ final class SharedWithMeScreen implements Model, Breadcrumbed, Themed
         $id = $item['id'];
         $promise = $this->hub->acceptShare($id)->then(
             static fn (): SharedWithMeActionDoneMsg => new SharedWithMeActionDoneMsg('accepted'),
-            static fn (\Throwable $e): SharedWithMeFailedMsg => new SharedWithMeFailedMsg($e->getMessage()),
+            static fn (\Throwable $e): SharedWithMeFailedMsg => new SharedWithMeFailedMsg(ExceptionSentences::sentence($e, 'shared-with-me-screen')),
         );
 
         return [$this, Cmd::promise(static fn (): PromiseInterface => $promise)];
@@ -141,7 +142,7 @@ final class SharedWithMeScreen implements Model, Breadcrumbed, Themed
         $id = $item['id'];
         $promise = $this->hub->rejectShare($id)->then(
             static fn (): SharedWithMeActionDoneMsg => new SharedWithMeActionDoneMsg('rejected'),
-            static fn (\Throwable $e): SharedWithMeFailedMsg => new SharedWithMeFailedMsg($e->getMessage()),
+            static fn (\Throwable $e): SharedWithMeFailedMsg => new SharedWithMeFailedMsg(ExceptionSentences::sentence($e, 'shared-with-me-screen')),
         );
 
         return [$this, Cmd::promise(static fn (): PromiseInterface => $promise)];

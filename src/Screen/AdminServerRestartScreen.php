@@ -11,6 +11,7 @@ namespace Phlix\Console\Screen;
 
 use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\AuthError;
+use Phlix\Console\I18n\ExceptionSentences;
 use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\AdminServerRestartDoneMsg;
 use Phlix\Console\Msg\AdminServerRestartFailedMsg;
@@ -94,7 +95,7 @@ final class AdminServerRestartScreen implements Breadcrumbed, Themed
                     return \React\Promise\resolve(
                         $e instanceof AuthError
                             ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
-                            : new AdminServerRestartFailedMsg(self::RESTART_FAILED . ' ' . $e->getMessage()),
+                            : new AdminServerRestartFailedMsg(self::RESTART_FAILED . ' ' . ExceptionSentences::sentence($e, 'admin-server-restart-screen')),
                     );
                 },
             );

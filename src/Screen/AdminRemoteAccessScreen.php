@@ -14,6 +14,7 @@ use Phlix\Console\Api\ApiError;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Admin\PortForwardCandidate;
 use Phlix\Console\Api\Dto\Admin\RemoteAccessStatus;
+use Phlix\Console\I18n\ExceptionSentences;
 use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\AdminPortForwardCandidatesFailedMsg;
 use Phlix\Console\Msg\AdminPortForwardCandidatesLoadedMsg;
@@ -166,7 +167,7 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
             static fn (string $message): Msg => new AdminRemoteActionDoneMsg($message),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
-                : new AdminRemoteActionFailedMsg($e->getMessage()),
+                : new AdminRemoteActionFailedMsg(ExceptionSentences::sentence($e, 'admin-remote-access-screen')),
         ));
     }
 
@@ -696,7 +697,7 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
                     }
 
                     // Pairing request failed (hub unreachable, etc.).
-                    $screen->wizard = PairingWizard::error($e->getMessage() ?: 'Pairing request failed.');
+                    $screen->wizard = PairingWizard::error(ExceptionSentences::sentence($e, 'admin-remote-access-screen'));
 
                     return new HubPairingExpiredMsg();
                 },
@@ -763,10 +764,10 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
                         );
                     }
 
-                    $screen->wizard = PairingWizard::error($e->getMessage());
+                    $screen->wizard = PairingWizard::error(ExceptionSentences::sentence($e, 'admin-remote-access-screen'));
 
                     return \React\Promise\Timer\sleep(0)->then(
-                        static fn (): Msg => new AdminRemoteActionFailedMsg($e->getMessage())
+                        static fn (): Msg => new AdminRemoteActionFailedMsg(ExceptionSentences::sentence($e, 'admin-remote-access-screen'))
                     );
                 },
             );

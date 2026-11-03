@@ -11,6 +11,7 @@ namespace Phlix\Console\Screen;
 
 use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\AuthError;
+use Phlix\Console\I18n\ExceptionSentences;
 use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\AdminDuplicatesFailedMsg;
 use Phlix\Console\Msg\AdminDuplicatesLoadedMsg;
@@ -226,7 +227,7 @@ final class AdminDuplicatesScreen implements Breadcrumbed, Themed
                 static fn (array $result): Msg => ShowToastMsg::success(sprintf('Merge complete: %d moved, %d deleted.', $result['moved'], $result['deleted'])),
                 static fn (\Throwable $e): Msg => $e instanceof AuthError
                     ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
-                    : ShowToastMsg::error('Merge failed: ' . $e->getMessage()),
+                    : ShowToastMsg::error(ExceptionSentences::composed('Merge failed', $e, 'admin-duplicates')),
             ));
     }
 

@@ -11,6 +11,7 @@ namespace Phlix\Console\Screen;
 
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\MediaItem;
+use Phlix\Console\I18n\ExceptionSentences;
 use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\CollectionsFailedMsg;
 use Phlix\Console\Msg\CollectionsLoadedMsg;
@@ -224,7 +225,7 @@ final class CollectionsScreen implements Model, Teardownable, Breadcrumbed, Them
             static function (\Throwable $e): CollectionsFailedMsg|SessionExpiredMsg {
                 return $e instanceof AuthError
                     ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
-                    : new CollectionsFailedMsg('Delete failed: ' . $e->getMessage());
+                    : new CollectionsFailedMsg(ExceptionSentences::composed('Delete failed', $e, 'collections'));
             },
         );
 

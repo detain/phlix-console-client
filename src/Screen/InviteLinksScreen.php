@@ -21,6 +21,7 @@ use SugarCraft\Core\SubscriptionCapable;
 use SugarCraft\Core\View;
 use Phlix\Console\SugarCraft\Screen\Breadcrumbed;
 use Phlix\Console\SugarCraft\Screen\Themed;
+use Phlix\Console\I18n\ExceptionSentences;
 
 final class InviteLinksScreen implements Model, Breadcrumbed, Themed
 {
@@ -59,7 +60,7 @@ final class InviteLinksScreen implements Model, Breadcrumbed, Themed
         $promise = $this->hub->inviteLinks()->then(
             /** @param list<array<string, mixed>> $links */
             static fn (array $links): Msg => new InviteLinksLoadedMsg($links),
-            static fn (\Throwable $e): Msg => new InviteLinksFailedMsg($e->getMessage()),
+            static fn (\Throwable $e): Msg => new InviteLinksFailedMsg(ExceptionSentences::sentence($e, 'invite-links-screen')),
         );
 
         return Cmd::promise(static fn (): PromiseInterface => $promise);
@@ -122,7 +123,7 @@ final class InviteLinksScreen implements Model, Breadcrumbed, Themed
                 'code' => '',
                 'url' => '',
             ]),
-            static fn (\Throwable $e): InviteLinksFailedMsg => new InviteLinksFailedMsg($e->getMessage()),
+            static fn (\Throwable $e): InviteLinksFailedMsg => new InviteLinksFailedMsg(ExceptionSentences::sentence($e, 'invite-links-screen')),
         );
 
         return [$this, Cmd::promise(static fn (): PromiseInterface => $promise)];
@@ -142,7 +143,7 @@ final class InviteLinksScreen implements Model, Breadcrumbed, Themed
         }
         $promise = $this->hub->revokeInvite($link['id'])->then(
             static fn (): InviteLinkRevokedMsg => new InviteLinkRevokedMsg(),
-            static fn (\Throwable $e): InviteLinksFailedMsg => new InviteLinksFailedMsg($e->getMessage()),
+            static fn (\Throwable $e): InviteLinksFailedMsg => new InviteLinksFailedMsg(ExceptionSentences::sentence($e, 'invite-links-screen')),
         );
 
         return [$this, Cmd::promise(static fn (): PromiseInterface => $promise)];

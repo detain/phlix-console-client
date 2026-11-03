@@ -12,6 +12,7 @@ namespace Phlix\Console\Screen;
 use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Admin\DlnaServerStatus;
+use Phlix\Console\I18n\ExceptionSentences;
 use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\AdminDlnaActionDoneMsg;
 use Phlix\Console\Msg\AdminDlnaActionFailedMsg;
@@ -105,7 +106,7 @@ final class AdminDlnaScreen implements Breadcrumbed, Themed
             static fn (string $message): Msg => new AdminDlnaActionDoneMsg($message),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
-                : new AdminDlnaActionFailedMsg($e->getMessage()),
+                : new AdminDlnaActionFailedMsg(ExceptionSentences::sentence($e, 'admin-dlna-screen')),
         ));
     }
 

@@ -13,6 +13,7 @@ use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Admin\CatalogPlugin;
 use Phlix\Console\Api\Dto\Admin\PluginCatalogResult;
+use Phlix\Console\I18n\ExceptionSentences;
 use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\AdminPluginCatalogActionDoneMsg;
 use Phlix\Console\Msg\AdminPluginCatalogActionFailedMsg;
@@ -133,7 +134,7 @@ final class AdminPluginCatalogScreen implements Breadcrumbed, Themed
             static fn (mixed $_): Msg => new AdminPluginCatalogActionDoneMsg($success),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
-                : new AdminPluginCatalogActionFailedMsg($e->getMessage()),
+                : new AdminPluginCatalogActionFailedMsg(ExceptionSentences::sentence($e, 'admin-plugin-catalog-screen')),
         ));
     }
 

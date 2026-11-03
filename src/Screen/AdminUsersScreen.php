@@ -12,6 +12,7 @@ namespace Phlix\Console\Screen;
 use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Admin\AdminUser;
+use Phlix\Console\I18n\ExceptionSentences;
 use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\AdminUserActionDoneMsg;
 use Phlix\Console\Msg\AdminUserActionFailedMsg;
@@ -167,7 +168,7 @@ final class AdminUsersScreen implements Breadcrumbed, Themed, Loadable, Shimmeri
                 : new AdminUserActionDoneMsg($result),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
-                : new AdminUserActionFailedMsg($e->getMessage()),
+                : new AdminUserActionFailedMsg(ExceptionSentences::sentence($e, 'admin-users-screen')),
         ));
     }
 
@@ -284,7 +285,7 @@ final class AdminUsersScreen implements Breadcrumbed, Themed, Loadable, Shimmeri
             static fn (string $message): Msg => new AdminUserActionDoneMsg($message === '' ? $fallback : $message),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
-                : new AdminUserActionFailedMsg($e->getMessage()),
+                : new AdminUserActionFailedMsg(ExceptionSentences::sentence($e, 'admin-users-screen')),
         ));
     }
 

@@ -14,6 +14,7 @@ use Phlix\Console\Api\Cast\CastClient;
 use Phlix\Console\Api\Dto\Cast\CastDevice;
 use Phlix\Console\Api\Dto\Cast\CastStatus;
 use Phlix\Console\Api\Dto\MediaItem;
+use Phlix\Console\I18n\ExceptionSentences;
 use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\CastActionDoneMsg;
 use Phlix\Console\Msg\CastActionFailedMsg;
@@ -298,7 +299,7 @@ final class CastScreen implements Breadcrumbed, Themed
             static fn (string $sessionId): Msg => new CastStartedMsg($device),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
-                : new CastFailedMsg($e->getMessage()),
+                : new CastFailedMsg(ExceptionSentences::sentence($e, 'cast-screen')),
         ));
     }
 
@@ -371,7 +372,7 @@ final class CastScreen implements Breadcrumbed, Themed
             static fn (string $state): Msg => new CastActionDoneMsg($state),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
-                : new CastActionFailedMsg($e->getMessage()),
+                : new CastActionFailedMsg(ExceptionSentences::sentence($e, 'cast-screen')),
         ));
     }
 

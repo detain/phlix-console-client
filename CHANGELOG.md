@@ -17,6 +17,41 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > cut, and the only published artifact remains the rolling prerelease built
 > from `master` under the `latest` tag (README, “PHAR (end user)”).
 
+### Fixed — review M15 (raw throwable text reached the render surface) — 2026-11-03
+
+- **The leak.** `ExceptionSentences` is the codebase's declared chokepoint
+  (wire prose passes through, transport/program text is curated down to one
+  human sentence, everything flattened to a single ≤160-cell line) — but
+  only four files consumed it. Forty-four arms across 23 screens, plus the
+  pairing-wizard callbacks and the register fallback, displayed raw
+  `$e->getMessage()`: `SQLSTATE[...]` strings, curl socket prose and vendor
+  type errors rode red toasts, and multi-line server text — newline is
+  preserved by `Coerce::untrustedForDisplay`, toast height is a line count
+  — could shift one-line frames out from under the renderer.
+- **The cure.** Every displayed arm now routes through
+  `ExceptionSentences::sentence()` or `::composed()`; the register default
+  clause gets the wire clamp it always lacked; the two error-line renders
+  without a length budget (library/detail, player) gained the same
+  `Truncate::withEllipsis` budget the rest of the codebase uses. Classification
+  probe arms (`str_contains` reads) stay as they must. One curated exception,
+  `DownloadException` (app-authored, single-line failure prose), keeps its own
+  message by design — the chokepoint's own doctrine prefers a screen-curated
+  sentence over the generic one.
+- **Bonus defect cured.** The download-failure composition said
+  “Download failed: ” in BOTH the arm and the consumer — users saw the clause
+  twice on every failed download. The arm now supplies a bare sentence; one
+  prefix, once.
+- **The law is pinned.** New `ExceptionProseDisplayGuardTest`: a structural
+  scan of `src/Screen/` fails on any displayed `->getMessage()` that is not
+  sanitized or a probe, with the one exemption carried alongside its
+  proof-of-shape, plus a census floor keeping the chokepoint live.
+  Mutation-probed: re-raw one CastScreen arm = the guard reddens naming the
+  line; restored = green.
+- **Measured.** Full suite 3511 tests / 21,673 assertions / 0 failures
+  (+2 tests / +89 assertions exact); phpstan prod and tests [OK]; phpcs both
+  repo configs rc 0; i18n hardcoded + catalogs gates rc 0. No old test pinned
+  a leak — every screen test asserts through faked curated exceptions.
+
 ### Fixed — review M14 (rating-picker number keys lied) — 2026-11-03
 
 - **The defect.** The manual, the picker's own hint and the handler comment

@@ -15,6 +15,7 @@ use Phlix\Console\Api\Dto\ContinueWatchingItem;
 use Phlix\Console\Api\Dto\Library;
 use Phlix\Console\Api\Dto\MediaPage;
 use Phlix\Console\Api\MediaQuery;
+use Phlix\Console\I18n\ExceptionSentences;
 use Phlix\Console\I18n\Lang;
 use Phlix\Console\Media\PosterCardFactory;
 use Phlix\Console\Media\PosterLoader;
@@ -720,7 +721,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
                 static fn (array $result): Msg => new ShufflePlayMsg($mediaId, $result['shuffled_ids'], $result['mode']),
                 static fn (\Throwable $e): Msg => $e instanceof AuthError
                     ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
-                    : new ShufflePlayFailedMsg($mediaId, $e->getMessage()),
+                    : new ShufflePlayFailedMsg($mediaId, ExceptionSentences::sentence($e, 'browse-screen')),
             ))];
         }
 

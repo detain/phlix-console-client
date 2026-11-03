@@ -16,6 +16,7 @@ use Phlix\Console\Api\Dto\Admin\GuideProgram;
 use Phlix\Console\Api\Dto\Admin\Recording;
 use Phlix\Console\Api\Dto\Admin\SeriesRule;
 use Phlix\Console\Api\Dto\Admin\Tuner;
+use Phlix\Console\I18n\ExceptionSentences;
 use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\AdminLiveTvActionDoneMsg;
 use Phlix\Console\Msg\AdminLiveTvActionFailedMsg;
@@ -209,7 +210,7 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
             static fn (mixed $_): Msg => new AdminLiveTvActionDoneMsg($fallback),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
-                : new AdminLiveTvActionFailedMsg($e->getMessage()),
+                : new AdminLiveTvActionFailedMsg(ExceptionSentences::sentence($e, 'admin-live-tv-screen')),
         ));
     }
 
@@ -387,7 +388,7 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
                 static fn (int $count): Msg => new AdminLiveTvActionDoneMsg("Imported {$count} programs"),
                 static fn (\Throwable $e): Msg => $e instanceof AuthError
                     ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
-                    : new AdminLiveTvActionFailedMsg($e->getMessage()),
+                    : new AdminLiveTvActionFailedMsg(ExceptionSentences::sentence($e, 'admin-live-tv-screen')),
             ))];
         }
         $program = $this->selectedProgram();

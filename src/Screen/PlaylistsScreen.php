@@ -11,6 +11,7 @@ namespace Phlix\Console\Screen;
 
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\MediaItem;
+use Phlix\Console\I18n\ExceptionSentences;
 use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
@@ -222,7 +223,7 @@ final class PlaylistsScreen implements Model, Teardownable, Breadcrumbed, Themed
             static function (\Throwable $e): PlaylistsFailedMsg|SessionExpiredMsg {
                 return $e instanceof AuthError
                     ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
-                    : new PlaylistsFailedMsg('Delete failed: ' . $e->getMessage());
+                    : new PlaylistsFailedMsg(ExceptionSentences::composed('Delete failed', $e, 'playlists'));
             },
         );
 

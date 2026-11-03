@@ -12,6 +12,7 @@ namespace Phlix\Console\Screen;
 use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Admin\Plugin;
+use Phlix\Console\I18n\ExceptionSentences;
 use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\AdminPluginActionDoneMsg;
 use Phlix\Console\Msg\AdminPluginActionFailedMsg;
@@ -120,7 +121,7 @@ final class AdminPluginsScreen implements Breadcrumbed, Themed
             static fn (mixed $_): Msg => new AdminPluginActionDoneMsg($success),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
-                : new AdminPluginActionFailedMsg($e->getMessage()),
+                : new AdminPluginActionFailedMsg(ExceptionSentences::sentence($e, 'admin-plugins-screen')),
         ));
     }
 

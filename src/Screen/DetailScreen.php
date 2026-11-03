@@ -18,6 +18,7 @@ use Phlix\Console\Api\Dto\Rating;
 use Phlix\Console\Api\MediaQuery;
 use Phlix\Console\Download\DownloadException;
 use Phlix\Console\Download\DownloadService;
+use Phlix\Console\I18n\ExceptionSentences;
 use Phlix\Console\I18n\Lang;
 use Phlix\Console\Media\PosterCardFactory;
 use Phlix\Console\Media\PosterLoader;
@@ -60,6 +61,7 @@ use Phlix\Console\Store\MediaRange;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\RatingBadge;
+use Phlix\Console\Ui\Truncate;
 use Phlix\Console\Ui\UserRatingPicker;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
@@ -404,7 +406,9 @@ final class DetailScreen implements Breadcrumbed, Themed
     private function baseFrame(): string
     {
         if ($this->error !== null) {
-            return Chrome::frame($this->headerTitle(), "\n  {$this->error}", Lang::t(self::LOADING_HINT_KEY), $this->cols, $this->rows, $this->crumbs, $this->theme());
+            // Wire-reason text is server data [review M-CONSOLE-70/M15]:
+            // budget it to the content panel or it wraps and steals a body row.
+            return Chrome::frame($this->headerTitle(), "\n  " . Truncate::withEllipsis($this->error, $this->cols - 6), Lang::t(self::LOADING_HINT_KEY), $this->cols, $this->rows, $this->crumbs, $this->theme());
         }
         if (!$this->loaded || $this->item === null) {
             return Chrome::frame($this->headerTitle(), "\n  " . Lang::t('detail.loading'), Lang::t(self::LOADING_HINT_KEY), $this->cols, $this->rows, $this->crumbs, $this->theme());
@@ -460,7 +464,7 @@ final class DetailScreen implements Breadcrumbed, Themed
                 static fn (array $result): Msg => new ShufflePlayMsg($mediaId, $result['shuffled_ids'], $result['mode']),
                 static fn (\Throwable $e): Msg => $e instanceof AuthError
                     ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
-                    : new ShufflePlayFailedMsg($mediaId, $e->getMessage()),
+                    : new ShufflePlayFailedMsg($mediaId, ExceptionSentences::sentence($e, 'detail-screen')),
             ))];
         }
         // Leaf: Cast → send the signed stream to a discovered device (mirrors `p`).
@@ -527,9 +531,13 @@ final class DetailScreen implements Breadcrumbed, Themed
                                 return new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY));
                             }
 
+                            // The consumer below prepends "Download failed: " exactly
+                            // once [review M15: the old composition did it twice —
+                            // arm AND consumer each carried the clause]. The reason
+                            // slot therefore holds a bare user-safe sentence.
                             $reason = $e instanceof DownloadException
                                 ? $e->getMessage()
-                                : "Download failed: {$e->getMessage()}";
+                                : ExceptionSentences::sentence($e, 'detail-download');
 
                             return new DownloadFailedMsg($mediaId, $reason);
                         },
@@ -551,7 +559,7 @@ final class DetailScreen implements Breadcrumbed, Themed
                 },
                 static fn (\Throwable $e): Msg => $e instanceof AuthError
                     ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
-                    : new SubtitleSearchFailedMsg($mediaId, $e->getMessage()),
+                    : new SubtitleSearchFailedMsg($mediaId, ExceptionSentences::sentence($e, 'detail-screen')),
             ))];
         }
         if ($msg->type === KeyType::Up) {
@@ -596,7 +604,7 @@ final class DetailScreen implements Breadcrumbed, Themed
                 static fn (array $result): Msg => new ShufflePlayMsg($mediaId, $result['shuffled_ids'], $result['mode']),
                 static fn (\Throwable $e): Msg => $e instanceof AuthError
                     ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
-                    : new ShufflePlayFailedMsg($mediaId, $e->getMessage()),
+                    : new ShufflePlayFailedMsg($mediaId, ExceptionSentences::sentence($e, 'detail-screen')),
             ))];
         }
 
@@ -713,7 +721,7 @@ final class DetailScreen implements Breadcrumbed, Themed
             $next,
             Cmd::promise(fn () => $apiPromise->then(
                 static fn (bool $result): Msg => new RatingSetMsg($result),
-                static fn (\Throwable $e): Msg => new RatingSetFailedMsg($e->getMessage()),
+                static fn (\Throwable $e): Msg => new RatingSetFailedMsg(ExceptionSentences::sentence($e, 'detail-screen')),
             )),
         ];
     }
@@ -790,7 +798,7 @@ final class DetailScreen implements Breadcrumbed, Themed
             $next,
             Cmd::promise(fn () => $apiPromise->then(
                 static fn (bool $_): Msg => new FavoriteToggledMsg($id, !$wasFavorited),
-                static fn (\Throwable $e): Msg => new FavoriteToggleFailedMsg($e->getMessage()),
+                static fn (\Throwable $e): Msg => new FavoriteToggleFailedMsg(ExceptionSentences::sentence($e, 'detail-screen')),
             )),
         ];
     }
@@ -822,7 +830,7 @@ final class DetailScreen implements Breadcrumbed, Themed
             $next,
             Cmd::promise(fn () => $apiPromise->then(
                 static fn (bool $_): Msg => new WatchedToggledMsg($id, !$wasWatched),
-                static fn (\Throwable $e): Msg => new WatchedToggleFailedMsg($e->getMessage()),
+                static fn (\Throwable $e): Msg => new WatchedToggleFailedMsg(ExceptionSentences::sentence($e, 'detail-screen')),
             )),
         ];
     }
@@ -861,7 +869,7 @@ final class DetailScreen implements Breadcrumbed, Themed
             $next,
             Cmd::promise(fn () => $apiPromise->then(
                 static fn (bool $_): Msg => new LikeToggledMsg($id, $newLevel),
-                static fn (\Throwable $e): Msg => new LikeToggleFailedMsg($e->getMessage()),
+                static fn (\Throwable $e): Msg => new LikeToggleFailedMsg(ExceptionSentences::sentence($e, 'detail-screen')),
             )),
         ];
     }

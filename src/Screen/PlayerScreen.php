@@ -77,6 +77,7 @@ use Phlix\Console\Ui\SubtitleTrackList;
 use Phlix\Console\Ui\Scrubber;
 use Phlix\Console\Ui\SyncPlayModal;
 use Phlix\Console\Ui\SyncPlayOverlay;
+use Phlix\Console\Ui\Truncate;
 use SugarCraft\Core\BatchMsg;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
@@ -622,7 +623,8 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
     private function renderBase(): string
     {
         if ($this->error !== null) {
-            return Chrome::frame($this->item->name, "\n  {$this->error}", 'Esc  back', $this->cols, $this->rows, theme: $this->theme());
+            // Budget the wire reason to the content panel [review M-CONSOLE-70/M15].
+            return Chrome::frame($this->item->name, "\n  " . Truncate::withEllipsis($this->error, $this->cols - 6), 'Esc  back', $this->cols, $this->rows, theme: $this->theme());
         }
         if ($this->inner === null) {
             $body = $this->transcoding

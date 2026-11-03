@@ -12,6 +12,7 @@ namespace Phlix\Console\Screen;
 use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Admin\Profile;
+use Phlix\Console\I18n\ExceptionSentences;
 use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\AdminProfileActionDoneMsg;
 use Phlix\Console\Msg\AdminProfileActionFailedMsg;
@@ -149,7 +150,7 @@ final class AdminUserProfilesScreen implements Breadcrumbed, Themed
             static fn (string $message): Msg => new AdminProfileActionDoneMsg($message === '' ? $fallback : $message),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
-                : new AdminProfileActionFailedMsg($e->getMessage()),
+                : new AdminProfileActionFailedMsg(ExceptionSentences::sentence($e, 'admin-user-profiles-screen')),
         ));
     }
 

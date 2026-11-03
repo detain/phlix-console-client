@@ -13,6 +13,7 @@ use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Admin\ToneMappingSettings;
 use Phlix\Console\Api\Dto\Admin\TranscodingAccelerators;
+use Phlix\Console\I18n\ExceptionSentences;
 use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
@@ -273,7 +274,7 @@ final class AdminTranscodingScreen implements Breadcrumbed, Themed
             },
             static fn (\Throwable $e): Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
-                : new TranscodingActionFailedMsg($e->getMessage()),
+                : new TranscodingActionFailedMsg(ExceptionSentences::sentence($e, 'admin-transcoding-screen')),
         ));
     }
 

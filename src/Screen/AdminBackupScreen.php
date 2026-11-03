@@ -13,6 +13,7 @@ use Phlix\Console\Api\Admin\AdminClient;
 use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Admin\Backup;
 use Phlix\Console\Api\Dto\Admin\BackupSchedule;
+use Phlix\Console\I18n\ExceptionSentences;
 use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\AdminBackupActionDoneMsg;
 use Phlix\Console\Msg\AdminBackupActionFailedMsg;
@@ -145,7 +146,7 @@ final class AdminBackupScreen implements Breadcrumbed, Themed
             static fn (string $message): Msg => new AdminBackupActionDoneMsg($message === '' ? $fallback : $message),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
-                : new AdminBackupActionFailedMsg($e->getMessage()),
+                : new AdminBackupActionFailedMsg(ExceptionSentences::sentence($e, 'admin-backup-screen')),
         ));
     }
 
@@ -338,7 +339,7 @@ final class AdminBackupScreen implements Breadcrumbed, Themed
                 static fn (BackupSchedule $schedule): Msg => new AdminBackupScheduleUpdatedMsg($schedule),
                 static fn (\Throwable $e): Msg => $e instanceof AuthError
                     ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
-                    : new AdminBackupActionFailedMsg($e->getMessage()),
+                    : new AdminBackupActionFailedMsg(ExceptionSentences::sentence($e, 'admin-backup-screen')),
             ))];
         }
 

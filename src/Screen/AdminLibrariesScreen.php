@@ -14,6 +14,7 @@ use Phlix\Console\Api\AuthError;
 use Phlix\Console\Api\Dto\Admin\ScanJob;
 use Phlix\Console\Api\Dto\Library;
 use Phlix\Console\Api\Dto\MediaItemType;
+use Phlix\Console\I18n\ExceptionSentences;
 use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\AdminLibrariesFailedMsg;
 use Phlix\Console\Msg\AdminLibrariesLoadedMsg;
@@ -247,7 +248,7 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
             },
             static fn (\Throwable $e): Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
-                : new AdminLibraryActionFailedMsg($e->getMessage()),
+                : new AdminLibraryActionFailedMsg(ExceptionSentences::sentence($e, 'admin-libraries-screen')),
         ));
     }
 
