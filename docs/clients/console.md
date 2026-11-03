@@ -241,11 +241,11 @@ Render modes control how posters and images are displayed. The mode is a
 per-invocation choice — the `--mode` flag at launch (see Usage). It is never
 stored in `config.json` and does not persist across launches:
 
-**Cell modes** (tile as coloured text — work in any terminal):
+**Cell modes** (tile as coloured text — work in any terminal that speaks UTF-8):
 
 | Mode | Description |
 | --- | --- |
-| `halfblock` (default) | 24-bit colour half-block characters (▀). Universal fallback. |
+| `halfblock` (default) | 24-bit colour half-block characters (▀). The fallback everywhere. |
 | `quarterblock` | Denser quarter-block characters (▘▝▖▗) |
 | `ascii` | Monochrome character ramp |
 | `ansi256` | 256-colour character ramp |
@@ -258,6 +258,16 @@ stored in `config.json` and does not persist across launches:
 | `sixel` | Sixel protocol (most compatible graphics mode) |
 | `kitty` | Kitty protocol |
 | `iterm2` | iTerm2 inline images |
+
+A note on the character set: “universal” above means colour and protocol
+reach, not glyph reach. The block-drawing ramp (▀ ▘▝▖▗ ░) and the UI's
+punctuation glyphs (`⏎` for Enter, `›` in breadcrumbs, the middle-elision
+` … `, rating/danger marks) are all non-ASCII and need a UTF-8 locale to
+render; in `LANG=C` or a legacy code-page terminal they arrive as mojibake
+or boxes. Set a UTF-8 locale (`LANG=en_US.UTF-8` is enough on virtually
+every modern system). `--mode=ascii` switches the **poster ramp** to pure
+ASCII, but the interface glyphs themselves are not mode-switched — they
+follow the terminal's character set.
 
 ```sh
 # List what your terminal supports
@@ -284,10 +294,21 @@ hints, rating stars, badges, danger marks, cast-avatar fields):
 Suppression is colour-only by design: the structural attributes — **bold**
 emphasis, faint avatar initials, reverse-video selection cursor — survive, so
 what is selected and what is emphasized stays visible without any palette.
-The default theme (Nocturne) carries no colours at all, so a screen reader or
-a `TERM=dumb` session sees the same plain text a coloured theme is reduced to.
+The default theme (Nocturne) keeps all **chrome** colourless — the header
+brand and status hints emit plain text — while **content widgets** (rating
+stars, recommendation badges, card titles, the clear-rating mark, cast-avatar
+backgrounds) carry the historical palette. Under `NO_COLOR` or `TERM=dumb`
+those widget colours drop to attribute-only output too (the bold emphasis on
+stars, badges and the danger mark survives), so a screen reader or a
+line-mode terminal still sees the same text and structure as everywhere else.
 
-Small and basic setups:
+- Live window resizing is handled: the terminal's size-change signal re-flows
+  every screen in the stack — including the ones you have navigated away
+  from, the command palette, and open overlays (rating picker, track lists,
+  SyncPlay modal) — so a resized window never needs a restart. When a poster
+  grid grows, the newly revealed cells are fetched immediately rather than
+  sitting blank until the next keypress.
+- Small and basic setups:
 
 - The interface is designed for at least **80×24**. Below that nothing
   crashes: the body area is `rows − 8` lines deep (floored at zero) and the

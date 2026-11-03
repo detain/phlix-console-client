@@ -5,6 +5,39 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — review M4–M6 (accessibility-doc truth: Nocturne colours, resize, charset) + batch-1 changelog debt (C1, M1, M2) — 2026-11-03
+
+- **M4 — “Nocturne carries no colours at all” was false.** The manual
+  conflated the two chrome tokens (accent/muted — those are `null`, and the
+  ThemeTest pin named “carries no colour tokens” covers exactly that) with
+  the content-widget palette: Nocturne emits the historical hexes for rating
+  stars (`#ffcc00`), recommendation badges, card titles, the danger mark
+  (`#ff6666`) and the six-hue avatar ramp. The Accessibility paragraph now
+  distinguishes colourless chrome from coloured widgets and states what
+  suppression actually does (colour drops, bold survives).
+- **M5 — live resizing was documented nowhere.** A bullet in Accessibility
+  records the shipped behavior: the terminal's size signal re-flows the
+  whole screen stack (including navigated-away screens, the palette and open
+  overlays), and a poster grid that grows fetches the newly revealed cells
+  immediately (`App::resized` threads those commands).
+- **M6 — “universal fallback” is universal in colour, not in glyphs.** The
+  block-drawing ramp (▀ ▘▝▖▗ ░) and the UI punctuation (`⏎`, `›`, ` … `,
+  rating/danger marks) need a UTF-8 locale. The four claim sites — the
+  console manual's cell-mode table (plus a new charset paragraph), the
+  README requirements bullet and mode table, and the terminal-graphics
+  protocol table — now say so; `--mode=ascii` switches only the poster ramp.
+- **Changelog debt.** Batch 1 landed without entries: **C1** (production
+  phpstan gate green again — nested inline arrow factories hoisted to named
+  methods, runtime behavior byte-identical); **M1** (signal exits —
+  `pkill phlix`, `kill -TERM`, a closed terminal — now tear the player down:
+  ffplay/mpv/ffmpeg children and music/audiobook sessions used to be left
+  holding the audio device; the Ctrl-C and palette-quit arms shared the same
+  teardown and the three vendor-handled signals did not); **M2** (`watch`'s
+  hub relay-token mint failing without ext-curl is now a named hint with the
+  `--relay-token` escape hatch instead of a silent generic failure, and the
+  “ext-curl is only for diagnostics” claims in README/manual/release notes
+  were corrected — the mint uses curl on every reconnect).
+
 ### Fixed — review M3 (Downloads invisible in the manual) + M2 follow-up (ci-baseline coordinate rotation) — 2026-11-03
 
 - **The defect.** README headlines item **downloads** (:18) and spells `d

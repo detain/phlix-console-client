@@ -7,7 +7,7 @@ protocols, each with different capabilities and terminal support.
 
 | Protocol | Terminal Support | Animation | Transparency | Max Colours |
 |----------|-----------------|-----------|--------------|------------|
-| **Half-block** (ANSI) | All | No | No | 16.7M (24-bit) |
+| **Half-block** (ANSI) | All (any UTF-8 locale) | No | No | 16.7M (24-bit) |
 | **SIXEL** (DEC) | xterm, Mintty, mlterm, iTerm2 | Yes | Yes | 4096 |
 | **iTerm2** | iTerm2 only | Yes | Yes | 16.7M (24-bit) |
 | **Kitty** | Kitty, some terminals | Yes | Yes | 16.7M (24-bit) |

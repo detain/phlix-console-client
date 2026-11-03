@@ -70,7 +70,8 @@ Further reading: [i18n](docs/i18n.md) (the env locale chain),
 - **ffmpeg** + **ffprobe** (video decode + frame grabs).
 - **ffplay** or **mpv** (audio playback — video, music, audiobooks).
 - A terminal with **sixel** or the **kitty**/**iTerm2** graphics protocol is
-  recommended; **half-block** is the universal fallback.
+  recommended; **half-block** is the universal colour fallback (any UTF-8
+  locale renders it — the UI's glyphs assume UTF-8 throughout).
 
 ## Install
 
@@ -285,7 +286,7 @@ compatibility.
 | `truecolor` | cell — 24-bit colour character ramp | ![truecolor](docs/images/truecolor.png) |
 | `ansi256` | cell — 256-colour character ramp | ![ansi256](docs/images/ansi256.png) |
 | `quarterblock` | cell — dense 24-bit colour blocks | ![quarterblock](docs/images/quarterblock.png) |
-| `halfblock` (≡ `ansi`) | cell — 24-bit colour half-blocks (universal fallback) | ![halfblock](docs/images/halfblock.png) |
+| `halfblock` (≡ `ansi`) | cell — 24-bit colour half-blocks (universal colour fallback) | ![halfblock](docs/images/halfblock.png) |
 | `ascii` | cell — monochrome character ramp | ![ascii](docs/images/ascii.png) |
 
 </details>
