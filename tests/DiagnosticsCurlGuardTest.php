@@ -81,6 +81,24 @@ final class DiagnosticsCurlGuardTest extends TestCase
         );
     }
 
+    public function testTheRelayTokenMintNamesTheMissingExtensionBeforeBailing(): void
+    {
+        // [review M2] watch's hub-tokened path is this mint; without ext-curl
+        // it failed CLOSED silently and the user saw only a generic "watch
+        // failed" on the recommended headless path. The bail arm must print
+        // the php-curl hint and the --relay-token escape hatch (once) before
+        // returning null — the whole promise the requirements docs make here.
+        $source = file_get_contents(self::BIN_SOURCE);
+        self::assertIsString($source);
+
+        self::assertMatchesRegularExpression(
+            '/function mintRelayToken.*?!\s*function_exists\(\'curl_init\'\)\s*\)\s*\{.*?php-curl.*?--relay-token.*?return null;/s',
+            $source,
+            self::BIN_SOURCE . ': the mintRelayToken ext-curl bail no longer warns with the '
+            . 'php-curl / --relay-token hint before failing closed'
+        );
+    }
+
     // ---- helpers ---------------------------------------------------------
 
     /**

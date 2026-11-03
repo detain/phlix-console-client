@@ -4,7 +4,8 @@
  * Guard against the M-CONSOLE-13 class (review console__devops): the README
  * once claimed `pcntl` + `posix` as runtime requirements for "TTY/raw mode"
  * while omitting every extension composer actually enforces (gd, mbstring,
- * intl, ffi, json) and the curl the diagnostics commands call. Raw mode is
+ * intl, ffi, json) and the curl the diagnostics commands and watch's
+ * relay-token mint call. Raw mode is
  * plain `stty` (vendor sugar-core Util/RawMode.php); pcntl/posix appear in
  * vendor only behind function_exists() guards (Ctrl-Z suspend) and in one
  * self-skipping fork-based test.
@@ -195,8 +196,8 @@ final class RuntimeRequirementsDocsTest extends TestCase
         self::assertSame(
             [],
             $offenders,
-            'src/ now calls curl directly; the docs name ext-curl as a diagnostics-only '
-            . 'requirement (doctor / run --selftest in bin/phlix). Either re-word the '
+            'src/ now calls curl directly; the docs name ext-curl as a diagnostics-and-relay-mint '
+            . 'requirement (doctor / run --selftest / watch relay-token mint in bin/phlix). Either re-word the '
             . 'requirements lists or move this call out of the TUI core, in the same change.'
         );
     }

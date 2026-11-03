@@ -62,8 +62,8 @@ Further reading: [i18n](docs/i18n.md) (the env locale chain),
   width — src/ and sugar-image), `ext-intl` (sugar-core), `ext-ffi` (PTY
   control via sugar-pty) and `ext-json` (required by workerman; bundled in
   PHP ≥ 8.0). Composer enforces all five at install.
-- `ext-curl` — only the `doctor` / `run --selftest` server-reachability probes
-  call it; the TUI itself needs no curl.
+- `ext-curl` — the `doctor` / `run --selftest` server-reachability probes and
+  `watch`'s hub relay-token mint call it; the TUI itself needs no curl.
 - `pcntl` + `posix` are **optional**: SugarCraft enables Ctrl-Z suspend with
   them where present and one fork-based test self-skips without them — raw
   mode itself is plain `stty`, no extension needed.
@@ -126,7 +126,8 @@ sha256sum -c SHA256SUMS
 **Requirements for PHAR:**
 - PHP ≥ 8.3 with `ext-gd`, `ext-mbstring`, `ext-intl`, `ext-ffi`, `ext-json`
   (a PHAR runs without composer's platform check, so these are on you; add
-  `ext-curl` for the `doctor` / `run --selftest` reachability probes)
+  `ext-curl` for the `doctor` / `run --selftest` reachability probes and
+  `watch`'s hub relay-token mint)
 - A terminal with sixel/kitty/iTerm2 support (or use `--mode=halfblock` as fallback)
 - ffmpeg + ffprobe (for video frame grabs)
 

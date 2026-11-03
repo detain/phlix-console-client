@@ -462,8 +462,16 @@ function readSecretFromStdin(): ?string
 function mintRelayToken(string $hubUrl, string $serverId, string $hubToken): ?string
 {
     // ext-curl is not a declared dependency; without it the mint fails closed
-    // (null → the watch ladder retries with the next token read).
+    // (null → the watch ladder retries with the next token read) — but it now
+    // says so once [review M2: watch's only curl use is this mint, and a
+    // silent bail left the recommended headless path failing generically].
     if (!function_exists('curl_init')) {
+        static $warned = false;
+        if (!$warned) {
+            $warned = true;
+            fwrite(STDERR, "hub relay: ext-curl is not loaded — cannot mint a relay token (install php-curl, or pass --relay-token)\n");
+        }
+
         return null;
     }
 
