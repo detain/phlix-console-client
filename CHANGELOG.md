@@ -76,6 +76,34 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Gates: AppTest 199/779; fresh phpstan prod 0 errors (with the sibling's
 bin/phlix WIP present but unstaged); canonical phpcs src rc 0.
 
+### Fixed — review minors m52–m57 — copy unification sweep — 2026-11-03
+
+- **m53/m58 (partial).** The key-hint separator law (key↔word 2 spaces,
+  pairs 6) drifted to 1/2/3-space variants across 12 screens and the
+  `detail.similar_navigate_hint` row in all 7 locale catalogs. Every
+  deviant now matches the house form the majority already spoke; the two
+  test pins that had fossilised the drift (AdminUsers 'P profiles',
+  AdminRemoteAccess subview hint row) rotated to the law. The 7-locale
+  CAPITALISATION question (en lowercase `q  back` vs six locales'
+  title-case keys) is a translation-value call — deferred with the owner
+  reel, not silently folded (German nouns must stay capitalised whatever
+  en decides).
+- **m52.** Three user-facing ASCII `...` ellipses joined the house `…`:
+  stats loading line, download toast tail, room-list overflow row.
+- **m54.** The six pagination failure constants said `Couldn't` while the
+  entire rest of the failure family (dashboard, logs, playlists,
+  collections, audiobook…) speaks formal `Could not` — contracted forms
+  are now gone from load-failure copy; MusicScreen's two pins rotated.
+- **m55.** Delete-confirmations and the plugin-update warning carried the
+  emoji-presentation `⚠️` (and `AdminPluginUpdateScreen` doubled it with a
+  literal `Warning:`) while every security banner uses plain `⚠` —
+  unified on plain, duplicate prefix dropped.
+- **m56.** The cast target line quoted the item name with curly `“ ”`,
+  the only curly quotes in the app; now straight.
+- **m57.** The admin menu entry says `Server Settings` but the screen it
+  opens framed itself `Admin · Settings` — the frame (and its edit-mode
+  tail) now speak the menu's name.
+
 ### Fixed — review minors m45 + m51 — cache custody & loud config — 2026-11-03
 
 - **m45.** The poster disk-cache directory was created by the vendored

@@ -46,7 +46,7 @@ final class AdminPluginUpdateScreen implements Breadcrumbed, Themed
 
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load plugin updates.';
-    private const HINT = 'a  toggle auto-update   c  set channel   u  apply updates   Esc  back';
+    private const HINT = 'a  toggle auto-update      c  set channel      u  apply updates      Esc  back';
 
     /** @var list<array{name:string,current_version:string,latest_version:string}> */
     private array $updates = [];
@@ -336,7 +336,7 @@ final class AdminPluginUpdateScreen implements Breadcrumbed, Themed
         $out .= "  {$status}\n";
 
         if ($this->pendingApply !== null) {
-            $out .= "  ⚠️  Warning: Plugin updates can destroy settings including OAuth tokens (Trakt, Last.fm, etc.)\n\n";
+            $out .= "  ⚠ Plugin updates can destroy settings including OAuth tokens (Trakt, Last.fm, etc.)\n\n";
             $out .= '  Type "update" and press Enter to confirm: ' . $this->typed . "\n";
         }
 

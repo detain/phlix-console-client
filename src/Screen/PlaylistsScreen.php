@@ -286,7 +286,7 @@ final class PlaylistsScreen implements Model, Teardownable, Breadcrumbed, Themed
                 $lines[] = $prefix . $this->renderItem($item);
             }
 
-            $prompt = "\n\n  ⚠️  {$this->pendingDelete->prompt()}";
+            $prompt = "\n\n  ⚠ {$this->pendingDelete->prompt()}";
             $cancelHint = "\n  Esc: Cancel";
 
             return $prompt . implode("\n", $lines) . $cancelHint;

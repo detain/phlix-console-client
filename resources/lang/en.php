@@ -44,7 +44,7 @@ return [
     'detail.loading' => 'Loading…',
     'detail.no_synopsis' => 'No synopsis available.',
     'detail.more_like_this' => 'More Like This',
-    'detail.similar_navigate_hint' => '←→ navigate  ⏎ open',
+    'detail.similar_navigate_hint' => '←→  navigate      ⏎  open',
     'detail.cast_label' => 'Cast',
     'detail.directed_by' => 'Directed by ',
     'detail.more_cast' => '  +{count} more',

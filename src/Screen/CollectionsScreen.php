@@ -291,7 +291,7 @@ final class CollectionsScreen implements Model, Teardownable, Breadcrumbed, Them
                 $lines[] = $prefix . $this->renderItem($item);
             }
 
-            $prompt = "\n\n  ⚠️  {$this->pendingDelete->prompt()}";
+            $prompt = "\n\n  ⚠ {$this->pendingDelete->prompt()}";
             $cancelHint = "\n  Esc: Cancel";
 
             return $prompt . implode("\n", $lines) . $cancelHint;

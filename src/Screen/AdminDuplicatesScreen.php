@@ -51,8 +51,8 @@ final class AdminDuplicatesScreen implements Breadcrumbed, Themed
 
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load duplicate groups.';
-    private const HINT = 'Enter view   r refresh   Esc back';
-    private const GROUP_HINT = 'm arm-merge   Esc close';
+    private const HINT = 'Enter  view      r  refresh      Esc  back';
+    private const GROUP_HINT = 'm  arm-merge      Esc  close';
 
     /** @var list<array{canonical_key:string,type:string,library_id:string,primary:array<string,mixed>,duplicates:list<array<string,mixed>>}> */
     private array $groups = [];

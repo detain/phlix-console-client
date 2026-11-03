@@ -57,7 +57,7 @@ final class StatsScreen implements Model
     public function view(): string
     {
         if ($this->loading) {
-            return "\n\n  Loading stats...\n";
+            return "\n\n  Loading stats…\n";
         }
 
         $out = "\n\n  Server Statistics\n";

@@ -52,7 +52,7 @@ final class AdminWatchHistoryScreen implements Breadcrumbed, Themed
 
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load watch history.';
-    private const HINT = 'u  filter-user  r  refresh  Esc  back';
+    private const HINT = 'u  filter-user      r  refresh      Esc  back';
 
     /** Default page size. */
     private const PAGE_SIZE = 50;

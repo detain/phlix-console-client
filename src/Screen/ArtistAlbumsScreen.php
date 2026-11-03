@@ -46,7 +46,7 @@ final class ArtistAlbumsScreen implements Breadcrumbed, Themed
     private const TRACKS_WIDTH = 7;
     private const PAGE_LIMIT = 100;
     private const OVERSCAN = 5;
-    private const LOAD_MORE_FAILED = "Couldn't load more albums.";
+    private const LOAD_MORE_FAILED = "Could not load more albums.";
 
     /**
      * Sparse array of loaded albums, keyed by absolute index.

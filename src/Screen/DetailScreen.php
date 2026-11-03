@@ -347,7 +347,7 @@ final class DetailScreen implements Breadcrumbed, Themed
         }
         if ($msg instanceof DownloadStartedMsg) {
             // Show download has started with directory info.
-            return [$this, Cmd::send(ShowToastMsg::info("Downloading {$msg->filename} to {$msg->downloadDir}..."))];
+            return [$this, Cmd::send(ShowToastMsg::info("Downloading {$msg->filename} to {$msg->downloadDir}…"))];
         }
         if ($msg instanceof DownloadProgressMsg) {
             // Show download progress.

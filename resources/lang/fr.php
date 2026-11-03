@@ -47,7 +47,7 @@ return [
     'detail.loading' => 'Chargement…',
     'detail.no_synopsis' => 'Aucun résumé disponible.',
     'detail.more_like_this' => 'Titres similaires',
-    'detail.similar_navigate_hint' => '←→ naviguer  ⏎ ouvrir',
+    'detail.similar_navigate_hint' => '←→  naviguer      ⏎  ouvrir',
     'detail.cast_label' => 'Distribution',
     'detail.directed_by' => 'Réalisé par ',
     'detail.more_cast' => '  +{count} de plus',

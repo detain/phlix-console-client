@@ -511,7 +511,7 @@ final class CastScreen implements Breadcrumbed, Themed
 
     private function castingLine(): string
     {
-        return '  Cast “' . $this->item->name . '” to:' . Table::positionIndicator(count($this->devices), $this->selected);
+        return '  Cast "' . $this->item->name . '" to:' . Table::positionIndicator(count($this->devices), $this->selected);
     }
 
     private function deviceTable(): string

@@ -65,7 +65,7 @@ final class PhotosScreen implements Breadcrumbed, Loadable, Shimmering, Themed
     private const OVERSCAN = 1;
     private const PAGE_LIMIT = 100;
     private const HINT = '↑↓←→  move      ⏎  open      Esc  back';
-    private const LOAD_MORE_FAILED = "Couldn't load more albums.";
+    private const LOAD_MORE_FAILED = "Could not load more albums.";
 
     private PosterGrid $grid;
     /**

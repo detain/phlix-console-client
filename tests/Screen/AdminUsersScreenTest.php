@@ -884,7 +884,7 @@ final class AdminUsersScreenTest extends TestCase
     {
         $screen = $this->loaded((new FakeTransport())->json(200, $this->usersPayload()));
 
-        self::assertStringContainsString('P profiles', $screen->view());
+        self::assertStringContainsString('P  profiles', $screen->view());
     }
 
     // ---- helpers -------------------------------------------------------

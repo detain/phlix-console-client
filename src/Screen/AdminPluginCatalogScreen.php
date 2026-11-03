@@ -68,7 +68,7 @@ final class AdminPluginCatalogScreen implements Breadcrumbed, Themed
 
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load the plugin catalog.';
-    private const HINT = '↑↓ select   ⏎/i install   a add source   x remove source   r refresh   Esc back';
+    private const HINT = '↑↓  select      ⏎/i  install      a  add source      x  remove source      r  refresh      Esc  back';
     private const ADD_HINT = 'Enter  add      Esc  cancel';
 
     /**

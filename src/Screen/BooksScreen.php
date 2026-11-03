@@ -70,7 +70,7 @@ final class BooksScreen implements Breadcrumbed, Loadable, Shimmering, Themed
     private const PAGE_LIMIT = 50;
     private const OVERSCAN = 1;
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
-    private const LOAD_MORE_FAILED = "Couldn't load more books.";
+    private const LOAD_MORE_FAILED = "Could not load more books.";
     private const HINT = '↑↓←→  move      ⏎  open      Esc  back';
 
     private PosterGrid $grid;

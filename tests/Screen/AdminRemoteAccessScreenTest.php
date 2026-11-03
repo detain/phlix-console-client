@@ -417,7 +417,7 @@ final class AdminRemoteAccessScreenTest extends TestCase
         self::assertStringContainsString('192.168.1.100', $view);
         self::assertStringContainsString('203.0.113.7', $view);
         self::assertStringContainsString('32400', $view);
-        self::assertStringContainsString('c/Esc close', $view);
+        self::assertStringContainsString('c/Esc  close', $view);
     }
 
     public function testTheCandidatesSubViewShowsTheEmptyPlaceholder(): void

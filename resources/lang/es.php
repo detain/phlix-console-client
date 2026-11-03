@@ -47,7 +47,7 @@ return [
     'detail.loading' => 'Cargando…',
     'detail.no_synopsis' => 'Sinopsis no disponible.',
     'detail.more_like_this' => 'Títulos similares',
-    'detail.similar_navigate_hint' => '←→ navegar  ⏎ abrir',
+    'detail.similar_navigate_hint' => '←→  navegar      ⏎  abrir',
     'detail.cast_label' => 'Reparto',
     'detail.directed_by' => 'Dirigido por ',
     'detail.more_cast' => '  +{count} más',

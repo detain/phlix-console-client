@@ -75,7 +75,7 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
     private const OVERSCAN = 1;
     private const SEARCH_DEBOUNCE = 0.3;
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
-    private const LOAD_MORE_FAILED = "Couldn't load more items.";
+    private const LOAD_MORE_FAILED = "Could not load more items.";
     private const HINT = '↑↓←→  move      A–Z  jump      /  filter      c  clear      s  shuffle      R  refresh      Esc  back';
     private const FILTER_HINT = 'type to search      Tab  field      ←→  change      c  clear      Esc  done';
 

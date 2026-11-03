@@ -80,7 +80,7 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load the remote-access status.';
     private const CANDIDATES_FAILED = 'Could not load the port-forward candidates.';
-    private const CANDIDATES_HINT = '↑/↓ scroll   r refresh   c/Esc close';
+    private const CANDIDATES_HINT = '↑/↓  scroll      r  refresh      c/Esc  close';
 
     private const PANEL_HUB = 0;
     private const PANEL_SUBDOMAIN = 1;

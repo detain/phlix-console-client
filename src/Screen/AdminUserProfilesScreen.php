@@ -68,7 +68,7 @@ final class AdminUserProfilesScreen implements Breadcrumbed, Themed
 
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load the profiles.';
-    private const HINT = 'c create  E edit  x delete  p set-PIN  k clear-PIN  r refresh  Esc back';
+    private const HINT = 'c  create      E  edit      x  delete      p  set-PIN      k  clear-PIN      r  refresh      Esc  back';
     private const FORM_HINT = 'Tab/↑↓  field      Enter  save      Esc  cancel';
     private const PIN_HINT = 'Enter  save      Esc  cancel';
 

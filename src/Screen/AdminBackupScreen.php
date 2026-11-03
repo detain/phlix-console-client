@@ -67,7 +67,7 @@ final class AdminBackupScreen implements Breadcrumbed, Themed
 
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load the backups.';
-    private const HINT = 'c create   x delete   R restore   s upload-S3   e schedule   r refresh   Esc back';
+    private const HINT = 'c  create      x  delete      R  restore      s  upload-S3      e  schedule      r  refresh      Esc  back';
     private const LABEL_HINT = 'Enter  create      Esc  cancel';
     private const SCHEDULE_HINT = 'Enter  save      Esc  cancel';
 

@@ -320,7 +320,7 @@ final class SyncPlayModal
             }
 
             if ($roomCount > self::MAX_ROOMS_SHOWN) {
-                $lines[] = sprintf('    ... and %d more', $roomCount - self::MAX_ROOMS_SHOWN);
+                $lines[] = sprintf('    … and %d more', $roomCount - self::MAX_ROOMS_SHOWN);
             }
         }
 

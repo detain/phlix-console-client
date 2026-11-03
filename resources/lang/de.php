@@ -47,7 +47,7 @@ return [
     'detail.loading' => 'Wird geladen…',
     'detail.no_synopsis' => 'Keine Beschreibung verfügbar.',
     'detail.more_like_this' => 'Ähnliche Titel',
-    'detail.similar_navigate_hint' => '←→ navigieren  ⏎ öffnen',
+    'detail.similar_navigate_hint' => '←→  navigieren      ⏎  öffnen',
     'detail.cast_label' => 'Besetzung',
     'detail.directed_by' => 'Regie: ',
     'detail.more_cast' => '  +{count} weitere',

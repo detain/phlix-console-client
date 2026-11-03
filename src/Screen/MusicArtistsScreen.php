@@ -51,7 +51,7 @@ final class MusicArtistsScreen implements Breadcrumbed, Themed
     private const ALBUMS_WIDTH = 8;
     private const PAGE_LIMIT = 100;
     private const OVERSCAN = 5;
-    private const LOAD_MORE_FAILED = "Couldn't load more artists.";
+    private const LOAD_MORE_FAILED = "Could not load more artists.";
 
     /**
      * Sparse array of loaded artists, keyed by absolute index in the full result set.

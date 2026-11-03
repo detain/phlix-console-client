@@ -52,7 +52,7 @@ return [
     'detail.loading' => 'Carregando…',
     'detail.no_synopsis' => 'Nenhuma sinopse disponível.',
     'detail.more_like_this' => 'Títulos semelhantes',
-    'detail.similar_navigate_hint' => '←→ navegar  ⏎ abrir',
+    'detail.similar_navigate_hint' => '←→  navegar      ⏎  abrir',
     'detail.cast_label' => 'Elenco',
     'detail.directed_by' => 'Direção de ',
     'detail.more_cast' => '  +{count} mais',

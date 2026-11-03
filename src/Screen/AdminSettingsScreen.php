@@ -167,10 +167,10 @@ final class AdminSettingsScreen implements Breadcrumbed, Themed
     public function view(): string
     {
         if ($this->editForm !== null && $this->editing !== null) {
-            return Chrome::frame('Admin · Settings · Edit', $this->editBody($this->editForm, $this->editing), self::EDIT_HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
+            return Chrome::frame('Admin · Server Settings · Edit', $this->editBody($this->editForm, $this->editing), self::EDIT_HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
         }
 
-        return Chrome::frame('Admin · Settings', $this->body(), self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
+        return Chrome::frame('Admin · Server Settings', $this->body(), self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
     }
 
     // ---- input ---------------------------------------------------------

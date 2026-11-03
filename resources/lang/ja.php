@@ -47,7 +47,7 @@ return [
     'detail.loading' => '読み込み中…',
     'detail.no_synopsis' => 'あらすじはありません。',
     'detail.more_like_this' => '関連作品',
-    'detail.similar_navigate_hint' => '←→ 移動  ⏎ 開く',
+    'detail.similar_navigate_hint' => '←→  移動      ⏎  開く',
     'detail.cast_label' => 'キャスト',
     'detail.directed_by' => '監督：',
     'detail.more_cast' => '  他{count}件',

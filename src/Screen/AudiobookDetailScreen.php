@@ -71,7 +71,7 @@ final class AudiobookDetailScreen implements Breadcrumbed, Themed
     use ResizesTo;
 
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
-    private const HINT = '↑↓  select   ⏎  play   r  resume   space  pause   Esc  back';
+    private const HINT = '↑↓  select      ⏎  play      r  resume      space  pause      Esc  back';
     private const NUM_WIDTH = 5;
     private const DURATION_WIDTH = 10;
     private const PART_SEPARATOR = '   ·   ';

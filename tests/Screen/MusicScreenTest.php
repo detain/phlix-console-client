@@ -166,8 +166,8 @@ final class MusicScreenTest extends TestCase
         self::assertInstanceOf(MusicFailedMsg::class, $msg);
 
         [$failed] = $screen->update($msg);
-        self::assertStringContainsString("Couldn't load more albums.", $failed->view());
-        self::assertStringContainsString("Couldn't load more albums.", (string) $failed->error());
+        self::assertStringContainsString("Could not load more albums.", $failed->view());
+        self::assertStringContainsString("Could not load more albums.", (string) $failed->error());
     }
 
     public function testAuthErrorBecomesSessionExpired(): void

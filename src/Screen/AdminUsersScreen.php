@@ -78,7 +78,7 @@ final class AdminUsersScreen implements Breadcrumbed, Themed, Loadable, Shimmeri
 
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load users.';
-    private const HINT = 'c create  E edit  P profiles  f filter  a approve  d disable  x delete  j reject  m admin  p reset-pw  r refresh  Esc back';
+    private const HINT = 'c  create      E  edit      P  profiles      f  filter      a  approve      d  disable      x  delete      j  reject      m  admin      p  reset-pw      r  refresh      Esc  back';
     private const FORM_HINT = 'Tab/↑↓  field      Enter  save      Esc  cancel';
 
     /** The username rule mirrors the server: 3–50 of [A-Za-z0-9_]. */

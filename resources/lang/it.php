@@ -47,7 +47,7 @@ return [
     'detail.loading' => 'Caricamento…',
     'detail.no_synopsis' => 'Nessuna sinossi disponibile.',
     'detail.more_like_this' => 'Titoli simili',
-    'detail.similar_navigate_hint' => '←→ scorri  ⏎ apri',
+    'detail.similar_navigate_hint' => '←→  scorri      ⏎  apri',
     'detail.cast_label' => 'Cast',
     'detail.directed_by' => 'Regia di ',
     'detail.more_cast' => '  +{count} altri',
