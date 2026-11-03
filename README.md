@@ -231,9 +231,9 @@ back). **Books** — a cover grid → a detail screen with a copyable download U
 # What can this terminal render?
 bin/phlix doctor
 
-# Render an image at 40 cells wide (best available protocol)
+# Render an image at 40 cells wide (safe cell renderer by default)
 bin/phlix poster /path/to/poster.jpg 40
-bin/phlix poster /path/to/poster.jpg 40 --mode=halfblock   # force a mode
+bin/phlix poster /path/to/poster.jpg 40 --mode=halfblock   # …or force any mode
 
 # Decode the first 3 frames of a video to ANSI (ffmpeg)
 bin/phlix frame /path/to/movie.mkv 3 60 20

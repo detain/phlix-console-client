@@ -17,6 +17,29 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > cut, and the only published artifact remains the rolling prerelease built
 > from `master` under the `latest` tag (README, “PHAR (end user)”).
 
+### Fixed — review M17 (`phlix poster` default flooded the terminal) — 2026-11-03
+
+- **The flood.** The poster spike's unforced mode ran `Mosaic::auto()` — the
+  vendored terminal probe — and on tmux/generic hosts the probe returned a
+  decorated renderer whose bytes were not a cell grid: `poster t.png 10 6`
+  emitted 1,360 lines (619 KB) with 40 glyphs on the first line of a 10-cell
+  box, then uncolored `▀`-runs with no escape sequences at all. With no size
+  args: 93,640 lines / 157 MB in 0.6 s. Every explicit mode rendered the
+  exact Fit grid on the same input. The manual already advertised halfblock
+  as “(default) … The fallback everywhere” — the TUI grid honored that, only
+  the CLI spike's default didn't.
+- **The cure.** `MosaicFactory::forMode(null|'auto')` now selects
+  `Mosaic::halfBlock()` — the same safe-default policy `forPosterGrid` uses —
+  so the unforced render path cannot misprobe. Graphics protocols stay one
+  explicit `--mode=sixel` away. Terminal *reporting* keeps the probe where
+  it's honest work: `doctor` still delegates to `Mosaic::auto()` through
+  Capabilities (its Docs pin untouched).
+- **Pinned.** `MosaicFactoryTest`'s shape-only “detect instead of throwing”
+  test rotated to the protocol pin the review asked for (`auto`/null ≡
+  halfblock); parent worktree convicts verbatim — seen `tmux(halfblock)`,
+  expected `halfblock`. README and PosterSpike prose brought to the new
+  truth; the Docs suite re-greened on the changed surfaces.
+
 ### Fixed — review M16 (modifier chords typed themselves into destructive confirmations) — 2026-11-03
 
 - **The hole.** M-CONSOLE-65 established the law — the terminal reports the

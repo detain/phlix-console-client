@@ -7,7 +7,6 @@ namespace Phlix\Console\Tests\Media;
 use Phlix\Console\Media\MosaicFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use SugarCraft\Image\Mosaic;
 
 final class MosaicFactoryTest extends TestCase
 {
@@ -45,10 +44,22 @@ final class MosaicFactoryTest extends TestCase
         self::assertSame($protocols, array_values(array_unique($protocols)));
     }
 
-    public function testAutoAndNullDetectInsteadOfThrowing(): void
+    public function testAutoAndNullDefaultToTheUniversalHalfBlockRenderer(): void
     {
-        self::assertInstanceOf(Mosaic::class, MosaicFactory::forMode(null));
-        self::assertInstanceOf(Mosaic::class, MosaicFactory::forMode('auto'));
+        // [review console__qa CONSOLIDATED M17] `Mosaic::auto()` probed the
+        // terminal and, on tmux/generic hosts, returned a renderer whose
+        // output buried the caller under tens of thousands of malformed
+        // lines — the spike's default must be the safe cell renderer the
+        // manual advertises, with graphics protocols reachable explicitly.
+        // Terminal *reporting* keeps the probe: `doctor` delegates to
+        // Mosaic::auto() via Capabilities (pinned in TerminalGraphicsDocsTest).
+        foreach ([null, 'auto'] as $mode) {
+            self::assertSame(
+                'halfblock',
+                MosaicFactory::forMode($mode)->protocol(),
+                'the unforced poster render mode must resolve to the universal half-block renderer',
+            );
+        }
     }
 
     public function testUnknownModeThrows(): void

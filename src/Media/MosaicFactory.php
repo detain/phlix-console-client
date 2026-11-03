@@ -13,7 +13,8 @@ use SugarCraft\Image\Mosaic;
 
 /**
  * Builds a {@see Mosaic} for a render mode chosen on the command line
- * (`--mode=…`), or auto-detects the best protocol when none is forced.
+ * (`--mode=…`); when none is forced, both entry points select the universal
+ * half-block cell renderer (the safe default — see {@see forMode()}).
  *
  * Two audiences:
  *
@@ -37,8 +38,17 @@ final class MosaicFactory
 {
     /**
      * Resolve a mode string to a Mosaic for a single full-cell image. `null` /
-     * `auto` auto-detect the terminal; any other value forces that backend
-     * (throwing on an unknown name).
+     * `auto` select the app's safe default — the universal half-block cell
+     * renderer — exactly like {@see forPosterGrid()}; any other value forces
+     * that backend (throwing on an unknown name).
+     *
+     * [review console__qa CONSOLIDATED M17] `Mosaic::auto()` used to probe the
+     * terminal here, but the vendored probe misdetects on ordinary hosts
+     * (tmux/generic terms): the spike buried users under ~90k malformed lines
+     * per invocation while every explicit mode rendered the exact Fit grid.
+     * Auto-probing buys a first-run flourish; it does not buy correctness, and
+     * the flourish is one `--mode=sixel` away. The universal cell renderer is
+     * the honest default; graphics protocols stay reachable explicitly.
      *
      * Cell modes (all tile): `halfblock` (≡ `ansi`, 24-bit colour blocks),
      * `quarterblock` (denser blocks), `ascii` (monochrome character ramp),
@@ -46,13 +56,13 @@ final class MosaicFactory
      * Graphics modes (single image only): `sixel`, `kitty`, `iterm2`.
      *
      * The mode vocabulary itself belongs to sugar-image ({@see Mosaic::fromModeString()});
-     * this factory only converts a null/unrecognised name into the app's policy —
-     * auto-detection for `null`/`auto`, a hard error for a typo.
+     * this factory only maps null/auto onto the safe-default policy and turns
+     * an unrecognised name into a hard error.
      */
     public static function forMode(?string $mode): Mosaic
     {
         if ($mode === null || $mode === 'auto') {
-            return Mosaic::auto();
+            return Mosaic::halfBlock();
         }
 
         return Mosaic::fromModeString($mode)

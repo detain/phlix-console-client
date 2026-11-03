@@ -14,9 +14,9 @@ use SugarCraft\Image\Scale;
 
 /**
  * Phase-0 proof: load an image from disk and render it to the terminal at a
- * given cell box using the best available protocol (or a forced mode). This is
- * the same call path the real poster grid will use, minus the async fetch +
- * cache that land in Phase 1.
+ * given cell box using the universal half-block renderer, or an explicitly
+ * forced mode. This is the same call path the real poster grid will use,
+ * minus the async fetch + cache that land in Phase 1.
  */
 final class PosterSpike
 {
