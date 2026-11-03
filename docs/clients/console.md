@@ -26,6 +26,8 @@ terminal via Unicode/ANSI cell rendering.
 - In-player sleep timer (15 / 30 / 45 / 60 / 90 / 120 min presets; playback
   pauses when the countdown expires)
 - Music and audiobook playback with progress saving
+- Item downloads to disk from the media detail screen (`d`); book detail
+  offers a copyable download URL to open in a browser or e-reader
 - Full admin panel access (when signed in as admin)
 - Command palette (Ctrl-K or `:`) for quick actions
 - Global search (`/`)
@@ -365,6 +367,7 @@ modal steps back to the room list before closing when you are mid-creation).
 | `r` | Rate — opens the star picker (the full `r`/`F`/`w`/`l`/`j` loop is in Watching & ratings below) |
 | `u` | Search external subtitles for this title (candidates reported as a toast) |
 | `s` | Shuffle-play from this title (the footer spells it `s shuffle`; home rails and grids carry the same key) |
+| `d` | Download this title to disk (saved to the download directory — see Downloads below) |
 
 #### Watching & ratings
 
@@ -399,6 +402,20 @@ read your own positions (the player reports progress while you watch); the
 trending rail, not a personal one. The "For You" recommendations (`GET
 /api/v1/me/recommendations`) build from your watching — with nothing to
 show yet, the screen says so.
+
+### Downloads
+
+On the media detail screen, `d` downloads the focused item to disk: the client
+requests a signed URL from the server and saves the file into the download
+directory, with progress and completion reported as toasts. Downloads are
+private by construction — the directory is created `0700` and files land `0600`
+(a directory that already exists keeps its own permissions) — a hostile or
+broken response is bounded by a 64 GiB ceiling, and partial files are cleaned up
+when a transfer fails. The save location is `PHLIX_DOWNLOAD_DIR` (see the
+environment table above; defaults to `~/Downloads`).
+
+Books are not downloaded in-terminal: the book detail screen shows the signed
+download URL as copyable text with a hint to open it in a browser or e-reader.
 
 ### Screens
 

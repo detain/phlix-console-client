@@ -148,19 +148,19 @@ neutering wrap (`ci.yml:207-212`).
    `build.yml:55-60`)
 4. Uploads `phlix.phar` and `SHA256SUMS` as artifacts (`build.yml:62-74`)
 
-### release-latest job (`build.yml:76-137`, on master push only)
+### release-latest job (`build.yml:76-138`, on master push only)
 
 Overwrites the rolling `latest` **prerelease** with the raw, directly
 downloadable `phlix.phar` + `SHA256SUMS` (GitHub artifacts are always served
 zipped; a Release is the only way to ship a bare runnable phar). Deletes and
 recreates the tag so it points at this commit. Skipped on PRs and tag pushes.
 
-### release-tag job (`build.yml:139-222`, on tag push `v*.*.*`)
+### release-tag job (`build.yml:140-223`, on tag push `v*.*.*`)
 
-1. Verifies `SHA256SUMS` integrity (`build.yml:172-176`)
+1. Verifies `SHA256SUMS` integrity (`build.yml:173-177`)
 2. Extracts version from tag and compares against `PHLIX_VERSION` in the PHAR
-   (`build.yml:178-201`)
-3. Publishes release with `phlix.phar` + `SHA256SUMS` (`build.yml:203-220`)
+   (`build.yml:179-202`)
+3. Publishes release with `phlix.phar` + `SHA256SUMS` (`build.yml:204-221`)
 
 **Failure means:** Version number mismatch between tag and built artifact.
 

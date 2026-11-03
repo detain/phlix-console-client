@@ -5,6 +5,34 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — review M3 (Downloads invisible in the manual) + M2 follow-up (ci-baseline coordinate rotation) — 2026-11-03
+
+- **The defect.** README headlines item **downloads** (:18) and spells `d
+  download` in its key list (:173), the code ships (`src/Download/`, the
+  `detail.hint` footer carries the key in all seven locales) — but the user
+  manual never mentioned the feature: no Key-features bullet, no `d` row in
+  the Media-detail key table, no section anywhere; only the
+  `PHLIX_DOWNLOAD_DIR` environment row existed. Colour-free documentation
+  hunt dead-ends for a shipped capability.
+- **The cure (`docs/clients/console.md`).** Key-features bullet (detail-screen
+  `d` + the book copyable-URL complement); `d` row in the Media-detail table;
+  and a `### Downloads` section between Watching & ratings and Screens,
+  written from disk truth: signed-URL fetch then save to `PHLIX_DOWNLOAD_DIR`
+  (default `~/Downloads`), toast progress/completion, partial cleanup on
+  failure, `0700`-created directory / `0600` files (existing directories
+  untouched), 64 GiB ceiling (`DownloadService::MAX_DOWNLOAD_BYTES`), and
+  books deliberately URL-copy-only (`BookDetailScreen::DOWNLOAD_HINT`).
+- **M2 follow-up (`docs/steps/ci-baseline-C9.md`).** The M2 build.yml release
+  body gained one line, shifting everything below it: `release-latest`
+  heading now cites `build.yml:76-138`, `release-tag` `140-223`, the
+  Tag-vs-version step `179-202`, Publish step `204-221`, and the second
+  `Verify SHA256SUMS` anchor citation `173-177` — all rotated in one pass,
+  `CiBaselineClaimsDocsTest` green again (it had gone red exactly as designed).
+- **Measured.** Docs filter 131/688 OK; full suite 3508 tests / 21579
+  assertions / 0 failures (15 dep-skips + 15 deprecations pre-existing);
+  phpstan prod+tests [OK]; phpcs repo configs zero errors, warnings unchanged
+  (1+3 pre-existing class); i18n gates green (no catalog touched).
+
 ### Fixed — M-CONSOLE-31 review-carried MINOR: assertion-count forward-correction `17017`→`17005` for the 2026-10-29 manual-linking entry — 2026-10-31
 
 - **The defect.** The 2026-10-29 entry "console manual linked from the
