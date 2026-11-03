@@ -47,6 +47,38 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   defaults false; construction pins it). Structural pin — a TTY-stdin +
   redirected-stdout vector needs a controlling terminal the suite must not assume.
 
+### Fixed — review minors m35 + m36 — session denial codes + sibling window — 2026-11-03
+
+- **m35.** `PlayerScreen::createSessionCmd()` classified access-schedule and
+  stream-limit denials by matching English prose inside
+  `ApiError::getMessage()` — a server reword silently downgrades the denial to
+  `null` (no message at all). Classification is now contract-code-first: the
+  `code` field the server carries in the error body (`access.scheduled`,
+  `stream.limit_exceeded` — phlix-contracts registry, server
+  `Response::error` dual placement at `AccessScheduleMiddleware`/
+  `StreamLimitMiddleware`) is matched exactly; the old prose probe survives
+  only as the legacy fallback for pre-dual-placement servers. Three new
+  PlayerScreen pins: two reworded-prose convictions (parent-red measured:
+  exactly these 2 fail on the unfixed code) + one legacy-text-only pin.
+- **m36.** `fetchSiblings()` accumulated every episode up to the current one
+  (≤10 pages × 100 full `MediaItem` DTOs for a big season) and kept them on
+  the screen — the open-player memory spike the review named. Only
+  `siblings[currentIndex±1]` is ever consumed (`nextItem`/`prevItem`/Up Next),
+  so the walk now carries one prev candidate per page, probes exactly one page
+  ahead when the current item ends a page, and resolves a `[prev, current,
+  next]` window. Wire requests are unchanged or fewer (the server-side
+  sibling-position projection that would shrink them further is a contracts
+  item, not this client's to invent). Two new pins cover the page-boundary
+  probe and the empty-probe season tail.
+
+Gates: PlayerScreenTest 84/290 (+5 tests/+6 assertions vs its own baseline);
+fresh phpstan prod+tests [OK]; canonical phpcs src rc 0; full suite
+3531/21743 vs same-session stashed baseline 3526/21734 — exactly +5/+9, the
+5 new tests. Disclosure: the committed-tree run at 9d74bd7 lists 3526
+executed while the batch-14 serial run of identical content printed 3522 —
+a 4-case dataset-provider variance in the environment (same Skipped: 15 both
+ways); measured-from-same-tree-diff is the authoritative attribution here.
+
 ### Fixed — review minors m34 + m37 — selftest path and screen hygiene (src) — 2026-11-03
 
 - **m34.** The two methods missing native return types — `AdminLibrariesScreen::handleFormKey()`

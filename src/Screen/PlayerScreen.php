@@ -825,11 +825,22 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
     // ---- up-next (episode queue) ---------------------------------------
 
     /**
-     * Fetch the season's episodes (the up-next queue) for an episode item, or
-     * null when this isn't an episode with a parent season. Best-effort.
+     * Fetch the neighbouring episodes of the current episode (the up-next
+     * queue), or null when this isn't an episode with a parent season.
+     * Best-effort.
      *
-     * Uses paged fetching (100 items per page) to handle series with more than
-     * 100 episodes. The server clamps limit to PageLimit::MAX = 100.
+     * The server has no sibling-position projection, so the current episode is
+     * located by paging the season (100 per page; the server clamps limit to
+     * PageLimit::MAX = 100). What the screen ever consumes is a neighbour:
+     * nextItem()/prevItem()/the Up Next card. The pre-m36 shape accumulated
+     * every episode up to and including the current one and held it on the
+     * screen for the whole playback session — the ~10k-DTO spike (10 pages ×
+     * 100 full MediaItem DTOs for a 1000-episode catalog) review m36 named.
+     * Now each page carries only its last episode forward as the prev-item
+     * candidate, the successor page (when the current item ends a page) is
+     * probed for its first item, and the promise resolves with the
+     * [prev, current, next] window — retention O(1), allocation O(one page),
+     * wire calls unchanged.
      */
     private function fetchSiblings(): ?\Closure
     {
@@ -843,44 +854,69 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
         $limit = 100;
 
         /**
-         * Fetch pages sequentially and find the current item's index.
-         * Uses a recursive promise chain that flattens automatically.
+         * Probe one page ahead for the successor of an item that ended the
+         * previous page: its first episode, or none once the season ends
+         * (a short page is the season tail; an empty page ends the hunt).
+         *
+         * @return PromiseInterface<SiblingsLoadedMsg>
+         */
+        $fetchNext = function (int $offset, ?MediaItem $prev, MediaItem $current) use ($parentId, $limit): PromiseInterface {
+            return $this->api->media(new MediaQuery(parentId: $parentId, limit: $limit, offset: $offset))
+                ->then(static function (MediaPage $page) use ($prev, $current): SiblingsLoadedMsg {
+                    $items = $page->items;
+
+                    return self::siblingWindow($prev, $current, $items === [] ? null : $items[0]);
+                });
+        };
+
+        /**
+         * Walk pages (sequentially, flattening through the returned promises)
+         * until the current episode is found. `$carry` is the last episode of
+         * the previous page — the prev-item candidate; nothing else from
+         * earlier pages is retained.
          *
          * @param int $offset Current page offset
-         * @param list<MediaItem> $accumulated All items collected so far
+         * @param ?MediaItem $carry Last episode seen on the previous page
          * @param int $pageCount Number of pages fetched
          * @return PromiseInterface<Msg>
          */
         $fetchPage = null;
-        $fetchPage = function (int $offset, array $accumulated, int $pageCount) use ($parentId, $currentId, $limit, &$fetchPage): \React\Promise\PromiseInterface {
+        $fetchPage = function (int $offset, ?MediaItem $carry, int $pageCount) use ($parentId, $currentId, $limit, &$fetchPage, &$fetchNext): \React\Promise\PromiseInterface {
             $pageCount++;
 
             /**
              * @return \React\Promise\PromiseInterface<SugarCraft\Core\Msg>
              */
-            $onPage = static function (MediaPage $page) use ($currentId, $offset, $limit, $accumulated, $pageCount, &$fetchPage) {
-                $items = array_merge($accumulated, $page->items);
+            $onPage = function (MediaPage $page) use ($currentId, $offset, $limit, $carry, $pageCount, $fetchNext, &$fetchPage) {
+                $items = $page->items;
+                $count = count($items);
 
-                // Check if the current item is in the accumulated list
-                $index = -1;
                 foreach ($items as $i => $episode) {
-                    if ($episode->id === $currentId) {
-                        $index = $i;
-                        break;
+                    if ($episode->id !== $currentId) {
+                        continue;
                     }
+
+                    $prev = $i > 0 ? $items[$i - 1] : $carry;
+                    if ($i + 1 < $count) {
+                        // Successor is on this page — window complete.
+                        return \React\Promise\resolve(self::siblingWindow($prev, $episode, $items[$i + 1]));
+                    }
+
+                    // Current is the last item on its page: the successor is
+                    // the first item of the next page, if the season continues.
+                    if ($count >= $limit && $pageCount < 100) {
+                        return $fetchNext($offset + $limit, $prev, $episode);
+                    }
+
+                    return \React\Promise\resolve(self::siblingWindow($prev, $episode, null));
                 }
 
-                if ($index !== -1) {
-                    // Use array_values to ensure the list<int, MediaItem> type
-                    return \React\Promise\resolve(new SiblingsLoadedMsg(array_values($items), $index));
+                // Not on this page — carry its last episode and continue.
+                if ($count >= $limit && $pageCount < 100) {
+                    return $fetchPage($offset + $limit, $items[$count - 1], $pageCount);
                 }
 
-                // If page is full and safety cap not reached, fetch next page
-                if (count($page->items) >= $limit && $pageCount < 100) {
-                    return $fetchPage($offset + $limit, $items, $pageCount);
-                }
-
-                // Not found after exhausting all pages
+                // Not found after exhausting all pages.
                 return \React\Promise\resolve(new SiblingsLoadedMsg([], -1));
             };
 
@@ -888,7 +924,23 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
                 ->then($onPage);
         };
 
-        return Cmd::promise(fn (): PromiseInterface => $fetchPage(0, [], 0));
+        return Cmd::promise(fn () => $fetchPage(0, null, 0));
+    }
+
+    /**
+     * The three-slot sibling window the player consumes: prev (possibly
+     * absent at season start), the current episode, next (possibly absent at
+     * season end). `currentIndex` indexes into exactly this list.
+     */
+    private static function siblingWindow(?MediaItem $prev, MediaItem $current, ?MediaItem $next): SiblingsLoadedMsg
+    {
+        $list = $prev === null ? [$current] : [$prev, $current];
+        $index = count($list) - 1;
+        if ($next !== null) {
+            $list[] = $next;
+        }
+
+        return new SiblingsLoadedMsg($list, $index);
     }
 
     private function nextItem(): ?MediaItem
@@ -1061,12 +1113,22 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
         return Cmd::promise(fn (): PromiseInterface => $this->api->createSession(Config::deviceId())->then(
             static fn (string $sessionId): ?Msg => $sessionId !== '' ? new SessionStartedMsg($sessionId) : null,
             static function (\Throwable $e): ?Msg {
-                // P5-S5: Surface access-schedule and stream-limit errors to the viewer.
+                // P5-S5: Surface access-schedule and stream-limit errors to the
+                // viewer — classified FIRST by the machine-readable contract
+                // code the server carries in the error body (phlix-contracts
+                // registry: `access.scheduled`, `stream.limit_exceeded`; server
+                // Response::error dual placement). The English-prose probe
+                // survives only as the legacy fallback for servers predating
+                // that placement — matching it alone was review m35's silent
+                // null-downgrade on any server reword.
                 if ($e instanceof ApiError) {
-                    if ($e->statusCode === 403 && str_contains($e->getMessage(), 'AccessSchedule')) {
+                    $code = isset($e->body['code']) && is_string($e->body['code'])
+                        ? $e->body['code']
+                        : '';
+                    if ($e->statusCode === 403 && ($code === 'access.scheduled' || str_contains($e->getMessage(), 'AccessSchedule'))) {
                         return new AccessScheduleDeniedMsg('Playback blocked by access schedule. Try again during allowed hours.');
                     }
-                    if ($e->statusCode === 429 && str_contains($e->getMessage(), 'StreamLimit')) {
+                    if ($e->statusCode === 429 && ($code === 'stream.limit_exceeded' || str_contains($e->getMessage(), 'StreamLimit'))) {
                         return new StreamLimitExceededMsg('Stream limit reached. Stop another stream to continue watching.');
                     }
                 }

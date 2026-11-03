@@ -802,6 +802,133 @@ final class PlayerScreenTest extends TestCase
         self::assertNotNull($toast, 'VTT load failure should produce ShowToastMsg');
     }
 
+    // ---- session denial classification (review m35) ----------------------
+
+    /**
+     * Drive init → the auto-play/createSession batch and collect every Msg the
+     * batch yields (a denial surfaces here instead of SessionStartedMsg).
+     *
+     * @return list<Msg>
+     */
+    private function driveSession(FakeTransport $transport, PlayerScreen $screen): array
+    {
+        $seen = [];
+        $cur = $screen;
+        foreach ($this->runBatch($screen->init()) as $msg) {
+            [$cur, $cmd] = $cur->update($msg);
+            foreach ($this->runBatch($cmd) as $sub) {
+                $seen[] = $sub;
+                [$cur] = $cur->update($sub);
+            }
+        }
+
+        return $seen;
+    }
+
+    public function testAccessScheduleDeniedClassifiesOnContractCodeEvenWhenServerProseIsReworded(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->markersResponse())
+            ->json(200, $this->continueWatching())
+            ->json(200, $this->playbackResponse())
+            // The m35 defect class: server rewords the English `error` text —
+            // the machine-readable `code` (contracts registry) must still fire.
+            ->json(403, ['error' => 'Outside your household viewing window', 'code' => 'access.scheduled']);
+        [$screen] = $this->screen(transport: $transport);
+
+        $msgs = $this->driveSession($transport, $screen);
+        self::assertNotNull(
+            $this->firstOfType($msgs, \Phlix\Console\Msg\AccessScheduleDeniedMsg::class),
+            'a 403 carrying code=access.scheduled must surface the denial even with reworded prose'
+        );
+    }
+
+    public function testStreamLimitExceededClassifiesOnContractCodeEvenWhenServerProseIsReworded(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, $this->markersResponse())
+            ->json(200, $this->continueWatching())
+            ->json(200, $this->playbackResponse())
+            ->json(429, ['error' => 'Every slot is busy right now', 'code' => 'stream.limit_exceeded']);
+        [$screen] = $this->screen(transport: $transport);
+
+        $msgs = $this->driveSession($transport, $screen);
+        self::assertNotNull(
+            $this->firstOfType($msgs, \Phlix\Console\Msg\StreamLimitExceededMsg::class),
+            'a 429 carrying code=stream.limit_exceeded must surface the denial even with reworded prose'
+        );
+    }
+
+    public function testLegacyProseOnlyDenialsStillClassifyOnTheFallbackProbe(): void
+    {
+        // Pre-dual-placement servers carried only the SCREAMING error text;
+        // the prose probe stays as the compatibility leg (review m35 cure).
+        $transport = (new FakeTransport())
+            ->json(200, $this->markersResponse())
+            ->json(200, $this->continueWatching())
+            ->json(200, $this->playbackResponse())
+            ->json(403, ['error' => 'AccessScheduled']);
+        [$screen] = $this->screen(transport: $transport);
+
+        $msgs = $this->driveSession($transport, $screen);
+        self::assertNotNull(
+            $this->firstOfType($msgs, \Phlix\Console\Msg\AccessScheduleDeniedMsg::class),
+            'the legacy text-only 403 must still classify'
+        );
+    }
+
+    /**
+     * Review m36 teeth: the current episode sits LAST on a full page, so its
+     * successor can only come from the one-page-ahead probe. (The pre-m36
+     * accumulation shape resolved the same answer; what changed is retention —
+     * the window is now [prev, current, next], never the season prefix.)
+     */
+    public function testSiblingsWindowProbesTheNextPageWhenTheCurrentEpisodeEndsAPage(): void
+    {
+        $page = [];
+        for ($n = 1; $n <= 100; $n++) {
+            $page[] = ['id' => sprintf('ep%03d', $n), 'name' => 'Ep ' . $n, 'type' => 'episode', 'season_number' => 1, 'episode_number' => $n];
+        }
+        $transport = (new FakeTransport())
+            ->json(200, $this->markersResponse())                       // 1: markers
+            ->json(200, $this->continueWatching())                     // 2: resume (none)
+            ->json(200, $this->playbackResponse('ep100', 'episode'))   // 3: audio tracks
+            ->json(200, ['items' => $page, 'total' => 101])            // 4: page 1 (current last)
+            ->json(200, ['items' => [['id' => 'ep101', 'name' => 'Ep 101', 'type' => 'episode', 'season_number' => 1, 'episode_number' => 101]], 'total' => 101]); // 5: probe
+
+        $decoder = new FakeDecoder($this->frames());
+        $factory = static fn (string $u, int $c, int $r): Player => Player::fromDecoder($decoder, fps: 24.0, totalFrames: 2400, cellsW: $c, cellsH: $r, videoPath: '/fake', paused: true);
+        $api = new ApiClient('https://srv', $transport);
+        $screen = new PlayerScreen($this->episodeItem('ep100'), 'https://srv', $api, $factory, new SyncPlayService($api), cols: 80, rows: 24);
+
+        $ready = $this->ready($screen);
+        self::assertTrue($ready->hasNext(), 'the successor from the one-page-ahead probe must surface');
+        self::assertTrue($ready->hasPrev(), 'the previous page item must remain the prev candidate');
+    }
+
+    public function testSiblingsWindowEndsTheSeasonWhenTheProbePageIsEmpty(): void
+    {
+        $page = [];
+        for ($n = 1; $n <= 100; $n++) {
+            $page[] = ['id' => sprintf('ep%03d', $n), 'name' => 'Ep ' . $n, 'type' => 'episode', 'season_number' => 1, 'episode_number' => $n];
+        }
+        $transport = (new FakeTransport())
+            ->json(200, $this->markersResponse())
+            ->json(200, $this->continueWatching())
+            ->json(200, $this->playbackResponse('ep100', 'episode'))
+            ->json(200, ['items' => $page, 'total' => 100])            // 4: page 1 (current last)
+            ->json(200, ['items' => [], 'total' => 100]);              // 5: probe — season tail
+
+        $decoder = new FakeDecoder($this->frames());
+        $factory = static fn (string $u, int $c, int $r): Player => Player::fromDecoder($decoder, fps: 24.0, totalFrames: 2400, cellsW: $c, cellsH: $r, videoPath: '/fake', paused: true);
+        $api = new ApiClient('https://srv', $transport);
+        $screen = new PlayerScreen($this->episodeItem('ep100'), 'https://srv', $api, $factory, new SyncPlayService($api), cols: 80, rows: 24);
+
+        $ready = $this->ready($screen);
+        self::assertFalse($ready->hasNext(), 'an empty probe page ends the season');
+        self::assertTrue($ready->hasPrev());
+    }
+
     // ---- audio tracks (P3B) --------------------------------------------
 
     /**
