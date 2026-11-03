@@ -355,7 +355,8 @@ final class App implements Model
     }
 
     /**
-     * Re-arm SIGINT/SIGTERM/SIGHUP so a signal-driven exit tears the model's
+     * Re-arm SIGINT/SIGTERM/SIGHUP (and SIGQUIT) so a signal-driven exit tears
+     * the model's
      * subprocesses down before the loop unwinds. The vendor arms route straight
      * to a private stopProgram() (running=false + loop->stop()), and its
      * QuitMsg dispatch arm consumes quit BEFORE {@see update()} — so on
@@ -387,6 +388,14 @@ final class App implements Model
         }
         if (defined('SIGHUP')) {
             pcntl_signal(SIGHUP, $handler);
+        }
+        // [review m38] Ctrl-\ (SIGQUIT) rides the same class the M1 arms cured
+        // for TERM/HUP: the vendor never arms it, and its default disposition
+        // exits without run()'s finally — leaving raw mode, a hidden cursor and
+        // the alt-screen stranded. Arming our handler routes QUIT through the
+        // teardown-then-kill path, so the terminal comes back restored.
+        if (defined('SIGQUIT')) {
+            pcntl_signal(SIGQUIT, $handler);
         }
     }
 

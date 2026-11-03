@@ -22,6 +22,28 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > strictly descending date order (a 2026-10-31-stamped rider written in a
 > later batch sits below 2026-10-30 ones — newest batch on top still wins).
 
+### Fixed — review minor m38 — Ctrl-\ (SIGQUIT) reaches the teardown path — 2026-11-03
+
+- **m38.** The vendor arms INT/TERM/HUP/WINCH/TSTP/CONT but never QUIT, so
+  Ctrl-\ exited on the default disposition — `run()`'s finally never ran and
+  the terminal stayed in raw mode with a hidden cursor on the alt-screen.
+  The class was already cured client-side for TERM/HUP (review M1's
+  `App::armExitSignals()`); SIGQUIT now rides the identical handler — tear
+  the model down, then `Program::kill()` through the public twin of the
+  vendor stop path, so the finally restores the terminal. `defined()`
+  guarded exactly like its SIGHUP sibling. The M1 structural pin extends to
+  assert the QUIT handler is ours after arming.
+- **Forward correction (m35/m36 entry, same lane, same day).** That entry
+  attributed the 3522→3526 baseline shift to dataset-provider variance.
+  Truth discovered while landing m38: commit 1b1b882 (m39+m42+m43+m50, the
+  sibling CLI-boundary batch) had already joined the branch — 3526/21734 =
+  3522+4/21719+15 is its 4 pins. My +5/+9 same-session attribution stands
+  (measured against the identical tree); the "variance" sentence is retired
+  by this note, history kept verbatim above per convention (1).
+
+Gates: AppTest 199/779; fresh phpstan prod 0 errors (with the sibling's
+bin/phlix WIP present but unstaged); canonical phpcs src rc 0.
+
 ### Fixed — review minors m39 + m42 + m43 + m50 — CLI boundary, carriers, TLS pins — 2026-11-03
 
 - **m50.** The global `--mode` argv scan exited 2 *before* the command switch, so

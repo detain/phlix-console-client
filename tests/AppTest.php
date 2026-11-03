@@ -891,12 +891,26 @@ final class AppTest extends TestCase
             SIGTERM => pcntl_signal_get_handler(SIGTERM),
             SIGHUP => pcntl_signal_get_handler(SIGHUP),
         ];
+        if (defined('SIGQUIT')) {
+            $prev[SIGQUIT] = pcntl_signal_get_handler(SIGQUIT);
+        }
         try {
             $app->armSignalTeardown($program);
             self::assertNull($app->init(), 'arming changes nothing but the handlers; the boot Cmd stays as built');
 
             $handler = pcntl_signal_get_handler(SIGTERM);
             self::assertInstanceOf(\Closure::class, $handler, 'the exit arms carry our handler after init()');
+
+            if (defined('SIGQUIT')) {
+                // [review m38] Ctrl-\ must reach the same teardown path — the
+                // vendor arms no QUIT handler and its default leaves the
+                // terminal in raw mode with the cursor hidden.
+                self::assertInstanceOf(
+                    \Closure::class,
+                    pcntl_signal_get_handler(SIGQUIT),
+                    'SIGQUIT joins the model-tearing exit arms'
+                );
+            }
 
             $handler();
 
