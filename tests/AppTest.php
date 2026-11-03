@@ -14,6 +14,7 @@ use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\Dto\PhotoAlbum;
 use Phlix\Console\App;
 use Phlix\Console\Api\SyncPlay\WorkermanEventBridge;
+use Phlix\Console\Audio\NowPlayingSession;
 use Phlix\Console\Config\Config;
 use Phlix\Console\Config\ServerEntry;
 use Phlix\Console\Config\TokenBundle;
@@ -112,12 +113,15 @@ use Phlix\Console\Tests\Video\FakeAudioPlayer;
 use Phlix\Console\Ui\Theme;
 use PHPUnit\Framework\TestCase;
 use React\EventLoop\Loop;
+use React\EventLoop\StreamSelectLoop;
 use React\Promise\PromiseInterface;
 use SugarCraft\Core\AsyncCmd;
 use SugarCraft\Core\BatchMsg;
 use SugarCraft\Image\Mosaic;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Model;
+use SugarCraft\Core\Program;
+use SugarCraft\Core\ProgramOptions;
 use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\QuitMsg;
@@ -191,6 +195,29 @@ final class AppTest extends TestCase
             new PosterLoader(Mosaic::halfBlock()),
             $stack,
             toast: $toast,
+        );
+    }
+
+    /**
+     * An App over a hand-made stack carrying a NowPlayingSession too
+     * (the Ctrl-C/signal shared-teardown tests; the interface stays a mock
+     * so the session's stop bookkeeping can be counted exactly).
+     *
+     * @param list<array{route: Route, screen: Model}> $stack
+     */
+    private function appWithNowPlaying(array $stack, NowPlayingSession $nowPlaying): App
+    {
+        $api = new ApiClient('https://srv', new FakeTransport());
+
+        return new App(
+            new Config(servers: [new ServerEntry(id: 's1', label: 'Server', url: 'https://srv')], activeServerId: 's1'),
+            new AuthStore($api, TokenStore::default()),
+            $api,
+            new LibrariesStore($api),
+            new MediaStore($api),
+            new PosterLoader(Mosaic::halfBlock()),
+            $stack,
+            nowPlaying: $nowPlaying,
         );
     }
 
@@ -819,6 +846,71 @@ final class AppTest extends TestCase
         [, $cmd] = $player->update(new KeyMsg(KeyType::Char, 'c', ctrl: true));
 
         self::assertInstanceOf(QuitMsg::class, $cmd?->__invoke());
+    }
+
+    public function testTeardownForExitStopsTeardownableTopAndNowPlayingTogether(): void
+    {
+        // [review M1] the shared quit-path teardown: top screen + App audio, in
+        // one call every quit arm can use. Repeat safety comes from the
+        // concrete teardowns' own tornDown guards (PlayerScreen / the two
+        // session classes) — the spy counts raw calls, the mock sees one
+        // per invocation of this method.
+        $screen = new SpyTeardownScreen();
+        $session = $this->createMock(NowPlayingSession::class);
+        $session->expects(self::once())->method('teardown');
+        $app = $this->appWithNowPlaying([
+            ['route' => Route::Player, 'screen' => $screen],
+        ], $session);
+
+        $app->teardownForExit();
+
+        self::assertSame(1, $screen->teardownCalls);
+    }
+
+    public function testArmSignalTeardownInstallsModelTearingHandlersOnInit(): void
+    {
+        // [review M1] `pkill phlix` / a closed terminal must tear the model's
+        // subprocesses down BEFORE the loop unwinds: the arms installed from
+        // init() read the Program's live model and kill() through it.
+        if (!function_exists('pcntl_signal')) {
+            self::markTestSkipped('pcntl not available');
+        }
+
+        $screen = new SpyTeardownScreen();
+        $app = $this->appWithStack([
+            ['route' => Route::Player, 'screen' => $screen],
+        ]);
+        $program = new Program($app, new ProgramOptions(
+            input: fopen('php://memory', 'r+') ?: throw new \RuntimeException('memory stream unavailable'),
+            output: fopen('php://memory', 'r+') ?: throw new \RuntimeException('memory stream unavailable'),
+            loop: new StreamSelectLoop(),
+        ));
+
+        $prev = [
+            SIGINT => pcntl_signal_get_handler(SIGINT),
+            SIGTERM => pcntl_signal_get_handler(SIGTERM),
+            SIGHUP => pcntl_signal_get_handler(SIGHUP),
+        ];
+        try {
+            $app->armSignalTeardown($program);
+            self::assertNull($app->init(), 'arming changes nothing but the handlers; the boot Cmd stays as built');
+
+            $handler = pcntl_signal_get_handler(SIGTERM);
+            self::assertInstanceOf(\Closure::class, $handler, 'the exit arms carry our handler after init()');
+
+            $handler();
+
+            self::assertSame(1, $screen->teardownCalls, 'the signal path tears the model down first');
+            self::assertTrue($program->wait());
+        } finally {
+            foreach ($prev as $signo => $previous) {
+                if (is_array($previous) || $previous instanceof \Closure) {
+                    pcntl_signal($signo, $previous);
+                } else {
+                    pcntl_signal($signo, is_int($previous) ? $previous : SIG_DFL);
+                }
+            }
+        }
     }
 
     public function testNavigateBackTearsDownAPoppedPlayer(): void

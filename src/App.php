@@ -184,6 +184,7 @@ use SugarCraft\Core\I18n\T;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Model;
 use SugarCraft\Core\Msg;
+use SugarCraft\Core\Program;
 use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\PasteMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
@@ -233,6 +234,14 @@ final class App implements Model
      * @var \Closure(string $url, ?int $startMs): \SugarCraft\Video\AudioPlayer
      */
     private readonly \Closure $audioFactory;
+
+    /**
+     * The Program whose exit signals must tear down model-owned subprocesses
+     * ({@see armSignalTeardown()}); null until bin/phlix arms the run. Set once
+     * on the boot instance; the handler reaches the ACTIVE model via the
+     * Program itself, so copy-on-write swaps never strand it on a stale frame.
+     */
+    private ?Program $exitSignalProgram = null;
 
     /**
      * @param list<array{route: Route, screen: Model}> $stack top frame last; empty = the loading state
@@ -311,7 +320,74 @@ final class App implements Model
 
     public function init(): ?\Closure
     {
+        $this->armExitSignals();
+
         return $this->bootCmd;
+    }
+
+    /**
+     * Let the real run arm model-side teardown on exit signals. Must be called
+     * between Program construction and run() (bin/phlix does); the handlers are
+     * installed from {@see init()} because Program::run() installs its own
+     * signal arms BEFORE the first init dispatch — re-arming there is what
+     * makes ours the last pcntl_signal() word.
+     */
+    public function armSignalTeardown(Program $program): void
+    {
+        $this->exitSignalProgram = $program;
+    }
+
+    /**
+     * The model-side teardown every quit path shares: a {@see Teardownable}
+     * top screen (the player's ffmpeg/ffplay subprocesses) and the App-owned
+     * now-playing audio (ffplay/mpv) stop before the process leaves. Concrete
+     * teardowns self-guard against double fire ({@see PlayerScreen::teardown()}
+     * / the session twins), so any quit path may call this freely.
+     */
+    public function teardownForExit(): void
+    {
+        $top = $this->topScreen();
+        if ($top instanceof Teardownable) {
+            $top->teardown();
+        }
+        // The App owns the music audio now, so leaving stops ffplay/mpv too.
+        $this->nowPlaying?->teardown();
+    }
+
+    /**
+     * Re-arm SIGINT/SIGTERM/SIGHUP so a signal-driven exit tears the model's
+     * subprocesses down before the loop unwinds. The vendor arms route straight
+     * to a private stopProgram() (running=false + loop->stop()), and its
+     * QuitMsg dispatch arm consumes quit BEFORE {@see update()} — so on
+     * `pkill phlix` / a closed terminal the player children were orphaned
+     * [review M1: SIGTERM/SIGHUP exit bypasses model teardown]. The handler
+     * reads {@see Program::model()} LIVE (copy-on-write keeps screens shared,
+     * App frames swapped) and stops via the public {@see Program::kill()},
+     * whose body is the same two assignments as the vendor's stopProgram, so
+     * run()'s finally still performs the full terminal teardown.
+     */
+    private function armExitSignals(): void
+    {
+        $program = $this->exitSignalProgram;
+        if ($program === null || !function_exists('pcntl_signal')) {
+            return;
+        }
+
+        $handler = static function () use ($program): void {
+            $model = $program->model();
+            if ($model instanceof App) {
+                $model->teardownForExit();
+            }
+            $program->kill();
+        };
+
+        pcntl_signal(SIGINT, $handler);
+        if (defined('SIGTERM')) {
+            pcntl_signal(SIGTERM, $handler);
+        }
+        if (defined('SIGHUP')) {
+            pcntl_signal(SIGHUP, $handler);
+        }
     }
 
     public function update(Msg $msg): array
@@ -319,12 +395,7 @@ final class App implements Model
         if ($msg instanceof KeyMsg && $this->isInterrupt($msg)) {
             // A global Ctrl-C quit must still tear down a screen holding external
             // resources (the player's ffmpeg/ffplay subprocesses) so they don't leak.
-            $top = $this->topScreen();
-            if ($top instanceof Teardownable) {
-                $top->teardown();
-            }
-            // The App owns the music audio now, so leaving stops ffplay/mpv too.
-            $this->nowPlaying?->teardown();
+            $this->teardownForExit();
 
             return [$this, Cmd::quit()];
         }
@@ -1454,12 +1525,7 @@ final class App implements Model
     {
         // Mirror the Ctrl-C path: tear down a Teardownable top screen (the
         // player's ffmpeg/ffplay) before quitting so nothing leaks.
-        $top = $this->topScreen();
-        if ($top instanceof Teardownable) {
-            $top->teardown();
-        }
-        // The App owns the music audio now, so leaving stops ffplay/mpv too.
-        $this->nowPlaying?->teardown();
+        $this->teardownForExit();
 
         return [$this, Cmd::quit()];
     }

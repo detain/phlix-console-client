@@ -791,14 +791,22 @@ try {
             // key sequence [review console__tuispec M44]. Without this half
             // there is no envelope to consume: raw pasted newlines would keep
             // auto-submitting half-filled forms.
-            (new Program(App::boot(
+            $app = App::boot(
                 $container['config'],
                 $container['auth'],
                 $container['api'],
                 $container['libraries'],
                 $container['media'],
                 $container['posters'],
-            ), new ProgramOptions(bracketedPaste: true)))->run();
+            );
+            $program = new Program($app, new ProgramOptions(bracketedPaste: true));
+            // [review M1] SIGTERM/SIGHUP/SIGINT must tear down the player's
+            // ffplay/ffmpeg children instead of orphaning them: App re-arms the
+            // three exit signals from init() (after Program's own install) and
+            // stops through Program::kill() — the vendor stopProgram() body, so
+            // run()'s finally still restores the terminal.
+            $app->armSignalTeardown($program);
+            $program->run();
             break;
 
         case 'watch':
