@@ -187,8 +187,10 @@ final class CollectionsScreen implements Model, Teardownable, Breadcrumbed, Them
             return [$this->withPendingDelete(null), Cmd::send(ShowToastMsg::info(self::DELETE_CONFIRM_CANCELLED))];
         }
 
-        // Accumulate typed characters for typed "delete" confirmation
-        if ($msg->type === KeyType::Char && $msg->rune !== '') {
+        // Accumulate typed characters for typed "delete" confirmation.
+        // Modifier-free typing only [review console__tuispec, M-CONSOLE-65 / CONSOLIDATED M16]:
+        // ctrl/alt combos carry commands, not text.
+        if ($msg->type === KeyType::Char && $msg->rune !== '' && !$msg->ctrl && !$msg->alt) {
             $next = $pending->withTyped($msg->rune);
             if ($next->isConfirmed()) {
                 // Confirmed! Execute delete

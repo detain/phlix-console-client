@@ -201,7 +201,9 @@ final class AdminDuplicatesScreen implements Breadcrumbed, Themed
         if ($msg->type === KeyType::Escape) {
             return [$this->cancelMerge(), null];
         }
-        if ($msg->type === KeyType::Char && $msg->rune !== '') {
+        // Modifier-free typing only [review console__tuispec, M-CONSOLE-65 / CONSOLIDATED M16]:
+        // ctrl/alt combos carry commands, not text.
+        if ($msg->type === KeyType::Char && $msg->rune !== '' && !$msg->ctrl && !$msg->alt) {
             $action = $this->pendingMerge;
             if ($action === null) {
                 return [$this, null];

@@ -181,8 +181,10 @@ final class AdminServerRestartScreen implements Breadcrumbed, Themed
             return [$this->withTyped(''), Cmd::send(ShowToastMsg::error('Type "restart" and press Enter to confirm.'))];
         }
 
-        // Accumulate character input (up to 10 codepoints — M-CONSOLE-67)
-        if ($msg->type === KeyType::Char && mb_strlen($this->typed, 'UTF-8') < 10) {
+        // Accumulate character input (up to 10 codepoints — M-CONSOLE-67).
+        // Modifier-free typing only [review console__tuispec, M-CONSOLE-65 / CONSOLIDATED M16]:
+        // ctrl/alt combos carry commands, not text.
+        if ($msg->type === KeyType::Char && mb_strlen($this->typed, 'UTF-8') < 10 && !$msg->ctrl && !$msg->alt) {
             return [$this->withTyped($this->typed . $msg->rune), null];
         }
 

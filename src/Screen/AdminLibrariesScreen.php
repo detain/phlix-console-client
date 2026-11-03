@@ -414,9 +414,11 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
             return [$this->cancelPendingLibraryAction(), null];
         }
 
-        // Typed confirmation for delete-all: accumulate characters
+        // Typed confirmation for delete-all: accumulate characters.
+        // Modifier-free typing only [review console__tuispec, M-CONSOLE-65 / CONSOLIDATED M16]:
+        // ctrl/alt combos carry commands, not text.
         if ($action->action === 'delete-all') {
-            if ($msg->type === KeyType::Char && $msg->rune !== '') {
+            if ($msg->type === KeyType::Char && $msg->rune !== '' && !$msg->ctrl && !$msg->alt) {
                 $next = $action->withTyped($msg->rune);
                 if ($next->typed === 'delete') {
                     // Confirmed! Execute delete-all
@@ -478,8 +480,10 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
             return [$this->withFormField($this->formFieldIndex + 1), null];
         }
 
-        // Character input: accumulate into current field
-        if ($msg->type === KeyType::Char && $msg->rune !== '') {
+        // Character input: accumulate into current field.
+        // Modifier-free typing only [review console__tuispec, M-CONSOLE-65 / CONSOLIDATED M16]:
+        // ctrl/alt combos carry commands, not text.
+        if ($msg->type === KeyType::Char && $msg->rune !== '' && !$msg->ctrl && !$msg->alt) {
             return [$this->typeInForm($msg->rune), null];
         }
 

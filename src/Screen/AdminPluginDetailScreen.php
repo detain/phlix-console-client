@@ -183,7 +183,12 @@ final class AdminPluginDetailScreen implements Breadcrumbed, Themed
     /** @return array{self, ?\Closure} */
     private function handleKey(KeyMsg $msg): array
     {
-        if ($msg->type === KeyType::Escape || ($msg->type === KeyType::Char && $msg->rune === 'q')) {
+        // Modifier-free keys only [review console__tuispec, M-CONSOLE-65 / CONSOLIDATED M16]:
+        // the terminal reports the printable rune under ctrl/alt too, and those
+        // combos carry commands (or belong to the terminal), not this screen's
+        // plain-letter shortcuts.
+        $plainChar = $msg->type === KeyType::Char && !$msg->ctrl && !$msg->alt;
+        if ($msg->type === KeyType::Escape || ($plainChar && $msg->rune === 'q')) {
             return [$this, Cmd::send(new NavigateBackMsg())];
         }
         if ($msg->type === KeyType::Up) {
@@ -192,13 +197,13 @@ final class AdminPluginDetailScreen implements Breadcrumbed, Themed
         if ($msg->type === KeyType::Down) {
             return [$this->moveSelection(1), null];
         }
-        if ($msg->type === KeyType::Char && $msg->rune === 'r') {
+        if ($plainChar && $msg->rune === 'r') {
             return $this->refresh();
         }
         if ($this->busy) {
             return [$this, null];
         }
-        if ($msg->type === KeyType::Enter || ($msg->type === KeyType::Char && $msg->rune === 'e')) {
+        if ($msg->type === KeyType::Enter || ($plainChar && $msg->rune === 'e')) {
             return $this->beginEdit();
         }
 

@@ -91,7 +91,7 @@ final class ScreenConcernSingleSourceTest extends TestCase
         'grid:fb0b34ba4cae' => 5,
         'handleKey:244bd4b60486' => 2,
         'handleKey:51a5114f65b1' => 2,
-        'handleKey:646c4f083a6f' => 3,
+        'handleKey:4f45b9e8b740' => 3,
         'handleKey:ebe97b2a3954' => 2,
         'handleKey:f4e2417c460b' => 2,
         'hasHero:1152db42ad5e' => 2,

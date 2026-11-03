@@ -127,4 +127,33 @@ final class AdminTypedConfirmInputTest extends TestCase
         self::assertStringContainsString('Type "restart" and press Enter to confirm', $restart);
         self::assertStringContainsString('Type "update" and press Enter to confirm', $update);
     }
+
+    // [CONSOLIDATED M16] The InputReader decodes Ctrl+letter as a Char carrying
+    // the letter's rune plus ctrl:true. Unguarded append arms turned such chords
+    // (and alt chords) into confirmation text — a destructive command one
+    // accidental keystroke-combination away. The buffers must stay empty.
+
+    public function testCtrlChordsNeverTypeIntoTheRestartConfirmation(): void
+    {
+        $screen = new AdminServerRestartScreen($this->adminClient());
+        [$screen] = $screen->update(new KeyMsg(KeyType::Char, 'r'));
+
+        foreach (str_split('restart') as $rune) {
+            [$screen] = $screen->update(new KeyMsg(KeyType::Char, $rune, ctrl: true));
+        }
+
+        self::assertSame('', $this->typed($screen), 'ctrl+letter chords must not fill the restart confirm buffer');
+    }
+
+    public function testAltChordsNeverTypeIntoTheUpdateConfirmation(): void
+    {
+        $screen = new AdminPluginUpdateScreen($this->adminClient());
+        [$screen] = $screen->update(new KeyMsg(KeyType::Char, 'u'));
+
+        foreach (str_split('update') as $rune) {
+            [$screen] = $screen->update(new KeyMsg(KeyType::Char, $rune, alt: true));
+        }
+
+        self::assertSame('', $this->typed($screen), 'alt+letter chords must not fill the update confirm buffer');
+    }
 }

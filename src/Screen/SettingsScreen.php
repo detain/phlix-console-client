@@ -124,7 +124,7 @@ final class SettingsScreen implements Model, Themed
         // so lowercase l/s must reach the slideshow Input untouched
         // [review console__a11y M-CONSOLE-05].
         if (
-            $msg instanceof KeyMsg && $msg->type === KeyType::Char && !$msg->ctrl
+            $msg instanceof KeyMsg && $msg->type === KeyType::Char && !$msg->ctrl && !$msg->alt
             && ($msg->rune === 'l' || $msg->rune === 'L')
             && !$this->isEditingText()
         ) {
@@ -134,7 +134,7 @@ final class SettingsScreen implements Model, Themed
         // 'S'/'s' → open servers screen (same intercept-before-form law, same
         // text-editing exemption).
         if (
-            $msg instanceof KeyMsg && $msg->type === KeyType::Char && !$msg->ctrl
+            $msg instanceof KeyMsg && $msg->type === KeyType::Char && !$msg->ctrl && !$msg->alt
             && ($msg->rune === 's' || $msg->rune === 'S')
             && !$this->isEditingText()
         ) {

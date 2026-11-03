@@ -17,6 +17,34 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > cut, and the only published artifact remains the rolling prerelease built
 > from `master` under the `latest` tag (README, “PHAR (end user)”).
 
+### Fixed — review M16 (modifier chords typed themselves into destructive confirmations) — 2026-11-03
+
+- **The hole.** M-CONSOLE-65 established the law — the terminal reports the
+  printable rune under `ctrl`/`alt` too, so modifier-free typing only feeds
+  text buffers — and four surfaces complied. The follow-up review caught
+  eleven more that didn't: the typed-word confirmations guarding destructive
+  actions (playlist delete, collection delete, duplicate merge, library
+  delete-all, server restart, plugin update), the library create-form field,
+  and the plain-letter command arms on Admin Settings, its two byte-identical
+  twins (Admin Plugin Detail, Admin Transcoding — the M-CONSOLE-37 ratchet
+  caught the peel and all three moved together) and Settings (Alt+l logged
+  out, Alt+s bounced to the servers screen). Ctrl+D mid-typing quietly
+  completed “delete”; an alt chord was one accidental combination from an
+  irreversible admin action.
+- **The cure.** Every typed-append arm now demands `!ctrl && !alt`; the
+  confirmation fall-through in the update screen bails on any non-modifier-
+  free Char (Space included — the confirm word has none, parity with the
+  sibling confirmations); the command arms read through a shared
+  modifier-free precondition.
+- **Pinned.** `ModifierTypingGuardTest` (source-level, the house shape)
+  grew from four surfaces to eleven; two behavioral proofs show a
+  ctrl/alt-typed confirmation word never reaches the buffer. The M-CONSOLE-37
+  family fingerprint rotated to the measured post-fix hash — same count,
+  three identical members — not a loosened ratchet.
+- **Measured.** Full suite 3513 tests / 21,682 assertions / 0 failures
+  (+2 tests / +9 assertions exact, all of them the new pins); phpstan prod
+  and tests [OK]; phpcs both configs rc 0; i18n gates rc 0.
+
 ### Fixed — review M15 (raw throwable text reached the render surface) — 2026-11-03
 
 - **The leak.** `ExceptionSentences` is the codebase's declared chokepoint

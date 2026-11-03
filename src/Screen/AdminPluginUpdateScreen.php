@@ -22,6 +22,7 @@ use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Ui\Chrome;
 use SugarCraft\Core\Cmd;
+use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
@@ -172,6 +173,14 @@ final class AdminPluginUpdateScreen implements Breadcrumbed, Themed
         if ($msg->string() === 'Escape') {
             return [$this->withPendingApply(null)->withTyped(''), null];
         }
+
+        // Modifier-free typing only [review console__tuispec, M-CONSOLE-65 / CONSOLIDATED M16]:
+        // ctrl/alt combos carry commands, not text — and the confirm word has
+        // no spaces, so a Space-type key falls through like any other command.
+        if ($msg->type !== KeyType::Char || $msg->ctrl || $msg->alt || $msg->rune === '') {
+            return [$this, null];
+        }
+
         $newTyped = mb_strlen($this->typed, 'UTF-8') < 6 ? $this->typed . $msg->rune : $this->typed;
 
         return [$this->withTyped($newTyped), null];
