@@ -2699,23 +2699,52 @@ final class AdminClient
                 return [
                     'providers' => self::mapList(
                         $body['providers'] ?? null,
-                        static fn (array $provider): array => [
-                            'provider' => Coerce::str($provider['provider'] ?? ''),
-                            'posters' => self::mapList(
-                                $provider['posters'] ?? null,
-                                static fn (array $poster): array => [
-                                    'url' => Coerce::str($poster['url'] ?? ''),
-                                    'url_original' => Coerce::str($poster['url_original'] ?? ''),
-                                    'width' => Coerce::int($poster['width'] ?? 0),
-                                    'height' => Coerce::int($poster['height'] ?? 0),
-                                    'language' => is_string($poster['language'] ?? null) ? $poster['language'] : null,
-                                ],
-                            ),
-                        ],
+                        self::posterProviderFromWire(...),
                     ),
                     'current' => is_string($body['current'] ?? null) ? $body['current'] : null,
                 ];
             });
+    }
+
+    /**
+     * Shape one `providers` row of the alternatePosters payload. Extracted as
+     * a named method so {@see mapList}'s template binds from the docblock
+     * return shape: two inline nested-closure factories over nested mapList
+     * calls defeat PHPStan's template inference (the bare return types widen
+     * `posters` to list<array> and the production phpstan leg goes red —
+     * C1 review fix). First-class callables carry the declared shape.
+     *
+     * @param array<array-key, mixed> $provider
+     *
+     * @return array{provider: string, posters: list<array{url: string, url_original: string, width: int, height: int, language: string|null}>}
+     */
+    private static function posterProviderFromWire(array $provider): array
+    {
+        return [
+            'provider' => Coerce::str($provider['provider'] ?? ''),
+            'posters' => self::mapList(
+                $provider['posters'] ?? null,
+                self::posterCandidateFromWire(...),
+            ),
+        ];
+    }
+
+    /**
+     * Shape one poster candidate of the alternatePosters payload.
+     *
+     * @param array<array-key, mixed> $poster
+     *
+     * @return array{url: string, url_original: string, width: int, height: int, language: string|null}
+     */
+    private static function posterCandidateFromWire(array $poster): array
+    {
+        return [
+            'url' => Coerce::str($poster['url'] ?? ''),
+            'url_original' => Coerce::str($poster['url_original'] ?? ''),
+            'width' => Coerce::int($poster['width'] ?? 0),
+            'height' => Coerce::int($poster['height'] ?? 0),
+            'language' => is_string($poster['language'] ?? null) ? $poster['language'] : null,
+        ];
     }
 
     /**

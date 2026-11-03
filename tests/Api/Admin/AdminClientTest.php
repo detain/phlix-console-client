@@ -3047,6 +3047,82 @@ final class AdminClientTest extends TestCase
         self::assertSame('Path is outside the allowed roots', $error->getMessage());
     }
 
+    public function testAlternatePostersShapesProvidersCandidatesAndCurrent(): void
+    {
+        $transport = (new FakeTransport())->json(200, [
+            'providers' => [
+                [
+                    'provider' => 'tmdb',
+                    'posters' => [
+                        ['url' => '/p/a.jpg', 'url_original' => '/p/a-orig.jpg', 'width' => 500, 'height' => 750, 'language' => 'en'],
+                        ['url' => '/p/b.jpg', 'url_original' => '/p/b-orig.jpg', 'width' => 1000, 'height' => 1500],
+                    ],
+                ],
+            ],
+            'current' => '/p/a.jpg',
+        ]);
+
+        $result = $this->await($this->clientWith($transport)->alternatePosters('item/1'));
+
+        self::assertStringContainsString('/api/v1/media/item%2F1/posters', $transport->requestAt(0)['url']);
+        self::assertSame('/p/a.jpg', $result['current']);
+        self::assertCount(1, $result['providers']);
+        self::assertSame('tmdb', $result['providers'][0]['provider']);
+        self::assertSame(
+            ['url' => '/p/a.jpg', 'url_original' => '/p/a-orig.jpg', 'width' => 500, 'height' => 750, 'language' => 'en'],
+            $result['providers'][0]['posters'][0],
+        );
+        self::assertNull(
+            $result['providers'][0]['posters'][1]['language'],
+            'a candidate without a language key coerces to null, never a missing key',
+        );
+    }
+
+    public function testAlternatePostersToleratesDirtyRows(): void
+    {
+        $transport = (new FakeTransport())->json(200, [
+            'providers' => [
+                ['provider' => 'fanart', 'posters' => 'not-a-list'],
+                ['provider' => 'tmdb', 'posters' => ['ghost-row', ['url' => '/p/a.jpg']]],
+            ],
+            'current' => 42,
+        ]);
+
+        $result = $this->await($this->clientWith($transport)->alternatePosters('m-1'));
+
+        self::assertSame([], $result['providers'][0]['posters'], 'a non-list posters value is an empty candidate list');
+        self::assertSame([['url' => '/p/a.jpg', 'url_original' => '', 'width' => 0, 'height' => 0, 'language' => null]], $result['providers'][1]['posters']);
+        self::assertNull($result['current'], 'a non-string current value is null, never the raw scalar');
+    }
+
+    public function testAlternatePostersSkipsNonArrayProviderRows(): void
+    {
+        // The server sends a sequential list (MediaController::alternatePosters
+        // appends), so mapList's array_map skip preserves the surviving list
+        // indices; this pins the observable truth: ghost rows are absent.
+        $transport = (new FakeTransport())->json(200, [
+            'providers' => [
+                ['provider' => 'tmdb', 'posters' => []],
+                'ghost',
+            ],
+        ]);
+
+        $result = $this->await($this->clientWith($transport)->alternatePosters('m-1'));
+
+        self::assertCount(1, $result['providers']);
+        self::assertSame('tmdb', $result['providers'][0]['provider']);
+    }
+
+    public function testAlternatePostersToleratesEmptyPayloads(): void
+    {
+        $transport = (new FakeTransport())->json(200, []);
+
+        $result = $this->await($this->clientWith($transport)->alternatePosters('m-1'));
+
+        self::assertSame([], $result['providers']);
+        self::assertNull($result['current']);
+    }
+
     // ---- helpers -------------------------------------------------------
 
     private function await(PromiseInterface $promise, float $timeout = 2.0): mixed
