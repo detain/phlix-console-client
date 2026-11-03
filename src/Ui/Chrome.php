@@ -46,10 +46,47 @@ final class Chrome
     private const BRAND_SEP = ' ·  ';
 
     /**
+     * [review console__uxdesign, m46] The minimum geometry the frame can
+     * honestly render: CHROME_HEIGHT (8) + one body row. Below it the old
+     * behaviour was silent compression — `max(0, rows - 8)` plus the
+     * screens' own `max(1, …)` flooring squeezed the body into negative
+     * space with no explanation. `frame()` now short-circuits to a plain
+     * resize notice instead; the app keeps running and heals on the next
+     * WindowSizeMsg (the vendor re-flow law review M5 documented).
+     */
+    public const MIN_ROWS = self::CHROME_HEIGHT + 1;
+
+    /** Minimum columns: outer border (2) + panel border (2) + readable head. */
+    public const MIN_COLS = 20;
+
+    /**
+     * A frame too small to be honest — every line pre-clipped to the
+     * geometry, no panels (they cannot be trusted below the floor), no
+     * styling (the theme may not even be readable at these widths).
+     */
+    private static function tooSmallNotice(int $cols, int $rows): string
+    {
+        $lines = [
+            'Terminal too small.',
+            sprintf('Have %d×%d — Phlix needs at least %d×%d.', $cols, $rows, self::MIN_COLS, self::MIN_ROWS),
+            'Resize the window to continue.',
+        ];
+
+        $budget = max(1, $cols - 1);
+        $fit = static fn (string $line): string => Truncate::withEllipsis($line, $budget);
+
+        return implode("\n", array_map($fit, array_slice($lines, 0, max(1, $rows))));
+    }
+
+    /**
      * @param list<string> $trail breadcrumb labels, root-first; empty = bare title
      */
     public static function frame(string $title, string $body, string $hint, int $cols, int $rows, array $trail = [], ?Theme $theme = null): string
     {
+        if ($cols < self::MIN_COLS || $rows < self::MIN_ROWS) {
+            return self::tooSmallNotice($cols, $rows);
+        }
+
         $theme ??= Theme::nocturne();
         $b = SugarPanels::new();
 
@@ -94,11 +131,13 @@ final class Chrome
      *
      * The content panel now FILLS the frame (sugar-panels flex/grow), so the
      * body is a deterministic `rows - CHROME_HEIGHT` — no probing. This equals EXACTLY
-     * the number of body lines {@see frame()} displays (0 when the terminal is too
-     * short to fit the chrome at all). A screen that windows a scrolling body (a
-     * grid, a table viewport) sizes it to THIS value (less any in-content header
-     * lines of its own) so its rows fill the panel and the selected row is never
-     * clipped; callers floor their own viewport so a 0 here is safe.
+     * the number of body lines {@see frame()} displays at or above
+     * {@see MIN_ROWS}; below it frame() short-circuits to the m46 resize
+     * notice and shows no body at all. A screen that windows a scrolling
+     * body (a grid, a table viewport) sizes it to THIS value (less any
+     * in-content header lines of its own) so its rows fill the panel and the
+     * selected row is never clipped; callers floor their own viewport so a 0
+     * here is safe.
      */
     public static function bodyHeight(int $rows): int
     {

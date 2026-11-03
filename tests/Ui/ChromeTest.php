@@ -266,4 +266,46 @@ final class ChromeTest extends TestCase
         self::assertStringContainsString('Esc back', $statusRow);
         self::assertStringContainsString(' … ', $statusRow);
     }
+
+    // ---- m46: minimum-size floor (review console__uxdesign) --------------
+
+    public function testTheFloorSitsExactlyWhereTheBodyWouldVanish(): void
+    {
+        self::assertSame(0, Chrome::bodyHeight(Chrome::MIN_ROWS - 1), 'one row below the floor had no body to show');
+        self::assertSame(1, Chrome::bodyHeight(Chrome::MIN_ROWS), 'the floor is the smallest height with a real body');
+    }
+
+    public function testASubFloorTerminalGetsANoticeNotASilentlyCrushedFrame(): void
+    {
+        $out = Chrome::frame('Movies', 'the body', 'a hint', 80, 8);
+
+        self::assertStringContainsString('Terminal too small.', $out);
+        self::assertStringContainsString('needs at least', $out);
+        self::assertStringNotContainsString('the body', $out, 'the crushed body no longer pretends to render');
+        self::assertStringNotContainsString('│', $out, 'no panels below the floor — they cannot be trusted there');
+        self::assertStringNotContainsString("\x1b[", $out, 'the notice is style-free, it must render anywhere');
+    }
+
+    public function testTheNoticeLegallyOccupiesDegenerateGeometry(): void
+    {
+        $oneRow = explode("\n", Chrome::frame('Movies', 'body', 'hint', 80, 1));
+        self::assertCount(1, $oneRow, 'a one-row terminal shows exactly one notice line');
+        self::assertStringContainsString('too small', $oneRow[0]);
+
+                $thinCols = Chrome::frame('Movies', 'body', 'hint', 6, 40);
+        self::assertStringContainsString('Term…', $thinCols, 'lines clip to the cell budget, never overflow it');
+        $widths = array_map(static fn (string $l): int => Width::string($l), explode("\n", $thinCols));
+        self::assertLessThanOrEqual(6, max($widths));
+    }
+
+    public function testTheFrameHealsTheMomentTheTerminalGrowsBack(): void
+    {
+        // Recovery law: the notice is stateless — the very next geometry at
+        // the floor renders the real frame (App re-composites per WindowSizeMsg).
+        $out = Chrome::frame('Movies', 'the body', 'a hint', 80, Chrome::MIN_ROWS);
+
+        self::assertStringContainsString('Movies', $out);
+        self::assertStringContainsString('the body', $out);
+        self::assertStringNotContainsString('Terminal too small', $out);
+    }
 }

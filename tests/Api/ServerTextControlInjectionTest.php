@@ -144,7 +144,11 @@ final class ServerTextControlInjectionTest extends TestCase
         self::assertTerminalInert($item->name, 'MediaItem name');
         self::assertTerminalInert($item->sortTitle, 'MediaItem sortTitle');
 
-        $frame = Chrome::frame($item->name, 'body', 'Esc back', 60, 8);
+        // [review m46 rotation] 60×8 sat ON the silent-compression era (body
+        // height 0); Chrome now floors the frame at MIN_ROWS=9 and renders a
+        // resize notice below it. Geometry bumped to the smallest honest
+        // frame — the pin's law is header inertness, not the degenerate size.
+        $frame = Chrome::frame($item->name, 'body', 'Esc back', 60, 9);
 
         // The injected sequences must not exist as live sequences in the frame;
         // the app's own styling is untouched by this boundary.

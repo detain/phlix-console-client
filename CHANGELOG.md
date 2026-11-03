@@ -22,6 +22,38 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > strictly descending date order (a 2026-10-31-stamped rider written in a
 > later batch sits below 2026-10-30 ones — newest batch on top still wins).
 
+### Deferred — review minor m44 — dev-master sugarcraft dependency posture — 2026-11-03
+
+- **m44.** The ~20 `sugarcraft/*` requirements float at `dev-master` under
+  `minimum-stability: dev`, so every PHAR rebuild can pick up moved refs.
+  This is the dependency-decision class the campaign defers by law (same
+  family as the pinned wire/contract items): pinning to tagged `^x.y` needs
+  upstream tags that may not exist yet, and the mitigation the review names
+  second (lock-diff review CI with disclosed moved refs) is a CI-surface
+  redesign owned above this repo's fix scope. The composer lock already
+  freezes exact dev-master commits and the whole-lock audit gate (S440
+  family) bounds the advisory exposure. Reel item for the owner together
+  with the estate's other dev-master fleets.
+
+### Fixed — review minor m46 — the frame grows an honest floor: too-small terminals get a resize notice — 2026-11-03
+
+- **m46.** There was no minimum terminal size: `Chrome::bodyHeight()`
+  reached `max(0, rows - 8)` and the screens' own `max(1, …)` viewport
+  flooring crushed the body into a one-row strip with zero explanation
+  (the ResizesTo trait docblock had been advertising "the future resize
+  bounds fix" since M-CONSOLE-37). `Chrome::frame()` — the single render
+  choke every screen and the App compositing passes flow through — now
+  short-circuits below `MIN_COLS 20 × MIN_ROWS 9` (the floor sits exactly
+  where `bodyHeight` hits 0, pinned) to a plain-language notice: what size
+  you have, what is needed, resize to continue. No panels, no styling,
+  lines pre-clipped to the cell budget — the notice itself cannot overflow
+  a degenerate geometry (1-row and 6-col legs pinned). Stateless recovery:
+  the next WindowSizeMsg at legal size renders the real frame (pinned).
+  One disclosed fixture rotation: ServerTextControlInjectionTest's 60×8
+  sink geometry — it sat exactly ON the crushed era (body height 0) — moved
+  to the smallest honest 60×9; the pin's law is header inertness, not the
+  degenerate size. ResizesTo's docblock now points at the shipped floor.
+
 ### Fixed — review minor m41 — the create-room name echo stays inside the frame — 2026-11-03
 
 - **m41.** `SyncPlayModal::renderCreateForm()` echoed the room-name field at
