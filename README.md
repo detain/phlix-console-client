@@ -1,7 +1,6 @@
 # phlix-console-client
 
 [![CI](https://github.com/detain/phlix-console-client/actions/workflows/ci.yml/badge.svg)](https://github.com/detain/phlix-console-client/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/detain/phlix-console-client/graph/badge.svg)](https://codecov.io/gh/detain/phlix-console-client)
 [![Version](https://img.shields.io/github/v/release/detain/phlix-console-client?include_prereleases&label=version)](https://github.com/detain/phlix-console-client/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![PHP](https://img.shields.io/badge/PHP-8.3%2B-777bb4?logo=php&logoColor=white)](https://www.php.net/)

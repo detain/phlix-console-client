@@ -76,6 +76,26 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Gates: AppTest 199/779; fresh phpstan prod 0 errors (with the sibling's
 bin/phlix WIP present but unstaged); canonical phpcs src rc 0.
 
+### Fixed — review minors m59–m63 — docs truth batch 3 — 2026-11-03
+
+- **m59.** Two files claimed `auto` was "halfblock default" / that halfblock
+  was "(default)… the fallback everywhere" — the manual's own prose below
+  the table had the truth the table contradicted: `auto` is the default and
+  picks the detected best renderer; halfblock is only the LAST-resort
+  fallback. HELP_TEXT and the mode table row now agree with the ladder.
+- **m60.** The README carried a codecov badge while the repo's CI reports to
+  Codacy only (the codecov era left with the CHANGELOG-documented migration)
+  — dead badge dropped.
+- **m61.** The dev guide's contribution contract said "Docblocks on all
+  public methods" — measured coverage is nowhere near that; the line now
+  states the actual expectation (docblock the non-obvious contract).
+- **m62.** The manual's Usage never inventoried the CLI: a new Command
+  inventory table lists all seven commands (run's `--selftest` included)
+  and the exit-code law, 0/1/2, that `help`/`version` exist to recover from.
+- **m63.** Bracketed paste — armed, whole-blob, replayed as keystrokes with
+  control characters and line breaks dropped — worked and was tested but
+  was never documented; the Keybindings section now says so.
+
 ### Fixed — review minors m52–m57 — copy unification sweep — 2026-11-03
 
 - **m53/m58 (partial).** The key-hint separator law (key↔word 2 spaces,

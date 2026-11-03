@@ -242,6 +242,22 @@ an account on that server yet, press `s` at the sign-in prompt to open the
 `POST /api/v1/auth/register`); a server that requires approval reports your
 account as pending, and one with signups disabled says so.
 
+### Command inventory
+
+| Command | What it does |
+| --- | --- |
+| `run [--mode=NAME] [--selftest]` | Launch the full-window app (needs a TTY). `--selftest` runs the wiring ladder headless — boot, config, container, renderer — and exits. |
+| `watch [--hub URL] [--server-id ID] [--once] [--timeout SECS]` | Consume hub-relay `play_media` deliveries, headless (see below). |
+| `doctor` | Print terminal, extension, config and server diagnostics; also names the token and poster-cache paths to remove. |
+| `poster <image> [w] [h]` | Render one image at a cell size and exit — graphics-protocol probe. |
+| `frame <video\|gif> [n] [cols] [rows]` | Decode N video frames to ANSI and exit. |
+| `version` (`-V` / `--version`) | Print the client version stamp. |
+| `help` (`-h` / `--help`) | Print the full usage text. |
+
+Exit codes: `0` success, `1` runtime failure (unreachable server, bad
+token, playback error), `2` usage error (unknown command or mode — `help`
+and `version` never exit 2, they are the recovery path).
+
 ### Hub relay consumer (`watch`)
 
 `bin/phlix watch` connects to the hub relay and dispatches delivered
@@ -288,7 +304,7 @@ stored in `config.json` and does not persist across launches:
 
 | Mode | Description |
 | --- | --- |
-| `halfblock` (default) | 24-bit colour half-block characters (▀). The fallback everywhere. |
+| `halfblock` | 24-bit colour half-block characters (▀). Last-resort fallback when no graphics protocol answers. |
 | `quarterblock` | Denser quarter-block characters (▘▝▖▗) |
 | `ascii` | Monochrome character ramp |
 | `ansi256` | 256-colour character ramp |
@@ -384,6 +400,15 @@ line-mode terminal still sees the same text and structure as everywhere else.
   loads, and there is no static-skeleton opt-out yet.
 
 ### Keybindings
+
+Paste works everywhere text can be typed: the client arms bracketed-paste
+mode, so the terminal hands over the whole blob in one envelope and the
+client replays it as keystrokes into the focused input. Invisible control
+characters (anything Unicode classes as `Other`/`Control`) are dropped in
+the replay — a pasted secret with a stray `\r`/ANSI remnant cannot smuggle
+commands through an input field. Newlines and tabs in the blob are dropped
+too — a multi-line clipboard flattens into one continuous run of keystrokes
+and will never press Enter for you.
 
 #### Navigation
 

@@ -558,7 +558,9 @@ reachability against the configured server.
   catalogs (`auth.*`), the command-palette labels in `App::staticActions()`,
   and the docs all spell it the same way — do not mix in "log out"/"log in"
   for surfaces the user reads (review M-CONSOLE-89)
-- Docblocks on all public methods
+- Docblocks where the contract is not obvious from the signature —
+  types and names carry the rest (measured coverage is nowhere near
+  "all public methods", so the guide no longer claims it [m61])
 - No `var_dump`, `print_r`, or debug output
 - Promises are React\Promise — never `yield` (no async/await syntax)
 
