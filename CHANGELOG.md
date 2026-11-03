@@ -22,6 +22,22 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > strictly descending date order (a 2026-10-31-stamped rider written in a
 > later batch sits below 2026-10-30 ones — newest batch on top still wins).
 
+### Fixed — review minor m48 — the servers list selects in ink, not just a byte — 2026-11-03
+
+- **m48.** The highest-stakes switch in the app — the servers cursor —
+  rendered as a bare `>` column with no styling, violating the two-tier
+  focus law every other surface pays (Sidebar reverse+bold focused rows,
+  FilterBar, LetterRail, QualityMenu). The cursor row now carries the
+  focused arm (`Style::reverse()->bold()`), the `>` column survives for
+  stripped contexts, and long user-supplied labels/URLs ellipsise inside
+  the Chrome content-panel budget (`cols − 4`, URL capped at half the
+  free room first) instead of hard-clipping at the border; the
+  `[active]`/`[hub]`/`⚠` markers are never ellipsised away, and a
+  whole-line backstop makes the per-row width invariant provable even at
+  the m46 floor geometry. New `tests/Screen/ServersScreenRenderTest.php`
+  pins the cue (exactly one `1;7m` run, on the cursor row), the 40- and
+  20-column ellipsis legs, and the comfortable-geometry full-render.
+
 ### Fixed — review minor m47 — the detail error frame is a dead end no longer — 2026-11-03
 
 - **m47.** A failed detail load rendered an error line over the plain

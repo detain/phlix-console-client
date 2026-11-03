@@ -19,6 +19,7 @@ use Phlix\Console\Msg\RemoveServerMsg;
 use Phlix\Console\Msg\SwitchServerMsg;
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\Theme;
+use Phlix\Console\Ui\Truncate;
 use React\Promise\PromiseInterface;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\Model;
@@ -27,8 +28,10 @@ use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\SubscriptionCapable;
 use SugarCraft\Core\KeyType;
+use SugarCraft\Core\Util\Width;
 use SugarCraft\Forms\Field\Input;
 use SugarCraft\Forms\Form;
+use SugarCraft\Style\Style;
 
 use function trim;
 
@@ -405,22 +408,38 @@ final class ServersScreen implements Model, Themed, CapturesSlash
             $lines[] = '';
         } else {
             foreach ($this->servers as $index => $server) {
-                $prefix = $index === $this->selectedIndex ? '>' : ' ';
+                $isSelected = $index === $this->selectedIndex;
+                $prefix = $isSelected ? '>' : ' ';
                 $active = $server->id === $this->activeServerId ? ' [active]' : '';
                 $hub = $server->hubId !== null ? ' [hub]' : '';
                 // A saved http:// server stays visible as what it is [review
                 // console__secaudit, M-CONSOLE-52].
                 $insecure = Config::isInsecureUrl($server->url) ? ' ⚠' : '';
+                $markers = $active . $hub . $insecure;
 
-                $lines[] = sprintf(
-                    '%s %s%s%s%s  (%s)',
-                    $prefix,
-                    $server->label,
-                    $active,
-                    $hub,
-                    $insecure,
-                    $server->url,
-                );
+                // [review m48] both fields are user data: the label and the
+                // URL share the Chrome content-panel budget (cols - 4, the
+                // house frame law) with the estate ellipsis — the URL capped
+                // at half the free room first, the label taking the rest.
+                // A pathological frame (markers alone near the width) gets a
+                // whole-line backstop, so the invariant is provable per row.
+                $room = max(12, $this->cols - 4);
+                $free = max(2, $room - 6 - Width::string($markers)); // '> ' + '  (' + ')'
+                $url = Truncate::withEllipsis($server->url, max(1, intdiv($free, 2)));
+                $label = Truncate::withEllipsis($server->label, max(1, $free - Width::string($url)));
+
+                $line = sprintf('%s %s%s  (%s)', $prefix, $label, $markers, $url);
+
+                if (Width::string($line) > $room) {
+                    $line = Truncate::withEllipsis($line, $room);
+                }
+
+                // Two-tier focus law (Sidebar/FilterBar/LetterRail/QualityMenu):
+                // the cursor row is styled, not just a bare '>' column. This
+                // list's cursor always holds focus — the focused arm applies.
+                $lines[] = $isSelected
+                    ? Style::new()->reverse()->bold()->render($line)
+                    : $line;
             }
             $lines[] = '';
         }
