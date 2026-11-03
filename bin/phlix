@@ -495,6 +495,12 @@ function mintRelayToken(string $hubUrl, string $serverId, string $hubToken): ?st
         'Authorization: Bearer ' . $hubToken,
         'Accept: application/json',
     ]);
+    // [review console m43] this handle carries the hub user's bearer token.
+    // doctor/selftest explicitly pin TLS verification on their probes; the
+    // mint relied on curl's compile-time defaults alone. Explicit = the law
+    // survives any future global-default or wrapper change.
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
     $body = @curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
@@ -572,6 +578,16 @@ function runWatch(array $argv): int
         fwrite(STDERR, "Error: watch needs --relay-token or --hub-token"
             . " (env PHLIX_RELAY_TOKEN / PHLIX_HUB_TOKEN; or --relay-token-stdin / --hub-token-stdin)\n");
         return 2;
+    }
+
+    // [review console m42] every interactive surface raises the insecure-http
+    // warning through Config::isInsecureUrl (the single-source predicate);
+    // headless watch silently rode a long-lived, refresh-capable bearer over
+    // ws:// to http:// hubs — MITM class, account-takeover grade. Same law,
+    // headless shape: one loud STDERR warning, no opt-in breakage (LAN hubs
+    // stay usable, matching the interactive posture).
+    if (Config::isInsecureUrl($hub)) {
+        fwrite(STDERR, "⚠ insecure http hub — bearer and relay tokens cross the wire unencrypted\n");
     }
 
     $received = false;
@@ -704,7 +720,12 @@ if ($mode === null && count($argv) >= 3 && in_array($cmd, ['run', 'poster', 'fra
         $mode = $last;                        // trailing bare mode, e.g. `phlix run sixel`
     }
 }
-if ($modeFromFlag && !in_array(strtolower(trim((string) $mode)), $allowedModes((string) $cmd), true)) {
+// [review console m50] help/version are mode-oblivious surfaces — they print
+// text and never render. A bogus --mode used to exit 2 before the switch even
+// reached them, hiding the very recovery path this error advertises
+// ("see: phlix help"). The scan stays authoritative for every render command.
+$modeOblivious = in_array($cmd, ['help', '--help', '-h', 'version', '--version', '-V'], true);
+if ($modeFromFlag && !$modeOblivious && !in_array(strtolower(trim((string) $mode)), $allowedModes((string) $cmd), true)) {
     fwrite(STDERR, "Error: unknown render mode for {$cmd}: {$mode}\n");
     fwrite(STDERR, 'usage: --mode one of ' . implode(' | ', $allowedModes((string) $cmd)) . "  (see: phlix help)\n");
     exit(2);
@@ -818,6 +839,16 @@ try {
             // it. `run --selftest` above stays headless-safe by design.
             if (!stream_isatty(STDIN)) {
                 fwrite(STDERR, "Error: phlix run needs a TTY (stdin is not a terminal)\n");
+                fwrite(STDERR, "headless check? use: phlix run --selftest\n");
+                exit(2);
+            }
+            // [review console m39] the boundary law is symmetric: a redirected
+            // stdout (`phlix run > file`) used to swallow the renderer's raw
+            // escape-sequence stream — cursor/mode setup with no terminal to
+            // interpret it, and no honest refusal. Refuse like stdin does;
+            // `run --selftest` above stays the headless path.
+            if (!stream_isatty(STDOUT)) {
+                fwrite(STDERR, "Error: phlix run needs a TTY (stdout is not a terminal)\n");
                 fwrite(STDERR, "headless check? use: phlix run --selftest\n");
                 exit(2);
             }

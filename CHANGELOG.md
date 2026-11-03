@@ -22,6 +22,31 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > strictly descending date order (a 2026-10-31-stamped rider written in a
 > later batch sits below 2026-10-30 ones — newest batch on top still wins).
 
+### Fixed — review minors m39 + m42 + m43 + m50 — CLI boundary, carriers, TLS pins — 2026-11-03
+
+- **m50.** The global `--mode` argv scan exited 2 *before* the command switch, so
+  `phlix help --mode=bogus` (and the version trio) died instead of printing —
+  hiding the recovery path the scan's own error advertises ("see: phlix help").
+  help/version/-h/--help/-V/--version are mode-oblivious and now bypass the gate;
+  every render command still gets the authoritative scan. Behavioral pins ×3.
+- **m42.** `watch` — the one token-carrying path that never consulted
+  `Config::isInsecureUrl` — accepted `http://` hubs silently: a long-lived
+  refresh-capable bearer riding unencrypted hops (MITM → account takeover),
+  while every interactive surface raises the insecure-banner through the same
+  predicate. Headless shape of the same law: one STDERR warning, no opt-in
+  breakage (LAN hubs stay usable). Positive + negative behavioral legs pinned.
+- **m43.** `mintRelayToken` relied on curl's compile-time TLS-verify defaults;
+  doctor/selftest explicitly pin theirs. The bearer-carrying handle now sets
+  `CURLOPT_SSL_VERIFYPEER=true` + `CURLOPT_SSL_VERIFYHOST=2` explicitly.
+  Structural pin (the venue curl law forbids executing curl in-suite).
+- **m39.** `run` gated the input TTY but not the output one — a redirected
+  stdout swallowed the raw escape stream with no honest refusal. Symmetric
+  boundary law: `stream_isatty(STDOUT)` refuses after the stdin guard (message
+  order stays stdin-first; `run --selftest` above both stays headless). The
+  review's alt-screen half is measured-absent on this tree (`useAltScreen`
+  defaults false; construction pins it). Structural pin — a TTY-stdin +
+  redirected-stdout vector needs a controlling terminal the suite must not assume.
+
 ### Fixed — review minors m34 + m37 — selftest path and screen hygiene (src) — 2026-11-03
 
 - **m34.** The two methods missing native return types — `AdminLibrariesScreen::handleFormKey()`

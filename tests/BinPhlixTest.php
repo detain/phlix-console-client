@@ -277,6 +277,109 @@ final class BinPhlixTest extends TestCase
      */
     private const WATCH_UNREACHABLE_HUB = 'http://127.0.0.1:9';
 
+    /**
+     * [review console m42] the insecure-http law is single-sourced on
+     * Config::isInsecureUrl; watch used to be the one token-carrying path
+     * that never consulted it. Positive leg: an http:// hub prints the
+     * STDERR warning (dial still proceeds — LAN hubs stay usable, the
+     * interactive posture). Negative leg: the https:// twin prints no
+     * warning. Both run `--once --timeout 1` against the discard port so
+     * nothing reaches a real hub.
+     */
+    public function testWatchWarnsOnInsecureHttpHubAndStaysSilentOnHttps(): void
+    {
+        $insecure = $this->runPhlixWithDeadline(
+            ['watch', '--hub', self::WATCH_UNREACHABLE_HUB, '--server-id', 'srv-1',
+                '--relay-token', 'RELAY-SECRET-m42', '--once', '--timeout', '1'],
+            8.0,
+            $this->scratchHome(),
+        );
+        $this->assertStringContainsString(
+            'insecure http hub',
+            $insecure['stderr'],
+            'an http:// hub must raise the insecure-carrier warning on STDERR',
+        );
+
+        $secure = $this->runPhlixWithDeadline(
+            ['watch', '--hub', 'https://127.0.0.1:9', '--server-id', 'srv-1',
+                '--relay-token', 'RELAY-SECRET-m42', '--once', '--timeout', '1'],
+            8.0,
+            $this->scratchHome(),
+        );
+        $this->assertStringNotContainsString(
+            'insecure http hub',
+            $secure['stderr'],
+            'an https:// hub must not raise the insecure-carrier warning',
+        );
+    }
+
+    /**
+     * [review console m50] help/version carry no render surface. A bogus
+     * --mode used to be swallowed by the global argv scan (exit 2) before
+     * the command switch — hiding the recovery path the scan's own error
+     * message advertises. Both info commands must now run and exit 0.
+     */
+    public function testHelpAndVersionAreUnreachableByABogusModeNoLonger(): void
+    {
+        $help = $this->runPhlix(['help', '--mode=bogus']);
+        $this->assertSame(0, $help['exitCode'], 'help must survive --mode=bogus');
+        $this->assertStringContainsString('phlix help', $help['stdout']);
+
+        $version = $this->runPhlix(['version', '--mode=bogus']);
+        $this->assertSame(0, $version['exitCode'], 'version must survive --mode=bogus');
+        $this->assertMatchesRegularExpression('/^phlix \d/m', $version['stdout']);
+
+        // The scan law stays authoritative for real render commands.
+        $poster = $this->runPhlix(['poster', 'x.png', '--mode=bogus']);
+        $this->assertSame(2, $poster['exitCode'], 'poster must still reject a bogus mode');
+    }
+
+    /**
+     * [review console m43] the mintRelayToken handle carries the hub user's
+     * bearer token. TLS verification must be pinned EXPLICITLY on that
+     * handle, mirroring the doctor/selftest probes' posture, not left to
+     * curl defaults. Structural (token-substring walk over the extracted
+     * function) — the venue curl law forbids executing curl in-suite.
+     */
+    public function testTheBearerCarryingMintPinsTlsVerificationExplicitly(): void
+    {
+        $src = file_get_contents('bin/phlix');
+        $this->assertIsString($src);
+
+        $this->assertSame(
+            1,
+            preg_match(
+                '/function mintRelayToken.*?CURLOPT_SSL_VERIFYPEER,\s*true.*?CURLOPT_SSL_VERIFYHOST,\s*2.*?\n\}/s',
+                $src,
+            ),
+            'mintRelayToken must explicitly set CURLOPT_SSL_VERIFYPEER=true and CURLOPT_SSL_VERIFYHOST=2 (m43)',
+        );
+    }
+
+    /**
+     * [review console m39] the run boundary law is symmetric: stdin refused
+     * a non-terminal; stdout used to swallow the raw escape stream. Both
+     * guards must exist, STDOUT-checked after STDIN (so the historical
+     * stdin message stays first when neither is a terminal), and both must
+     * sit behind the headless `--selftest` short-circuit. Structural pin —
+     * a real stdout-TTY-with-stdin-pipe vector needs a controlling
+     * terminal the suite must not assume.
+     */
+    public function testRunRefusesNonTtyStdoutAfterTheStdinGuard(): void
+    {
+        $src = file_get_contents('bin/phlix');
+        $this->assertIsString($src);
+
+        $stdinAt = strpos($src, 'stream_isatty(STDIN)');
+        $stdoutAt = strpos($src, 'stream_isatty(STDOUT)');
+        $selftestAt = strpos($src, "in_array('--selftest', \$argv, true)");
+        $this->assertNotFalse($stdinAt);
+        $this->assertNotFalse($stdoutAt, 'the run case must gate stdout with stream_isatty(STDOUT) (m39)');
+        $this->assertLessThan($stdoutAt, $stdinAt, 'the stdin refusal must stay first (message-stable law)');
+        $this->assertLessThan($stdinAt, $selftestAt, 'both guards sit behind the headless --selftest short-circuit');
+        $this->assertStringContainsString('stdout is not a terminal', $src);
+    }
+
     private function scratchHome(): string
     {
         $dir = sys_get_temp_dir() . '/opencode/fix-M-CONSOLE-35/phpunit-home-' . bin2hex(random_bytes(4));
