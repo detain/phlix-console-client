@@ -257,7 +257,125 @@ final class ConfigTest extends TestCase
         $path = $this->dir . '/config.json';
         file_put_contents($path, json_encode(['slideshow_interval' => 'soon']));
 
-        self::assertSame(4, Config::load($path)->slideshowInterval);
+        $loaded = Config::load($path);
+
+        self::assertSame(4, $loaded->slideshowInterval);
+        // [review console m51] the reset is no longer silent: the ignored key
+        // must be named through the LOUD surface boot/doctor already print.
+        self::assertNotNull($loaded->loadError);
+        self::assertStringContainsString('slideshow_interval', $loaded->loadError);
+    }
+
+    public function testTypeGarbageInKnownKeysNamesEveryIgnoredKey(): void
+    {
+        // The executed m51 repro: three junk-typed fields, previously all
+        // silently defaulted.
+        @mkdir($this->dir, 0o700, true);
+        $path = $this->dir . '/config.json';
+        file_put_contents($path, (string) json_encode([
+            'servers' => 'oops',
+            'theme' => [],
+            'slideshow_interval' => 'abc',
+        ]));
+
+        $loaded = Config::load($path);
+
+        self::assertNotNull($loaded->loadError, 'junk-typed fields must not load silently [m51]');
+        self::assertStringContainsString('servers', $loaded->loadError);
+        self::assertStringContainsString('theme', $loaded->loadError);
+        self::assertStringContainsString('slideshow_interval', $loaded->loadError);
+        self::assertStringContainsString('left untouched', $loaded->loadError);
+    }
+
+    public function testJsonNullsAreExplicitDefaultsNotIgnoredKeys(): void
+    {
+        // theme:null / slideshow_interval:null are legitimate "use default"
+        // writes (save() emits theme null) — they must stay silent.
+        @mkdir($this->dir, 0o700, true);
+        $path = $this->dir . '/config.json';
+        file_put_contents($path, '{"theme":null,"slideshow_interval":null,"active_server_id":null}');
+
+        self::assertNull(Config::load($path)->loadError);
+    }
+
+    public function testPreparePosterCacheDirIsCreatedOwnerOnly(): void
+    {
+        // [review console m45] 0700 at construction — BEFORE the vendored
+        // DiskCache (which would create it 0775) ever sees the path.
+        $home = $this->dir . '/xdg';
+        @mkdir($home, 0o700, true);
+        $previous = getenv('XDG_CONFIG_HOME');
+        putenv('XDG_CONFIG_HOME=' . $home);
+        $dir = $home . '/phlix/posters';
+
+        try {
+            self::assertSame($dir, Config::preparePosterCacheDir());
+
+            self::assertDirectoryExists($dir);
+            self::assertSame(0o700, fileperms($dir) & 0o777, 'poster cache dir must be 0700 at construction [m45]');
+            self::assertSame([], array_diff(scandir($home . '/phlix') ?: [], ['.', '..', 'posters']), 'only the cache dir is created');
+        } finally {
+            if ($previous === false) {
+                putenv('XDG_CONFIG_HOME');
+            } else {
+                putenv('XDG_CONFIG_HOME=' . $previous);
+            }
+            if (is_dir($dir)) {
+                @rmdir($dir);
+            }
+            @rmdir($home . '/phlix');
+            @rmdir($home);
+        }
+    }
+
+    public function testPreparePosterCacheDirHealsAWorldWritableLegacyCache(): void
+    {
+        // An older build's 0775-era cache dir is tightened on the next boot.
+        // Venue probe: some sandboxes intercept setattr and make chmod() a
+        // silent no-op that still returns true (measured on this host's temp
+        // dirs); the creation leg above is mode-mask-based and always real,
+        // so only the heal needs the capability gate. On any ordinary ext4
+        // (CI included) this runs for real.
+        $probe = $this->dir . '/chmod-probe';
+        $previousUmask = umask(0o000);
+        @mkdir($probe, 0o777, true);
+        umask($previousUmask);
+        @chmod($probe, 0o700);
+        clearstatcache();
+        if ((@fileperms($probe) & 0o777) !== 0o700) {
+            @chmod($probe, 0o777);
+            @rmdir($probe);
+            $this->markTestSkipped('venue chmod() is a silent no-op — the 0775-heal law cannot be exercised here');
+        }
+        @rmdir($probe);
+
+        $home = $this->dir . '/xdg';
+        @mkdir($home . '/phlix', 0o700, true);
+        @mkdir($home . '/phlix/posters', 0o775, false);
+        chmod($home . '/phlix/posters', 0o775);
+        $previous = getenv('XDG_CONFIG_HOME');
+        putenv('XDG_CONFIG_HOME=' . $home);
+        $dir = $home . '/phlix/posters';
+
+        try {
+            self::assertSame($dir, Config::preparePosterCacheDir());
+
+            // clearstatcache: is_dir() inside prepare() populated the stat
+            // cache with the pre-heal mode; PHP's chmod does not invalidate it.
+            clearstatcache();
+            self::assertSame(0o700, fileperms($dir) & 0o777, 'a legacy 0775 cache dir must be healed to 0700 [m45]');
+        } finally {
+            if ($previous === false) {
+                putenv('XDG_CONFIG_HOME');
+            } else {
+                putenv('XDG_CONFIG_HOME=' . $previous);
+            }
+            if (is_dir($dir)) {
+                @rmdir($dir);
+            }
+            @rmdir($home . '/phlix');
+            @rmdir($home);
+        }
     }
 
     public function testWithSlideshowIntervalClampsAndPreservesOtherFields(): void

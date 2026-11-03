@@ -44,6 +44,25 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Gates: AppTest 199/779; fresh phpstan prod 0 errors (with the sibling's
 bin/phlix WIP present but unstaged); canonical phpcs src rc 0.
 
+### Fixed — review minors m45 + m51 — cache custody & loud config — 2026-11-03
+
+- **m45.** The poster disk-cache directory was created by the vendored
+  sugar-image `DiskCache` at 0775 — group-writable rendered pixels inside a
+  home whose own config dir the app keeps 0700. `Config::preparePosterCacheDir()`
+  now constructs (and heals a legacy 0775-era dir to) 0700 at both construction
+  sites before any `DiskCache` is handed the path; vendor stays untouched (its
+  `is_dir` early-return honours the pre-created mode). Behavioral pins: mode
+  at creation + legacy-heal leg (the heal assert runs wherever PHP `chmod`
+  actually lands — a venue stat-cache trap surfaced on the way: PHP's chmod
+  does not invalidate `is_dir`'s cached stat, so the test clears it).
+- **m51.** Type-garbage in known config fields (`servers:"oops"`,
+  `theme:[]`, `slideshow_interval:"abc"`) reset to defaults in total silence,
+  violating the file's own "cannot be honoured is LOUD" contract. Every
+  ignored key is now named through the single `$loadError` surface that boot
+  already toasts and doctor already prints; JSON nulls stay silent (explicit
+  defaults). The executed repro is pinned, plus the pre-existing junk-interval
+  test rotated from silence to the naming law.
+
 ### Fixed — review minors m39 + m42 + m43 + m50 — CLI boundary, carriers, TLS pins — 2026-11-03
 
 - **m50.** The global `--mode` argv scan exited 2 *before* the command switch, so

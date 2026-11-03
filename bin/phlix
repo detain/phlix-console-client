@@ -111,7 +111,7 @@ function buildContainer(?string $mode): array
     if ($posterCacheEntries < 1) {
         $posterCacheEntries = 16384;
     }
-    $posters = new PosterLoader(MosaicFactory::forPosterGrid($mode), new DiskCache(Config::dir() . '/posters', $posterCacheEntries));
+    $posters = new PosterLoader(MosaicFactory::forPosterGrid($mode), new DiskCache(Config::preparePosterCacheDir(), $posterCacheEntries));
 
     return [
         'config' => $config,
@@ -739,7 +739,7 @@ try {
             $config = Config::load();
             $serverUrl = getenv('PHLIX_SERVER_URL') ?: $config->activeServer()?->url;
             $tokenPath = TokenStore::default()->path();
-            $cacheDir = Config::dir() . '/posters';
+            $cacheDir = Config::preparePosterCacheDir();
             $cacheEntries = (int) getenv('PHLIX_POSTER_CACHE_ENTRIES');
             if ($cacheEntries < 1) {
                 $cacheEntries = 16384;

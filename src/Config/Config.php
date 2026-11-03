@@ -90,6 +90,35 @@ final class Config
     }
 
     /**
+     * Ensure the poster disk-cache directory exists under the app's own
+     * custody mode (0700) BEFORE the vendored sugar-image DiskCache sees it:
+     * its ensureDir creates with 0775 and early-returns on an existing
+     * directory, so a pre-emptive 0700 construction (and a 0700 heal of
+     * caches made 0775 by older builds) keeps rendered posters out of
+     * co-group reach [review console__secaudit m45 — 0700 at construction].
+     *
+     * @return string the cache directory path (not created-verified: DiskCache
+     *                 still owns the failure path and reports mkdir errors)
+     */
+    public static function preparePosterCacheDir(): string
+    {
+        $dir = self::dir() . '/posters';
+        $existed = is_dir($dir);
+        if (!$existed) {
+            // 0700 survives any umask (umask can only strip group/other bits,
+            // which 0700 already lacks).
+            @mkdir($dir, 0o700, true);
+        }
+        if (is_dir($dir)) {
+            // Heal pre-existing 0775-era caches; a foreign-owned dir simply
+            // keeps its mode — DiskCache surfaces a genuine failure later.
+            @chmod($dir, 0o700);
+        }
+
+        return $dir;
+    }
+
+    /**
      * Load config from disk, returning defaults when absent or unreadable.
      * Migrates legacy single-server format to multi-server format.
      *
@@ -158,11 +187,34 @@ final class Config
         $theme = $data['theme'] ?? null;
         $interval = $data['slideshow_interval'] ?? null;
 
+        // [review console m51] the file's contract says a value that "cannot
+        // be honoured is LOUD" — but type-garbage in a known key (servers:
+        // "oops", theme: [], slideshow_interval: "abc") reset to defaults in
+        // total silence. Name every ignored key through $loadError, the one
+        // surface boot (toast) and doctor (WARN line) already print. A JSON
+        // null is an explicit default, never garbage.
+        $ignored = [];
+        if (array_key_exists('servers', $data) && !is_array($data['servers'])) {
+            $ignored[] = 'servers';
+        }
+        if (array_key_exists('active_server_id', $data) && $data['active_server_id'] !== null && !is_string($data['active_server_id'])) {
+            $ignored[] = 'active_server_id';
+        }
+        if (array_key_exists('theme', $data) && $theme !== null && !is_string($theme)) {
+            $ignored[] = 'theme';
+        }
+        if (array_key_exists('slideshow_interval', $data) && $interval !== null && !is_numeric($interval)) {
+            $ignored[] = 'slideshow_interval';
+        }
+        $ignoredError = $ignored === [] ? null : 'Config file at ' . $path . ' carries values this client cannot read: '
+            . implode(', ', $ignored) . ' — defaults used for those keys (the file was left untouched).';
+
         return new self(
             servers: $servers,
             activeServerId: $activeServerId,
             theme: (is_string($theme) && $theme !== '') ? $theme : null,
             slideshowInterval: is_numeric($interval) ? self::clampInterval((int) $interval) : self::SLIDESHOW_DEFAULT,
+            loadError: $ignoredError,
         );
     }
 
