@@ -17,6 +17,43 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > cut, and the only published artifact remains the rolling prerelease built
 > from `master` under the `latest` tag (README, “PHAR (end user)”).
 
+### Fixed — review m6-m13 (minors batch 2: documentation truth pass) — 2026-11-03
+
+- **m6.** The global `R` row's parenthetical "(r works there too)" was
+  ambiguous about where `r` actually works: the home rails answer `R` only,
+  the library grid answers both — the row says so now, scoped per screen.
+- **m7.** `docs/upgrade/v1.md` pointed new users at `/auth/signup`, a route
+  that has never existed (404) — the shipped registration endpoint is
+  `POST /api/v1/auth/register`, spelled from `ApiClient`.
+- **m8.** The README status paragraph opened "Working today: log-in" across a
+  line wrap — invisible to prose greps, visible to the house vocabulary law
+  (sign in / sign out everywhere, M-CONSOLE-89). It signs in now.
+- **m9.** `docs/i18n.md` named the hardcoded-guard's list `$FILES`; the
+  script spells it `$files`. (The review's second coordinate had drifted —
+  one occurrence on disk.)
+- **m10.** Container guidance existed nowhere. A "Running inside a container"
+  troubleshooting section states the truth: `watch` is headless and
+  container-native, `run` needs `-it` plus an explicit UTF-8 locale,
+  graphics protocols rarely survive the emulation chain (halfblock is the
+  right choice there), config/poster-cache persist via a mounted
+  `XDG_CONFIG_HOME`. No Dockerfile is claimed — the repo has none.
+- **m11.** `docs/terminal-graphics.md` mislabelled two protocol headers:
+  the iTerm2 section called `ESC ]1337;…` a "DCS sequence with the `i`
+  parameter" while its own example is an OSC string (and the vendored
+  renderer says OSC 1337); the Kitty example opened `ESC [ G` (a CSI-G —
+  the wrong introducer) where the protocol, and the vendored renderer,
+  use an APC string `ESC _ G`. Both sections now match the code they
+  describe.
+- **m12.** Three troubleshooting spots hardcoded `~/.config/phlix/` while
+  the Configuration section had just established the XDG precedence — an
+  `rm -rf` recipe that deletes nothing (or the wrong tree) for
+  `XDG_CONFIG_HOME` users. Token and poster-cache steps now route through
+  the paths `phlix doctor` prints.
+- **m13.** The README quickstart never said how a first-day user gets an
+  account: it now names the `s` → Register path on the sign-in form,
+  the pending-approval behavior, and the admin fallback — mirroring the
+  manual's registration section.
+
 ### Fixed — review m1-m5 (minors batch 1: census, gate, aliases, version line) — 2026-11-03
 
 - **`Screen/ (79 files)` → 84, with a tripwire (m1).** The dev guide's

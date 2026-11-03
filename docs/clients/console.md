@@ -374,7 +374,7 @@ line-mode terminal still sees the same text and structure as everywhere else.
 | `Tab` | Switch focus (e.g., sidebar ↔ poster grid on home) |
 | `Ctrl-C` | Quit |
 | `A–Z` | Jump to a letter in a grid (A–Z rail) |
-| `R` | Refresh — re-fetch the home rails or the current library grid (`r` works there too) |
+| `R` | Refresh — re-fetch the home rails (on the home screen only `R` works; a library grid answers `r` too) |
 | `s` | Shuffle-play the focused card (home rails, library grids, media detail) |
 | `c` | Clear the grid filter (library grids) |
 | `u` / `n` | Jump to the Up Next rail (home) |
@@ -521,6 +521,21 @@ Run `composer install` in the project directory.
 `bin/phlix run` requires an interactive terminal. If you're running over SSH,
 use `ssh -t user@host 'bin/phlix run'` or a terminal multiplexer (tmux, screen).
 
+### Running inside a container
+
+The repo ships no Dockerfile — the client is a plain PHP CLI (or the `latest`
+PHAR) and needs nothing but PHP 8.3+ with the required extensions. If you run
+it inside a container yourself: `watch` is the container-native mode — headless
+by design, no TTY, and tokens travel via environment variables (see the bearer
+ladder above), so it works under `docker run -i` and as an entrypoint. The
+full TUI (`run`) needs an interactive terminal attached
+(`docker run -it`), a UTF-8 locale set explicitly (`LANG=C.UTF-8` is the usual
+choice in slim images — see the character-set note under Render modes), and
+realistic expectations: the graphics protocols (sixel/kitty/iTerm2) rarely
+survive the `docker exec`/SSH emulation chain, so the default `halfblock` cell
+mode is the right choice there. Persist your config and poster cache by
+mounting a volume and pointing `XDG_CONFIG_HOME` at it.
+
 ### No graphics / all text
 
 Your terminal likely doesn't support the selected graphics protocol. Try:
@@ -549,15 +564,21 @@ bin/phlix run --mode=halfblock
 
 ### Token expired / session expired
 
-Delete `~/.config/phlix/token.json` and run `bin/phlix run` to re-authenticate.
+`phlix doctor` prints the exact `Token path` in use — delete that file and
+run `bin/phlix run` to re-authenticate. (Do not hardcode `~/.config/phlix/`:
+the directory follows `XDG_CONFIG_HOME` — see Configuration above — so a
+fixed path deletes nothing, or worse, the wrong tree.)
 
 ### Slow poster loading
 
 The first run fetches and tiles all posters for the selected render mode.
-Subsequent runs are cached in `~/.config/phlix/posters/`. To clear the cache:
+Subsequent runs are cached in a `posters/` directory beside the config file
+`phlix doctor` reports as its `Config path` (by default
+`~/.config/phlix/posters/` — adjust to wherever doctor points). To clear the
+cache:
 
 ```sh
-rm -rf ~/.config/phlix/posters/
+rm -rf "$(dirname "$(bin/phlix doctor | sed -n 's/^Config path: //p')")/posters"
 bin/phlix run
 ```
 

@@ -162,7 +162,10 @@ composer update 'sugarcraft/*'
 
 ```sh
 # Launch the full-window app (needs a real TTY): first run asks for your server
-# URL, then sign in. Browse rails + sidebar → open a library → grid → open a
+# URL, then sign in. No account yet? Press `s` at the sign-in form to register
+# in place when the server allows sign-ups (a server that approves accounts
+# reports yours as pending; an admin can also create one). Browse rails +
+# sidebar → open a library → grid → open a
 # poster → detail → drill series/season/episode. Opening a music, book,
 # audiobook, or photo library routes to its own browser instead (album list /
 # book grid / audiobook list / photo albums). Press `/` to search and Ctrl-K
@@ -295,7 +298,7 @@ compatibility.
 > `kitty` is also supported (graphics, kitty protocol) but renders identically to
 > the other graphics modes in a capable terminal.
 
-> **Status: every screen and subsystem below is shipped.** Working today: log
+> **Status: every screen and subsystem below is shipped.** Working today: sign
 > in, browse your libraries as poster rails beside a sidebar, open a library into
 > a virtualized poster grid (scroll, filter, sort, A–Z jump), open any poster
 > into a **detail screen** (hero poster, metadata, synopsis, and a **Cast** list

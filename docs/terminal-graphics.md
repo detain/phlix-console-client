@@ -51,7 +51,8 @@ ESC P p ... p ESC \
 ### iTerm2 Inline Images
 
 iTerm2's protocol embeds base64-encoded image data directly in the terminal
-stream using the DCS sequence with the `i` parameter:
+stream as an OSC (Operating System Command) string — the `ESC ]` introducer
+with the 1337 vendor suffix (the vendored renderer calls it "OSC 1337"):
 
 ```
 ESC ]1337;File=name=...;size=...;inline=1:base64data ESC \
@@ -64,10 +65,13 @@ ESC ]1337;File=name=...;size=...;inline=1:base64data ESC \
 ### Kitty Terminal Graphics Protocol
 
 The Kitty protocol is a binary protocol designed for high-performance terminal
-graphics. It supports incremental rendering, animation, and compositing.
+graphics. It supports incremental rendering, animation, and compositing. Its
+transmissions ride inside an APC (Application Program Command) string — the
+`ESC _` introducer with the `G` subtype — which is why ordinary CSI parsers
+never see them (the vendored renderer says "chunked APC sequences"):
 
 ```
-ESC [ G ... ESC \
+ESC _ G ... ESC \
 ```
 
 - **Strengths**: Most capable protocol — animation, transparency, partial
