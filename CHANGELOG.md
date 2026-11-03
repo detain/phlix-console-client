@@ -22,6 +22,40 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > strictly descending date order (a 2026-10-31-stamped rider written in a
 > later batch sits below 2026-10-30 ones — newest batch on top still wins).
 
+### Deferred advance — review minor m44 (in-range half) — the lock catches up inside its declared ranges; the tag-pin half still waits on upstream — 2026-11-03
+
+- **m44.** The 2026-11-03 deferral entry below stands (verbatim-history law);
+  this advances the half of it that is executable in-repo.
+  **In-range lock maintenance, lock-only diff:** the thirteen packages whose
+  declared constraints had room were updated — runtime `react/http` 1.11.1 →
+  1.12.0 (carrying `psr/http-message` 1.1 → 2.0, permitted by all three of its
+  lock parents — this dependency closure implements no PSR-7 interface, grep-
+  proven and gate-locked), `league/commonmark` 2.10.4 → 2.10.7, `nette/schema`
+  1.3.6 → 1.4.0, `nette/utils` 4.1.5 → 4.1.6, `workerman/coroutine` 1.1.6 →
+  1.1.7; toolchain `phpstan/phpstan` 2.3.1 → 2.3.5, `phpstan/phpdoc-parser`
+  2.4.0 → 2.4.1, `seld/jsonlint` 1.12.1 → 1.12.2, and the `amphp` patch set
+  (`byte-stream`, `dns`, `process`, `sync`). `composer.json` constraints are
+  untouched; the whole `sugarcraft/*` dev-master fleet stays at its locked
+  refs — advancing moving-master is the `deps.yml` pull-request path's job by
+  this repository's own written policy, never a direct master commit.
+  **Upstream-tag half re-surveyed, still blocked:** all 26 sugarcraft
+  repositories re-checked 2026-11-03 — still zero semantic-version tags (the
+  same 23 off-mainline cosmetic `-final` tags, three repositories tag-less),
+  so the pin-to-`^x.y` leg remains owner-side (an upstream tag cascade the
+  estate cannot author). The survey doc carries the re-verification note.
+  **Advisory half was already bound and stays green:** the whole-lock audit
+  gate reports zero advisories across the 129-package corpus at both the old
+  and the new lock.
+  **Gates at the new lock:** full suite 3555/21912 byte-exact vs the m49-era
+  baseline (Deprecations:15 + Skipped:15 = the disclosed pre-existing class),
+  fresh-cache phpstan prod + tests both `[OK]`, phpcs 0 errors both configs,
+  i18n catalog parity 69 keys green, `composer validate --strict` clean.
+  The four consecutive red weekly `Dependencies` runs (10-12 through 11-02)
+  are the pre-cure phpstan gate executing on pre-cure tips — the
+  `alternatePosters` return.type error they printed is the one the 2026-11-03
+  fresh-cache cure removed from `master`; the workflow was re-dispatched on
+  top of this commit to attest the mechanism end-to-end on cured code.
+
 ### Fixed — review minor m49 — a mistyped password no longer costs the username — 2026-11-03
 
 - **m49.** A failed sign-in rebuilt the login form from scratch, so the

@@ -32,6 +32,10 @@ ancestor checks against each repository's current `master`):
 * **Every locked reference in `composer.lock` IS an ancestor of `master`** —
   the suite-validated code is on each upstream's mainline, and only on the
   mainline.
+* **Re-surveyed 2026-11-03** (`git ls-remote --tags`, all 26 repositories):
+  the inventory is unchanged — still zero semantic-version tags, the same 23
+  cosmetic `-final` tags and the same three tag-less repositories. The lag
+  counts and ancestor verdicts above remain as measured 2026-10-29.
 
 A tag pin is therefore not available: pinning one would freeze code upstream
 itself abandoned (off-mainline, 4–85 commits stale) and cannot coherently
