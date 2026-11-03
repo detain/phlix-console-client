@@ -33,6 +33,27 @@ terminal via Unicode/ANSI cell rendering.
 - Global search (`/`)
 - Chromecast / DLNA / AirPlay / Roku casting
 
+## Where does this fit? (server, hub, relay)
+
+Phlix deployments have two kinds of backends and one channel between them:
+
+- **Server** — your media server: the machine that holds the library and
+  serves authentication, metadata and playback. The console connects to a
+  server directly for everything it shows.
+- **Hub** — an optional coordination server that links several servers and
+  federates them with other people's hubs. A hub stores no media. The
+  hub-facing screens spell out their direction: **Shared With Me** is
+  incoming library shares (what other hubs have shared toward you),
+  **Federation Shares** is outgoing ones (what your hub has shared away),
+  and **Invite Links** mints the tokens that grant other people access.
+- **Relay** — the WebSocket tunnel a hub uses to reach your server without
+  a public address. The console is on the executing end of it: `bin/phlix
+  watch` runs on a server, listens on the relay, and plays what the hub
+  delivers (see [Hub relay consumer (`watch`)](#hub-relay-consumer-watch)).
+
+The player's **SyncPlay watch parties** are unrelated to all of this: they
+talk to your server's own sync endpoint, not to a hub.
+
 ## Installation
 
 > Front door first: the repository [README](../../README.md#install) carries the same
@@ -180,7 +201,17 @@ LC_ALL=de_DE.UTF-8 phlix run
 runs the German UI. Region and encoding suffixes are normalized
 (`pt_BR.UTF-8` → `pt-br`), anything unsupported falls back to English, and a
 locale that lags the English catalog degrades per key to English rather than
-rendering blanks. The contributor-side story (adding screens, adding locales)
+rendering blanks.
+
+Coverage is **partial**: the catalogs carry the browsable and playable
+surfaces — libraries, search, detail, playlists, favorites, history and the
+player — while the sign-in and registration
+forms, the settings screens, server management, album and photo screens, the
+hub-sharing screens and the typed-confirm prompts still render English
+hard-coded strings. The authoritative per-screen list lives in [the i18n
+guide](../i18n.md) under “Remaining Screens”.
+
+The contributor-side story (adding screens, adding locales)
 is in [the i18n guide](../i18n.md).
 
 ## Usage
@@ -461,7 +492,7 @@ download URL as copyable text with a hint to open it in a browser or e-reader.
 | **Server Setup** | The first-run server-URL form — `Enter` connects, `Esc` quits |
 | **Login** | Sign-in form — `Tab` moves fields, `Enter` signs in, `s` opens **Register**, `Esc` quits |
 | **Register** | Sign-up form (username, email, password); on success you are signed straight in |
-| **Collections** | Your collections; `Enter` opens one, `d` deletes it (typed `delete` confirms); `a`/`r` show a notice only — item add/remove is NOT implemented in the console (the notice's "collection detail screen" is a mislabel: the detail screen has no membership surface; collection contents are managed on the server's web portal) |
+| **Collections** | Your collections; `Enter` opens one, `d` deletes it (typed `delete` confirms); `a`/`r` show a notice only — item add/remove is NOT implemented in the console (the detail screen has no membership surface; collection contents are managed on the server's web portal) |
 | **Playlists** | Your playlists — the same server-side list as Collections (`GET /api/v1/collections`), with the same keys including the notice-only `a`/`r` pair |
 | **Favorites** | Everything you favorited (`F` toggles on a detail screen); `Enter` opens |
 | **Recently Watched** | Your watch history — `H` on the home sidebar or the palette's Watch History action; `Enter` opens the recorded item's detail screen |

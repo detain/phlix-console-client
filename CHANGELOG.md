@@ -5,6 +5,52 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+> **How to read this file (two conventions, added 2026-11-03 with reviews
+> M7/M8).** (1) Since the October review→fix campaign, the `###` blocks under
+> this heading are campaign worklog entries: they carry ticket ids and
+> engineer-facing detail, not just user-visible lines, and corrections ride
+> forward as new entries — nothing recorded here is rewritten or deleted
+> after the fact. The user-facing truth lives in `docs/clients/console.md`.
+> (2) The `## [1.0.0] - 2026-08-08` section below records the commit that
+> stamped the `PHLIX_VERSION` constant and this heading — it is a version
+> bump, **not a shipped release**: no `v1.0.0` (or any `v*.*.*`) tag was ever
+> cut, and the only published artifact remains the rolling prerelease built
+> from `master` under the `latest` tag (README, “PHAR (end user)”).
+
+### Changed — review M7–M11 (reading the changelog, version truth, i18n coverage, the phantom pointer, hub vocabulary) — 2026-11-03
+
+- **M7 (partial) / M8 — how to read this file.** A note under
+  `[Unreleased]` now states the two conventions the October campaign created:
+  the `###` blocks here are campaign worklogs (ticket ids included), and the
+  `## [1.0.0] - 2026-08-08` section below is a **version stamp, not a
+  release** — commit `8a45df1` bumped `PHLIX_VERSION` and this heading, but
+  no `v*.*.*` tag was ever cut (verified: `git ls-remote --tags origin`
+  shows only the rolling `latest`). A full restructure — user-visible lines
+  only, worklogs relocated — is **deferred to the owner**: this file is
+  written under a verbatim-history law (corrections ride forward, nothing
+  gets rewritten or deleted), and unwinding ~3,700 lines of campaign record
+  under one heading is an owner call, not a fix-lane edit.
+- **M9 — the manual's Languages section now admits partial coverage.** The
+  seven catalogs serve the browse/detail/playback surfaces; the sign-in,
+  registration, settings, server-management, album/photo and hub-sharing
+  screens and the typed-confirm prompts are still hard-coded English — the
+  same list `docs/i18n.md` keeps under “Remaining Screens” (measured:
+  `Lang::` is absent from every named screen).
+- **M10 — the `a`/`r` notices stopped pointing at a screen that does not
+  exist.** `ADD_ITEM_NOT_IMPLEMENTED` on both list screens said “Add/remove
+  items from the collection/playlist detail screen” — the console has no
+  membership surface on Detail at all. Both now read “Item add/remove
+  happens on the server web portal — not in the console.”, matching the
+  manual row (which lost its “the notice is a mislabel” parenthetical) and
+  the rotated `CollectionsClaimsDocsTest` pin. The `Lang::t()` half of the
+  review is **deferred**: the notice is English-only today, and routing it
+  through the catalogs means authoring values in six non-English locales —
+  owner-gated wording.
+- **M11 — new “Where does this fit?” section** in the manual defines server,
+  hub and relay once, labels the direction of Shared With Me (incoming) vs
+  Federation Shares (outgoing) vs Invite Links, links the `watch` section,
+  and states that SyncPlay parties are hub-unrelated.
+
 ### Fixed — review M4–M6 (accessibility-doc truth: Nocturne colours, resize, charset) + batch-1 changelog debt (C1, M1, M2) — 2026-11-03
 
 - **M4 — “Nocturne carries no colours at all” was false.** The manual

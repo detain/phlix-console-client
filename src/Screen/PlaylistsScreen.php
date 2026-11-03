@@ -46,7 +46,7 @@ final class PlaylistsScreen implements Model, Teardownable, Breadcrumbed, Themed
     private const HINT = 'q  back      ↑↓  navigate      ⏎  open      a  add      r  remove      d  delete';
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load playlists.';
-    private const ADD_ITEM_NOT_IMPLEMENTED = 'Add/remove items from the playlist detail screen.';
+    private const ADD_ITEM_NOT_IMPLEMENTED = 'Item add/remove happens on the server web portal — not in the console.';
     private const DELETE_CONFIRM_CANCELLED = 'Delete cancelled.';
 
     /** @var list<MediaItem> */

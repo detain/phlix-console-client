@@ -6,8 +6,9 @@
  * detail screen" — a flow that exists nowhere in the console. DetailScreen.php
  * carries zero collection/playlist membership surface; the `a`/`r` keys on
  * CollectionsScreen/PlaylistsScreen only raise the ADD_ITEM_NOT_IMPLEMENTED
- * notice (whose own "collection detail screen" pointer is an in-code mislabel,
- * ledger-noted); and ApiClient's membership calls (addPlaylistItem /
+ * notice (whose earlier "collection detail screen" pointer was an in-code
+ * mislabel, cured 2026-11-03 with review M10 — the notice now names the web
+ * portal, matching these rows); and ApiClient's membership calls (addPlaylistItem /
  * removePlaylistItem / createPlaylist) have no caller anywhere in src/.
  *
  * The same manual pass swept every Screens-table row's action claims against
@@ -52,8 +53,8 @@ final class CollectionsClaimsDocsTest extends TestCase
     private const PINNED_ROWS = [
         'Collections' => 'Your collections; `Enter` opens one, `d` deletes it (typed `delete` confirms);'
             . ' `a`/`r` show a notice only — item add/remove is NOT implemented in the console'
-            . ' (the notice\'s "collection detail screen" is a mislabel: the detail screen has no'
-            . ' membership surface; collection contents are managed on the server\'s web portal)',
+            . ' (the detail screen has no membership surface; collection contents are managed'
+            . ' on the server\'s web portal)',
         'Playlists' => 'Your playlists — the same server-side list as Collections'
             . ' (`GET /api/v1/collections`), with the same keys including the notice-only `a`/`r` pair',
         'Series' => 'Not a screen of its own — `Enter` on a series opens nested **Detail** screens'
