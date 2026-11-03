@@ -472,7 +472,7 @@ modal steps back to the room list before closing when you are mid-creation).
 | --- | --- |
 | `p` | Play this title in the in-terminal player |
 | `C` | Cast to Chromecast/DLNA/AirPlay/Roku (on detail screen) |
-| `r` | Rate — opens the star picker (the full `r`/`F`/`w`/`l`/`j` loop is in Watching & ratings below) |
+| `r` | Rate — opens the star picker (over a failed load this key is instead the retry the error frame shows; the full `r`/`F`/`w`/`l`/`j` loop is in Watching & ratings below) |
 | `u` | Search external subtitles for this title (candidates reported as a toast) |
 | `s` | Shuffle-play from this title (the footer spells it `s shuffle`; home rails and grids carry the same key) |
 | `d` | Download this title to disk (saved to the download directory — see Downloads below) |

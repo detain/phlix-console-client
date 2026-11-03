@@ -22,6 +22,23 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > strictly descending date order (a 2026-10-31-stamped rider written in a
 > later batch sits below 2026-10-30 ones — newest batch on top still wins).
 
+### Fixed — review minor m47 — the detail error frame is a dead end no longer — 2026-11-03
+
+- **m47.** A failed detail load rendered an error line over the plain
+  `Esc  back` loading hint — no retry affordance — while the `r`/`R` arm
+  still marched straight into `openRatingPicker()`, rating a null item
+  (its own leaf-toggle siblings guard `item === null`; this arm never
+  copied that law). The error frame now carries its own hint,
+  `detail.error_hint` (`r  retry      Esc  back`, mirrored through all
+  seven catalogs at the loading-hint's position, parity checker green),
+  and the `r`/`R` arm dispatches the very fetch `init()` runs over a
+  failed load — error cleared, loading skeleton returns, transient
+  failures recoverable in place. While merely loading the key is inert;
+  only a loaded item opens the picker. The manual's `r` row speaks both
+  roles (m16's every-row-re-verified law). Four pins; all three
+  behavioral legs parent-red-convicted (the catalog leg is the key's
+  own presence law).
+
 ### Deferred — review minor m44 — dev-master sugarcraft dependency posture — 2026-11-03
 
 - **m44.** The ~20 `sugarcraft/*` requirements float at `dev-master` under

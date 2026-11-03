@@ -120,6 +120,9 @@ final class DetailScreen implements Breadcrumbed, Themed
     private const CONTAINER_HINT_KEY = 'detail.container_hint';
     private const LOADING_HINT_KEY = 'detail.loading_hint';
 
+    /** [review m47] The failed-load frame names its own retry affordance. */
+    private const ERROR_HINT_KEY = 'detail.error_hint';
+
     private ?MediaItem $item = null;
     private bool $loaded = false;
     private ?string $error = null;
@@ -408,7 +411,17 @@ final class DetailScreen implements Breadcrumbed, Themed
         if ($this->error !== null) {
             // Wire-reason text is server data [review M-CONSOLE-70/M15]:
             // budget it to the content panel or it wraps and steals a body row.
-            return Chrome::frame($this->headerTitle(), "\n  " . Truncate::withEllipsis($this->error, $this->cols - 6), Lang::t(self::LOADING_HINT_KEY), $this->cols, $this->rows, $this->crumbs, $this->theme());
+            // [review m47] the error frame shows r-retry too — the plain
+            // loading hint over a failed load promised an escape-only dead end.
+            return Chrome::frame(
+                $this->headerTitle(),
+                "\n  " . Truncate::withEllipsis($this->error, $this->cols - 6),
+                Lang::t(self::ERROR_HINT_KEY),
+                $this->cols,
+                $this->rows,
+                $this->crumbs,
+                $this->theme(),
+            );
         }
         if (!$this->loaded || $this->item === null) {
             return Chrome::frame($this->headerTitle(), "\n  " . Lang::t('detail.loading'), Lang::t(self::LOADING_HINT_KEY), $this->cols, $this->rows, $this->crumbs, $this->theme());
@@ -475,8 +488,19 @@ final class DetailScreen implements Breadcrumbed, Themed
 
             return [$this, null];
         }
-        // Leaf: r → open the user rating picker.
+        // Leaf: r → open the user rating picker. [review m47] The picker
+        // needs an item to rate: over a FAILED load r/R is the retry the
+        // error frame's hint promises; while still loading it is inert —
+        // previously it opened a picker for a null item either way.
         if ($msg->type === KeyType::Char && ($msg->rune === 'r' || $msg->rune === 'R')) {
+            if ($this->error !== null) {
+                return $this->retryLoad();
+            }
+
+            if ($this->item === null) {
+                return [$this, null];
+            }
+
             return $this->openRatingPicker();
         }
         // Leaf: F → toggle favorite (optimistic update, revert on failure).
@@ -1573,6 +1597,21 @@ final class DetailScreen implements Breadcrumbed, Themed
         $next->error = $error;
 
         return $next;
+    }
+
+    /**
+     * Retry a failed load [review m47]: drop the error frame (the loading
+     * skeleton shows in its place) and re-dispatch the very fetch init()
+     * runs. A transient server failure stops being a dead end.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function retryLoad(): array
+    {
+        $next = clone $this;
+        $next->error = null;
+
+        return [$next, $this->fetchItem()];
     }
 
     private function withRatings(MediaRatings $ratings): self

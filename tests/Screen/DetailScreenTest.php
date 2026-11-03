@@ -287,6 +287,73 @@ final class DetailScreenTest extends TestCase
         }
     }
 
+    // ---- m47: the failed load is not a dead end -------------------------
+
+    public function testErrorFrameHintsAtRetry(): void
+    {
+        $transport = (new FakeTransport())->fail(new \RuntimeException('boom'));
+        $screen = $this->screenWith($transport);
+
+        $msg = $this->runBatch($screen->init())[0];
+        [$failed] = $screen->update($msg);
+
+        self::assertStringContainsString('r  retry', $failed->view(), 'the error frame names its retry affordance');
+        self::assertStringContainsString('Esc  back', $failed->view());
+        self::assertStringNotContainsString('detail.error_hint', $failed->view(), 'raw catalog key leaked to the status bar');
+    }
+
+    public function testErrorHintKeyIsPresentInEveryLocaleCatalog(): void
+    {
+        $files = glob(__DIR__ . '/../../resources/lang/*.php');
+        self::assertIsArray($files);
+        self::assertCount(7, $files);
+
+        foreach ($files as $file) {
+            $catalog = require $file;
+            self::assertIsArray($catalog);
+            self::assertArrayHasKey('detail.error_hint', $catalog, basename($file) . ' misses the error hint');
+            $value = $catalog['detail.error_hint'];
+            self::assertIsString($value);
+            self::assertStringContainsString('r  ', $value, basename($file) . ' must keep the bare key token');
+            self::assertStringContainsString('Esc', $value);
+            self::assertStringNotContainsString('.', $value, basename($file) . ' stores a key-shaped value');
+        }
+    }
+
+    public function testROnFailedLoadRetriesTheFetch(): void
+    {
+        $transport = (new FakeTransport())
+            ->fail(new \RuntimeException('boom'))
+            ->json(200, $this->detailResponse());
+        $screen = $this->screenWith($transport);
+
+        $msg = $this->runBatch($screen->init())[0];
+        self::assertInstanceOf(DetailFailedMsg::class, $msg);
+        [$failed] = $screen->update($msg);
+
+        [$retrying, $retryCmd] = $failed->update(new KeyMsg(KeyType::Char, 'r'));
+        self::assertNotNull($retryCmd, 'r over a failed load dispatches the retry');
+
+        $msgs = $this->runBatch($retryCmd);
+        self::assertInstanceOf(DetailLoadedMsg::class, $msgs[0]);
+
+        [$done] = $retrying->update($msgs[0]);
+        self::assertNull($done->error(), 'the error frame is gone');
+        self::assertSame(2, count($transport->requests), 'the retry re-ran the item fetch');
+    }
+
+    public function testRWhileStillLoadingIsInertNotAPickerForNothing(): void
+    {
+        // [review m47] the arm used to open the rating picker with item===null
+        // for every non-leaf state — a picker to rate nothing.
+        $screen = $this->screenWith(new FakeTransport());
+
+        [$after, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'R'));
+
+        self::assertSame($screen, $after, 'no picker opens over an unloaded item');
+        self::assertNull($cmd);
+    }
+
     public function testUnhandledKeyAndMessageAreNoOps(): void
     {
         $loaded = $this->loaded();

@@ -40,6 +40,7 @@ return [
     'detail.actions_hint' => '▶  p  play        Esc  back',
     'detail.hint' => '↑↓  scroll synopsis      p  play      s  shuffle      C  cast      r  rate      F  favorite      w  watched      l  thumbs up      j  thumbs down      d  download      u  subtitles      Esc  back',
     'detail.container_hint' => '↑↓←→  move      ⏎  open      s  shuffle      Esc  back',
+    'detail.error_hint' => 'r  retry      Esc  back',
     'detail.loading_hint' => 'Esc  back',
     'detail.loading' => 'Loading…',
     'detail.no_synopsis' => 'No synopsis available.',

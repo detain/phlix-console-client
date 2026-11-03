@@ -43,6 +43,7 @@ return [
     'detail.actions_hint' => '▶  p  Lire    Esc  Retour',
     'detail.hint' => "↑↓  défilez le résumé      p  lire      s  aléatoire      C  distribution      r  noter      F  favori      w  vu      l  j’aime      j  je n’aime pas      d  télécharger      u  sous-titres      Esc  retour",
     'detail.container_hint' => '↑↓←→  déplacer      ⏎  ouvrir      s  aléatoire      Esc  retour',
+    'detail.error_hint' => 'r  réessayer      Esc  retour',
     'detail.loading_hint' => 'Esc  retour',
     'detail.loading' => 'Chargement…',
     'detail.no_synopsis' => 'Aucun résumé disponible.',

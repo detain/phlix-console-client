@@ -43,6 +43,7 @@ return [
     'detail.actions_hint' => '▶  p  Abspielen   Esc  Zurück',
     'detail.hint' => '↑↓  Handlung scrollen      p  abspielen      s  Zufall      C  Besetzung      r  bewerten      F  Favorit      w  gesehen      l  Daumen hoch      j  Daumen runter      d  herunterladen      u  Untertitel      Esc  zurück',
     'detail.container_hint' => '↑↓←→  bewegen      ⏎  öffnen      s  Zufall      Esc  zurück',
+    'detail.error_hint' => 'r  erneut versuchen      Esc  zurück',
     'detail.loading_hint' => 'Esc  zurück',
     'detail.loading' => 'Wird geladen…',
     'detail.no_synopsis' => 'Keine Beschreibung verfügbar.',

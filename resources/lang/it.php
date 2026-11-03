@@ -43,6 +43,7 @@ return [
     'detail.actions_hint' => '▶  p  Riproduci   Esc  Indietro',
     'detail.hint' => '↑↓  scorri sinossi      p  riproduci      s  casuale      C  cast      r  valuta      F  preferito      w  visto      l  mi piace      j  non mi piace      d  scarica      u  sottotitoli      Esc  indietro',
     'detail.container_hint' => '↑↓←→  sposta      ⏎  apri      s  casuale      Esc  indietro',
+    'detail.error_hint' => 'r  riprova      Esc  indietro',
     'detail.loading_hint' => 'Esc  indietro',
     'detail.loading' => 'Caricamento…',
     'detail.no_synopsis' => 'Nessuna sinossi disponibile.',
