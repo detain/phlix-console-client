@@ -15,7 +15,7 @@ use Phlix\Console\Route;
 use React\Promise\PromiseInterface;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\Msg;
-use SugarCraft\Core\Msg\KeyMsg as KeyMessage;
+use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Core\Model;
 use SugarCraft\Core\SubscriptionCapable;
 use SugarCraft\Core\View;
@@ -91,7 +91,7 @@ final class InviteLinksScreen implements Model, Breadcrumbed, Themed
     {
         return match (true) {
             $msg instanceof InitMsg => [$this, null],
-            $msg instanceof KeyMessage => $this->handleKey($msg),
+            $msg instanceof KeyMsg => $this->handleKey($msg),
             $msg instanceof InviteLinksLoadedMsg => $this->fetchSucceeded($msg->links),
             $msg instanceof InviteLinksFailedMsg => $this->fetchFailed($msg->message),
             default => [$this, null],
@@ -101,7 +101,7 @@ final class InviteLinksScreen implements Model, Breadcrumbed, Themed
     /**
      * @return array{0: self, 1: \Closure|null}
      */
-    private function handleKey(KeyMessage $msg): array
+    private function handleKey(KeyMsg $msg): array
     {
         return match ($msg->rune) {
             'q', 'Escape' => $this->back(),

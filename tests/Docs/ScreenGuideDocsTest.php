@@ -332,6 +332,27 @@ final class ScreenGuideDocsTest extends TestCase
         self::assertStringContainsString('BrowseScreen.php', self::readDoc());
     }
 
+    public function testTheScreenFileCountInTheTreeCommentMatchesTheTree(): void
+    {
+        $actual = count(glob(dirname(__DIR__, 2) . '/src/Screen/*.php') ?: []);
+        $doc = self::readDoc();
+
+        self::assertSame(
+            1,
+            preg_match('/Screen\/\s+# All TUI screens \((\d+) files\)/', $doc, $matches),
+            self::GUIDE . ' no longer carries the "Screen/ ... (NN files)" tree comment '
+                . 'the review census drifted on — keep one countable line or drop the figure.'
+        );
+
+        self::assertSame(
+            $actual,
+            (int) $matches[1],
+            self::GUIDE . ' claims ' . $matches[1] . ' files under src/Screen/ but the tree has '
+                . $actual . ' — re-derive the comment (review m1: the figure sat at 79 for five '
+                . 'landed files because no tripwire covered it).'
+        );
+    }
+
     public function testComposerScriptsArePinnedToTheRealKeys(): void
     {
         $decoded = json_decode(self::readFile('composer.json'), true);
@@ -446,24 +467,26 @@ final class ScreenGuideDocsTest extends TestCase
     /**
      * r2 issue 3 (r1-ask-3): the poster/frame --mode prose was remembered,
      * not read — it omitted the shipped `iterm2` poster mode and claimed
-     * "`frame` likewise for videos" when bin/phlix accepts only five modes
+     * "`frame` likewise for videos" when bin/phlix accepted only five modes
      * for frame against poster's nine. Both usage arms are parsed out of
      * bin/phlix itself (fail-loud if either moves) and the guide's sentence
      * must carry both rendered lists verbatim, in usage order.
+     *
+     * m3 rotation: the gate is now per-command and the frame arm spells the
+     * full nine names sugar-video's Mode enum resolves, so the two arms are
+     * identical; the real asymmetry is sugar-image's extra alias vocabulary,
+     * which the guide must name and attribute to run/poster.
      */
     public function testPosterAndFrameModeListsMatchTheEntrypointUsage(): void
     {
         [$poster, $frame] = self::derivedModeLists();
 
-        // The asymmetry IS the fact the old prose obscured; if bin/phlix
-        // ever equalizes the arms, this pin and the guide's wording move.
-        self::assertGreaterThan(count($frame), count($poster), 'frame no longer accepts a narrower set than poster.');
-        self::assertEmpty(array_diff($frame, $poster), 'frame usage names a mode poster does not; re-read both arms.');
+        self::assertSame($poster, $frame, 'The canonical poster/frame mode arms drifted; re-read both usage lines.');
 
         $normalized = (string) preg_replace('/\s+/', ' ', self::readDoc());
         self::assertStringContainsString(
             '`--mode` accepts ' . self::renderModes($poster)
-                . '; for videos `frame --mode` accepts the narrower ' . self::renderModes($frame) . '.',
+                . '; `run`/`poster` additionally resolve the sugar-image aliases',
             $normalized,
             'The --mode sentence no longer mirrors the bin/phlix usage arms verbatim; the lists are derived '
             . 'from them — move the guide prose and (if the code changed) the arms together.'

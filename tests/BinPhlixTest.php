@@ -543,10 +543,39 @@ final class BinPhlixTest extends TestCase
     }
 
     /**
+     * Review m2: "phlix version can't identify a build" — and `doctor`, the
+     * diagnostic surface, never printed the client's own stamp at all.
+     * It does now (with the M8 truth: a rolling master stamp, not a
+     * release). The expected constant is parsed from bin/phlix, never
+     * restated from prose.
+     */
+    public function testDoctorReportsTheClientVersionStamp(): void
+    {
+        $source = (string) file_get_contents($this->binPath);
+        $this->assertSame(
+            1,
+            preg_match("/const PHLIX_VERSION = '([^']+)';/", $source, $matches),
+            'bin/phlix no longer declares PHLIX_VERSION as a plain const; re-derive this pin.'
+        );
+
+        $result = $this->runPhlixWithDeadline(['doctor'], 15.0, $this->scratchHome());
+
+        $this->assertFalse($result['timedOut'], 'doctor must answer inside the deadline');
+        $this->assertSame(0, $result['exitCode']);
+        $this->assertStringContainsString(
+            'phlix version: ' . $matches[1],
+            $result['stdout'],
+            'doctor must lead the environment dump with the client version (review m2).'
+        );
+    }
+
+    /**
      * Structural pin (tests/Docs doctrine: parse the code side, never
      * restate prose): the bare-mode absorption is gated by the
      * mode-consuming command allow-list AND final argv position, and the
-     * flag form is validated post-scan against $KNOWN_MODES. The pure
+     * flag form is validated post-scan against the per-command sets
+     * ($allowedModes — m3 split: frame takes sugar-video's nine names,
+     * run/poster/modeless commands the wider sugar-image set). The pure
      * behavioural vector for the restriction (a mid-argv mode word for
      * `frame`) needs an ffmpeg fixture, so the scan law is pinned at the
      * source — a regression to the `$i >= 2` anywhere-scan reddens this.
@@ -557,12 +586,60 @@ final class BinPhlixTest extends TestCase
 
         $this->assertStringContainsString("in_array(\$cmd, ['run', 'poster', 'frame'], true)", $source);
         $this->assertStringContainsString('$argv[count($argv) - 1]', $source);
-        $this->assertStringContainsString('!in_array(strtolower(trim((string) $mode)), $KNOWN_MODES, true)', $source);
+        $this->assertStringContainsString('!in_array(strtolower(trim((string) $mode)), $allowedModes((string) $cmd), true)', $source);
         $this->assertStringNotContainsString(
-            '$i >= 2 && in_array($arg, $KNOWN_MODES, true)',
+            '$i >= 2',
             $source,
             'the anywhere-position bare-mode absorption must not come back',
         );
+    }
+
+    /**
+     * Review m3: the shared $KNOWN_MODES list let `phlix frame --mode=half`
+     * pass the gate, then sugar-video's Mode::from('half') threw a
+     * ValueError caught by the outer handler — exit 1, not the reserved
+     * usage-error 2. The frame set is now the enum's nine resolvable names;
+     * sugar-image-only words are refused at the scan.
+     */
+    public function testFrameRejectsSugarImageOnlyModesWithUsageExitTwo(): void
+    {
+        foreach (['half', 'ansi', 'quarter', 'chafa'] as $mode) {
+            $output = $this->runPhlix(['frame', '/nonexistent.mp4', '--mode=' . $mode]);
+
+            $this->assertSame(2, $output['exitCode'], "`frame --mode={$mode}` is not a sugar-video mode; must exit 2 at the scan");
+            $this->assertStringContainsString('unknown render mode for frame', $output['stderr']);
+        }
+    }
+
+    public function testFrameAcceptsEveryCanonicalModePastTheGate(): void
+    {
+        // /nonexistent.mp4 fails later inside the spike (exit 1 file error),
+        // never at the mode scan: what proves acceptance is the ABSENCE of
+        // the usage message for each of the nine names the arm advertises.
+        foreach (['auto', 'halfblock', 'quarterblock', 'ascii', 'ansi256', 'truecolor', 'sixel', 'kitty', 'iterm2'] as $mode) {
+            $output = $this->runPhlix(['frame', '/nonexistent.mp4', '--mode=' . $mode]);
+
+            $this->assertStringNotContainsString(
+                'unknown render mode',
+                $output['stderr'],
+                "`frame --mode={$mode}` is in the usage arm and must clear the gate"
+            );
+        }
+    }
+
+    public function testPosterStillResolvesSugarImageAliasesTheGateUsedToShare(): void
+    {
+        // The m3 split must not shrink poster/run: the aliases and chafa
+        // stay valid sugar-image vocabulary.
+        foreach (['half', 'ansi', 'quarter', 'chafa'] as $mode) {
+            $output = $this->runPhlix(['poster', '/nonexistent.png', '--mode=' . $mode]);
+
+            $this->assertStringNotContainsString(
+                'unknown render mode',
+                $output['stderr'],
+                "`poster --mode={$mode}` is sugar-image vocabulary and must clear the gate"
+            );
+        }
     }
 
     /**

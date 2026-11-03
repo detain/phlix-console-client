@@ -30,6 +30,9 @@ usage:
 render modes:
   halfblock | quarterblock | ascii | ansi256 | truecolor (cell modes)
   sixel | kitty | iterm2 (graphics modes)   auto = halfblock default
+  run/poster only: aliases half | ansi | quarter | chafa (sugar-image)
+  forms: --mode=NAME, --mode NAME, or a bare NAME as the last argument
+  (run, poster, frame); frame takes the nine canonical names only
 
 In-app keys: ↑↓←→ navigate · / search · Ctrl-K / : command palette
  · Enter open · p play · A–Z jump · Esc back · Ctrl-C quit
@@ -646,11 +649,23 @@ function runWatch(array $argv): int
  * Pull a render mode out of argv: --mode=sixel, --mode sixel, or a bare
  * `sixel` trailing on run/poster/frame (review M-CONSOLE-61).
  *
- * The flag form is validated against $KNOWN_MODES right here and exits 2 —
- * the usage-error code this entrypoint's own contract reserves (:9-10,
- * honoured by parseWatchArgs). Letting a typo reach MosaicFactory::forMode()
- * made it a thrown InvalidArgumentException caught by the outer handler:
- * exit 1, the generic-exception code, for the textbook usage error.
+ * The flag form is validated against the set the command actually consumes
+ * and exits 2 right here — the usage-error code this entrypoint's own
+ * contract reserves (:9-10, honoured by parseWatchArgs). Letting a typo
+ * reach MosaicFactory::forMode() made it a thrown InvalidArgumentException
+ * caught by the outer handler: exit 1, the generic-exception code, for the
+ * textbook usage error.
+ *
+ * The per-command sets (review m3): `frame` hands the mode to sugar-video's
+ * Mode enum (VideoSpike::mode() → Mode::from()), which resolves exactly the
+ * nine canonical names below. `run` and `poster` hand it to sugar-image
+ * (Mosaic::fromModeString()), which resolves those nine plus the
+ * `half`/`ansi`/`quarter` aliases and `chafa`. One shared list let
+ * `phlix frame --mode=half` pass the gate and turn Mode::from's ValueError
+ * into the outer handler's exit 1 — the violation this block exists to
+ * prevent, relocated by one word. Commands that never consume $mode are
+ * checked against the wider set: a usage error is a usage error whichever
+ * command follows it (testMalformedModeFlagReddensEvenForModelessCommands).
  *
  * The bare form is restricted to the commands that actually consume $mode
  * and to the final argv position: a mode word in the middle of `phlix frame`
@@ -658,8 +673,12 @@ function runWatch(array $argv): int
  * as a positional number, mutating the behaviour of what looked like a
  * plain frame extraction.
  */
-$KNOWN_MODES = ['auto', 'halfblock', 'half', 'ansi', 'quarterblock', 'quarter',
-    'ascii', 'ansi256', 'truecolor', 'sixel', 'kitty', 'iterm2'];
+$POSTER_MODES = ['auto', 'halfblock', 'half', 'ansi', 'quarterblock', 'quarter',
+    'ascii', 'ansi256', 'truecolor', 'sixel', 'kitty', 'iterm2', 'chafa'];
+$FRAME_MODES = ['auto', 'halfblock', 'quarterblock', 'ascii', 'ansi256',
+    'truecolor', 'sixel', 'kitty', 'iterm2'];
+$allowedModes = static fn(string $command): array =>
+    $command === 'frame' ? $FRAME_MODES : $POSTER_MODES;
 $mode = null;
 $modeFromFlag = false;
 foreach ($argv as $i => $arg) {
@@ -676,13 +695,13 @@ foreach ($argv as $i => $arg) {
 }
 if ($mode === null && count($argv) >= 3 && in_array($cmd, ['run', 'poster', 'frame'], true)) {
     $last = $argv[count($argv) - 1];
-    if (is_string($last) && in_array($last, $KNOWN_MODES, true)) {
+    if (is_string($last) && in_array($last, $allowedModes((string) $cmd), true)) {
         $mode = $last;                        // trailing bare mode, e.g. `phlix run sixel`
     }
 }
-if ($modeFromFlag && !in_array(strtolower(trim((string) $mode)), $KNOWN_MODES, true)) {
-    fwrite(STDERR, "Error: unknown render mode: {$mode}\n");
-    fwrite(STDERR, 'usage: --mode one of ' . implode(' | ', $KNOWN_MODES) . "  (see: phlix help)\n");
+if ($modeFromFlag && !in_array(strtolower(trim((string) $mode)), $allowedModes((string) $cmd), true)) {
+    fwrite(STDERR, "Error: unknown render mode for {$cmd}: {$mode}\n");
+    fwrite(STDERR, 'usage: --mode one of ' . implode(' | ', $allowedModes((string) $cmd)) . "  (see: phlix help)\n");
     exit(2);
 }
 $intArg = static fn(int $i, int $default): int =>
@@ -701,6 +720,11 @@ try {
             }
             $posterCache = new DiskCache($cacheDir, $cacheEntries);
 
+            // Review m2: a "which build is this?" question had nowhere to be
+            // answered — doctor dumped the environment but not the client's
+            // own stamp. The constant is a rolling master stamp, not a
+            // release tag (review M8 truth); the output says so.
+            echo "phlix version: " . PHLIX_VERSION . " (rolling master stamp, not a release)\n";
             echo "PHP version: " . PHP_VERSION . "\n";
             echo "Config path: " . Config::path() . "\n";
             if ($config->loadError !== null) {
@@ -762,7 +786,7 @@ try {
         case 'frame':
             $src = $argv[2] ?? null;
             if ($src === null) {
-                fwrite(STDERR, "usage: phlix frame <video|gif> [count] [cols] [rows] [--mode=auto|halfblock|sixel|kitty|ascii]\n");
+                fwrite(STDERR, "usage: phlix frame <video|gif> [count] [cols] [rows] [--mode=auto|halfblock|quarterblock|ascii|ansi256|truecolor|sixel|kitty|iterm2]\n");
                 exit(2);
             }
             $spike = new VideoSpike();

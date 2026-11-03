@@ -290,6 +290,14 @@ stored in `config.json` and does not persist across launches:
 | `kitty` | Kitty protocol |
 | `iterm2` | iTerm2 inline images |
 
+The tables list canonical names. `auto` — also the default when no mode is
+given — picks the best renderer for the detected terminal. `run` and `poster`
+additionally resolve the sugar-image aliases `half`/`ansi` (≡ `halfblock`),
+`quarter` (≡ `quarterblock`) and `chafa`; `frame` renders through
+sugar-video's own vocabulary and refuses those four as usage errors. Forms:
+`--mode=NAME`, `--mode NAME`, or a bare `NAME` as the final argument to
+`run`/`poster`/`frame`.
+
 A note on the character set: “universal” above means colour and protocol
 reach, not glyph reach. The block-drawing ramp (▀ ▘▝▖▗ ░) and the UI's
 punctuation glyphs (`⏎` for Enter, `›` in breadcrumbs, the middle-elision

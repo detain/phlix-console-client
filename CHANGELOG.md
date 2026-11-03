@@ -17,6 +17,43 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > cut, and the only published artifact remains the rolling prerelease built
 > from `master` under the `latest` tag (README, “PHAR (end user)”).
 
+### Fixed — review m1-m5 (minors batch 1: census, gate, aliases, version line) — 2026-11-03
+
+- **`Screen/ (79 files)` → 84, with a tripwire (m1).** The dev guide's
+  tree comment drifted five landed files behind (exact when written,
+  nothing covered it since). Re-derived and pinned:
+  ScreenGuideDocsTest now counts `src/Screen/*.php` at runtime and fails
+  the comment if they diverge — measure-at-red convicted the probe value
+  79 verbatim before restore.
+- **doctor was silent about the client's own version (m2).** A "which
+  build is this?" question had no diagnostic answer; `phlix doctor` now
+  leads the dump with `phlix version: 1.0.0 (rolling master stamp, not a
+  release)` — the M8 truth, parsed-not-restated pin added
+  (`testDoctorReportsTheClientVersionStamp`). The build-metadata half of
+  the finding (per-build SHA in the version string) would reshape the
+  release pipeline and `version`'s one-line script-parsable contract —
+  deferred with the M8 family as an owner call.
+- **`phlix frame --mode=half` exited 1 with an exception dump (m3).** The
+  single shared `$KNOWN_MODES` list let sugar-image-only words (`half`,
+  `ansi`, `quarter`, `chafa`) through the flag gate, and sugar-video's
+  `Mode::from()` turned them into a ValueError caught by the outer
+  handler — the generic-exception code for a textbook usage error, the
+  exact violation the gate exists to prevent. The gate is now per-command
+  (`$POSTER_MODES`/`$FRAME_MODES`): frame refuses the four with exit 2
+  naming the command, poster/run keep them. `frame`'s usage arm now
+  spells the full nine canonical names it resolves (it under-promised
+  five); the structural pins (BinPhlixTest scan law,
+  TerminalGraphicsDocsTest column-0 pin, guide-sentence pin) rotated in
+  the same change and +3 behavioural tests prove both directions.
+- **The `--mode` accepted surface was folklore (m4).** Bare trailing
+  words, the three flag forms, `auto` and the sugar-image aliases were
+  named on at most one surface. HELP_TEXT's render-modes block and the
+  manual's Render-modes section now carry the forms + the run/poster-only
+  alias set + frame's refusal, matching the gate.
+- **`KeyMsg as KeyMessage` dialect split (m5).** The two stragglers
+  (SharedWithMe, InviteLinks) import the class plainly like the other
+  53+ screens; zero behavior change, zero test refs to the alias.
+
 ### Fixed — review M19+M20 (two sentences that couldn't be true) — 2026-11-03
 
 - **“deleteing” (M19).** The collection deletion confirmation built its

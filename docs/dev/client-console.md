@@ -76,7 +76,7 @@ src/
 │   ├── Dto/                # Typed Data Transfer Objects
 │   │   ├── MediaItem.php, Library.php, Album.php, Book.php, Coerce.php, etc.
 │   └── SyncPlay/           # SyncPlay (group watch) client
-├── Screen/                 # All TUI screens (79 files) + their contracts
+├── Screen/                 # All TUI screens (84 files) + their contracts
 │   ├── Loadable.php        # Interface: screen is loading its first data
 │   ├── Themed.php          # Interface: App may hand the theme to the screen
 │   ├── ThemedScreen.php    # Trait: implements Themed (clone-mutate)
@@ -571,8 +571,12 @@ bin/phlix poster /path/to/image.jpg 40 --mode=halfblock | cat -v
 ```
 
 (`--mode` accepts `auto`, `halfblock`, `quarterblock`, `ascii`, `ansi256`,
-`truecolor`, `sixel`, `kitty`, `iterm2`; for videos `frame --mode` accepts
-the narrower `auto`, `halfblock`, `sixel`, `kitty`, `ascii`.)
+`truecolor`, `sixel`, `kitty`, `iterm2`; `run`/`poster` additionally
+resolve the sugar-image aliases `half`, `ansi`, `quarter` and the external
+`chafa` renderer, which `frame` rejects as a usage error — its renderers
+are sugar-video's, which know only the nine canonical names. Forms:
+`--mode=NAME`, `--mode NAME`, or a bare NAME as the last argument to
+run/poster/frame.)
 
 ### Trace message dispatch
 

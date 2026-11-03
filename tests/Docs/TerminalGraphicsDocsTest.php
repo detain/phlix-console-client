@@ -281,8 +281,9 @@ final class TerminalGraphicsDocsTest extends TestCase
         // read "mode string, parsed at / container build (no screen yet)" —
         // a chronology compression. The argv parse is NOT part of the
         // container build: it runs as column-0 (file-scope) statements at
-        // bin/phlix top level ($KNOWN_MODES :653, the $argv flag foreach
-        // :657), and the parsed $mode is only CONSUMED later, inside
+        // bin/phlix top level (the $POSTER_MODES/$FRAME_MODES lists — m3
+        // per-command split — and the $argv flag foreach), and the parsed
+        // $mode is only CONSUMED later, inside
         // buildContainer() — MosaicFactory::forPosterGrid($mode) at :110 —
         // which the top-level dispatch reaches only when a command needs
         // the graph (:787). The CHANGELOG has stated it exactly right all
@@ -306,7 +307,7 @@ final class TerminalGraphicsDocsTest extends TestCase
             . '("parsed from CLI argv" then "consumed in buildContainer", adjacent label '
             . 'lines) — review M-CONSOLE-49 r2 N2.'
         );
-        $knownModesAtTop = "\n" . '$KNOWN_MODES = [';
+        $knownModesAtTop = "\n" . '$POSTER_MODES = [';
         self::assertStringContainsString(
             $knownModesAtTop,
             $bin,
