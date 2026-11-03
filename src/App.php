@@ -428,6 +428,24 @@ final class App implements Model
             return $this->resized($msg->cols, $msg->rows);
         }
 
+        // [review m40] Symmetry with the paste law: pasteAsKeys strips the
+        // \p{C} rune category, but the vendor InputReader surfaces bytes it
+        // does not decode as control KEYS — 0x00, 0x1C-0x1F, 0x7F — as plain
+        // Char KeyMsgs (ctrl:false), which passed every M-CONSOLE-65 gate and
+        // rendered raw into text surfaces (proven: `› <1C><00><1F>` in the
+        // palette filter row). The vendor cannot be patched (vendor-patches
+        // policy), so the guard lives at the one choke point all Char
+        // consumers route through: control bytes are filtered out of a typed
+        // rune exactly as they are out of a pasted one, and a keystroke whose
+        // content vanishes is dropped.
+        if ($msg instanceof KeyMsg && $msg->type === KeyType::Char && preg_match('/\p{C}/u', $msg->rune) === 1) {
+            $printable = preg_replace('/\p{C}/u', '', $msg->rune) ?? '';
+            if ($printable === '') {
+                return [$this, null];
+            }
+            $msg = new KeyMsg(KeyType::Char, $printable, alt: $msg->alt, ctrl: $msg->ctrl, shift: $msg->shift);
+        }
+
         // A bracketed paste arrives as ONE PasteMsg (sugar-core InputReader.php:124)
         // while every text surface in this app — palette, Search, FilterBar, the
         // SyncPlay room name, the sugar-forms fields — consumes only Char/Space

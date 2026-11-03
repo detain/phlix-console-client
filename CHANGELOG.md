@@ -22,6 +22,24 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > strictly descending date order (a 2026-10-31-stamped rider written in a
 > later batch sits below 2026-10-30 ones — newest batch on top still wins).
 
+### Fixed — review minor m40 — typed control bytes are stripped at dispatch, like pasted ones — 2026-11-03
+
+- **m40.** The vendor `InputReader::decodeChar()` maps control codes 1..26
+  to named keys but lets the bytes it cannot decode — 0x00, 0x1C-0x1F, 0x7F
+  and any raw 0x00-0x1A slip-through — arrive as plain `Char` keystrokes
+  with `ctrl:false`, so every modifier-free typing gate (M-CONSOLE-65) saw
+  them as text. Pasting the same bytes was already clean: the bracketed-
+  paste replay strips `\p{C}` before injecting. `App::dispatch()` now owns
+  the symmetric guard: a `Char` keystroke whose rune contains a `\p{C}`
+  category code point is stripped down to its printable remnant (a fully
+  filtered keystroke is dropped); modifiers ride through untouched. Probe
+  evidence: control bytes rendered into the palette filter row on the
+  parent; the new pin types them and asserts the filter stays empty, then
+  asserts a tainted `"\x00q"` still reaches `q` intact. (Invalid-UTF-8
+  runes pass the `/u` match guard unchanged — the same posture the paste
+  filter keeps; vendor-emitted bytes are single-byte controls or valid
+  sequences.)
+
 ### Fixed — review minor m38 — Ctrl-\ (SIGQUIT) reaches the teardown path — 2026-11-03
 
 - **m38.** The vendor arms INT/TERM/HUP/WINCH/TSTP/CONT but never QUIT, so

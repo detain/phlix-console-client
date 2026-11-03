@@ -1374,6 +1374,24 @@ final class AppTest extends TestCase
         self::assertSame('Quit', $typed->palette()->visibleLabels()[0]);
     }
 
+    public function testTypedControlBytesAreFilteredLikePastedOnes(): void
+    {
+        // [review m40] The vendor InputReader hands bytes it does not decode
+        // as control keys (0x00, 0x1C-0x1F, 0x7F) through as plain Char
+        // keystrokes. The dispatch choke point must show every typed consumer
+        // exactly what the paste replay shows: the \p{C} category stripped.
+        [$open] = $this->paletteApp()->update($this->ctrlK());
+
+        [$app] = $open->update(new KeyMsg(KeyType::Char, "\x1C"));
+        [$app] = $app->update(new KeyMsg(KeyType::Char, "\x00"));
+        [$app] = $app->update(new KeyMsg(KeyType::Char, "\x1F"));
+        [$app] = $app->update(new KeyMsg(KeyType::Char, "\x7F"));
+        self::assertSame('', $app->palette()->filterText(), 'control-only keystrokes type nothing');
+
+        [$app] = $app->update(new KeyMsg(KeyType::Char, "\x00q"));
+        self::assertSame('q', $app->palette()->filterText(), 'the printable remnant of a tainted rune survives');
+    }
+
     /**
      * [review console__tuispec, M-CONSOLE-65] ctrl/alt combos carry commands,
      * never text: a modifier-flagged Char/Space must not land in the palette
