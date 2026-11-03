@@ -22,6 +22,26 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > strictly descending date order (a 2026-10-31-stamped rider written in a
 > later batch sits below 2026-10-30 ones — newest batch on top still wins).
 
+### Fixed — review minors m34 + m37 — selftest path and screen hygiene (src) — 2026-11-03
+
+- **m34.** The two methods missing native return types — `AdminLibrariesScreen::handleFormKey()`
+  and `::submitForm()` — gained `: array`, the type their existing
+  `@return array{self, ?\Closure}` shapes already promised. Annotation only;
+  behavior-unchanged. (Sole non-ctor exceptions across the tree — every other
+  declaration is typed.)
+- **m37.** Two dead null-branches in `runSelftest()` removed, behavior
+  unchanged: `if ($config !== null)` (leg of the config-loaded check) —
+  `Config::load()` is declared `: self`; and `if ($app === null)` whose
+  message literally named an impossible outcome — `App::boot()` is
+  `: self`, a null return would TypeError into the surrounding catch, which
+  is where a genuine wiring failure surfaces and remains tested. Both sites
+  carry a one-line comment so the branches are not re-added.
+
+Gates: `php -l bin/phlix` rc 0; targeted Selftest|AdminLibraries 66/276 OK;
+full suite 3522/21719 held exactly; fresh-cache phpstan prod+tests [OK]
+(`.phpstan.cache` removed before both runs); canonical phpcs src gate rc 0,
+0 errors on the touched file.
+
 ### Fixed — review minors m28–m33 — documentation truth pass (README + manual) — 2026-11-03
 
 - **m28.** The README PHAR requirements box omitted `ffplay`/`mpv` while the

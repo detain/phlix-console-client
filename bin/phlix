@@ -133,10 +133,12 @@ function runSelftest(?string $mode): bool
     $checks = [];
     $allPassed = true;
 
-    // 1. config-loaded
+    // 1. config-loaded. Config::load() is declared `: self`, so there is no
+    // null leg to test — the old `$config !== null` arm named an outcome the
+    // type system forbids (review m37; behavior-unchanged cure).
     $config = Config::load();
     $serverUrl = getenv('PHLIX_SERVER_URL') ?: $config->activeServer()?->url;
-    if ($config !== null && $serverUrl !== null && $serverUrl !== '') {
+    if ($serverUrl !== null && $serverUrl !== '') {
         $checks[] = 'OK config-loaded';
     } else {
         $checks[] = 'FAIL config-loaded serverUrl is empty';
@@ -155,6 +157,11 @@ function runSelftest(?string $mode): bool
 
         // Also verify App::boot() itself returns non-null
         try {
+            // App::boot() is declared `: self` — a null return would raise a
+            // TypeError before assignment and land in the catch below, so the
+            // former `if ($app === null)` arm tested an impossible outcome
+            // (review m37; the boot itself stays under the try/catch, which
+            // is where a wiring failure can genuinely surface).
             $app = App::boot(
                 $container['config'],
                 $container['auth'],
@@ -163,9 +170,6 @@ function runSelftest(?string $mode): bool
                 $container['media'],
                 $container['posters'],
             );
-            if ($app === null) {
-                $nulls[] = 'app (App::boot returned null)';
-            }
         } catch (\Throwable $e) {
             $checks[] = 'FAIL graph-wired App::boot threw: ' . $e->getMessage();
             $allPassed = false;

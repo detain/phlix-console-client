@@ -454,7 +454,7 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
     }
 
     /** @return array{self, ?\Closure} */
-    private function handleFormKey(KeyMsg $msg)
+    private function handleFormKey(KeyMsg $msg): array
     {
         // Escape closes the form
         if ($msg->type === KeyType::Escape) {
@@ -909,7 +909,7 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
      * Submit the create/update form.
      * @return array{self, ?\Closure}
      */
-    private function submitForm()
+    private function submitForm(): array
     {
         $name = trim($this->formValues['name']);
         $type = trim($this->formValues['type']);
