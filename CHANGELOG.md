@@ -17,6 +17,28 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > cut, and the only published artifact remains the rolling prerelease built
 > from `master` under the `latest` tag (README, “PHAR (end user)”).
 
+### Fixed — review M18 (the library error screen was a trap) — 2026-11-03
+
+- **The trap.** Any failed first load paints an error frame that `view()`
+  short-circuits on — and neither the manual refresh (`R`) nor a later
+  successful fetch ever cleared it. The retry really refetched (cache
+  invalidated, generation bumped, data landed, grid populated), yet the user
+  stayed buried under the stale sentence forever, with no feedback that
+  anything had happened. Backing out and re-entering was the only escape.
+- **The cure.** `refresh()` now clears the error — the retry shows the
+  loading skeleton again, and a second failure replaces the prose — and
+  `onRange()` clears it whenever data of the current generation arrives, so
+  the other refetch paths (search, filters) escape the frame too without
+  touching the transient-failure law (a scroll-time error still toasts and
+  leaves a populated grid intact, unchanged pins green). `SearchScreen`'s
+  byte-identical `onRange` (the M-CONSOLE-37 twin) moved in lockstep — same
+  line, family kept single-sourced, fingerprint re-pinned from the measured
+  census — not a loosened ratchet.
+- **Measured.** Two regression tests (retry escapes the frame; a successful
+  load after an error replaces it) — both convict verbatim on the parent
+  worktree. Full suite 3515 tests / 21,689 assertions / 0 failures
+  (+2/+7 exact); phpstan prod and tests [OK]; phpcs both configs rc 0.
+
 ### Fixed — review M17 (`phlix poster` default flooded the terminal) — 2026-11-03
 
 - **The flood.** The poster spike's unforced mode ran `Mosaic::auto()` — the

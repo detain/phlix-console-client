@@ -416,6 +416,11 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
         $next->generation = $this->generation + 1;
         $next->grid = $this->grid->reset(0);
         $next->loaded = false;
+        // [review console__enduser CONSOLIDATED M18] a retry must be able to
+        // escape the error frame: view() short-circuits on a non-null error,
+        // so an un-cleared one strands the screen on stale prose forever —
+        // the fetch below runs, succeeds, and the user still never sees it.
+        $next->error = null;
         $next->letterIndex = null;
         $next->requestedRange = [0, $next->initialWindowEnd()];
 
@@ -509,6 +514,9 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
         $next = clone $this;
         $next->grid = $grid;
         $next->loaded = true;
+        // [CONSOLIDATED M18] data arriving is the definition of "the error is
+        // no longer current" — search/filter refetches escape the frame too.
+        $next->error = null;
 
         return [$next, $next->loadVisiblePosters($grid)];
     }

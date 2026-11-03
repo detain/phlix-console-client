@@ -320,6 +320,9 @@ final class SearchScreen implements Breadcrumbed, CapturesSlash, Loadable, Shimm
         $next = clone $this;
         $next->grid = $grid;
         $next->loaded = true;
+        // [CONSOLIDATED M18] data arriving is the definition of "the error is
+        // no longer current" — search/filter refetches escape the frame too.
+        $next->error = null;
 
         return [$next, $next->loadVisiblePosters($grid)];
     }

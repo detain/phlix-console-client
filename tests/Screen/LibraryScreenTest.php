@@ -454,6 +454,33 @@ final class LibraryScreenTest extends TestCase
         self::assertStringContainsString('200 items', $next->view());
     }
 
+    // [review console__enduser CONSOLIDATED M18] the error frame must be
+    // escapable: R refetches, and both a retry and any later successful load
+    // clear the stale error (view() short-circuits on it).
+
+    public function testRefreshEscapesTheErrorFrame(): void
+    {
+        [$errored] = $this->screenWith(new FakeTransport())->update(new LibraryFailedMsg('Could not load this library.'));
+        self::assertStringContainsString('Could not load this library.', $errored->view());
+
+        [$next, $cmd] = $errored->update(new KeyMsg(KeyType::Char, 'r'));
+
+        self::assertNull($next->error(), 'a retry must not carry the stale error forward');
+        self::assertStringNotContainsString('Could not load this library.', $next->view(), 'the retry shows the loading skeleton, not the old error');
+        self::assertNotNull($cmd, 'the retry actually refetches');
+    }
+
+    public function testASuccessfulLoadAfterAnErrorReplacesTheErrorFrame(): void
+    {
+        [$errored] = $this->screenWith(new FakeTransport())->update(new LibraryFailedMsg('boom'));
+
+        [$next] = $errored->update(new MediaRangeLoadedMsg(new MediaRange([], 300), 0));
+
+        self::assertNull($next->error());
+        self::assertStringContainsString('300 items', $next->view());
+        self::assertStringNotContainsString('boom', $next->view());
+    }
+
     public function testInitAuthFailureProducesSessionExpired(): void
     {
         $transport = (new FakeTransport())->json(401, ['error' => 'Unauthorized']);

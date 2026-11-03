@@ -121,7 +121,7 @@ final class ScreenConcernSingleSourceTest extends TestCase
         'name:35553c293466' => 3,
         'onPoster:010cc5be5b5e' => 3,
         'onRange:445ca1d5775a' => 2,
-        'onRange:6cee06f3da76' => 2,
+        'onRange:f991ae1bef45' => 2,
         'onResize:b6f335f72dd2' => 3,
         'openCreate:bc4e36b2a15d' => 2,
         'openSelected:c734f547b2f3' => 3,
