@@ -22,6 +22,20 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > strictly descending date order (a 2026-10-31-stamped rider written in a
 > later batch sits below 2026-10-30 ones — newest batch on top still wins).
 
+### Fixed — review minor m41 — the create-room name echo stays inside the frame — 2026-11-03
+
+- **m41.** `SyncPlayModal::renderCreateForm()` echoed the room-name field at
+  full length: on a 30-column panel a pasted name was clipped entirely by
+  the border — no name head, no caret (probe: the rendered row was
+  `│ Name: │`), the blind-typing trap the review named. The display head
+  now gets the panel-fit budget (`winWidth - 12`: border, label, caret,
+  margin), ellipsised through `Truncate::withEllipsis` — the house
+  input-echo law SearchScreen's query line already pays. The budget counts
+  CELLS not codepoints: double-width text truncates at the same visible
+  edge. Display-only cure — the field state stays uncapped (pinned: the
+  full value still reaches `roomName()`); the server owns the real limit.
+  Five pins; the two truncation legs are parent-red-convicted.
+
 ### Fixed — review minor m40 — typed control bytes are stripped at dispatch, like pasted ones — 2026-11-03
 
 - **m40.** The vendor `InputReader::decodeChar()` maps control codes 1..26

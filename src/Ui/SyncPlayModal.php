@@ -351,8 +351,13 @@ final class SyncPlayModal
         $lines[] = Style::new()->bold()->render('  Create Room');
         $lines[] = '';
 
-        // Room name input
-        $nameDisplay = ($this->roomName ?? '') . '█';
+        // Room name input — display head gets the panel-fit budget (the
+        // blind-typing trap: a long paste pushed the caret past the border
+        // clip). Field STATE stays uncapped — the server owns the real
+        // limit — only the rendered echo is ellipsised, house input-display
+        // law (cf. SearchScreen's query line).
+        $nameBudget = max(1, $this->winWidth - 12); // border(2) + '  Name: '(8) + caret(1) + margin(1)
+        $nameDisplay = Truncate::withEllipsis($this->roomName ?? '', $nameBudget) . '█';
         $nameLabel = '  Name: ' . $nameDisplay;
         $lines[] = Style::new()->reverse()->render($nameDisplay === '█' ? '  Name: █' : $nameLabel);
 
