@@ -17,6 +17,24 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > cut, and the only published artifact remains the rolling prerelease built
 > from `master` under the `latest` tag (README, “PHAR (end user)”).
 
+### Fixed — review M14 (rating-picker number keys lied) — 2026-11-03
+
+- **The defect.** The manual, the picker's own hint and the handler comment
+  all say the number keys **directly select** (`1` clears, `2`–`6` give
+  1–5 stars) — but the code looped `right()` from wherever the cursor
+  happened to sit, and `open()` pre-seeds the cursor to the existing
+  rating. With a stored 6/10 (cursor on three stars), pressing `2`
+  produced four stars. The keys were relative offsets wearing direct
+  selection's clothes; no test had ever pressed a number key.
+- **The cure.** `UserRatingPicker::toCursor()` (absolute, clamped) replaces
+  the loop in `DetailScreen`'s number arm, so prose and code finally
+  describe one machine. New pin `testNumberKeysSelectAbsolutelyFromAPre`
+  `SeededCursor` walks `2`/`1`/`6` from a pre-seeded cursor; measure-at-red
+  on a parent worktree: the old code fails it on the `2/10` readout.
+- **Measured.** Full suite 3509 tests / 21584 assertions / 0 failures
+  (15 dep-skips + 15 deprecations pre-existing); phpstan prod+tests [OK];
+  phpcs repo configs rc 0; i18n gates green (no catalog touched).
+
 ### Changed — review M12 (product image at the front door) + M13 deferral — 2026-11-03
 
 - **M12.** The animated render-modes tour (`docs/images/modes.gif`) lived at

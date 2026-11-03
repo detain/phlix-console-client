@@ -530,6 +530,44 @@ final class DetailScreenTest extends TestCase
         self::assertStringContainsString("\u{2605}", $view, 'stars up to the cursor are filled');
     }
 
+    public function testNumberKeysSelectAbsolutelyFromAPreSeededCursor(): void
+    {
+        // A stored 6.0 pre-seeds the cursor on three stars [review M14]: the
+        // documented keys are direct selectors, so `2` must land on ONE star
+        // (2/10) from that cursor — the superseded relative loop stepped
+        // right() from wherever the cursor sat and produced 4 stars (8/10).
+        $loaded = $this->loaded();
+        $ratings = new MediaRatings(
+            itemId: 'm1',
+            ratings: [new Rating(id: 7, mediaItemId: 'm1', source: 'user', type: 'user', score: 6.0, votes: 0)],
+            aggregateScore: null,
+        );
+        [$withRating] = $loaded->update(new RatingsLoadedMsg($ratings));
+        [$opened] = $withRating->update(new KeyMsg(KeyType::Char, 'r'));
+        self::assertStringContainsString('6/10', $opened->view(), 'open pre-selects the existing rating');
+
+        [$pressed] = $opened->update(new KeyMsg(KeyType::Char, '2'));
+        self::assertStringContainsString(
+            '2/10',
+            $pressed->view(),
+            '`2` selects one star directly — never one step right of the cursor',
+        );
+
+        [$cleared] = $opened->update(new KeyMsg(KeyType::Char, '1'));
+        self::assertStringContainsString(
+            "\u{2715}",
+            $cleared->view(),
+            '`1` lands on clear from the pre-seeded cursor',
+        );
+
+        [$topped] = $opened->update(new KeyMsg(KeyType::Char, '6'));
+        self::assertStringContainsString(
+            '10/10',
+            $topped->view(),
+            '`6` selects five stars directly from the pre-seeded cursor',
+        );
+    }
+
     public function testArrowMovesTheCompositedCursorAndReadout(): void
     {
         $loaded = $this->loaded();

@@ -78,6 +78,21 @@ final class UserRatingPicker
         return $next;
     }
 
+    /**
+     * Move the cursor to an ABSOLUTE position (0 = clear, 1-5 = stars),
+     * clamped. The number keys are direct selectors — what `2` picks must
+     * not depend on where `open()` pre-seeded or `left()`/`right()` moved
+     * the cursor [review M14: the relative loop this replaces made the
+     * documented keys lie].
+     */
+    public function toCursor(int $index): self
+    {
+        $next = clone $this;
+        $next->cursor = max(0, min(self::STAR_COUNT, $index));
+
+        return $next;
+    }
+
     public function resizedTo(int $cols, int $rows): self
     {
         [$w, $h] = self::dims($cols, $rows);

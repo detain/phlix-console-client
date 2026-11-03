@@ -660,16 +660,14 @@ final class DetailScreen implements Breadcrumbed, Themed
 
             return [$next, null];
         }
-        // Number keys 1-6 directly select a position
+        // Number keys 1-6 directly select a position — absolutely, never
+        // relative to the pre-seeded or arrow-moved cursor [review M14].
         if ($msg->type === KeyType::Char && $msg->rune >= '1' && $msg->rune <= '6') {
-            $index = (int) $msg->rune - 1; // 0-5
+            $index = (int) $msg->rune - 1; // 0 = clear, 1-5 = stars
             $next = clone $this;
-            // Use resizedTo to get a fresh picker with correct window dims, then navigate
-            $next->ratingPicker = $picker->resizedTo($this->cols, $this->rows);
-            // Navigate to the selected index (0 = clear, 1-5 = stars)
-            for ($i = 0; $i < $index; $i++) {
-                $next->ratingPicker = $next->ratingPicker->right();
-            }
+            // resizedTo keeps the box at current window dims; toCursor lands
+            // the selection where the key says, whatever the cursor was on.
+            $next->ratingPicker = $picker->resizedTo($this->cols, $this->rows)->toCursor($index);
 
             return [$next, null];
         }
