@@ -17,6 +17,25 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > cut, and the only published artifact remains the rolling prerelease built
 > from `master` under the `latest` tag (README, “PHAR (end user)”).
 
+### Fixed — review M19+M20 (two sentences that couldn't be true) — 2026-11-03
+
+- **“deleteing” (M19).** The collection deletion confirmation built its
+  sentence by suffixing `-ing` onto the action word — and the only action is
+  `delete`, so the ⚠️ prompt read “Type 'delete' to confirm deleteing '…'”.
+  `CollectionPendingAction::prompt()` now authors the sentence per action
+  like its `PlaylistPendingAction` sibling — and joins the sibling in
+  echoing the typed prefix, the family's visible contract (without it, the
+  prompt asked for keystrokes that never appeared on screen). Two tests
+  pin the shape, unnamed-collection fallback included.
+- **“Active (not connected)” (M20).** The relay panel titled a configured
+  but down tunnel with a label that refuted itself. Sibling DTOs spell
+  liveness as Running/Stopped or Enabled/Disabled — never both at once.
+  The state is now “Enabled (offline)”: config says enabled, liveness says
+  offline, no contradiction. The DTO test's old-label pin rotated with the
+  sanctioned behavior change; `Connected`/`Disconnected` arms untouched.
+- **Measured.** Suite 3517 / 21,693 / 0F (+2/+4 exact); phpstan prod and
+  tests [OK]; phpcs both configs rc 0; i18n gates rc 0.
+
 ### Fixed — review M18 (the library error screen was a trap) — 2026-11-03
 
 - **The trap.** Any failed first load paints an error frame that `view()`

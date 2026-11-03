@@ -8,6 +8,7 @@ use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Msg\CollectionsFailedMsg;
 use Phlix\Console\Msg\CollectionsLoadedMsg;
+use Phlix\Console\Screen\CollectionPendingAction;
 use Phlix\Console\Screen\CollectionsScreen;
 use Phlix\Console\Tests\Api\FakeTransport;
 use PHPUnit\Framework\TestCase;
@@ -168,6 +169,31 @@ final class CollectionsScreenTest extends TestCase
     {
         $screen = $this->createScreenWithItems([]);
         $this->assertSame('Collections', $screen->crumbLabel());
+    }
+
+    // [review console__writer CONSOLIDATED M19] the confirm sentence is
+    // authored per action, never suffixed "-ing" onto the action word
+    // ("deleteing"), and it echoes the typed prefix like the
+    // PlaylistPendingAction sibling — the family's visible contract.
+
+    public function testTheDeletePromptIsPerActionNotGerundSuffixed(): void
+    {
+        $collection = MediaItem::fromArray(['id' => 'c1', 'name' => 'Road Trip', 'type' => 'collection']);
+        $pending = (new CollectionPendingAction('delete', $collection))->withTyped('del');
+
+        $prompt = $pending->prompt();
+
+        $this->assertStringContainsString("DELETE collection 'Road Trip'?", $prompt);
+        $this->assertStringNotContainsString('deleteing', $prompt);
+        $this->assertStringContainsString("Type 'delete' to confirm: del", $prompt, 'the typed echo is the sibling-honored family contract');
+    }
+
+    public function testTheDeletePromptFallsBackToTheIdForAnUnnamedCollection(): void
+    {
+        $collection = MediaItem::fromArray(['id' => 'c-42', 'name' => '', 'type' => 'collection']);
+        $pending = new CollectionPendingAction('delete', $collection);
+
+        $this->assertStringContainsString("DELETE collection 'c-42'?", $pending->prompt());
     }
 
     public function testLoadingViewBeforeData(): void

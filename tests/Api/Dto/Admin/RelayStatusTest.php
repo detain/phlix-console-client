@@ -32,7 +32,9 @@ final class RelayStatusTest extends TestCase
 
         self::assertFalse($relay->connected);
         self::assertTrue($relay->active);
-        self::assertSame('Active (not connected)', $relay->stateLabel());
+        // [CONSOLIDATED M20] the old label read "Active (not connected)" —
+        // self-contradictory. Enabled (config) + offline (liveness) is the truth.
+        self::assertSame('Enabled (offline)', $relay->stateLabel());
         self::assertSame('Relay tunnel disconnected.', $relay->summary());
     }
 

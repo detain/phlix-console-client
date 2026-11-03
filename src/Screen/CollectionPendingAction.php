@@ -44,7 +44,18 @@ final class CollectionPendingAction
 
     public function prompt(): string
     {
-        return "Type 'delete' to confirm {$this->action}ing '{$this->collection->name}': ";
+        $name = $this->collection->name === '' ? $this->collection->id : $this->collection->name;
+
+        // [review console__writer CONSOLIDATED M19] the sentence is written
+        // per action like the PlaylistPendingAction sibling: the old
+        // "{$action}ing" suffix built "deleteing" out of the only action
+        // that exists. The echo of $typed is the family's visible contract
+        // (playlist's prompt carries it; without it the user's keystrokes
+        // vanish from a prompt that asks them to type).
+        return match ($this->action) {
+            'delete' => "DELETE collection '{$name}'? This action cannot be undone. Type 'delete' to confirm: " . $this->typed,
+            default => "Confirm action on collection '{$name}'?",
+        };
     }
 
     /** @return array{action: string, collection: MediaItem, typed: string} */

@@ -50,7 +50,13 @@ final readonly class RelayStatus
             return 'Connected';
         }
 
-        return $this->active ? 'Active (not connected)' : 'Disconnected';
+        // [review console__copywriter CONSOLIDATED M20] "Active (not
+        // connected)" contradicts itself the moment you read it — "Active"
+        // was the wrong word for a configured-but-down tunnel: the sibling
+        // status DTOs spell liveness as Running/Stopped (DlnaServerStatus)
+        // or Enabled/Disabled (PortForwardStatus), never both at once. The
+        // state here is ENABLED (config) yet OFFLINE (liveness).
+        return $this->active ? 'Enabled (offline)' : 'Disconnected';
     }
 
     /** A one-line summary for the panel. */
