@@ -22,6 +22,36 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > strictly descending date order (a 2026-10-31-stamped rider written in a
 > later batch sits below 2026-10-30 ones — newest batch on top still wins).
 
+### Changed — cs#48 (owner-authorized): route-manifest CONTENT re-vendor (412→415 tuples) — 2026-11-04
+
+- **cs#48 currency re-vendor — CONTENT regen, console is NOT pure this wave.**
+  `tests/fixtures/server-route-manifest.json` re-vendored byte-identical
+  (cmp-proven) from the `@phlix/contracts` **tag v0.5.6** payload — annotated tag
+  object 9f04fc50, peel/commit **c89c8420cd4d50e51f232885754cb74c92a9e05c**
+  (regen #36 @ phlix-server **58530ec207b0d40c3386ed10215d5bda3eaf54af**),
+  downloaded via codeload; the fixture is md5 90b79e355055307d5ba2cc0ef98e2300
+  (28124 B, 415 `[method, path]` tuples). `ServerRouteManifestGateTest.php`
+  advances its header cite, `EXPECTED_MD5`, `EXPECTED_SERVER_SHA`, the
+  contracts-drift failure message and the three tuple counts
+  (`total`/route-count/unique all RISEN 412→415) in the same commit — the
+  failure-message cite `contracts@430981e` → `contracts@c89c8420` also folds the
+  cosmetic stale-era label the wave-5 check carried. The regen is purely
+  additive: `GET /api/v1/me/history`, `GET /api/v1/servers/{id}` and
+  `GET /api/v1/users/me/history`, none issued by the console — measured at the
+  un-rotated fixture, exactly ONE test reddened (the byte-identical integrity
+  test); the hub-negative partition, the literal-on-param pin and every
+  behavioral control stayed green, so no console-side assert needed a
+  disposition. The client-side inventories are HELD: `SWEEP_TOKEN_COUNTS`
+  (`src/Api/ApiClient.php` = 68), `PER_CLASS_ANCHORS` (67) and
+  `TOTAL_COMPARED` (223) — no console request site moved this wave. The CS46
+  ritual token constant is untouched (cs#47b precedent). `build/phlix.phar` is
+  NOT rebuilt (cs#42–#45 precedent — the gate tolerates the stale phar).
+  Gates: targeted `phpunit --filter ServerRouteManifestGateTest` 12/12 with 285
+  assertions (baseline-exact), `ReadmeTestFixturesDocsTest` 3/3 (path-derived,
+  count-blind), phpstan (tests config) clean on the changed file, phpcs
+  repo-tests standard rc=0 and PSR-12 zero-error (the seven
+  `Generic.Files.LineLength` warnings are a pre-existing non-blocking set).
+
 ### Fixed — derived queue DERIV-CON-1 — the one-door claim in the AdminUser docblock speaks its enumeration — 2026-11-04
 
 - **DERIV-CON-1.** The console mirror of the server's one-door over-claim
