@@ -22,6 +22,22 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > strictly descending date order (a 2026-10-31-stamped rider written in a
 > later batch sits below 2026-10-30 ones — newest batch on top still wins).
 
+### Fixed — derived queue DERIV-CON-1 — the one-door claim in the AdminUser docblock speaks its enumeration — 2026-11-04
+
+- **DERIV-CON-1.** The console mirror of the server's one-door over-claim
+  (REVIEW-SRV-M12 Finding-1; server twin DERIV-SRV-4): the docblock said
+  "every wire-boundary read of a users row" crossed `UserRow::forWire()`
+  while citing only SRV-M12 @ 0a2cb2a5 — at that sha the claim was false,
+  the auth-read envelopes (login/register/refresh//me/quick-connect) still
+  carried `password_reset_token` + `provider_data` until the server's
+  SRV-m43 twin @ d0c948b0 moved `AuthManager::getUser()` behind the same
+  door. The prose now names both anchors, scopes "every" to what the
+  server pins by consumer enumeration (an enumeration fact, not a
+  structural one), and keeps the client-side law honest: the DTO declares
+  no property for a redacted column and never populated one. Docs-only;
+  gates targeted (AdminUser/AdminClient/AdminUsersScreen filter, phpstan +
+  phpcs on the changed file).
+
 ### Deferred advance — review minor m44 (in-range half) — the lock catches up inside its declared ranges; the tag-pin half still waits on upstream — 2026-11-03
 
 - **m44.** The 2026-11-03 deferral entry below stands (verbatim-history law);

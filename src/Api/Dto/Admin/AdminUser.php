@@ -14,14 +14,18 @@ use Phlix\Console\Api\Dto\Coerce;
 /**
  * One row of the admin user list, mirroring an item of
  * `GET /api/v1/admin/users` → `{users: User[]}`. The server no longer ships
- * the raw `users` table row here: every wire-boundary read of a users row
- * passes through its single redaction door, `UserRow::forWire()` (phlix-server
- * `src/Auth/Dto/UserRow.php`, SRV-M12 @ 0a2cb2a5), so `password_hash`,
- * `password_reset_token` and `provider_data` NEVER appear in `$data` — the
- * listing is redacted at the repository source and the `GET …/{id}` detail
- * at the controller. Server-side the auth lookups deliberately keep the raw
- * row (`password_verify()` needs the hash); only redacted rows cross the
- * wire. The remaining keys are the DB columns: `id, username, email,
+ * the raw `users` table row here: every users-row wire surface the server
+ * enumerates passes through its single redaction door, `UserRow::forWire()`
+ * (phlix-server `src/Auth/Dto/UserRow.php`: the admin listing at the
+ * repository source and the `GET …/{id}` detail at the controller —
+ * SRV-M12 @ 0a2cb2a5 — joined by the login/register/refresh/`/me`/
+ * quick-connect envelopes at the auth-read twin — SRV-m43 @ d0c948b0), so
+ * `password_hash`, `password_reset_token` and `provider_data` NEVER appear
+ * in `$data`. Server-side the raw auth lookups deliberately keep the hash
+ * (`password_verify()` needs it); "every surface" is an enumeration fact
+ * the server pins by consumer census, not a structural one — before
+ * d0c948b0 the auth envelopes were the leak the review named. The
+ * remaining keys are the DB columns: `id, username, email,
  * is_admin (TINYINT 0/1), status, created_at, last_login` (plus
  * `display_name`, `updated_at`, `avatar_url`, and non-credential
  * account-state columns like `must_change_password`). This DTO declares no
