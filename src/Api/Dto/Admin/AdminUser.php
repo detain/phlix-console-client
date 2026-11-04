@@ -19,7 +19,7 @@ use Phlix\Console\Api\Dto\Coerce;
  * (phlix-server `src/Auth/Dto/UserRow.php`: the admin listing at the
  * repository source and the `GET …/{id}` detail at the controller —
  * SRV-M12 @ 0a2cb2a5 — joined by the login/register/refresh/`/me`/
- * quick-connect envelopes at the auth-read twin — SRV-m43 @ d0c948b0), so
+ * quick-connect/profile-switch envelopes at the auth-read twin — SRV-m43 @ d0c948b0), so
  * `password_hash`, `password_reset_token` and `provider_data` NEVER appear
  * in `$data`. Server-side the raw auth lookups deliberately keep the hash
  * (`password_verify()` needs it); "every surface" is an enumeration fact
