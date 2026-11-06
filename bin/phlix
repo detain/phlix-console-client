@@ -29,7 +29,10 @@ usage:
 
 render modes:
   halfblock | quarterblock | ascii | ansi256 | truecolor (cell modes)
-  sixel | kitty | iterm2 (graphics modes)   auto = detected best (default)
+  sixel | kitty | iterm2 (graphics modes)
+  auto (default): run/poster = the universal half-block cell renderer — no
+  terminal probe; pick a graphics mode explicitly.  frame = best detected
+  (sugar-video probe)
   run/poster only: aliases half | ansi | quarter | chafa (sugar-image)
   forms: --mode=NAME, --mode NAME, or a bare NAME as the last argument
   (run, poster, frame); frame takes the nine canonical names only

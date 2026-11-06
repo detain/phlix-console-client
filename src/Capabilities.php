@@ -17,9 +17,13 @@ use SugarCraft\ColorProfile\Probe;
  * (sixel / kitty / iTerm2 / half-block) and the color depth — and turns it into
  * a human-readable report.
  *
- * Drives `phlix doctor` and the default render-mode choice at startup. Uses
- * {@see Mosaic::auto()} which never throws (it falls back to half-block on a
- * terminal with no graphics protocol).
+ * Drives `phlix doctor` only [review console__tuispec i4]: this is a
+ * capability survey, not the app's render-mode choice. The startup default is
+ * NOT picked here — {@see \Phlix\Console\Media\MosaicFactory} maps null/auto
+ * straight to the universal half-block cell renderer without probing (the
+ * probe was retired, CONSOLIDATED M17); graphics protocols are an explicit
+ * --mode away. The report's {@see Mosaic::auto()} probe never throws (it falls
+ * back to half-block on a terminal with no graphics protocol).
  */
 final class Capabilities
 {
@@ -63,6 +67,9 @@ final class Capabilities
             sprintf('    kitty     : %s', $yn($d['kitty'])),
             sprintf('    iterm2    : %s', $yn($d['iterm2'])),
             sprintf('    halfblock : %s', $yn($d['halfblock'])),
+            '',
+            '  Capability survey only — `phlix run`/`phlix poster` render with',
+            '  the universal half-block cell mode unless you pass --mode.',
         ]);
     }
 }

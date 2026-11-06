@@ -7,9 +7,11 @@ namespace Phlix\Console\Tests\Screen;
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\Hub\HubClient;
 use Phlix\Console\Config\TokenBundle;
+use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\SharedWithMeActionDoneMsg;
 use Phlix\Console\Msg\SharedWithMeFailedMsg;
 use Phlix\Console\Msg\SharedWithMeLoadedMsg;
+use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Screen\SharedWithMeScreen;
 use Phlix\Console\Tests\Api\FakeTransport;
 use Phlix\Console\Tests\Support\RunCountingLoopSpy;
@@ -18,9 +20,11 @@ use React\EventLoop\Loop;
 use React\EventLoop\StreamSelectLoop;
 use React\Promise\PromiseInterface;
 use SugarCraft\Core\AsyncCmd;
+use SugarCraft\Core\BatchMsg;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg;
+use SugarCraft\Core\Msg\WindowSizeMsg;
 
 /**
  * M-CONSOLE-36 contract for SharedWithMeScreen: hub work rides the OUTER
@@ -29,16 +33,29 @@ use SugarCraft\Core\Msg\KeyMsg;
  * closures inside the already-running global loop, and the shared
  * StreamSelectLoop has no re-entry guard (the nested drain's stop() kills
  * the app pump).
+ *
+ * CU-005 [review console__uxdesign C1] added the frame/render laws the first
+ * cut never had (it shipped view() returning '') and moved every fixture onto
+ * the hub's ACTUAL wire shapes: the list is the federation incoming-offers
+ * resource the accept/reject verbs answer (`{incoming_offers: [...]}` rows
+ * keyed by `id`), not the fabricated `{shares: [...]}` envelope the old parse
+ * read forever-empty.
  */
 final class SharedWithMeScreenTest extends TestCase
 {
-    /** @return list<array<string, mixed>> */
+    /** @return list<array<string, mixed>> federation incoming-offer rows (hub FederationController::getIncomingOffers shape) */
     private function sharesPayload(): array
     {
         return [
-            ['id' => 'share-1', 'server_name' => 'Alpha'],
-            ['id' => 'share-2', 'server_name' => 'Beta'],
+            ['id' => 'share-1', 'peer_id' => 'hub-alpha', 'library_name' => 'Movies', 'permission' => 'read', 'status' => 'pending'],
+            ['id' => 'share-2', 'peer_id' => 'hub-beta', 'library_name' => 'Music', 'permission' => 'read', 'status' => 'pending'],
         ];
+    }
+
+    /** @param list<array<string, mixed>> $offers */
+    private function offersEnvelope(array $offers): array
+    {
+        return ['incoming_offers' => $offers];
     }
 
     private function screenWith(FakeTransport $transport): SharedWithMeScreen
@@ -63,7 +80,7 @@ final class SharedWithMeScreenTest extends TestCase
 
     public function testInitReturnsAnAsyncCmdRidingTheOuterLoop(): void
     {
-        $transport = (new FakeTransport())->json(200, ['shares' => $this->sharesPayload()]);
+        $transport = (new FakeTransport())->json(200, $this->offersEnvelope($this->sharesPayload()));
         $screen = $this->screenWith($transport);
 
         $outcome = ($screen->init())();
@@ -74,20 +91,29 @@ final class SharedWithMeScreenTest extends TestCase
         self::assertInstanceOf(SharedWithMeLoadedMsg::class, $msg);
         self::assertSame($this->sharesPayload(), $msg->shares);
         self::assertSame('GET', $transport->lastRequest()['method']);
-        self::assertStringContainsString('/api/v1/me/shares', $transport->lastRequest()['url']);
+        // The list rides the SAME resource family as the accept/reject verbs
+        // [review console__uxdesign C1] — not the fabricated /me/shares rail.
+        self::assertStringContainsString('/api/v1/me/federation/library-shares/incoming', $transport->lastRequest()['url']);
     }
 
     public function testUpdateRoutesPayloadMsgsBackIntoTheModel(): void
     {
-        $screen = $this->screenWith((new FakeTransport())->json(200, ['shares' => []]));
+        // CU-005 clone-mutate law [review console__srphp M1]: payloads land on
+        // a NEW model; the old in-place mutation (assertSame) is the bug.
+        $screen = $this->screenWith((new FakeTransport())->json(200, $this->offersEnvelope([])));
 
         [$next, $cmd] = $screen->update(new SharedWithMeLoadedMsg($this->sharesPayload()));
-        self::assertSame($screen, $next);
+        self::assertNotSame($screen, $next, 'the screen is immutable: a payload lands on a clone');
         self::assertNull($cmd);
+        self::assertFalse($next->isLoading());
+        self::assertNull($next->error());
+        self::assertSame($this->sharesPayload(), $next->items());
 
-        [$afterFailed, $failedCmd] = $screen->update(new SharedWithMeFailedMsg('nope'));
-        self::assertSame($screen, $afterFailed);
+        [$afterFailed, $failedCmd] = $next->update(new SharedWithMeFailedMsg('nope'));
+        self::assertNotSame($next, $afterFailed);
         self::assertNull($failedCmd);
+        self::assertSame('nope', $afterFailed->error());
+        self::assertFalse($afterFailed->isLoading());
     }
 
     public function testFetchFailureResolvesAFailedMsg(): void
@@ -103,12 +129,86 @@ final class SharedWithMeScreenTest extends TestCase
         self::assertStringNotContainsString('boom', $msg->message);
     }
 
+    // ---- frame rendering (CU-005: the blank-view cure) ---------------------
+
+    public function testViewRendersLoadingThenListWithCursorAndNeverABlankFrame(): void
+    {
+        $screen = $this->screenWith((new FakeTransport())->json(200, $this->offersEnvelope([])));
+        self::assertStringContainsString('Loading shared libraries', $screen->view(), 'a fresh screen shows its spinner state, not a blank frame');
+
+        [$loaded] = $screen->update(new SharedWithMeLoadedMsg($this->sharesPayload()));
+        $view = $loaded->view();
+        self::assertStringContainsString('Shared With Me', $view);
+        self::assertStringContainsString('Movies', $view, 'offer rows render their library names');
+        self::assertStringContainsString('Music', $view);
+        self::assertStringContainsString('▶', $view, 'the cursor renders on the selected row');
+    }
+
+    public function testViewDisclosesTheFailureSentenceAndTheEmptyState(): void
+    {
+        $screen = $this->screenWith((new FakeTransport())->json(200, $this->offersEnvelope([])));
+
+        [$failed] = $screen->update(new SharedWithMeFailedMsg('Could not reach the server.'));
+        self::assertStringContainsString('Could not reach the server', $failed->view(), 'the swallow-the-error bug is dead: failures render');
+
+        [$empty] = $screen->update(new SharedWithMeLoadedMsg([]));
+        self::assertStringContainsString('Nothing is waiting for you here', $empty->view(), 'the empty state says so instead of vanishing');
+    }
+
+    public function testWindowSizeResizesTheFrame(): void
+    {
+        $screen = $this->screenWith((new FakeTransport())->json(200, $this->offersEnvelope([])));
+
+        [$next, $cmd] = $screen->update(new WindowSizeMsg(120, 40));
+
+        self::assertNotSame($screen, $next);
+        self::assertNull($cmd);
+        self::assertStringContainsString('Loading shared libraries', $next->view());
+    }
+
+    // ---- keyboard ----------------------------------------------------------
+
+    public function testEscapeIsRoutedByKeyTypeNotRune(): void
+    {
+        // [review console__docmaint m4] the vendored KeyMsg carries rune '' for
+        // Escape; the old rune-match arm was dead code. Escape must navigate
+        // back off the frame on the TYPE alone.
+        $screen = $this->screenWith((new FakeTransport())->json(200, $this->offersEnvelope([])));
+
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Escape));
+        self::assertNotNull($cmd);
+        self::assertInstanceOf(NavigateBackMsg::class, $cmd());
+
+        [, $qCmd] = $screen->update(new KeyMsg(KeyType::Char, 'q'));
+        self::assertInstanceOf(NavigateBackMsg::class, $qCmd());
+    }
+
+    public function testArrowsMoveTheCursorAndRowsFollow(): void
+    {
+        // [review console__uxdesign C1] selectedIndex never moved at all in the
+        // first cut — every accept answered row 0 no matter where you looked.
+        $screen = $this->screenWith((new FakeTransport())->json(200, $this->offersEnvelope([])));
+        [$loaded] = $screen->update(new SharedWithMeLoadedMsg($this->sharesPayload()));
+
+        [$down] = $loaded->update(new KeyMsg(KeyType::Down));
+        self::assertSame(1, $down->selectedIndex(), 'Down moves the cursor');
+        self::assertStringContainsString('▶ Music', $down->view());
+
+        [$up] = $down->update(new KeyMsg(KeyType::Up));
+        self::assertSame(0, $up->selectedIndex(), 'Up moves it back');
+
+        [$viaJ] = $loaded->update(new KeyMsg(KeyType::Char, 'j'));
+        self::assertSame(1, $viaJ->selectedIndex(), 'vim j mirrors Down');
+        [$viaK] = $viaJ->update(new KeyMsg(KeyType::Char, 'k'));
+        self::assertSame(0, $viaK->selectedIndex(), 'vim k mirrors Up');
+    }
+
     // ---- accept / reject ---------------------------------------------------
 
     public function testAcceptKeyReturnsAnAsyncCmdResolvingTheDoneMsg(): void
     {
         $transport = (new FakeTransport())
-            ->json(200, ['shares' => $this->sharesPayload()])
+            ->json(200, $this->offersEnvelope($this->sharesPayload()))
             ->json(200, ['message' => 'ok']);
         $screen = $this->loaded($transport);
 
@@ -124,12 +224,31 @@ final class SharedWithMeScreenTest extends TestCase
         self::assertStringContainsString('/library-shares/incoming/share-1/accept', $transport->lastRequest()['url']);
     }
 
+    public function testDoneMsgToastsAndReReadsTheServerList(): void
+    {
+        // CU-005: the action result must become VISIBLE (toast) and the list
+        // must be re-read from the hub — the server owns what stays pending.
+        $transport = (new FakeTransport())->json(200, $this->offersEnvelope([]));
+        $screen = $this->screenWith($transport);
+
+        [$after, $cmd] = $screen->update(new SharedWithMeActionDoneMsg('accepted'));
+        self::assertNotSame($screen, $after);
+        self::assertTrue($after->isLoading(), 'the re-read arms the spinner');
+        self::assertNotNull($cmd);
+
+        $batch = $cmd();
+        self::assertInstanceOf(BatchMsg::class, $batch);
+        self::assertCount(2, $batch->cmds, 'toast + refetch ride one batch');
+        self::assertInstanceOf(ShowToastMsg::class, ($batch->cmds[0])());
+        self::assertStringContainsString('accepted', strtolower((string) (($batch->cmds[0])())->message));
+    }
+
     public function testRejectKeyResolvesTheDoneMsgAndFailureMapsToFailedMsg(): void
     {
         $transport = (new FakeTransport())
-            ->json(200, ['shares' => $this->sharesPayload()])
+            ->json(200, $this->offersEnvelope($this->sharesPayload()))
             ->json(200, ['message' => 'ok'])
-            ->json(200, ['shares' => $this->sharesPayload()])
+            ->json(200, $this->offersEnvelope($this->sharesPayload()))
             ->fail(new \RuntimeException('denied'));
         $screen = $this->loaded($transport);
 
@@ -149,7 +268,7 @@ final class SharedWithMeScreenTest extends TestCase
 
     public function testActionKeysWithoutLoadedSharesAreNoops(): void
     {
-        $screen = $this->screenWith((new FakeTransport())->json(200, ['shares' => []]));
+        $screen = $this->screenWith((new FakeTransport())->json(200, $this->offersEnvelope([])));
 
         [, $acceptCmd] = $screen->update(new KeyMsg(KeyType::Char, 'a'));
         [, $rejectCmd] = $screen->update(new KeyMsg(KeyType::Char, 'r'));
@@ -168,7 +287,7 @@ final class SharedWithMeScreenTest extends TestCase
      */
     public function testInitCommandNeverReEntersTheLoopRun(): void
     {
-        $transport = (new FakeTransport())->json(200, ['shares' => $this->sharesPayload()]);
+        $transport = (new FakeTransport())->json(200, $this->offersEnvelope($this->sharesPayload()));
         $screen = $this->screenWith($transport);
         $cmd = $screen->init();
 

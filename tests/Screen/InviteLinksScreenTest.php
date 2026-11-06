@@ -11,6 +11,8 @@ use Phlix\Console\Msg\InviteLinkCreatedMsg;
 use Phlix\Console\Msg\InviteLinkRevokedMsg;
 use Phlix\Console\Msg\InviteLinksFailedMsg;
 use Phlix\Console\Msg\InviteLinksLoadedMsg;
+use Phlix\Console\Msg\NavigateBackMsg;
+use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Screen\InviteLinksScreen;
 use Phlix\Console\Tests\Api\FakeTransport;
 use Phlix\Console\Tests\Support\RunCountingLoopSpy;
@@ -19,9 +21,11 @@ use React\EventLoop\Loop;
 use React\EventLoop\StreamSelectLoop;
 use React\Promise\PromiseInterface;
 use SugarCraft\Core\AsyncCmd;
+use SugarCraft\Core\BatchMsg;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg;
+use SugarCraft\Core\Msg\WindowSizeMsg;
 
 /**
  * M-CONSOLE-36 contract for InviteLinksScreen: hub work rides the OUTER
@@ -30,15 +34,29 @@ use SugarCraft\Core\Msg\KeyMsg;
  * closures inside the already-running global loop, and the shared
  * StreamSelectLoop has no re-entry guard (the nested drain's stop() kills
  * the app pump).
+ *
+ * CU-005 [review console__uxdesign C1] added the frame/render laws the first
+ * cut never had (it shipped view() returning '') and moved every fixture onto
+ * the hub's ACTUAL wire shapes: the list envelope is `{invite_links: [...]}`
+ * (the old `inviteLinks` key was fabricated and parsed empty forever), rows
+ * are `{id, url, permission, max_uses, use_count, ...}` — there is no `code`
+ * key on the wire — and create resolves the server's flat 201 row instead of
+ * the screen inventing an empty placeholder.
  */
 final class InviteLinksScreenTest extends TestCase
 {
-    /** @return list<array<string, mixed>> */
+    /** @return list<array<string, mixed>> invite-link rows (hub InviteLink::toPayload shape) */
     private function linksPayload(): array
     {
         return [
-            ['id' => 'inv-1', 'code' => 'ABCD', 'url' => 'https://hub/accept-invite/ABCD'],
+            ['id' => 'inv-1', 'url' => 'https://hub/accept-invite/ABCD', 'permission' => 'read', 'max_uses' => 5, 'use_count' => 0],
         ];
+    }
+
+    /** @param list<array<string, mixed>> $links */
+    private function linksEnvelope(array $links): array
+    {
+        return ['invite_links' => $links];
     }
 
     private function screenWith(FakeTransport $transport): InviteLinksScreen
@@ -63,7 +81,7 @@ final class InviteLinksScreenTest extends TestCase
 
     public function testInitReturnsAnAsyncCmdRidingTheOuterLoop(): void
     {
-        $transport = (new FakeTransport())->json(200, ['inviteLinks' => $this->linksPayload()]);
+        $transport = (new FakeTransport())->json(200, $this->linksEnvelope($this->linksPayload()));
         $screen = $this->screenWith($transport);
 
         $outcome = ($screen->init())();
@@ -79,15 +97,22 @@ final class InviteLinksScreenTest extends TestCase
 
     public function testUpdateRoutesPayloadMsgsBackIntoTheModel(): void
     {
-        $screen = $this->screenWith((new FakeTransport())->json(200, ['inviteLinks' => []]));
+        // CU-005 clone-mutate law [review console__srphp M1]: payloads land on
+        // a NEW model; the old in-place mutation (assertSame) is the bug.
+        $screen = $this->screenWith((new FakeTransport())->json(200, $this->linksEnvelope([])));
 
         [$next, $cmd] = $screen->update(new InviteLinksLoadedMsg($this->linksPayload()));
-        self::assertSame($screen, $next);
+        self::assertNotSame($screen, $next, 'the screen is immutable: a payload lands on a clone');
         self::assertNull($cmd);
+        self::assertFalse($next->isLoading());
+        self::assertNull($next->error());
+        self::assertSame($this->linksPayload(), $next->items());
 
-        [$afterFailed, $failedCmd] = $screen->update(new InviteLinksFailedMsg('nope'));
-        self::assertSame($screen, $afterFailed);
+        [$afterFailed, $failedCmd] = $next->update(new InviteLinksFailedMsg('nope'));
+        self::assertNotSame($next, $afterFailed);
         self::assertNull($failedCmd);
+        self::assertSame('nope', $afterFailed->error());
+        self::assertFalse($afterFailed->isLoading());
     }
 
     public function testFetchFailureResolvesAFailedMsg(): void
@@ -106,11 +131,86 @@ final class InviteLinksScreenTest extends TestCase
         self::assertStringNotContainsString('boom', $msg->message);
     }
 
+    // ---- frame rendering (CU-005: the blank-view cure) ---------------------
+
+    public function testViewRendersLoadingThenListWithCursorAndNeverABlankFrame(): void
+    {
+        $screen = $this->screenWith((new FakeTransport())->json(200, $this->linksEnvelope([])));
+        self::assertStringContainsString('Loading invite links', $screen->view(), 'a fresh screen shows its spinner state, not a blank frame');
+
+        [$loaded] = $screen->update(new InviteLinksLoadedMsg($this->linksPayload()));
+        $view = $loaded->view();
+        self::assertStringContainsString('Invite Links', $view);
+        self::assertStringContainsString('https://hub/accept-invite/ABCD', $view, 'rows render the invite URL the hub actually sends');
+        self::assertStringContainsString('0/5 used', $view, 'use counters ride the row');
+        self::assertStringContainsString('▶', $view, 'the cursor renders on the selected row');
+    }
+
+    public function testViewDisclosesTheFailureSentenceAndTheEmptyState(): void
+    {
+        $screen = $this->screenWith((new FakeTransport())->json(200, $this->linksEnvelope([])));
+
+        [$failed] = $screen->update(new InviteLinksFailedMsg('Could not reach the server.'));
+        self::assertStringContainsString('Could not reach the server', $failed->view(), 'the swallow-the-error bug is dead: failures render');
+
+        [$empty] = $screen->update(new InviteLinksLoadedMsg([]));
+        self::assertStringContainsString('No invite links yet', $empty->view(), 'the empty state says so instead of vanishing');
+    }
+
+    public function testWindowSizeResizesTheFrame(): void
+    {
+        $screen = $this->screenWith((new FakeTransport())->json(200, $this->linksEnvelope([])));
+
+        [$next, $cmd] = $screen->update(new WindowSizeMsg(120, 40));
+
+        self::assertNotSame($screen, $next);
+        self::assertNull($cmd);
+        self::assertStringContainsString('Loading invite links', $next->view());
+    }
+
+    // ---- keyboard ----------------------------------------------------------
+
+    public function testEscapeIsRoutedByKeyTypeNotRune(): void
+    {
+        // [review console__docmaint m4] the vendored KeyMsg carries rune '' for
+        // Escape; the old rune-match arm was dead code. Escape must navigate
+        // back off the frame on the TYPE alone.
+        $screen = $this->screenWith((new FakeTransport())->json(200, $this->linksEnvelope([])));
+
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Escape));
+        self::assertNotNull($cmd);
+        self::assertInstanceOf(NavigateBackMsg::class, $cmd());
+
+        [, $qCmd] = $screen->update(new KeyMsg(KeyType::Char, 'q'));
+        self::assertInstanceOf(NavigateBackMsg::class, $qCmd());
+    }
+
+    public function testArrowsMoveTheCursor(): void
+    {
+        // [review console__uxdesign C1] selectedIndex never moved at all in the
+        // first cut — revoke always hit row 0 no matter where you looked.
+        $transport = (new FakeTransport())->json(200, $this->linksEnvelope([]));
+        [$screen] = $this->screenWith($transport)->update(new InviteLinksLoadedMsg([
+            ['id' => 'inv-1', 'url' => 'https://hub/accept-invite/AAAA'],
+            ['id' => 'inv-2', 'url' => 'https://hub/accept-invite/BBBB'],
+        ]));
+
+        [$down] = $screen->update(new KeyMsg(KeyType::Down));
+        self::assertSame(1, $down->selectedIndex(), 'Down moves the cursor');
+
+        [$up] = $down->update(new KeyMsg(KeyType::Up));
+        self::assertSame(0, $up->selectedIndex(), 'Up moves it back');
+    }
+
     // ---- create / revoke ---------------------------------------------------
 
     public function testCreateKeyReturnsAnAsyncCmdResolvingTheCreatedMsg(): void
     {
-        $transport = (new FakeTransport())->json(200, ['message' => 'invite created']);
+        // The hub's 201 carries the created link FLAT; the msg must carry that
+        // parsed row, not a screen-fabricated empty placeholder [review
+        // console__uxdesign C1].
+        $created = ['id' => 'inv-9', 'url' => 'https://hub/accept-invite/WXYZ', 'permission' => 'read', 'max_uses' => 1, 'use_count' => 0];
+        $transport = (new FakeTransport())->json(201, $created);
         $screen = $this->screenWith($transport);
 
         [, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'c'));
@@ -120,16 +220,47 @@ final class InviteLinksScreenTest extends TestCase
 
         $msg = $this->await($outcome->promise);
         self::assertInstanceOf(InviteLinkCreatedMsg::class, $msg);
+        self::assertSame($created, $msg->link, 'the created row crosses the boundary parsed');
         self::assertSame('POST', $transport->lastRequest()['method']);
         self::assertStringContainsString('/api/v1/me/invite-links', $transport->lastRequest()['url']);
+    }
+
+    public function testCreatedMsgToastsAndReReadsTheServerList(): void
+    {
+        $transport = (new FakeTransport())->json(200, $this->linksEnvelope([]));
+        $screen = $this->screenWith($transport);
+
+        [$after, $cmd] = $screen->update(new InviteLinkCreatedMsg(['id' => 'inv-9']));
+        self::assertNotSame($screen, $after);
+        self::assertTrue($after->isLoading(), 'the re-read arms the spinner');
+
+        $batch = $cmd();
+        self::assertInstanceOf(BatchMsg::class, $batch);
+        self::assertCount(2, $batch->cmds, 'toast + refetch ride one batch');
+        self::assertInstanceOf(ShowToastMsg::class, ($batch->cmds[0])());
+    }
+
+    public function testRevokedMsgToastsAndReReadsTheServerList(): void
+    {
+        $transport = (new FakeTransport())->json(200, $this->linksEnvelope([]));
+        $screen = $this->screenWith($transport);
+
+        [$after, $cmd] = $screen->update(new InviteLinkRevokedMsg());
+        self::assertNotSame($screen, $after);
+        self::assertTrue($after->isLoading());
+
+        $batch = $cmd();
+        self::assertInstanceOf(BatchMsg::class, $batch);
+        self::assertCount(2, $batch->cmds, 'toast + refetch ride one batch');
+        self::assertInstanceOf(ShowToastMsg::class, ($batch->cmds[0])());
     }
 
     public function testRevokeKeyResolvesTheRevokedMsgAndFailureMapsToFailedMsg(): void
     {
         $transport = (new FakeTransport())
-            ->json(200, ['inviteLinks' => $this->linksPayload()])
+            ->json(200, $this->linksEnvelope($this->linksPayload()))
             ->json(200, ['message' => 'revoked'])
-            ->json(200, ['inviteLinks' => $this->linksPayload()])
+            ->json(200, $this->linksEnvelope($this->linksPayload()))
             ->fail(new \RuntimeException('gone'));
         $screen = $this->loaded($transport);
 
@@ -150,7 +281,7 @@ final class InviteLinksScreenTest extends TestCase
 
     public function testRevokeWithoutLoadedLinksIsANoop(): void
     {
-        $screen = $this->screenWith((new FakeTransport())->json(200, ['inviteLinks' => []]));
+        $screen = $this->screenWith((new FakeTransport())->json(200, $this->linksEnvelope([])));
 
         [, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'r'));
 
@@ -167,7 +298,7 @@ final class InviteLinksScreenTest extends TestCase
      */
     public function testInitCommandNeverReEntersTheLoopRun(): void
     {
-        $transport = (new FakeTransport())->json(200, ['inviteLinks' => $this->linksPayload()]);
+        $transport = (new FakeTransport())->json(200, $this->linksEnvelope($this->linksPayload()));
         $screen = $this->screenWith($transport);
         $cmd = $screen->init();
 

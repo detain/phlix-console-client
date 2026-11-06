@@ -34,6 +34,7 @@ use Phlix\Console\Msg\OpenLibraryMsg;
 use Phlix\Console\Msg\OpenPlaylistsMsg;
 use Phlix\Console\Msg\OpenWatchHistoryMsg;
 use Phlix\Console\Msg\PosterLoadedMsg;
+use Phlix\Console\Msg\RequestQuitMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Msg\ShufflePlayFailedMsg;
@@ -550,8 +551,12 @@ final class BrowseScreen implements Breadcrumbed, Themed
     /** @return array{self, ?\Closure} */
     private function handleKey(KeyMsg $msg): array
     {
+        // Esc / q → quit, routed through the App's RequestQuitMsg chokepoint
+        // [review console__qa C1]: a bare Cmd::quit() here would close the
+        // Program WITHOUT teardownForExit(), orphaning any App-owned audio
+        // subprocess — the ghost-audio leak this arm used to be.
         if ($msg->type === KeyType::Escape || ($msg->type === KeyType::Char && $msg->rune === 'q')) {
-            return [$this, Cmd::quit()];
+            return [$this, Cmd::send(new RequestQuitMsg())];
         }
         if ($msg->type === KeyType::Tab) {
             // The rails are collapsed — there is nothing to tab to, and a

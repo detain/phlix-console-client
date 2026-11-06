@@ -898,6 +898,47 @@ final class AppTest extends TestCase
         self::assertSame(1, $screen->teardownCalls);
     }
 
+    public function testTeardownForExitWalksTheWholeStack(): void
+    {
+        // [review console__qa C2] the palette pushes its target ON TOP of the
+        // player, so at quit time the Teardownable frame is routinely buried,
+        // not on top. A top-only tear leaked the buried player's ffmpeg/ffplay
+        // on every quit path; the walk must reach every frame. Concrete
+        // teardowns self-guard, and the spy counts raw calls, so 1 = reached
+        // (parent: the buried spy got 0 — red-on-parent).
+        $buried = new SpyTeardownScreen();
+        $bottom = new SpyTeardownScreen();
+        $top = new SpyTeardownScreen();
+        $app = $this->appWithStack([
+            ['route' => Route::Browse, 'screen' => $bottom],
+            ['route' => Route::Player, 'screen' => $buried],
+            ['route' => Route::Settings, 'screen' => $top],
+        ]);
+
+        $app->teardownForExit();
+
+        self::assertSame(1, $buried->teardownCalls, 'the buried player is torn down, not leaked');
+        self::assertSame(1, $bottom->teardownCalls);
+        self::assertSame(1, $top->teardownCalls);
+    }
+
+    public function testCtrlCQuitTearsDownABuriedPlayer(): void
+    {
+        // The same law through the keyboard quit arm: Ctrl-C reaches every
+        // frame via teardownForExit before the QuitMsg leaves.
+        $buried = new SpyTeardownScreen();
+        $app = $this->appWithStack([
+            ['route' => Route::Browse, 'screen' => new SpyTeardownScreen()],
+            ['route' => Route::Player, 'screen' => $buried],
+            ['route' => Route::Settings, 'screen' => new SpyTeardownScreen()],
+        ]);
+
+        [, $cmd] = $app->update(new KeyMsg(KeyType::Char, 'c', ctrl: true));
+
+        self::assertInstanceOf(QuitMsg::class, $cmd?->__invoke());
+        self::assertSame(1, $buried->teardownCalls);
+    }
+
     public function testArmSignalTeardownInstallsModelTearingHandlersOnInit(): void
     {
         // [review M1] `pkill phlix` / a closed terminal must tear the model's

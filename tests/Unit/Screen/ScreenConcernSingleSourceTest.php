@@ -36,6 +36,18 @@ use RuntimeException;
  *     owners — consolidation lanes may only rotate the baseline DOWNWARD, from
  *     a measured red, exactly like the estate census pins.
  *
+ * CU-005 hub-screen wave (measured rotation, this lane): the rewritten
+ * SharedWithMe/InviteLinks screens PEELLED seven dead two-copy families
+ * (the old twin-interface theme(), the lying withCrumbs:2913492d87d3 no-op,
+ * the blank view:1a5a675a1be7 pair, back/fetchFailed/manual-subscriptions and
+ * the old ctor pair — dropped from the map), JOINED six canonical accessor
+ * families by carrying the repo-standard shapes (error/isLoading/items/
+ * selectedIndex/withCrumbs/withSelectedIndex, +2 sites each), and added two
+ * NEW cohorts the map now pins: the hub-frame __construct (HubClient, cols,
+ * rows) pair and the pending() in-flight-clone pair — named here as follow-up
+ * debt for the next hub-list screen (FederationSharesScreen, sibling lane) to
+ * absorb into a concern.
+ *
  * Red-on-parent law: on the pre-M37 tree, guard 1 fails (37 copies, no trait
  * files) and guard 2 fails (pinned map post-dates the extraction).
  */
@@ -64,13 +76,12 @@ final class ScreenConcernSingleSourceTest extends TestCase
      * @var array<string, int>
      */
     private const DUPLICATE_BASELINE = [
-        '__construct:57a5d6e63f58' => 2,
+        '__construct:6c37938acb1a' => 2,
         '__construct:7301c5ce50ce' => 4,
         '__construct:9c6e4b19ba43' => 2,
         '__construct:b26a51baffce' => 16,
         'afterGridChange:a62bcdf89148' => 2,
         'albumsByIndex:4243b72bcb43' => 2,
-        'back:e9beed0e694f' => 2,
         'body:d42ac500ba2c' => 4,
         'cancelPending:d8b7acf66da9' => 2,
         'closeEdit:3d3de328ffc8' => 2,
@@ -83,14 +94,13 @@ final class ScreenConcernSingleSourceTest extends TestCase
         'crumbLabel:d5115694604e' => 3,
         'editingKey:c8c0a39d4bcf' => 2,
         'entries:3e32494a5a8d' => 2,
-        'error:3beed84b7ad0' => 37,
+        'error:3beed84b7ad0' => 39,
         'fetchAhead:fee10b3c9dfb' => 4,
-        'fetchFailed:51d1517582bd' => 2,
         'formError:dec963054647' => 2,
         'grid:fb0b34ba4cae' => 5,
         'handleKey:244bd4b60486' => 2,
-        'handleKey:51a5114f65b1' => 2,
         'handleKey:4f45b9e8b740' => 3,
+        'handleKey:51a5114f65b1' => 2,
         'handleKey:ebe97b2a3954' => 2,
         'handleKey:f4e2417c460b' => 2,
         'hasHero:1152db42ad5e' => 2,
@@ -111,9 +121,9 @@ final class ScreenConcernSingleSourceTest extends TestCase
         'isEditing:4b72f14022a8' => 2,
         'isEditing:7de7a84db62b' => 2,
         'isLoaded:4f7293604f52' => 24,
-        'isLoading:0b9adf92891c' => 9,
+        'isLoading:0b9adf92891c' => 11,
         'isLoading:397ff32d7077' => 3,
-        'items:149b6d301cf3' => 5,
+        'items:149b6d301cf3' => 7,
         'loadCover:4624ad4adcaa' => 2,
         'loadVisibleCovers:b1fc5c5e7cbc' => 2,
         'moveSelection:0f67a05eea92' => 2,
@@ -124,6 +134,7 @@ final class ScreenConcernSingleSourceTest extends TestCase
         'onResize:b6f335f72dd2' => 3,
         'openCreate:bc4e36b2a15d' => 2,
         'openSelected:c734f547b2f3' => 3,
+        'pending:d1ad2ab00e24' => 2,
         'pollEpoch:ee834455d131' => 2,
         'query:ccb55d034c21' => 2,
         'refresh:0e361c8648b5' => 3,
@@ -132,17 +143,14 @@ final class ScreenConcernSingleSourceTest extends TestCase
         'renderItem:ef5d5e4e1161' => 2,
         'selectedAlbum:33302c7a0a82' => 2,
         'selectedIndex:47e270ff73c1' => 18,
-        'selectedIndex:fa97ddbb435c' => 9,
+        'selectedIndex:fa97ddbb435c' => 11,
         'statusLine:deaf070d4e3d' => 2,
-        'subscriptions:2182a203523a' => 2,
         'teardown:145ee1b308bc' => 5,
-        'theme:61420ee16bc0' => 2,
         'total:86673e3933c3' => 3,
         'update:1bbbc8158a55' => 2,
         'update:b40497285a79' => 2,
         'updateForm:4d71c619238d' => 2,
         'view:0f8763f5dde2' => 2,
-        'view:1a5a675a1be7' => 2,
         'view:74abae5c3026' => 2,
         'viewportCols:af50dbe7fc01' => 5,
         'viewportRows:6c964e2db665' => 3,
@@ -150,8 +158,7 @@ final class ScreenConcernSingleSourceTest extends TestCase
         'viewportRows:7d2dd319cbef' => 4,
         'viewportRows:9330f2634e3d' => 5,
         'viewportRows:ce5064a54ecb' => 6,
-        'withCrumbs:1c62c2ce3e24' => 46,
-        'withCrumbs:2913492d87d3' => 2,
+        'withCrumbs:1c62c2ce3e24' => 48,
         'withError:41a7477e3aeb' => 9,
         'withError:5a4c9bf589c3' => 5,
         'withError:639c23cc173c' => 5,
@@ -161,7 +168,7 @@ final class ScreenConcernSingleSourceTest extends TestCase
         'withGrid:618a99b61c5d' => 4,
         'withHero:dcd4d0c63d40' => 2,
         'withSelectedIndex:415180d2cb34' => 4,
-        'withSelectedIndex:e2cbfac9d35f' => 5,
+        'withSelectedIndex:e2cbfac9d35f' => 7,
         'withTyped:5b9f56916867' => 2,
         'working:0ccdf20fbb06' => 2,
         'working:2574aa17e123' => 5,

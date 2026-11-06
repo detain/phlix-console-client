@@ -319,12 +319,18 @@ stored in `config.json` and does not persist across launches:
 | `iterm2` | iTerm2 inline images |
 
 The tables list canonical names. `auto` — also the default when no mode is
-given — picks the best renderer for the detected terminal. `run` and `poster`
-additionally resolve the sugar-image aliases `half`/`ansi` (≡ `halfblock`),
-`quarter` (≡ `quarterblock`) and `chafa`; `frame` renders through
-sugar-video's own vocabulary and refuses those four as usage errors. Forms:
+given — means different things per command: `run` and `poster` resolve it to
+the universal half-block cell renderer with **no terminal probe** (the safe
+default; graphics protocols are an explicit `--mode=sixel`/`--mode=kitty`/
+`--mode=iterm2` away), while `frame` probes the terminal through sugar-video
+and picks the best mode it detects. `run` and `poster` additionally resolve
+the sugar-image aliases `half`/`ansi` (≡ `halfblock`), `quarter`
+(≡ `quarterblock`) and `chafa`; `frame` renders through sugar-video's own
+vocabulary and takes the nine canonical names only — it rejects those four
+aliases in `--mode` form (exit 2), and a bare trailing name outside its set
+is simply not treated as a mode (it falls to the defaults silently). Forms:
 `--mode=NAME`, `--mode NAME`, or a bare `NAME` as the final argument to
-`run`/`poster`/`frame`.
+`run`/`poster`/`frame` — the bare form counts only names that command accepts.
 
 A note on the character set: “universal” above means colour and protocol
 reach, not glyph reach. The block-drawing ramp (▀ ▘▝▖▗ ░) and the UI's
@@ -523,7 +529,7 @@ keys each individual screen adds, consolidated from the handlers (the
 | Photos → viewer | `←`/`→` previous/next photo (no wrap; manual paging resets the slideshow countdown), `i` EXIF panel on/off, `s` start/stop the slideshow, `Esc` back |
 | Cast — device list | `↑`/`↓` select, `Enter` start casting, `r` rescan for devices, `q`/`Esc` leave |
 | Cast — transport (session live) | `Space` play/pause, `r` refresh status, `x` stop the session (when the device allows stopping), `←`/`→` seek ∓10 s (`Shift`+arrow: ∓60 s, when the device allows seeking), `Esc` back to the device list |
-| Music / Audiobooks | `↑`/`↓` select, `Enter` play (in Audiobooks, `r` resumes the last chapter); next/previous/pause are palette actions, not keys |
+| Music / Audiobooks | `↑`/`↓` select, `Enter` play; on the album track table `Space` pauses/resumes and `n`/`p` skip to the next/previous track; in Audiobooks `Space` pauses/resumes and `r` resumes the last chapter from your saved spot; from anywhere else, pause/resume and stop are palette actions (the palette carries no next/previous) |
 | Collections / Playlists | `↑`/`↓` select, `Enter` open, `d` delete (type the word `delete` to confirm); `a`/`r` answer with a notice — see the Screens table |
 | Servers | `↑`/`↓` select, `Enter` switch to it, `a` add one manually, `h` reload the list from the saved config, `r` remove |
 | Settings | Move between the fields per the on-screen hints; `s` opens **Servers**, `l` signs out (both letter cases accepted) |

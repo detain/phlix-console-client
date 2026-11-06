@@ -154,7 +154,10 @@ final class ServerRouteManifestGateTest extends TestCase
         'src/Api/Admin/AdminClient.php' => 30,
         'src/Api/ApiClient.php' => 68,
         'src/Api/Cast/CastBackend.php' => 4,
-        'src/Api/Hub/HubClient.php' => 3,
+        // CU-005: 3 → 2 — the fabricated '/api/v1/me/shares' SHARES const left
+        // the file with the shared-with-me rail's move to the federation
+        // incoming endpoint (one /api/v1 literal fewer). Measured red, rotated.
+        'src/Api/Hub/HubClient.php' => 2,
         'src/Screen/RecommendationsScreen.php' => 1,
     ];
 

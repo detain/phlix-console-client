@@ -11,7 +11,7 @@ use PHPUnit\Framework\TestCase;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Model;
 use SugarCraft\Core\Msg\KeyMsg;
-use SugarCraft\Core\Msg\QuitMsg;
+use Phlix\Console\Msg\RequestQuitMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
 
 final class LoginScreenTest extends TestCase
@@ -83,7 +83,9 @@ final class LoginScreenTest extends TestCase
     {
         [, $cmd] = LoginScreen::create()->update(new KeyMsg(KeyType::Escape));
 
-        self::assertInstanceOf(QuitMsg::class, $cmd());
+        // CU-001 [review console__qa m3]: abort/quit routes through the App's
+        // RequestQuitMsg chokepoint, never the bare teardown-skipping QuitMsg.
+        self::assertInstanceOf(RequestQuitMsg::class, $cmd());
     }
 
     public function testResizeUpdatesDimensions(): void

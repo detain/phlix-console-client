@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace Phlix\Console\Screen;
 
 use Phlix\Console\Msg\OpenRegisterMsg;
+use Phlix\Console\Msg\RequestQuitMsg;
 use Phlix\Console\Msg\SubmitLoginMsg;
 use Phlix\Console\Ui\Chrome;
 use SugarCraft\Core\Cmd;
@@ -93,7 +94,9 @@ final class LoginScreen implements Model, Themed, CapturesSlash
         [$form, $cmd] = $result;
 
         if ($form->isAborted()) {
-            return [$this, Cmd::quit()];
+            // Route the abort through the App's quit chokepoint [review
+            // console__qa m3]: teardownForExit must run on every quit path.
+            return [$this, Cmd::send(new RequestQuitMsg())];
         }
 
         if ($form->isSubmitted()) {

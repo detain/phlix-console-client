@@ -38,7 +38,7 @@ use SugarCraft\Core\BatchMsg;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg;
-use SugarCraft\Core\Msg\QuitMsg;
+use Phlix\Console\Msg\RequestQuitMsg;
 use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Image\Mosaic;
 
@@ -596,8 +596,12 @@ final class BrowseScreenTest extends TestCase
         [, $q] = $this->screen()->update(new KeyMsg(KeyType::Char, 'q'));
         [, $esc] = $this->screen()->update(new KeyMsg(KeyType::Escape));
 
-        self::assertInstanceOf(QuitMsg::class, $q());
-        self::assertInstanceOf(QuitMsg::class, $esc());
+        // CU-001 [review console__qa C1]: the root quit arm routes through the
+        // App's RequestQuitMsg chokepoint (teardownForExit first), not the
+        // bare QuitMsg that skipped every subprocess teardown. App-side
+        // RequestQuitMsg → quit-with-teardown is pinned in AppTest.
+        self::assertInstanceOf(RequestQuitMsg::class, $q());
+        self::assertInstanceOf(RequestQuitMsg::class, $esc());
     }
 
     public function testEnterOnALibraryRailOpensTheFocusedCardDetail(): void

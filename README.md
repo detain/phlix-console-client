@@ -229,7 +229,9 @@ picks, `q`/`Esc` dismisses).
 **Cast** — on a media **detail** screen, `C` opens a device picker (Chromecast /
 Roku / AirPlay / DLNA discovered on the network); pick one to send the item, then
 drive a transport overlay (`Space` pause/resume, `x` stop, `Esc` back). Seek is
-omitted by design (no uniform position across the cast backends).
+capability-gated: `←`/`→` step ∓10 s (`Shift`+arrow: ∓60 s) when the device
+exposes its playback position (Chromecast and DLNA do; AirPlay and Roku don't —
+there the arrows stay inert and the on-screen hint omits them).
 
 **Music** — an album list → a track table; `⏎` plays a track (`Space` pause,
 `n`/`p` next/previous). **Audiobooks** — a list → a chapter table; `⏎` plays a
@@ -417,8 +419,10 @@ compatibility.
 >
 > **Cast** is not an admin section — press `C` on a media **detail** screen to
 > discover **Chromecast / Roku / AirPlay / DLNA** devices on the network, send the
-> item, and drive a transport overlay (pause / resume / stop). Seek is intentionally
-> omitted — the cast backends don't expose a uniform playback position.
+> item, and drive a transport overlay (pause / resume / stop). Seek is
+> capability-gated: `←`/`→` step ∓10 s (`Shift`+arrow: ∓60 s) wherever the device
+> exposes its playback position — Chromecast and DLNA do, AirPlay and Roku don't,
+> and there the keys simply stay inert.
 >
 > Also working today, inside the player: `a`, shift-`S` and shift-`C` open the
 > **track pickers** — the audio, subtitle (with an explicit Off) and chapter

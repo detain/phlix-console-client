@@ -43,7 +43,11 @@ final class GateScanner
      */
     public const HUB_TUPLES = [
         ['src/Api/ApiClient.php', 'GET', '/api/v1/me/servers'],
-        ['src/Api/Hub/HubClient.php', 'GET', '/api/v1/me/shares'],
+        // The shared-with-me rail moved from the fabricated '/api/v1/me/shares'
+        // listing onto the federation INCOMING-OFFERS resource the accept/reject
+        // verbs actually answer [review console__uxdesign C1] — hence two GET
+        // sites on one path: sharedWithMe() and federationSharesIncoming().
+        ['src/Api/Hub/HubClient.php', 'GET', '/api/v1/me/federation/library-shares/incoming'],
         ['src/Api/Hub/HubClient.php', 'GET', '/api/v1/me/invite-links'],
         ['src/Api/Hub/HubClient.php', 'POST', '/api/v1/me/invite-links'],
         ['src/Api/Hub/HubClient.php', 'DELETE', '/api/v1/me/invite-links/{P}'],

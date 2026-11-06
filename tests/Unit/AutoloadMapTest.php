@@ -37,6 +37,13 @@ use RuntimeException;
  *  2. every screen under src/Screen/ must actually LINK through the composer
  *     autoloader (dynamic, catches the full fatal chain: a screen whose
  *     interface parents cannot resolve goes red here, in CI, pre-merge).
+ *
+ * M3 retirement [review console__srphp m3]: the C10 cure MOVED the twin
+ * interfaces to their mapped path; the honest cure is to RETIRE them — the
+ * two hub screens now implement the canonical Phlix\Console\Screen\{Themed,
+ * Breadcrumbed} contracts (the ones App::baseView() actually gates on), and a
+ * resurrected twin would squat the PSR-4 root again as a dead contract. The
+ * former "now resolve" pin is flipped to pin their ABSENCE below.
  */
 final class AutoloadMapTest extends TestCase
 {
@@ -93,17 +100,20 @@ final class AutoloadMapTest extends TestCase
         return $dir . '/' . basename($relativeFile);
     }
 
-    public function testTheMisplacedInterfacesNowResolveThroughTheAutoloader(): void
+    public function testTheVestigialTwinInterfacesStayRetired(): void
     {
-        // The exact repro from the review: before the move both were false and
-        // linking either consumer screen threw "Interface ... not found".
-        self::assertTrue(
-            interface_exists('Phlix\\Console\\SugarCraft\\Screen\\Breadcrumbed'),
-            'Breadcrumbed must resolve via the PSR-4 autoloader at its mapped path.'
+        // [review console__srphp m3, M3] The C10 era pinned these as resolving;
+        // the M3 cure retired the files outright — the two hub screens moved to
+        // the canonical Phlix\Console\Screen interfaces. autoload=false: the
+        // probe must not resurrect a re-landed twin by loading it, and PSR-4
+        // absence is exactly what is being pinned.
+        self::assertFalse(
+            interface_exists('Phlix\\Console\\SugarCraft\\Screen\\Breadcrumbed', false),
+            'the dead SugarCraft\Screen twin must stay retired — a reappearance is the squatting-contract bug re-landed.'
         );
-        self::assertTrue(
-            interface_exists('Phlix\\Console\\SugarCraft\\Screen\\Themed'),
-            'Themed must resolve via the PSR-4 autoloader at its mapped path.'
+        self::assertFalse(
+            interface_exists('Phlix\\Console\\SugarCraft\\Screen\\Themed', false),
+            'the dead SugarCraft\Screen twin must stay retired — a reappearance is the squatting-contract bug re-landed.'
         );
     }
 

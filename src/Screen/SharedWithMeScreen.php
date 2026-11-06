@@ -1,37 +1,85 @@
 <?php
 
+/**
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ * @license   MIT
+ */
+
 declare(strict_types=1);
 
 namespace Phlix\Console\Screen;
 
+use Phlix\Console\Api\Dto\Coerce;
 use Phlix\Console\Api\Hub\HubClient;
+use Phlix\Console\I18n\ExceptionSentences;
 use Phlix\Console\Msg\InitMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\SharedWithMeActionDoneMsg;
 use Phlix\Console\Msg\SharedWithMeFailedMsg;
 use Phlix\Console\Msg\SharedWithMeLoadedMsg;
-use Phlix\Console\Route;
+use Phlix\Console\Msg\ShowToastMsg;
+use Phlix\Console\Ui\Chrome;
 use React\Promise\PromiseInterface;
 use SugarCraft\Core\Cmd;
+use SugarCraft\Core\KeyType;
+use SugarCraft\Core\Model;
 use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg;
-use SugarCraft\Core\Model;
+use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\SubscriptionCapable;
-use SugarCraft\Core\View;
-use Phlix\Console\SugarCraft\Screen\Breadcrumbed;
-use Phlix\Console\SugarCraft\Screen\Themed;
-use Phlix\Console\I18n\ExceptionSentences;
+use SugarCraft\Core\Util\Width;
 
+/**
+ * Lists the incoming federation share offers — libraries other hubs have
+ * offered to this account (hub `GET /api/v1/me/federation/library-shares/
+ * incoming`) — and answers them: `a` accepts the selected offer, `r` rejects
+ * it, `↑`/`↓` move the cursor.
+ *
+ * The list rides the SAME endpoint family as the accept/reject verbs on
+ * purpose [review console__uxdesign C1]: the first cut listed
+ * `/api/v1/me/shares` (already-materialized shares) but answered
+ * `/library-shares/incoming/{id}` (pending offers), so no id it displayed
+ * could ever be accepted. Offers and answers now share one resource.
+ *
+ * [review console__uxdesign C1, console__srphp M1] The first cut also shipped
+ * `view()` returning '' — the palette frame vanished into a blank terminal —
+ * and its update() dropped both the payload and the failure sentence, so
+ * every state of this screen looked dead. It now renders the canonical
+ * {@see Chrome::frame} loading/error/empty/list body, mutates through clones,
+ * and every action result rides a toast plus a server re-read (the hub owns
+ * the truth of which offers remain pending).
+ *
+ * The screen implements the canonical {@see Themed}/{@see Breadcrumbed}
+ * contracts — the dead `Phlix\Console\SugarCraft\Screen` twin interfaces it
+ * once carried are retired [review console__srphp m3], which is what re-hooks
+ * it into {@see \Phlix\Console\App::baseView()}'s theme/breadcrumb gates.
+ */
 final class SharedWithMeScreen implements Model, Breadcrumbed, Themed
 {
     use SubscriptionCapable;
+    use ThemedScreen;
+    use ResizesTo;
+    use SelectsNext;
+    use SelectsPrevious;
+
+    private const HINT = 'q/Esc  back      ↑↓  navigate      a  accept      r  reject';
 
     /** @var list<array<string, mixed>> */
     private array $items = [];
+
     private int $selectedIndex = 0;
+
+    private bool $loading = true;
+
+    private ?string $error = null;
+
+    /** @var list<string> */
+    private array $crumbs = [];
 
     public function __construct(
         private readonly HubClient $hub,
+        private int $cols = 80,
+        private int $rows = 24,
     ) {
     }
 
@@ -40,160 +88,263 @@ final class SharedWithMeScreen implements Model, Breadcrumbed, Themed
         return $this->fetchCmd();
     }
 
-    /**
-     * Kick off the hub fetch and hand the Program an async command carrying
-     * the promise. Resolution rides the OUTER event loop (the one Program
-     * pumps) and comes back through {@see update()} as
-     * SharedWithMeLoadedMsg/SharedWithMeFailedMsg.
-     *
-     * M-CONSOLE-36: this previously returned a closure that re-entered
-     * `Loop::get()->run()` and drained the promise with `Loop::stop()`.
-     * Program::scheduleCmd() invokes cmd closures inside that same global
-     * loop and StreamSelectLoop has no re-entry guard — the nested drain's
-     * stop() cleared the shared running flag, killing the app pump mid-frame.
-     *
-     * @return \Closure
-     */
-    private function fetchCmd(): \Closure
-    {
-        $promise = $this->hub->sharedWithMe()->then(
-            /** @param list<array<string, mixed>> $items */
-            static fn (array $items): Msg => new SharedWithMeLoadedMsg($items),
-            static fn (\Throwable $e): Msg => new SharedWithMeFailedMsg(ExceptionSentences::sentence($e, 'shared-with-me-screen')),
-        );
-
-        return Cmd::promise(static fn (): PromiseInterface => $promise);
-    }
-
-    /**
-     * @param list<array<string, mixed>> $items
-     * @return array{0: self, 1: \Closure|null}
-     */
-    private function fetchSucceeded(array $items): array
-    {
-        $this->items = $items;
-        return [$this, null];
-    }
-
-    /**
-     * @return array{0: self, 1: \Closure|null}
-     */
-    private function fetchFailed(string $error): array
-    {
-        return [$this, null];
-    }
-
-    /**
-     * @return array{0: Model, 1: \Closure|null}
-     */
+    /** @return array{self, ?\Closure} */
     public function update(Msg $msg): array
     {
-        return match (true) {
-            $msg instanceof InitMsg => [$this, null],
-            $msg instanceof KeyMsg => $this->handleKey($msg),
-            $msg instanceof SharedWithMeLoadedMsg => $this->fetchSucceeded($msg->shares),
-            $msg instanceof SharedWithMeFailedMsg => $this->fetchFailed($msg->message),
-            default => [$this, null],
-        };
-    }
+        if ($msg instanceof WindowSizeMsg) {
+            return [$this->resizedTo($msg->cols, $msg->rows), null];
+        }
 
-    /**
-     * @return array{0: self, 1: \Closure|null}
-     */
-    private function handleKey(KeyMsg $msg): array
-    {
-        return match ($msg->rune) {
-            'q', 'Escape' => $this->back(),
-            'a' => $this->acceptSelected(),
-            'r' => $this->rejectSelected(),
-            default => [$this, null],
-        };
-    }
-
-    /**
-     * @return array{0: self, 1: \Closure|null}
-     */
-    private function acceptSelected(): array
-    {
-        if ($this->selectedIndex < 0 || $this->selectedIndex >= count($this->items)) {
+        if ($msg instanceof InitMsg) {
             return [$this, null];
         }
-        $item = $this->items[$this->selectedIndex];
-        /** @var string $id */
-        $id = $item['id'];
-        $promise = $this->hub->acceptShare($id)->then(
-            static fn (): SharedWithMeActionDoneMsg => new SharedWithMeActionDoneMsg('accepted'),
-            static fn (\Throwable $e): SharedWithMeFailedMsg => new SharedWithMeFailedMsg(ExceptionSentences::sentence($e, 'shared-with-me-screen')),
-        );
 
-        return [$this, Cmd::promise(static fn (): PromiseInterface => $promise)];
-    }
-
-    /**
-     * @return array{0: self, 1: \Closure|null}
-     */
-    private function rejectSelected(): array
-    {
-        if ($this->selectedIndex < 0 || $this->selectedIndex >= count($this->items)) {
-            return [$this, null];
+        if ($msg instanceof KeyMsg) {
+            return $this->handleKey($msg);
         }
-        $item = $this->items[$this->selectedIndex];
-        /** @var string $id */
-        $id = $item['id'];
-        $promise = $this->hub->rejectShare($id)->then(
-            static fn (): SharedWithMeActionDoneMsg => new SharedWithMeActionDoneMsg('rejected'),
-            static fn (\Throwable $e): SharedWithMeFailedMsg => new SharedWithMeFailedMsg(ExceptionSentences::sentence($e, 'shared-with-me-screen')),
-        );
 
-        return [$this, Cmd::promise(static fn (): PromiseInterface => $promise)];
-    }
+        if ($msg instanceof SharedWithMeLoadedMsg) {
+            $next = clone $this;
+            $next->items = $msg->shares;
+            $next->loading = false;
+            $next->error = null;
+            // A re-read may have shrunk the list (an answered offer leaves
+            // it); keep the cursor on a row that still exists.
+            $next->selectedIndex = max(0, min($this->selectedIndex, count($next->items) - 1));
 
-    /**
-     * @return array{0: self, 1: \Closure|null}
-     */
-    private function back(): array
-    {
-        return [$this, fn () => Cmd::send(new NavigateBackMsg())];
+            return [$next, null];
+        }
+
+        if ($msg instanceof SharedWithMeFailedMsg) {
+            $next = clone $this;
+            $next->error = $msg->message;
+            $next->loading = false;
+
+            return [$next, null];
+        }
+
+        if ($msg instanceof SharedWithMeActionDoneMsg) {
+            // The accept/reject landed server-side: say so, then re-read the
+            // offers from the hub — never hand-patch the list locally.
+            return [
+                $this->pending(),
+                Cmd::batch(
+                    Cmd::send(ShowToastMsg::success($this->actionSentence($msg->message))),
+                    $this->fetchCmd(),
+                ),
+            ];
+        }
+
+        return [$this, null];
     }
 
     public function view(): string
     {
-        return '';
+        return Chrome::frame(
+            'Shared With Me',
+            $this->body(),
+            self::HINT,
+            $this->cols,
+            $this->rows,
+            $this->crumbs,
+            $this->theme(),
+        );
     }
-
-    public function subscriptions(): ?\SugarCraft\Core\Subscriptions
-    {
-        return null;
-    }
-
-    // ---- Breadcrumbed ---- //
 
     public function crumbLabel(): string
     {
         return 'Shared With Me';
     }
 
-    public function withCrumbs(array $crumbs): self
+    /** @param list<string> $trail */
+    public function withCrumbs(array $trail): static
     {
-        return $this;
+        $next = clone $this;
+        $next->crumbs = $trail;
+
+        return $next;
+    }
+
+    /** @return list<array<string, mixed>> */
+    public function items(): array
+    {
+        return $this->items;
+    }
+
+    public function selectedIndex(): int
+    {
+        return $this->selectedIndex;
+    }
+
+    public function isLoading(): bool
+    {
+        return $this->loading;
+    }
+
+    public function error(): ?string
+    {
+        return $this->error;
+    }
+
+    public function withSelectedIndex(int $index): self
+    {
+        $next = clone $this;
+        $next->selectedIndex = $index;
+
+        return $next;
+    }
+
+    // ---- keyboard ----------------------------------------------------------
+
+    /** @return array{self, ?\Closure} */
+    private function handleKey(KeyMsg $msg): array
+    {
+        // [review console__docmaint m4] the old screen keyed 'Escape' off
+        // $msg->rune — the vendored KeyMsg carries rune '' for Escape, so the
+        // arm was dead code. Route on the KEY TYPE, exactly like every other
+        // screen's back arm.
+        if (
+            $msg->type === KeyType::Escape
+            || ($msg->type === KeyType::Char && ($msg->rune === 'q' || $msg->rune === 'Q'))
+        ) {
+            return [$this, Cmd::send(new NavigateBackMsg())];
+        }
+
+        if ($msg->type === KeyType::Up || ($msg->type === KeyType::Char && $msg->rune === 'k')) {
+            return $this->selectPrev();
+        }
+
+        if ($msg->type === KeyType::Down || ($msg->type === KeyType::Char && $msg->rune === 'j')) {
+            return $this->selectNext();
+        }
+
+        if ($msg->type === KeyType::Char && $msg->rune === 'a') {
+            return $this->answerSelected('accept');
+        }
+
+        if ($msg->type === KeyType::Char && $msg->rune === 'r') {
+            return $this->answerSelected('reject');
+        }
+
+        return [$this, null];
     }
 
     /**
-     * @return array<int, array{label: string, screen: mixed}>
+     * Accept or reject the selected offer. The id walk covers the wire: the
+     * federation offer row carries `id`; a `share_id` twin keeps the verb alive
+     * if a payload shape ever lands here instead.
+     *
+     * @param 'accept'|'reject' $verb
+     *
+     * @return array{self, ?\Closure}
      */
-    public function crumbs(): array
+    private function answerSelected(string $verb): array
     {
-        $adminScreen = Route::Admin;
-        return [
-            ['label' => 'Admin', 'screen' => $adminScreen],
-            ['label' => 'Shared With Me', 'screen' => null],
-        ];
+        if ($this->selectedIndex < 0 || $this->selectedIndex >= count($this->items)) {
+            return [$this, null];
+        }
+
+        $item = $this->items[$this->selectedIndex];
+        $id = Coerce::str($item['id'] ?? $item['share_id'] ?? '');
+        if ($id === '') {
+            return [$this, null];
+        }
+
+        $promise = ($verb === 'accept' ? $this->hub->acceptShare($id) : $this->hub->rejectShare($id))
+            ->then(
+                static fn (): Msg => new SharedWithMeActionDoneMsg($verb === 'accept' ? 'accepted' : 'rejected'),
+                static fn (\Throwable $e): Msg => new SharedWithMeFailedMsg(
+                    ExceptionSentences::sentence($e, 'shared-with-me-screen'),
+                ),
+            );
+
+        return [$this, Cmd::promise(static fn (): PromiseInterface => $promise)];
     }
 
-    // ---- Themed ---- //
+    // ---- rendering ---------------------------------------------------------
 
-    public function theme(): ?string
+    private function body(): string
     {
-        return null;
+        if ($this->loading) {
+            return "\n\n  Loading shared libraries…";
+        }
+
+        if ($this->error !== null) {
+            return "\n\n  {$this->error}";
+        }
+
+        if ($this->items === []) {
+            return "\n\n  Nothing is waiting for you here.\n"
+                . '  When another hub offers you a library, it lands here to accept or reject.';
+        }
+
+        $lines = [];
+        foreach ($this->items as $i => $item) {
+            $prefix = $i === $this->selectedIndex ? '▶ ' : '  ';
+            $lines[] = $prefix . $this->renderRow($item);
+        }
+
+        return "\n\n" . implode("\n", $lines);
+    }
+
+    /** @param array<string, mixed> $item */
+    private function renderRow(array $item): string
+    {
+        $name = Coerce::str($item['library_name'] ?? $item['server_name'] ?? $item['id'] ?? '');
+        $owner = Coerce::str($item['peer_id'] ?? $item['owner_name'] ?? '');
+        $permission = Coerce::str($item['permission'] ?? $item['permission_level'] ?? '');
+
+        $detail = [];
+        if ($owner !== '') {
+            $detail[] = "from {$owner}";
+        }
+        if ($permission !== '') {
+            $detail[] = $permission;
+        }
+        $suffix = $detail === [] ? '' : '  (' . implode(', ', $detail) . ')';
+
+        return Width::truncate($name . $suffix, $this->cols - 10);
+    }
+
+    /**
+     * Clone into the in-flight state a re-read arms: spinner up, last error
+     * cleared, stale rows still behind it (the Loaded/Failed arms settle it).
+     */
+    private function pending(): self
+    {
+        $next = clone $this;
+        $next->loading = true;
+        $next->error = null;
+
+        return $next;
+    }
+
+    private function actionSentence(string $action): string
+    {
+        return match ($action) {
+            'accepted' => 'Share accepted.',
+            'rejected' => 'Share rejected.',
+            default => 'Done.',
+        };
+    }
+
+    // ---- fetch (M-CONSOLE-36: ride the OUTER loop via Cmd::promise) --------
+
+    /**
+     * The hub fetch as an AsyncCmd closure. M-CONSOLE-36 law: NEVER call
+     * Loop::get()->run() here — Program::scheduleCmd() invokes this closure
+     * INSIDE the already-running global loop, whose shared StreamSelectLoop has
+     * no re-entry guard (the nested drain's stop() kills the app pump).
+     */
+    private function fetchCmd(): \Closure
+    {
+        $promise = $this->hub->sharedWithMe()->then(
+            static fn (array $items): Msg => new SharedWithMeLoadedMsg($items),
+            static fn (\Throwable $e): Msg => new SharedWithMeFailedMsg(
+                ExceptionSentences::sentence($e, 'shared-with-me-screen'),
+            ),
+        );
+
+        return Cmd::promise(static fn (): PromiseInterface => $promise);
     }
 }

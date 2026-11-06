@@ -22,6 +22,95 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > strictly descending date order (a 2026-10-31-stamped rider written in a
 > later batch sits below 2026-10-30 ones — newest batch on top still wins).
 
+### Fixed — w01/L2 (CU-001, CU-002, CU-005): quit-path teardown + the hub screens' real frames — 2026-11-06
+
+- **CU-001 [review console__qa C1/m3] — screens never quit past the App's
+  teardown chokepoint again.** The root Esc/q arm (BrowseScreen), the
+  LoginScreen and ServerScreen form-abort arms returned a bare `Cmd::quit()`,
+  which closes the Program without `App::requestQuit()`'s `teardownForExit()` —
+  App-owned ffplay/mpv audio survived the exit (ghost audio). All three now
+  emit `Cmd::send(new RequestQuitMsg())`, routed by the App's msg map through
+  the same chokepoint Ctrl-C, signals and palette Quit share. The law is
+  pinned by a new comment-stripped token scan over `src/Screen/`
+  (`ScreensNeverQuitBypassTeardownTest`) — the embedded sugar-forms screens
+  discuss the vendor's `Cmd::quit()` in prose; only live code offends. The
+  three screens' own quit-key tests flip from `QuitMsg` to `RequestQuitMsg`.
+- **CU-002 [review console__qa C2] — `teardownForExit()` walks the whole
+  stack.** It stopped only the top frame, but palette pushes land ON TOP of a
+  live `PlayerScreen` (the player is App-owned, never torn on pop), so buried
+  players leaked their ffmpeg on every quit path. The method now calls the
+  existing `tearDownFrames($this->stack)` (the same walk `replace()` uses) plus
+  the App audio; concrete teardowns self-guard, so whole-stack walks are
+  double-fire safe. `AppTest` gains a buried-player walk test + a Ctrl-C
+  quit-path probe (red-first at parent: only the top spy tore).
+- **CU-005 [review console__uxdesign C1, console__srphp M1/m3] — Shared With
+  Me / Invite Links render real frames; the dead twin interfaces are
+  retired.** Both screens' `view()` returned `''` — the frame vanished
+  entirely (vendor diff-renderer erases vanished rows), payloads and failure
+  sentences were swallowed, `handleKey` matched a dead `'Escape'` rune
+  (`KeyMsg(KeyType::Escape)` carries `''`), the cursor never moved, and
+  `createLink` fabricated an empty link instead of using the response. Both
+  are rebuilt in the canonical WatchHistoryScreen shape: real
+  `Chrome::frame` loading/error/empty/list body, immutable clone-on-msg
+  state, cursor via the `SelectsNext/SelectsPrevious` traits, resize via
+  `ResizesTo` (the App now passes `cols`/`rows` at push), Escape routed by key
+  TYPE, and every action result rides a success toast + a server re-fetch
+  (`Cmd::batch`). Wire truth re-derived against the hub: the shared-with-me
+  rail lists `GET /api/v1/me/federation/library-shares/incoming`
+  (`incoming_offers`) — the same endpoint family the accept/reject POSTs ride
+  (the old `GET /api/v1/me/shares` returned share rows that could never be
+  accepted through `.../incoming/{id}`); `inviteLinks()` reads the real
+  `invite_links` envelope key; `createInvite()` resolves the created row FLAT
+  (the hub's 201 body — the `{inviteLink: …}` docblock was fiction) and
+  `InviteLinkCreatedMsg` now carries that map. The vestigial
+  `Phlix\Console\SugarCraft\Screen\{Themed,Breadcrumbed}` twins are deleted —
+  their only adopters implement the canonical interfaces (whose gates
+  `App::baseView()` reads); `AutoloadMapTest` flips its C10-era resolution
+  pin to a retirement pin. **Measured rotations (red-first, this commit):**
+  `ScreenConcernSingleSourceTest::DUPLICATE_BASELINE` regenerated from the
+  census — 7 dead twin-shaped families peel off (incl. `back`, `fetchFailed`,
+  `subscriptions`, `theme`, `view`, one `withCrumbs` shape, one `__construct`
+  shape), 6 accessor families join +2 each (`error` 37→39, `isLoading`
+  9→11, `items` 5→7, `selectedIndex` 9→11, `withCrumbs` 46→48,
+  `withSelectedIndex` 5→7), and two NEW hub-frame cohorts pin at ×2
+  (`__construct:6c37938acb1a`, `pending:d1ad2ab00e24`) — consolidation debt
+  named for the FederationSharesScreen sibling. `ServerRouteManifestGateTest`
+  `SWEEP_TOKEN_COUNTS` HubClient 3→2 (fabricated `SHARES` const retired) and
+  `GateScanner::HUB_TUPLES` re-anchored to the moved rail. Disclosure for the
+  FederationSharesScreen lane: its `outgoing`/`incoming` envelope-key reads
+  are ALSO stale vs the hub (`outgoing_shares`/`incoming_offers`) — untouched
+  here, out of this lane's files.
+
+### Changed — w01/L2 (CU-015, CU-016, CU-017): cast-seek, music-keys and render-mode truths in help/manual — 2026-11-06
+
+- **CU-015 [review console__docmaint M2, console__tui-arch M1, enduser, ipd] —
+  README stops denying shipped cast seek.** Both cast passages claimed seek
+  was "omitted by design"; `CastScreen` has shipped `←`/`→` ∓10 s and
+  `Shift`+arrows ∓60 s since the seek cure, gated per backend capability
+  (`canSeek()`: Chromecast/DLNA yes; AirPlay/Roku no, keys inert, hint omits
+  them). Rewritten capability-gated, mirroring the already-truthful
+  `docs/clients/console.md` transport row.
+- **CU-016 [review console__docmaint M1, enduser, a11y] — the Music /
+  Audiobooks keys row tells the truth.** It denied `Space`/`n`/`p` as keys and
+  invented palette next/previous actions; `AlbumScreen` binds `Space`
+  (toggle), `n`/`p` (skip ±1) with the hint advertising them, and
+  `AudiobookDetailScreen` binds `Space` + `r` (resume saved spot). The palette
+  offers pause/resume + stop from anywhere — and no next/previous. Row
+  rewritten per-screen.
+- **CU-017 [review console__tui-arch M3, docmaint m3, tuispec i4] — `auto`
+  fiction corrected everywhere.** For `run`/`poster`, `auto` is the universal
+  half-block cell default with NO terminal probe (probe retired, CONSOLIDATED
+  M17 — `MosaicFactory` maps null/auto straight to half-block); only `frame`
+  detects, via sugar-video. `bin/phlix` help, the `docs/clients/console.md`
+  mode paragraph, and the `Capabilities` docblock all said otherwise. The
+  manual also scoped the four sugar-image aliases' refusal on `frame` to
+  `--mode` flag form (exit 2) — a bare trailing name outside frame's nine
+  canonical modes is silently left to the defaults, not rejected. `phlix
+  doctor` is now honestly labelled a capability survey: its report gained a
+  footer stating the app stays on half-block unless `--mode` is passed, and
+  the stale "drives the default render-mode choice at startup" claim left the
+  class docblock. Docs/prose only — zero behavior change.
+
 ### Changed — cs#48 (owner-authorized): route-manifest CONTENT re-vendor (412→415 tuples) — 2026-11-04
 
 - **cs#48 currency re-vendor — CONTENT regen, console is NOT pure this wave.**

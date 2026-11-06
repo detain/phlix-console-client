@@ -338,18 +338,20 @@ final class App implements Model
     }
 
     /**
-     * The model-side teardown every quit path shares: a {@see Teardownable}
-     * top screen (the player's ffmpeg/ffplay subprocesses) and the App-owned
-     * now-playing audio (ffplay/mpv) stop before the process leaves. Concrete
-     * teardowns self-guard against double fire ({@see PlayerScreen::teardown()}
-     * / the session twins), so any quit path may call this freely.
+     * The model-side teardown every quit path shares: EVERY {@see Teardownable}
+     * frame on the stack (a player's ffmpeg/ffplay subprocesses) and the
+     * App-owned now-playing audio (ffplay/mpv) stop before the process leaves.
+     * The walk is whole-stack, not top-only [review console__qa C2]: the palette
+     * pushes its target screen ON TOP of the player, so a player is routinely
+     * buried at quit time and a top-only tear leaked its subprocesses on every
+     * quit path. Concrete teardowns self-guard against double fire
+     * ({@see PlayerScreen::teardown()} / the session twins), so any quit path
+     * may call this freely — frames that already tore down on pop accept the
+     * repeat as a no-op.
      */
     public function teardownForExit(): void
     {
-        $top = $this->topScreen();
-        if ($top instanceof Teardownable) {
-            $top->teardown();
-        }
+        $this->tearDownFrames($this->stack);
         // The App owns the music audio now, so leaving stops ffplay/mpv too.
         $this->nowPlaying?->teardown();
     }
@@ -1903,7 +1905,10 @@ final class App implements Model
     /** @return array{App, ?\Closure} */
     private function openSharedWithMe(): array
     {
-        $screen = new SharedWithMeScreen(new HubClient($this->api));
+        // The screen renders a Chrome::frame — it needs the live geometry
+        // [review console__uxdesign C1: the first cut constructed it with the
+        // 80x24 ctor defaults, so the frame sized itself to a stale guess].
+        $screen = new SharedWithMeScreen(new HubClient($this->api), cols: $this->cols, rows: $this->rows);
 
         return [$this->push(Route::SharedWithMe, $screen), $screen->init()];
     }
@@ -1911,7 +1916,7 @@ final class App implements Model
     /** @return array{App, ?\Closure} */
     private function openInviteLinks(): array
     {
-        $screen = new InviteLinksScreen(new HubClient($this->api));
+        $screen = new InviteLinksScreen(new HubClient($this->api), cols: $this->cols, rows: $this->rows);
 
         return [$this->push(Route::InviteLinks, $screen), $screen->init()];
     }
