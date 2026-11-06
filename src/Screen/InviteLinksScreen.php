@@ -30,9 +30,13 @@ use SugarCraft\Core\Msg\WindowSizeMsg;
 use SugarCraft\Core\SubscriptionCapable;
 use SugarCraft\Core\Util\Width;
 
+use function React\Promise\resolve;
+
 /**
  * Lists the invite links the current user created on the hub
- * (`GET /api/v1/me/invite-links`): `c` creates one, `r` revokes the selected
+ * (`GET /api/v1/me/invite-links`): `c` mints one for the hub's single
+ * registered server (see {@see createCmd()} — zero or several servers stop
+ * with a clear message instead of a guessed target), `r` revokes the selected
  * link, `↑`/`↓` move the cursor.
  *
  * [review console__uxdesign C1, console__srphp M1] The first cut shipped
@@ -235,13 +239,54 @@ final class InviteLinksScreen implements Model, Breadcrumbed, Themed
     // ---- mutations ---------------------------------------------------------
 
     /**
-     * Create a link and parse the 201 response at the boundary — the created
-     * row rides the Msg instead of being discarded or fabricated [review
-     * console__uxdesign C1].
+     * Create a link against the hub's REAL contract [review w01L2console C1]:
+     * the create endpoint requires `server_id` (400 `missing_server_id`
+     * without it) — the first cut sent a fabricated `{label}` body and died on
+     * every call. No per-invite server picker ships today, so the hub roster
+     * decides: exactly one server is unambiguously THE target; zero or several
+     * are a fail-loud stop, never a guessed id (the web portal's dropdown
+     * remains the multi-server path). The created row crosses the boundary
+     * parsed and rides the Msg [review console__uxdesign C1].
      */
     private function createCmd(): \Closure
     {
-        $promise = $this->hub->createInvite('Console invite')
+        $promise = $this->hub->servers()->then(
+            fn (array $servers): PromiseInterface => $this->createForServer($servers),
+            static fn (\Throwable $e): Msg => new InviteLinksFailedMsg(
+                ExceptionSentences::sentence($e, 'invite-links-screen'),
+            ),
+        );
+
+        return Cmd::promise(static fn (): PromiseInterface => $promise);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $servers hub ServerInfoDto rows
+     * @return PromiseInterface<Msg>
+     */
+    private function createForServer(array $servers): PromiseInterface
+    {
+        if ($servers === []) {
+            return resolve(new InviteLinksFailedMsg(
+                'This hub has no servers registered — pair a server before creating an invite.',
+            ));
+        }
+
+        if (count($servers) > 1) {
+            return resolve(new InviteLinksFailedMsg(
+                'This hub hosts ' . count($servers) . ' servers; the console creates invites only for '
+                . 'a single-server hub — mint it from the web portal instead.',
+            ));
+        }
+
+        $serverId = Coerce::str($servers[0]['serverId'] ?? '');
+        if ($serverId === '') {
+            return resolve(new InviteLinksFailedMsg(
+                'The hub server row carries no serverId — cannot create an invite.',
+            ));
+        }
+
+        $promise = $this->hub->createInvite($serverId)
             ->then(
                 static fn (array $link): Msg => new InviteLinkCreatedMsg($link),
                 static fn (\Throwable $e): Msg => new InviteLinksFailedMsg(
@@ -249,7 +294,7 @@ final class InviteLinksScreen implements Model, Breadcrumbed, Themed
                 ),
             );
 
-        return Cmd::promise(static fn (): PromiseInterface => $promise);
+        return $promise;
     }
 
     /** @return array{self, ?\Closure} */

@@ -607,7 +607,7 @@ without moving it, and a screen's own keys are consolidated under
 | **Recommendations** | "For You" — personal suggestions built from your watching (`GET /api/v1/me/recommendations`); opened with `w` in the player. Navigate with `↑`/`↓` (or `j`/`k`), `Enter` opens, `x`/`X` dismisses a suggestion, `q`/`Q`/`Esc` goes back |
 | **Servers** | Multi-server switcher — `Enter` switches the active server, `a` adds one manually (inline URL + label form; blank label falls back to the host), `h` refreshes the list from the saved config, `r` removes; opened from the palette or Settings |
 | **Shared With Me** | Incoming hub shares — currently a placeholder view (it fetches the shares but lists nothing on screen; `a`/`r` still act on the first entry) |
-| **Invite Links** | Hub invite links — currently a placeholder view (no list rendered; `c` creates a link, `r` revokes the first entry) |
+| **Invite Links** | Hub invite links — lists the links you created with permission/usage counters (`↑↓` cursor); `c` mints one for the hub's single registered server (a hub with zero or several registered servers stops with a clear message — mint those from the web portal), `r` revokes the selected link; the plaintext token/URL appears only in the create response |
 | **Federation Shares** | Outgoing federation shares — a title-only placeholder; the list is not implemented yet |
 
 ## Troubleshooting

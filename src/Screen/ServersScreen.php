@@ -40,8 +40,8 @@ use function trim;
  * and lets the user:
  *   - 'h'   refresh the list from the saved config (transient loading frame
  *           plus OpenServersMsg; App answers by rebuilding the screen —
- *           ApiClient::myServers() has no production caller, so this key
- *           never talks to the hub)
+ *           this key never talks to the hub; ApiClient::myServers()'s only
+ *           production consumer is the invite-create path, not this screen)
  *   - 'a'   add a server manually (URL + label, via an inline form that submits
  *           AddServerMsg, then reopens the list from the saved config)
  *   - 'r'   remove the selected server (submits RemoveServerMsg)

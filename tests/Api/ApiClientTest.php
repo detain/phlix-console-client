@@ -265,9 +265,14 @@ final class ApiClientTest extends TestCase
 
     public function testMyServersHitsEndpointAndMapsTheList(): void
     {
+        // Rows re-vendored to hub truth [review w01L2console C1 family]: the
+        // hub returns camelCase ServerInfoDto payloads (src/Hub/ServerInfoDto
+        // ::toPayload) — the old {hub_id,name,url} fixture was fabricated and
+        // the endpoint gained its first PRODUCTION caller (the invite-create
+        // path reads `serverId`), so the suite must feed real bytes.
         $t = (new FakeTransport())->json(200, ['servers' => [
-            ['hub_id' => 'h1', 'name' => 'Main Server', 'url' => 'https://srv1.example'],
-            ['hub_id' => 'h2', 'name' => 'Backup', 'url' => 'https://srv2.example'],
+            ['serverId' => 'h1', 'serverName' => 'Main Server', 'status' => 'active', 'libraryCount' => 4],
+            ['serverId' => 'h2', 'serverName' => 'Backup', 'status' => 'stale', 'libraryCount' => 1],
         ]]);
         $client = new ApiClient(self::BASE, $t);
         $client->setToken(new TokenBundle('tok-abc', 'ref', 'Bearer', null));
@@ -275,10 +280,10 @@ final class ApiClientTest extends TestCase
         $servers = $this->await($client->myServers());
 
         self::assertCount(2, $servers);
-        self::assertSame('h1', $servers[0]['hub_id']);
-        self::assertSame('Main Server', $servers[0]['name']);
-        self::assertSame('https://srv1.example', $servers[0]['url']);
-        self::assertSame('h2', $servers[1]['hub_id']);
+        self::assertSame('h1', $servers[0]['serverId']);
+        self::assertSame('Main Server', $servers[0]['serverName']);
+        self::assertSame('active', $servers[0]['status']);
+        self::assertSame('h2', $servers[1]['serverId']);
 
         $req = $t->requestAt(0);
         self::assertSame('GET', $req['method']);

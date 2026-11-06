@@ -221,18 +221,25 @@ final class ApiClient
 
     /**
      * The list of servers the authenticated user has access to on the hub.
-     * Each entry: {hub_id, name, url}.
+     * Rows are the hub's camelCase ServerInfoDto payloads — `serverId`,
+     * `serverName`, `status`, `version`, `lastSeenAt`, `hostnameCandidates`,
+     * `relayActive`, `libraryCount`, `subdomain` (SSOT: phlix-hub
+     * src/Hub/ServerInfoDto::toPayload; older hubs may omit fields — the
+     * estate second source phlix-ui src/api/invite-links.ts declares them
+     * optional for that reason) [review w01L2console C1: the {hub_id,name,
+     * url} row claim here was fabricated, and the endpoint gained its first
+     * PRODUCTION caller — {@see \Phlix\Console\Api\Hub\HubClient::servers()}
+     * resolves the invite-create target from it].
      *
-     * No production caller: the Servers screen's 'h' key is a local refresh,
-     * not a hub import. Kept as the seam for a future import [R-CONSOLE-14].
-     *
-     * @return PromiseInterface<list<array{hub_id:string,name:string,url:string}>>
+     * @return PromiseInterface<list<array<string, mixed>>>
      */
     public function myServers(): PromiseInterface
     {
         return $this->authed('GET', '/api/v1/me/servers')->then(static function (array $data): array {
-            /** @var list<array{hub_id:string,name:string,url:string}> */
-            return Coerce::map($data['servers'] ?? null);
+            /** @var list<array<string, mixed>> $servers */
+            $servers = Coerce::map($data['servers'] ?? null);
+
+            return $servers;
         });
     }
 

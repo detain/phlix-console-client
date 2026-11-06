@@ -209,7 +209,9 @@ final class SharedWithMeScreenTest extends TestCase
     {
         $transport = (new FakeTransport())
             ->json(200, $this->offersEnvelope($this->sharesPayload()))
-            ->json(200, ['message' => 'ok']);
+            // Hub truth: the accept answer is the offer row {id,status,
+            // accepted_by} — there is no `message` key [review w01L2console m2].
+            ->json(200, ['id' => 'share-1', 'status' => 'accepted', 'accepted_by' => 'user-9']);
         $screen = $this->loaded($transport);
 
         [, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'a'));
@@ -247,7 +249,9 @@ final class SharedWithMeScreenTest extends TestCase
     {
         $transport = (new FakeTransport())
             ->json(200, $this->offersEnvelope($this->sharesPayload()))
-            ->json(200, ['message' => 'ok'])
+            // Hub truth: reject answers the offer row too — status flips to
+            // 'rejected', no `message` key exists [review w01L2console m2].
+            ->json(200, ['id' => 'share-1', 'status' => 'rejected', 'accepted_by' => 'user-9'])
             ->json(200, $this->offersEnvelope($this->sharesPayload()))
             ->fail(new \RuntimeException('denied'));
         $screen = $this->loaded($transport);

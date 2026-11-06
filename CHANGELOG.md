@@ -22,6 +22,46 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > strictly descending date order (a 2026-10-31-stamped rider written in a
 > later batch sits below 2026-10-30 ones — newest batch on top still wins).
 
+### Fixed — w01/L2 review fix-forward (REVIEW-w01L2console C1/m1/m2): invite-create wire truth — 2026-11-07
+
+- **Critical [review w01L2console C1] — the invite `c` key created NOTHING on
+  a live hub.** `HubClient::createInvite()` posted a fabricated
+  `{label, expires_in_seconds?}` body, but the hub's create endpoint
+  (phlix-hub `InviteLinkController::createInviteLink`) REQUIRES a non-empty
+  `server_id` — 400 `missing_server_id` on every call — never reads `label`,
+  and names its expiry key `expires_in`. The suite stayed green because the
+  screen test pinned only METHOD and URL against a body-blind canned 201: the
+  request direction was fictional while the response direction had been cured.
+  The screen now resolves the target from `GET /api/v1/me/servers` first
+  (HubClient gains `servers()`, riding ApiClient's single canonical send site
+  — GateScanner HUB_TUPLES unchanged): exactly one registered hub server is
+  unambiguously THE target; zero, several, or a `serverId`-less row stop with
+  a fail-loud message and no POST — never a guessed id (the web portal's
+  dropdown remains the multi-server path). `ApiClient::myServers()`'s
+  `{hub_id,name,url}` docblock and `ApiClientTest` fixture were fabricated
+  against the hub's camelCase `ServerInfoDto::toPayload` truth (second source
+  phlix-ui `src/api/invite-links.ts`) and are re-vendored; `ServersScreen`'s
+  "myServers() has no production caller" prose advances to shipped truth. The
+  create test now pins BOTH requests and the exact POST body
+  `{server_id: "srv-1"}` red-first; new `tests/Api/Hub/HubClientTest.php`
+  pins the client-seam body key names (`server_id`; `expires_in` with an
+  explicit expiry) and the servers delegation; three fail-loud arms of the
+  screen are pinned to never-POST.
+- **Minor [review w01L2console m1/m2] — the same fiction species removed from
+  the touched file's remaining prose and from the fixtures.**
+  `acceptShare()`/`rejectShare()` docblocks no longer narrate a `message`
+  resolution or a "400 already accepted/rejected" the hub never sends (the
+  success body is `{id, status: 'accepted'|'rejected', accepted_by}`; the
+  rejection codes are 409 `offer_already_responded` / 404 `offer_not_found`);
+  `revokeInvite()` says the hub answers 204 with no body (value discarded —
+  the screen re-reads the server-owned list). The SharedWithMe accept/reject
+  fixtures now carry those real bodies instead of `['message' => 'ok']`, and
+  the invite DELETE fixture is a true 204 (`raw(204, '')`) instead of
+  `['message' => 'revoked']` — behaviorally neutral (results discarded),
+  wire-honest. docs/clients/console.md's Invite Links row — still describing
+  the pre-rebuild placeholder ("no list rendered… revokes the first entry") —
+  now matches the shipped screen and states the single-server create law.
+
 ### Fixed — w01/L2 (CU-001, CU-002, CU-005): quit-path teardown + the hub screens' real frames — 2026-11-06
 
 - **CU-001 [review console__qa C1/m3] — screens never quit past the App's

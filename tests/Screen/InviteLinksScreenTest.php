@@ -41,7 +41,11 @@ use SugarCraft\Core\Msg\WindowSizeMsg;
  * (the old `inviteLinks` key was fabricated and parsed empty forever), rows
  * are `{id, url, permission, max_uses, use_count, ...}` — there is no `code`
  * key on the wire — and create resolves the server's flat 201 row instead of
- * the screen inventing an empty placeholder.
+ * the screen inventing an empty placeholder. [review w01L2console C1] added
+ * the REQUEST direction those tests never observed: the create path is pinned
+ * end-to-end (roster GET then POST) with the exact POST body, so a body the
+ * hub would reject can no longer ride a body-blind canned 201 to a green
+ * suite.
  */
 final class InviteLinksScreenTest extends TestCase
 {
@@ -57,6 +61,29 @@ final class InviteLinksScreenTest extends TestCase
     private function linksEnvelope(array $links): array
     {
         return ['invite_links' => $links];
+    }
+
+    /**
+     * Hub roster rows as the hub actually sends them: ServerInfoDto::toPayload
+     * is camelCase — `serverId` is the UUID createInvite must carry [review
+     * w01L2console C1; estate SSOT phlix-hub src/Hub/ServerInfoDto.php, second
+     * source phlix-ui src/api/invite-links.ts's `Server` interface].
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function hubServers(int $count = 1): array
+    {
+        $rows = [];
+        for ($i = 1; $i <= $count; $i++) {
+            $rows[] = [
+                'serverId' => "srv-$i",
+                'serverName' => "Server $i",
+                'status' => 'active',
+                'libraryCount' => 3,
+            ];
+        }
+
+        return $rows;
     }
 
     private function screenWith(FakeTransport $transport): InviteLinksScreen
@@ -206,11 +233,17 @@ final class InviteLinksScreenTest extends TestCase
 
     public function testCreateKeyReturnsAnAsyncCmdResolvingTheCreatedMsg(): void
     {
-        // The hub's 201 carries the created link FLAT; the msg must carry that
-        // parsed row, not a screen-fabricated empty placeholder [review
-        // console__uxdesign C1].
+        // [review w01L2console C1] The hub's create endpoint REQUIRES a
+        // non-empty `server_id` (400 missing_server_id without it) — the
+        // first cut posted a fabricated `{label}` body and stayed green
+        // because this test pinned only METHOD and URL against a body-blind
+        // canned 201. The screen now resolves the target from
+        // GET /api/v1/me/servers first, so the whole REQUEST DIRECTION is
+        // pinned: both requests, their order, and the exact POST body.
         $created = ['id' => 'inv-9', 'url' => 'https://hub/accept-invite/WXYZ', 'permission' => 'read', 'max_uses' => 1, 'use_count' => 0];
-        $transport = (new FakeTransport())->json(201, $created);
+        $transport = (new FakeTransport())
+            ->json(200, ['servers' => $this->hubServers(1)])
+            ->json(201, $created);
         $screen = $this->screenWith($transport);
 
         [, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'c'));
@@ -221,8 +254,67 @@ final class InviteLinksScreenTest extends TestCase
         $msg = $this->await($outcome->promise);
         self::assertInstanceOf(InviteLinkCreatedMsg::class, $msg);
         self::assertSame($created, $msg->link, 'the created row crosses the boundary parsed');
+
+        self::assertSame(2, $transport->requestCount(), 'create resolves the hub roster, then posts');
+        self::assertSame('GET', $transport->requestAt(0)['method']);
+        self::assertStringContainsString('/api/v1/me/servers', $transport->requestAt(0)['url']);
         self::assertSame('POST', $transport->lastRequest()['method']);
         self::assertStringContainsString('/api/v1/me/invite-links', $transport->lastRequest()['url']);
+        self::assertSame(
+            ['server_id' => 'srv-1'],
+            json_decode($transport->lastRequest()['body'], true),
+            'the POST body is exactly the hub-required shape — server_id, and no '
+            . 'fabricated keys (label/expires_in_seconds never exist on this wire)',
+        );
+    }
+
+    public function testCreateOnMultiServerHubFailsLoudAndNeverPosts(): void
+    {
+        // No per-invite server picker ships today, so a hub hosting several
+        // servers is a fail-loud stop — never a silently guessed id.
+        $transport = (new FakeTransport())->json(200, ['servers' => $this->hubServers(2)]);
+        $screen = $this->screenWith($transport);
+
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'c'));
+        $outcome = $cmd();
+        self::assertInstanceOf(AsyncCmd::class, $outcome);
+        $msg = $this->await($outcome->promise);
+
+        self::assertInstanceOf(InviteLinksFailedMsg::class, $msg);
+        self::assertStringContainsString('2 servers', $msg->message);
+        self::assertStringContainsString('web portal', $msg->message);
+        self::assertSame(1, $transport->requestCount(), 'no POST may follow an ambiguous roster');
+    }
+
+    public function testCreateOnServerlessHubFailsLoudAndNeverPosts(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['servers' => []]);
+        $screen = $this->screenWith($transport);
+
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'c'));
+        $outcome = $cmd();
+        self::assertInstanceOf(AsyncCmd::class, $outcome);
+        $msg = $this->await($outcome->promise);
+
+        self::assertInstanceOf(InviteLinksFailedMsg::class, $msg);
+        self::assertStringContainsString('no servers registered', $msg->message);
+        self::assertSame(1, $transport->requestCount());
+    }
+
+    public function testCreateWithServerIdlessRowFailsLoudAndNeverPosts(): void
+    {
+        // A malformed roster row (no serverId) is the guessed-id trap itself.
+        $transport = (new FakeTransport())->json(200, ['servers' => [['serverName' => 'ghost']]]);
+        $screen = $this->screenWith($transport);
+
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'c'));
+        $outcome = $cmd();
+        self::assertInstanceOf(AsyncCmd::class, $outcome);
+        $msg = $this->await($outcome->promise);
+
+        self::assertInstanceOf(InviteLinksFailedMsg::class, $msg);
+        self::assertStringContainsString('serverId', $msg->message);
+        self::assertSame(1, $transport->requestCount());
     }
 
     public function testCreatedMsgToastsAndReReadsTheServerList(): void
@@ -259,7 +351,7 @@ final class InviteLinksScreenTest extends TestCase
     {
         $transport = (new FakeTransport())
             ->json(200, $this->linksEnvelope($this->linksPayload()))
-            ->json(200, ['message' => 'revoked'])
+            ->raw(204, '') // hub DELETE answers 204 with NO body [review w01L2console m2]
             ->json(200, $this->linksEnvelope($this->linksPayload()))
             ->fail(new \RuntimeException('gone'));
         $screen = $this->loaded($transport);
