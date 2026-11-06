@@ -62,6 +62,19 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   the pre-rebuild placeholder ("no list rendered… revokes the first entry") —
   now matches the shipped screen and states the single-server create law.
 
+### Fixed — w01/L2 headSha CI audit re-green (REVIEW-w01L2console — Major): symfony/filesystem 7.4.23 — 2026-11-07
+
+- **Major [review w01L2console — headSha CI] — Security Audit job re-greened.**
+  `symfony/filesystem` 7.4.21 (require-dev chain) was flagged by
+  GHSA-6prc-h956-hxjq (patched 7.4.23) after the wave push — the advisory
+  landed in the gap between the green parent run and this headSha; the wave
+  commit itself touched no composer file. Forward-fix:
+  `composer update symfony/filesystem --with-dependencies`, lock-only
+  (v7.4.21 → v7.4.23, 6+/6−, composer.json untouched — the declared
+  `^6.4 || ^7.4` ranges already admit it). The whole-lock gate script and the
+  S440 guard suite (`SecurityAuditCheckTest`) pass UNMODIFIED — zero floor
+  rotation was needed (measured, not assumed).
+
 ### Fixed — w01/L2 (CU-001, CU-002, CU-005): quit-path teardown + the hub screens' real frames — 2026-11-06
 
 - **CU-001 [review console__qa C1/m3] — screens never quit past the App's
