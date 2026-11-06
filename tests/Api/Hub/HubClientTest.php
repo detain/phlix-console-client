@@ -79,6 +79,73 @@ final class HubClientTest extends TestCase
         );
     }
 
+    // ---- federation shares (CU-006: envelope-key re-derivation) ----------
+
+    public function testFederationSharesOutgoingReadsTheHubOutgoingSharesKey(): void
+    {
+        // Hub authority: src/Http/Controllers/FederationController.php
+        // getOutgoingShares — the top-level key is `outgoing_shares`. The
+        // first cut read a stale `$body['outgoing']`, so the parse was
+        // forever-empty against the real hub — the same body-blind class the
+        // createInvite CRIT died of. This pin speaks the hub's key verbatim.
+        $rows = [[
+            'id' => 'os-1',
+            'library_id' => 'lib-1',
+            'library_name' => 'Movies',
+            'peer_id' => 'hub-alpha',
+            'permission' => 'read',
+            'status' => 'active',
+            'shared_at' => '2026-10-01T00:00:00Z',
+            'revoked_at' => null,
+        ]];
+        $transport = (new FakeTransport())->json(200, ['outgoing_shares' => $rows]);
+
+        $parsed = $this->await($this->hubWith($transport)->federationSharesOutgoing());
+
+        self::assertSame('GET', $transport->lastRequest()['method']);
+        self::assertStringContainsString('/api/v1/me/federation/library-shares/outgoing', $transport->lastRequest()['url']);
+        self::assertSame($rows, $parsed, 'the hub rows pass through under their real envelope key');
+    }
+
+    public function testFederationSharesIncomingReadsTheHubIncomingOffersKey(): void
+    {
+        // Same controller, sibling verb getIncomingOffers: top-level
+        // `incoming_offers`, never a bare `incoming`.
+        $rows = [[
+            'id' => 'in-1',
+            'peer_id' => 'hub-gamma',
+            'library_id' => 'lib-9',
+            'library_name' => 'TV',
+            'permission' => 'read',
+            'status' => 'pending',
+            'offered_at' => '2026-10-02T00:00:00Z',
+            'responded_at' => null,
+            'accepted_by' => null,
+        ]];
+        $transport = (new FakeTransport())->json(200, ['incoming_offers' => $rows]);
+
+        $parsed = $this->await($this->hubWith($transport)->federationSharesIncoming());
+
+        self::assertSame('GET', $transport->lastRequest()['method']);
+        self::assertStringContainsString('/api/v1/me/federation/library-shares/incoming', $transport->lastRequest()['url']);
+        self::assertSame($rows, $parsed);
+    }
+
+    public function testRemoveShareDeletesTheOutgoingShareAndResolvesEmptyOnHubNoContent(): void
+    {
+        // Hub truth (revokeOutgoingShare): success is 204 with NO body — the
+        // docblock once narrated a `message` the verb never sends. The client
+        // must ride the empty decode (ApiClient turns 204 into []) and yield
+        // '' rather than read fiction off the wire.
+        $transport = (new FakeTransport())->raw(204, '');
+
+        $message = $this->await($this->hubWith($transport)->removeShare('os/1'));
+
+        self::assertSame('DELETE', $transport->lastRequest()['method']);
+        self::assertStringContainsString('/api/v1/me/federation/library-shares/outgoing/os%2F1', $transport->lastRequest()['url']);
+        self::assertSame('', $message, 'a 204 carries no message; the screen supplies its own sentence');
+    }
+
     public function testServersDelegatesToTheCanonicalMyServersRoster(): void
     {
         // One canonical GET /api/v1/me/servers site lives in ApiClient

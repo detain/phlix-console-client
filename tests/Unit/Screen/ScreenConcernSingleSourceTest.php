@@ -48,6 +48,17 @@ use RuntimeException;
  * debt for the next hub-list screen (FederationSharesScreen, sibling lane) to
  * absorb into a concern.
  *
+ * CU-006 hub-screen cure (measured rotation, this lane): FederationSharesScreen
+ * was rewritten from the swallow-everything stub onto the canonical hub-list
+ * shape, so seven standard cohorts each grew by one member (__construct hub-
+ * frame pair -> trio, pending pair -> trio, error/isLoading/items/selectedIndex/
+ * withSelectedIndex accessors) and the two init families traded one member (the
+ * dead `return null` arm left 165595781cec for the fetchCmd cohort d6e459fc085f).
+ * All nine pins above re-measured from the red in this change; the concern
+ * extraction this trio now owes (hub-frame ctor + pending) stays named follow-up
+ * debt for a consolidation lane — growth here is the consolidation ticket, not
+ * a reason to hand-vary the bodies (drift is the failure class 37 stops).
+ *
  * Red-on-parent law: on the pre-M37 tree, guard 1 fails (37 copies, no trait
  * files) and guard 2 fails (pinned map post-dates the extraction).
  */
@@ -76,7 +87,7 @@ final class ScreenConcernSingleSourceTest extends TestCase
      * @var array<string, int>
      */
     private const DUPLICATE_BASELINE = [
-        '__construct:6c37938acb1a' => 2,
+        '__construct:6c37938acb1a' => 3,
         '__construct:7301c5ce50ce' => 4,
         '__construct:9c6e4b19ba43' => 2,
         '__construct:b26a51baffce' => 16,
@@ -94,7 +105,7 @@ final class ScreenConcernSingleSourceTest extends TestCase
         'crumbLabel:d5115694604e' => 3,
         'editingKey:c8c0a39d4bcf' => 2,
         'entries:3e32494a5a8d' => 2,
-        'error:3beed84b7ad0' => 39,
+        'error:3beed84b7ad0' => 40,
         'fetchAhead:fee10b3c9dfb' => 4,
         'formError:dec963054647' => 2,
         'grid:fb0b34ba4cae' => 5,
@@ -108,12 +119,12 @@ final class ScreenConcernSingleSourceTest extends TestCase
         'humanBytes:c7e662758ab8' => 3,
         'idle:ad3349890c3a' => 2,
         'idle:bb3eb9d21a13' => 5,
-        'init:165595781cec' => 6,
+        'init:165595781cec' => 5,
         'init:604dc9070fd5' => 2,
         'init:72aaaf30429a' => 2,
         'init:bb9c6c829ec6' => 5,
         'init:bf44542cbb17' => 4,
-        'init:d6e459fc085f' => 20,
+        'init:d6e459fc085f' => 21,
         'initialWindowEnd:5344bef7c76a' => 3,
         'initialWindowEnd:a846b8a5acdf' => 4,
         'isBusy:6ac4254d769d' => 11,
@@ -121,9 +132,9 @@ final class ScreenConcernSingleSourceTest extends TestCase
         'isEditing:4b72f14022a8' => 2,
         'isEditing:7de7a84db62b' => 2,
         'isLoaded:4f7293604f52' => 24,
-        'isLoading:0b9adf92891c' => 11,
+        'isLoading:0b9adf92891c' => 12,
         'isLoading:397ff32d7077' => 3,
-        'items:149b6d301cf3' => 7,
+        'items:149b6d301cf3' => 8,
         'loadCover:4624ad4adcaa' => 2,
         'loadVisibleCovers:b1fc5c5e7cbc' => 2,
         'moveSelection:0f67a05eea92' => 2,
@@ -134,7 +145,7 @@ final class ScreenConcernSingleSourceTest extends TestCase
         'onResize:b6f335f72dd2' => 3,
         'openCreate:bc4e36b2a15d' => 2,
         'openSelected:c734f547b2f3' => 3,
-        'pending:d1ad2ab00e24' => 2,
+        'pending:d1ad2ab00e24' => 3,
         'pollEpoch:ee834455d131' => 2,
         'query:ccb55d034c21' => 2,
         'refresh:0e361c8648b5' => 3,
@@ -143,7 +154,7 @@ final class ScreenConcernSingleSourceTest extends TestCase
         'renderItem:ef5d5e4e1161' => 2,
         'selectedAlbum:33302c7a0a82' => 2,
         'selectedIndex:47e270ff73c1' => 18,
-        'selectedIndex:fa97ddbb435c' => 11,
+        'selectedIndex:fa97ddbb435c' => 12,
         'statusLine:deaf070d4e3d' => 2,
         'teardown:145ee1b308bc' => 5,
         'total:86673e3933c3' => 3,
@@ -168,7 +179,7 @@ final class ScreenConcernSingleSourceTest extends TestCase
         'withGrid:618a99b61c5d' => 4,
         'withHero:dcd4d0c63d40' => 2,
         'withSelectedIndex:415180d2cb34' => 4,
-        'withSelectedIndex:e2cbfac9d35f' => 7,
+        'withSelectedIndex:e2cbfac9d35f' => 8,
         'withTyped:5b9f56916867' => 2,
         'working:0ccdf20fbb06' => 2,
         'working:2574aa17e123' => 5,

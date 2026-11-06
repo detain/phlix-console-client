@@ -76,6 +76,7 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
     private const SEARCH_DEBOUNCE = 0.3;
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_MORE_FAILED = "Could not load more items.";
+    private const LETTER_JUMP_NEEDS_NAME_SORT = 'A–Z needs the name sort — press / to change the sort.';
     private const HINT = '↑↓←→  move      A–Z  jump      /  filter      c  clear      s  shuffle      R  refresh      Esc  back';
     private const FILTER_HINT = 'type to search      Tab  field      ←→  change      c  clear      Esc  done';
 
@@ -293,12 +294,17 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
     /**
      * Jump the grid to the bucket for a typed letter (`#`/digits → non-alpha).
      *
+     * [review console__enduser m4] When the guard below trips the letter is
+     * otherwise a silently-dead input: the A–Z rail only exists while the grid
+     * is sorted by name (and once its index is loaded), so the press answers
+     * with a notice instead of vanishing.
+     *
      * @return array{self, ?\Closure}
      */
     private function jumpToLetter(string $rune): array
     {
         if ($this->letterIndex === null || !$this->isNameAscending()) {
-            return [$this, null];
+            return [$this, Cmd::send(ShowToastMsg::info(self::LETTER_JUMP_NEEDS_NAME_SORT))];
         }
 
         $letter = ctype_alpha($rune)

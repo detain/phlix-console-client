@@ -153,10 +153,15 @@ final class HubClient
     // ---- federation shares -----------------------------------------------
 
     /**
-     * List the outgoing federation library shares (libraries this server has
+     * List the outgoing federation library shares (libraries this hub has
      * shared with other federation peers). The federation controller returns
      * data at the TOP LEVEL with NO `{success, data}` envelope, so the list is
-     * read straight from `$body['outgoing']`. A non-list payload yields an empty list.
+     * read straight from `$body['outgoing_shares']` — the controller's own key
+     * (hub FederationController::getOutgoingShares) [review console__uxdesign
+     * C2: the first cut parsed a stale `$body['outgoing']` the hub never sends,
+     * so the screen's list was forever-empty against the real wire]. Rows carry
+     * `id`, `library_id`, `library_name`, `peer_id`, `permission`, `status`,
+     * `shared_at`, `revoked_at`. A non-list payload yields an empty list.
      *
      * @return PromiseInterface<list<array<string, mixed>>>
      */
@@ -165,18 +170,20 @@ final class HubClient
         return $this->api->send('GET', self::FEDERATION . '/library-shares/outgoing')
             ->then(static function (array $body): array {
                 return self::mapList(
-                    $body['outgoing'] ?? null,
+                    $body['outgoing_shares'] ?? null,
                     static fn (array $row): array => $row,
                 );
             });
     }
 
     /**
-     * List the incoming federation library shares (libraries other federation
-     * peers have shared with this server, pending acceptance). The federation
-     * controller returns data at the TOP LEVEL with NO `{success, data}` envelope,
-     * so the list is read straight from `$body['incoming']`. A non-list payload
-     * yields an empty list.
+     * List the incoming federation library offers (libraries other federation
+     * peers have offered to this hub, pending acceptance). Same top-level law:
+     * the list is read straight from `$body['incoming_offers']` — the key
+     * getIncomingOffers actually emits [review console__uxdesign C2: the stale
+     * `$body['incoming']` read parsed nothing] — and it is the resource the
+     * accept/reject verbs answer, keyed by `id`. A non-list payload yields an
+     * empty list.
      *
      * @return PromiseInterface<list<array<string, mixed>>>
      */
@@ -185,7 +192,7 @@ final class HubClient
         return $this->api->send('GET', self::FEDERATION . '/library-shares/incoming')
             ->then(static function (array $body): array {
                 return self::mapList(
-                    $body['incoming'] ?? null,
+                    $body['incoming_offers'] ?? null,
                     static fn (array $row): array => $row,
                 );
             });
@@ -225,8 +232,12 @@ final class HubClient
     }
 
     /**
-     * Remove (delete) an outgoing federation library share by id. Resolves the
-     * server `message`; rejects with the server `error` on 404.
+     * Revoke (delete) an outgoing federation library share by id. Hub truth
+     * (FederationController::revokeOutgoingShare): success is 204 with NO body,
+     * so this always resolves the empty string — the screen supplies its own
+     * sentence. Rejects with the server `error` text: 404 `share_not_found` on
+     * an unknown id; a 400 `missing_share_id` is unreachable from here since the
+     * id comes from the row itself.
      *
      * @return PromiseInterface<string>
      */

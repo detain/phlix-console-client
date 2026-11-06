@@ -1924,7 +1924,10 @@ final class App implements Model
     /** @return array{App, ?\Closure} */
     private function openFederationShares(): array
     {
-        $screen = new FederationSharesScreen();
+        // CU-006 [review console__uxdesign C2]: the screen now fetches the real
+        // outgoing-share list and renders a Chrome::frame — it needs the hub
+        // client and the live geometry, exactly like its two hub siblings.
+        $screen = new FederationSharesScreen(new HubClient($this->api), cols: $this->cols, rows: $this->rows);
 
         return [$this->push(Route::FederationShares, $screen), $screen->init()];
     }

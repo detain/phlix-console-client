@@ -319,7 +319,29 @@ final class LibraryScreenTest extends TestCase
         [$next, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'z')); // Z has no items
 
         self::assertSame(0, $next->grid()->cursorIndex());
-        self::assertNull($cmd);
+        self::assertNull($cmd, 'a letter with no bucket stays silent — the rail itself shows it dimmed');
+    }
+
+    public function testLetterKeyUnderNonNameSortDisclosesWhy(): void
+    {
+        // [review console__enduser m4] A–Z letters used to vanish without a
+        // word once the sort left name-ascending (jumpToLetter bails on
+        // !isNameAscending, and applyFilters drops the index). Silent dead
+        // input is the most confusing class — the press now answers with a
+        // notice naming the condition, matching the manual's qualified row.
+        [$filtering] = $this->loadedWithIndex()->update(new KeyMsg(KeyType::Char, '/'));
+        [$onSort] = $filtering->update(new KeyMsg(KeyType::Tab));
+        [$sorted] = $onSort->update(new KeyMsg(KeyType::Right));       // name → year
+        [$closed] = $sorted->update(new KeyMsg(KeyType::Escape));      // leave the filter bar
+
+        self::assertSame('year', $closed->query()->sort);
+
+        [, $cmd] = $closed->update(new KeyMsg(KeyType::Char, 'm'));
+        self::assertNotNull($cmd, 'the dead letter must disclose itself');
+
+        $toast = $cmd();
+        self::assertInstanceOf(ShowToastMsg::class, $toast);
+        self::assertStringContainsString('name', strtolower((string) $toast->message), 'the notice names the name-sort condition');
     }
 
     public function testLetterRailRendersInTheView(): void

@@ -209,12 +209,16 @@ runs the German UI. Region and encoding suffixes are normalized
 locale that lags the English catalog degrades per key to English rather than
 rendering blanks.
 
-Coverage is **partial**: the catalogs carry the browsable and playable
-surfaces — libraries, search, detail, playlists, favorites, history and the
-player — while the sign-in and registration
+Coverage is **partial**, and the split is by surface, not by language:
+the catalogs carry the media **detail** screens, the player hint line, the
+grid filter bar, the "For You" recommendations, the SyncPlay error sentences
+and the shared error/session arms (an expired sign-in localizes everywhere it
+can strike). The browsable and playable *chrome* — the library grid, search,
+playlists, favorites, watch history — plus the sign-in and registration
 forms, the settings screens, server management, album and photo screens, the
-hub-sharing screens and the typed-confirm prompts still render English
-hard-coded strings. The authoritative per-screen list lives in [the i18n
+hub-sharing screens and the typed-confirm prompts render English
+hard-coded strings; on those screens only the shared expiry/error sentence
+localizes. The authoritative per-screen list lives in [the i18n
 guide](../i18n.md) under “Remaining Screens”.
 
 The contributor-side story (adding screens, adding locales)
@@ -427,11 +431,11 @@ and will never press Enter for you.
 | `Esc` | Go back / dismiss |
 | `Tab` | Switch focus (e.g., sidebar ↔ poster grid on home) |
 | `Ctrl-C` | Quit |
-| `A–Z` | Jump to a letter in a grid (A–Z rail) |
+| `A–Z` | Jump to a letter in a grid (A–Z rail — live only while the grid is sorted by name; under another sort the press answers with a notice why) |
 | `R` | Refresh — re-fetch the home rails (on the home screen only `R` works; a library grid answers `r` too) |
 | `s` | Shuffle-play the focused card (home rails, library grids, media detail) |
-| `c` | Clear the grid filter (library grids) |
-| `u` / `n` | Jump to the Up Next rail (home) |
+| `c` | Clear the grid filter when one is set; otherwise jump to the letter C (like any letter key) (library grids) |
+| `u` / `n` | Jump to the Up Next rail (home; both letter cases accepted) |
 | `[` / `]` | Page the Most Watched rail (home, while it is focused) |
 | `q` | Quit the home browse view |
 
@@ -497,8 +501,8 @@ to your account on the server; nothing stays device-local.
 | `l` | Thumbs up — like level +2; pressing again at +2 clears it to 0 |
 | `j` | Thumbs down — like level −2; pressing again at −2 clears it to 0 |
 | `a` | Home rails — cycle the watch filter All → Watched → Unwatched → ♥ Favorites; the current mode shows in the rails hint as `filter(…)` |
-| `H` | Home sidebar — open watch history |
-| `P` | Home sidebar — open playlists |
+| `H` | Home sidebar — open watch history (both letter cases accepted) |
+| `P` | Home sidebar — open playlists (both letter cases accepted) |
 
 The detail-screen toggles and the rating are optimistic: the screen flips
 immediately and reverts if the server round-trip fails. What the server
@@ -530,7 +534,7 @@ keys each individual screen adds, consolidated from the handlers (the
 | Cast — device list | `↑`/`↓` select, `Enter` start casting, `r` rescan for devices, `q`/`Esc` leave |
 | Cast — transport (session live) | `Space` play/pause, `r` refresh status, `x` stop the session (when the device allows stopping), `←`/`→` seek ∓10 s (`Shift`+arrow: ∓60 s, when the device allows seeking), `Esc` back to the device list |
 | Music / Audiobooks | `↑`/`↓` select, `Enter` play; on the album track table `Space` pauses/resumes and `n`/`p` skip to the next/previous track; in Audiobooks `Space` pauses/resumes and `r` resumes the last chapter from your saved spot; from anywhere else, pause/resume and stop are palette actions (the palette carries no next/previous) |
-| Collections / Playlists | `↑`/`↓` select, `Enter` open, `d` delete (type the word `delete` to confirm); `a`/`r` answer with a notice — see the Screens table |
+| Collections / Playlists | `↑`/`↓` (or `j`/`k`) select, `Enter` open, `d` delete (type the word `delete` to confirm); `a`/`r` answer with a notice — see the Screens table |
 | Servers | `↑`/`↓` select, `Enter` switch to it, `a` add one manually, `h` reload the list from the saved config, `r` remove |
 | Settings | Move between the fields per the on-screen hints; `s` opens **Servers**, `l` signs out (both letter cases accepted) |
 | Live TV (admin) | `r` refresh anywhere; in the Tuners section `s` rescans tuner hardware; on the Guide `R` records the selected program and `S` records its whole series (only offered when the program carries a series id) |
@@ -606,9 +610,9 @@ without moving it, and a screen's own keys are consolidated under
 | **Recently Watched** | Your watch history — `H` on the home sidebar or the palette's Watch History action; `Enter` opens the recorded item's detail screen |
 | **Recommendations** | "For You" — personal suggestions built from your watching (`GET /api/v1/me/recommendations`); opened with `w` in the player. Navigate with `↑`/`↓` (or `j`/`k`), `Enter` opens, `x`/`X` dismisses a suggestion, `q`/`Q`/`Esc` goes back |
 | **Servers** | Multi-server switcher — `Enter` switches the active server, `a` adds one manually (inline URL + label form; blank label falls back to the host), `h` refreshes the list from the saved config, `r` removes; opened from the palette or Settings |
-| **Shared With Me** | Incoming hub shares — currently a placeholder view (it fetches the shares but lists nothing on screen; `a`/`r` still act on the first entry) |
+| **Shared With Me** | Incoming federation share offers (`GET /api/v1/me/federation/library-shares/incoming`) — `↑`/`↓` (or `j`/`k`) move the cursor, `a` accepts and `r` rejects the selected offer (each answer toasts and re-reads the list from the hub), `q`/`Q`/`Esc` goes back |
 | **Invite Links** | Hub invite links — lists the links you created with permission/usage counters (`↑↓` cursor); `c` mints one for the hub's single registered server (a hub with zero or several registered servers stops with a clear message — mint those from the web portal), `r` revokes the selected link; the plaintext token/URL appears only in the create response |
-| **Federation Shares** | Outgoing federation shares — a title-only placeholder; the list is not implemented yet |
+| **Federation Shares** | Outgoing federation shares (`GET /api/v1/me/federation/library-shares/outgoing`) — libraries your hub has shared to peers, listed with peer, permission and status; `↑`/`↓` (or `j`/`k`) move the cursor, `r` revokes the selected share (the hub deletes it, then the list re-reads), `q`/`Q`/`Esc` goes back |
 
 ## Troubleshooting
 
@@ -672,13 +676,13 @@ fixed path deletes nothing, or worse, the wrong tree.)
 ### Slow poster loading
 
 The first run fetches and tiles all posters for the selected render mode.
-Subsequent runs are cached in a `posters/` directory beside the config file
-`phlix doctor` reports as its `Config path` (by default
-`~/.config/phlix/posters/` — adjust to wherever doctor points). To clear the
-cache:
+Subsequent runs are cached in the poster cache directory — `phlix doctor`
+prints its exact, already-expanded location on a line of its own
+(`Poster cache directory: …`; by default `~/.config/phlix/posters/`). To clear
+the cache, parse that line directly:
 
 ```sh
-rm -rf "$(dirname "$(bin/phlix doctor | sed -n 's/^Config path: //p')")/posters"
+rm -rf "$(bin/phlix doctor | sed -n 's/^Poster cache directory: //p')"
 bin/phlix run
 ```
 

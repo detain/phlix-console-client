@@ -22,6 +22,59 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > strictly descending date order (a 2026-10-31-stamped rider written in a
 > later batch sits below 2026-10-30 ones — newest batch on top still wins).
 
+### Fixed — w02/L1 review fix-forward (CU-006/018/020/022/023/024): Federation Shares screen cured; manual key/i18n/cache truths — 2026-11-07
+
+- **Critical [review console__uxdesign C2, console__docmaint m4 / CU-006] —
+  Federation Shares was a blank, key-dead modal.** `body()` returned `''`
+  (an empty Chrome frame), `update()` returned `[$this, null]` for EVERY
+  message — Escape and `q` included — so the palette-reachable screen had no
+  exit but knowing Ctrl-K → Home existed, and the hardcoded 80x24 geometry
+  ignored `WindowSizeMsg`. It now rides the canonical hub-list shape of its
+  two siblings: an `AsyncCmd` fetch of the outgoing-share list on the outer
+  loop (M-CONSOLE-36 law), loading/error/empty/list frames, cursor by
+  arrows/`j`/`k`, Escape routed by KEY TYPE, and `r` revoking the selected
+  share (hub `DELETE …/outgoing/{id}`, success 204) with a toast plus a
+  server re-read. The wire read was the second cure: the typed client parsed
+  a stale `$body['outgoing']` / `$body['incoming']` the hub never emits —
+  truth is `outgoing_shares` / `incoming_offers` (hub
+  `FederationController::getOutgoingShares`/`getIncomingOffers`), so even a
+  rendering list parsed forever-empty; `removeShare()`'s docblock told the
+  same story of a `message` key a 204 cannot carry. `App::openFederationShares()`
+  now hands the screen the `HubClient` and live geometry. Red-first: 10
+  screen tests + 2 envelope-key pins + 1 204-pin measured RED on parent
+  (`FederationSharesScreenTest` new; `HubClientTest` +3). The
+  `ScreenConcernSingleSourceTest` cohorts the canonical rewrite joins were
+  re-pinned from the measured red in this change (nine families; the hub-frame
+  ctor/pending concern extraction stays named follow-up debt).
+- **Minor [review console__docmaint m4] — the stale Shared With Me row** (it
+  still described the pre-CU-005 placeholder: "lists nothing on screen") now
+  documents the implemented offer list and its `a`/`r`/cursor/back keys.
+- **Major [review console__tui-arch m4 / CU-018] — the manual's Languages
+  section overstated catalog coverage** ("libraries, search, detail,
+  playlists, favorites, history and the player"). `resources/lang/en.php`
+  carries `detail` (27), `player` (7), `filter` (7), `recommendations` (7),
+  `syncplay` (18), `errors` (2) and the single `auth.session_expired` — the
+  browse/search/playlist/favorite/history screens localize ONLY the shared
+  expiry/error arm; their chrome is hard-coded English. The section now states
+  the per-surface split truthfully and keeps docs/i18n.md as the authority.
+- **Minor [review console__docmaint m6/m7 / CU-020] — undocumented keys.**
+  The Collections / Playlists row gains its shipped vim mirrors (`j`/`k`,
+  matching the Recommendations row), and the home `H`/`P` and `u`/`n` rows
+  note the case-tolerance the handlers accept.
+- **Minor [review console__enduser m4 / CU-022] — A–Z letters went silently
+  dead outside the name sort** (`jumpToLetter()` bailed on `!isNameAscending`
+  / unloaded index with zero feedback). The press now answers with an info
+  toast naming the condition, and the manual's `A–Z` row states the name-sort
+  qualification. Red-first: `LibraryScreenTest::testLetterKeyUnderNonNameSortDisclosesWhy`.
+- **Minor [review console__enduser m5 / CU-023] — `c` dual meaning.** On a
+  library grid `c` clears the filter only when one is active; otherwise it
+  jumps to the letter C like any letter key. The keybinding row now says so.
+- **Info [review console__enduser m6 / CU-024] — the poster-cache `rm`
+  snippet** reached the cache through `dirname(Config path)` + an assumed
+  `posters` child; `phlix doctor` prints the expanded location literally on
+  its own `Poster cache directory:` line, and the snippet (and its prose) now
+  parse that one line — no dirname, no assumed child name.
+
 ### Fixed — w01/L2 review fix-forward (REVIEW-w01L2console C1/m1/m2): invite-create wire truth — 2026-11-07
 
 - **Critical [review w01L2console C1] — the invite `c` key created NOTHING on
