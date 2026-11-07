@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace Phlix\Console\Tests\I18n;
 
 use Phlix\Console\I18n\Lang;
+use Phlix\Console\Screen\PlayerScreen;
 use PHPUnit\Framework\TestCase;
 use SugarCraft\Core\I18n\T;
 
@@ -101,6 +102,11 @@ final class TranslatorTest extends TestCase
         // Verify all DetailScreen translation keys are accessible.
         self::assertSame('Your session expired. Please sign in again.', Lang::t('auth.session_expired'));
         self::assertSame('▶  This title has no playable source.', Lang::t('detail.play_notice'));
+        // Drift triplet [review console__writer #15 / CU-039]: the one raw src
+        // copy of this sentence is PlayerScreen's const (the copy that used to
+        // bypass the catalog). Catalog value and const are pinned together —
+        // if either moves alone, this reddens.
+        self::assertSame('▶  ' . PlayerScreen::NO_PLAYABLE_SOURCE, Lang::t('detail.play_notice'));
         self::assertNotEmpty(Lang::t('detail.hint'));
         self::assertNotEmpty(Lang::t('detail.container_hint'));
         self::assertNotEmpty(Lang::t('detail.loading_hint'));

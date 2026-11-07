@@ -318,4 +318,32 @@ final class DownloadServiceHardeningTest extends TestCase
         self::assertTrue(ctype_print($name), 'the name is fully printable');
         self::assertLessThanOrEqual(128, strlen($name), 'the name is length-bounded');
     }
+
+    /**
+     * The non-streaming-response refusal reaches the user through
+     * "Download failed: " (DetailScreen) — it reads as a sentence, not
+     * transport vocabulary with a stray hyphen [review console__writer #16 /
+     * CU-040; old line: 'Unexpected response type - streaming not supported'].
+     */
+    public function testNonStreamingResponseRejectsWithAUserVoiceSentence(): void
+    {
+        // Duck-typed response whose body is NOT a React stream (no `on()`) —
+        // exactly the shape the service refuses.
+        $response = new class {
+            public function getHeaderLine(string $name): string
+            {
+                return '';
+            }
+
+            public function getBody(): \stdClass
+            {
+                return new \stdClass();
+            }
+        };
+        $service = new DownloadService(browser: $this->stubBrowser(resolve($response)));
+
+        $reason = $this->rejectionReason($service->download('https://srv.example/media/m1/show.mp4', 'm1'));
+
+        self::assertSame('The server response cannot be streamed.', $reason);
+    }
 }

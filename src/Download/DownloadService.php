@@ -272,7 +272,7 @@ final class DownloadService
                         @unlink($finalTmpFilepath);
                         // Note: for non-streaming responses, we'd need a different approach
                         $deferred->reject(new DownloadException(
-                            "Unexpected response type - streaming not supported",
+                            'The server response cannot be streamed.',
                             0,
                         ));
                     }

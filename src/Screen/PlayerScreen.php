@@ -131,6 +131,19 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
     /** Rows reserved below the video: caption + scrubber + status line + 1 slack for the inner player's own status line. */
     private const CHROME_ROWS = 4;
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
+    /**
+     * The one "nothing to play" sentence. Its catalog mirror (`detail.play_notice`,
+     * presentation-prefixed `▶ `) is pinned against this const by
+     * tests/I18n/TranslatorTest.php, so the raw copy here no longer silently
+     * drifts from the catalog [review console__writer #15 / CU-039].
+     */
+    public const NO_PLAYABLE_SOURCE = 'This title has no playable source.';
+    /**
+     * The one "the server could not get this title playable" sentence, shared by
+     * the rejected transcode start and a job that reaches `failed` — the two
+     * arms of one outcome, phrased once [review console__writer #11 / CU-036].
+     */
+    private const PREPARE_FAILED = 'Could not prepare this title for playback.';
     /** Jellyfin-style 100ns ticks per second (the server's progress unit). */
     private const TICKS_PER_SECOND = 10_000_000;
     /** Seconds between throttled progress reports. */
@@ -689,7 +702,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
     private function buildPlayer(string $url): PromiseInterface
     {
         if ($url === '') {
-            return resolve(new PlayerPrepareFailedMsg('This title has no playable source.'));
+            return resolve(new PlayerPrepareFailedMsg(self::NO_PLAYABLE_SOURCE));
         }
 
         try {
@@ -1297,7 +1310,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
 
         return Cmd::promise(fn (): PromiseInterface => $this->api->startTranscode($id)->then(
             static fn (TranscodeJob $job): Msg => new TranscodeStartedMsg($job),
-            static fn (\Throwable $e): Msg => new PlayerPrepareFailedMsg('Could not prepare this title for playback.'),
+            static fn (\Throwable $e): Msg => new PlayerPrepareFailedMsg(self::PREPARE_FAILED),
         ));
     }
 
@@ -1355,7 +1368,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
     private function onTranscodeStatus(TranscodeJob $job): array
     {
         if ($job->isFailed()) {
-            return [$this->withError('This title could not be prepared for playback.'), null];
+            return [$this->withError(self::PREPARE_FAILED), null];
         }
 
         $next = clone $this;

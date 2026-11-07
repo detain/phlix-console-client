@@ -22,6 +22,59 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > strictly descending date order (a 2026-10-31-stamped rider written in a
 > later batch sits below 2026-10-30 ones — newest batch on top still wins).
 
+### Fixed — w04/L2 review fix-forward (CU-035/036/039/040/041/044): imperative validation voice; user sentences single-sourced; rescan/download prose truth; US spelling; composer platform honesty — 2026-11-06
+
+- **[review console__copywriter / CU-035 + CU-039] — the empty-URL refusal
+  became an imperative and lost its copies.** `ServerScreen` now owns one
+  `public const EMPTY_URL_ERROR = 'Enter a server URL.'` consumed by its own
+  two refusal arms and by the `ServersScreen` add-flow and `App`'s first-run
+  prompt — previously the same sentence lived as four hand-typed literals
+  ("Please enter a server URL.") and drifted nowhere yet invited it. Voice
+  law: validations command, they do not beg. `UserSentenceSingleSourceTest`
+  scans all of `src/` and pins each protected sentence to exactly one
+  occurrence (0 for every retired phrasing), so a re-typed literal reddens.
+- **[review console__copywriter / CU-036] — one failure, one sentence.**
+  `PlayerScreen` phrased the same dead-transcode failure twice: "Could not
+  prepare this title for playback." (menu path) and "This title could not be
+  prepared for playback." (status path). Both arms now read the single
+  `PREPARE_FAILED` const; the notice-bar sibling "This title has no playable
+  source." became `NO_PLAYABLE_SOURCE`, mirroring its catalog key.
+- **[review console__copywriter / CU-040] — `CastScreen`'s rescan pair
+  unified** onto one private `RESCAN_PROMPT` const ("Press r to rescan.")
+  shared by the error and empty branches (the error branch had stacked a
+  second `(r to rescan)` parenthetical variant under itself), and
+  `DownloadService`'s dev-voice rejection "Unexpected response type -
+  streaming not supported" became the user sentence "The server response
+  cannot be streamed."
+- **[review console__copywriter / CU-041] — `Theme`'s user-facing exception
+  now says "Unknown widget color role"** (US spelling, the repo's convention);
+  the file's own docblocks followed. The British cohort elsewhere lives only
+  in non-rendered docblock prose (RecommendationCard, Scrubber, Chrome…) —
+  disclosed residual, outside this card.
+- **[review console__devops #4/#6 + console__srphp #6 / CU-044] — composer
+  declares the platform it runs on.** `ext-json` (pervasive API codec; became
+  disable-able in 8.4) and `ext-pcntl` (the SIGINT/TERM teardown) moved from
+  ambient to required; the PHP constraint gained its ceiling (`^8.3`) against
+  the dev-master chain; `ext-posix` stays honestly undeclared — zero call
+  sites in `src`/`bin`/`scripts` (the vendor tty-probe's posix branch is dead
+  code on 8.3+), and `ext-curl` by design fails loud through the doctor.
+  The phpcs CI job's `extensions:` input gained `pcntl` — it runs
+  `composer install`, which now enforces the platform. The polyfill `provide`
+  block **stayed, inverted from the review's ask**: measurement showed every
+  removal shape fails — dropping it (or requiring the real polyfill package)
+  lets `humbug/box`'s dev-only `replace: symfony/polyfill-php8x *` answer
+  `league/commonmark`'s production requirement, promoting box's 55-package
+  tooling tree into the `--no-dev` closure (lock diff measured), and the
+  `conflict` variant leaves the graph unsatisfiable (composer Problem 1,
+  measured). On the new `^8.3` ceiling every polyfilled symbol is core truth,
+  so the claim is sound — `ComposerHygieneTest` now pins the exact provide
+  trio and box's dev-side placement in the lock instead of its absence.
+  Lock rotated surgically: content-hash + platform echo only, zero package
+  moves (+5/−3 diff); the shifted line-count reddened the
+  `CiBaselineClaimsDocsTest` tripwire and `docs/steps/ci-baseline-C9.md`
+  re-anchored `composer.json:20-35,43` to `22-37,45` in the same change
+  (measure-at-red, per the efde521 precedent).
+
 ### Fixed — w03/L1 review fix-forward (CU-025/026/028/030/033/034): list-screen hint truthfulness; typed-confirm quoting unified; dev-guide/README claims cured; header casing + Admin prefix — 2026-11-06
 
 - **Major [review console__writer #2, console__a11y #3 / CU-028] — the hint

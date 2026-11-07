@@ -1393,7 +1393,7 @@ final class App implements Model
     {
         $url = Config::normalizeUrl($url);
         if ($url === '') {
-            return $this->goServerSetup('Please enter a server URL.');
+            return $this->goServerSetup(ServerScreen::EMPTY_URL_ERROR);
         }
 
         try {
@@ -2045,7 +2045,7 @@ final class App implements Model
     {
         // Don't remove the active server
         if ($serverId === $this->config->activeServerId) {
-            $toast = ShowToastMsg::warning('Cannot remove the active server.');
+            $toast = ShowToastMsg::warning(ServersScreen::CANNOT_REMOVE_ACTIVE);
 
             return [$this, Cmd::send($toast)];
         }

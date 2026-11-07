@@ -215,7 +215,10 @@ final class ThemePaletteSoleSourceTest extends TestCase
     public function testUnknownRoleUnknownPaletteAndNegativeSlotFailLoud(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unknown widget colour role \'sparkle\'');
+        // US spelling — these exception sentences surface via logs and could
+        // leak into a generic toast; the estate voice is 'color' [review
+        // console__writer #17 / CU-041].
+        $this->expectExceptionMessage('Unknown widget color role \'sparkle\'');
         Theme::nocturne()->widgetStyle('sparkle');
     }
 

@@ -85,6 +85,12 @@ final class CastScreen implements Breadcrumbed, Themed
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
 
     private const PICKER_HINT = '↑↓  select      ⏎  cast      r  rescan      Esc  back';
+    /**
+     * The one rescan sentence, shared by the empty-list placeholder and the
+     * error state so both arms carry identical voice [review console__writer
+     * #12 / CU-040].
+     */
+    private const RESCAN_PROMPT = 'Press r to rescan.';
 
     private string $mode = self::MODE_DISCOVERING;
 
@@ -500,10 +506,10 @@ final class CastScreen implements Breadcrumbed, Themed
             return "\n  Searching for devices…";
         }
         if ($this->error !== null) {
-            return "\n  {$this->error}\n\n  Press r to rescan.";
+            return "\n  {$this->error}\n\n  " . self::RESCAN_PROMPT;
         }
         if ($this->devices === []) {
-            return "\n  No cast devices found on the network. (r to rescan)";
+            return "\n  No cast devices found on the network.\n\n  " . self::RESCAN_PROMPT;
         }
 
         return "\n" . $this->castingLine() . "\n" . $this->deviceTable();

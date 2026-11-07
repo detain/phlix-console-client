@@ -67,7 +67,11 @@ final class ServerScreenTest extends TestCase
         if ($cmd !== null) {
             self::assertNotInstanceOf(SubmitServerMsg::class, $cmd());
         }
-        self::assertStringContainsString('server URL', $next->view());
+        // One imperative voice for field validation [review console__writer
+        // #10 / CU-035]: the empty-URL refusal is the house imperative, the
+        // 'Please' family retires with this wave.
+        self::assertSame('Enter a server URL.', $next->error);
+        self::assertStringContainsString('Enter a server URL.', $next->view());
     }
 
     // [review console__qa m-2, M-CONSOLE-50] A structurally impossible URL was

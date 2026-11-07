@@ -6,6 +6,7 @@ namespace Phlix\Console\Tests\Screen;
 
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\Dto\MediaItem;
+use Phlix\Console\Api\Dto\TranscodeJob;
 use Phlix\Console\Api\SyncPlay\SyncPlayService;
 use Phlix\Console\Api\Transport;
 use Phlix\Console\Msg\NavigateBackMsg;
@@ -341,6 +342,24 @@ final class PlayerScreenTest extends TestCase
         [$next, $cmd] = $screen->update($msg);
         self::assertTrue($next->isTranscoding(), 'a build failure starts the server transcode');
         self::assertInstanceOf(\Closure::class, $cmd);
+    }
+
+    /**
+     * The rejected transcode start (:1300 arm) and a job that reaches `failed`
+     * (:1358 arm) are the one outcome — "the server could not get this title
+     * playable" — and must render the one sentence. The second phrasing
+     * ('This title could not be prepared for playback.') read as a second bug
+     * [review console__writer #11 / CU-036]; the literal census pin lives in
+     * tests/Screen/UserSentenceSingleSourceTest.php.
+     */
+    public function testFailedTranscodeStatusRendersTheCanonicalPrepareSentence(): void
+    {
+        [$screen] = $this->screen();
+        $failed = new TranscodeJob('j1', 'failed', '', 0.0, false);
+
+        [$next] = $screen->update(new TranscodeStatusMsg($failed));
+
+        self::assertStringContainsString('Could not prepare this title for playback.', $next->view());
     }
 
     public function testFactoryFailureBecomesAPrepareFailure(): void

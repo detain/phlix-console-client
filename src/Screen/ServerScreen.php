@@ -37,6 +37,14 @@ final class ServerScreen implements Model, Themed, CapturesSlash
     use SubscriptionCapable;
     use ThemedScreen;
 
+    /**
+     * The one validation sentence for an empty URL submit, shared by this
+     * wizard, the ServersScreen add-form, and the App submit chokepoint —
+     * imperative voice, matching the sibling form validations [review
+     * console__writer #10 + #15 / CU-035 + CU-039].
+     */
+    public const EMPTY_URL_ERROR = 'Enter a server URL.';
+
     public function __construct(
         public readonly Form $form,
         public readonly ?string $error = null,
@@ -85,7 +93,7 @@ final class ServerScreen implements Model, Themed, CapturesSlash
             $url = Config::normalizeUrl($form->getString('server'));
             if ($url === '') {
                 $fresh = self::buildForm();
-                return [new self($fresh, 'Please enter a server URL.', $this->cols, $this->rows), $fresh->init()];
+                return [new self($fresh, self::EMPTY_URL_ERROR, $this->cols, $this->rows), $fresh->init()];
             }
 
             // Shape gate [review console__qa m-2, M-CONSOLE-50]: a URL that
@@ -109,7 +117,7 @@ final class ServerScreen implements Model, Themed, CapturesSlash
         // the validation error rather than silently ignoring the submit attempt.
         if ($msg instanceof KeyMsg && $msg->type === KeyType::Enter && trim($form->getString('server')) === '') {
             $fresh = self::buildForm();
-            return [new self($fresh, 'Please enter a server URL.', $this->cols, $this->rows), $fresh->init()];
+            return [new self($fresh, self::EMPTY_URL_ERROR, $this->cols, $this->rows), $fresh->init()];
         }
 
         return [new self($form, $this->error, $this->cols, $this->rows), $cmd];

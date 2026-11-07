@@ -9,6 +9,7 @@ use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenServersMsg;
 use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Screen\CapturesSlash;
+use Phlix\Console\Screen\ServerScreen;
 use Phlix\Console\Screen\ServersScreen;
 use PHPUnit\Framework\TestCase;
 use SugarCraft\Core\BatchMsg;
@@ -122,8 +123,12 @@ final class ServersScreenAddServerTest extends TestCase
 
         [$next, $cmd] = $screen->update(new KeyMsg(KeyType::Enter));
 
+        self::assertInstanceOf(ServersScreen::class, $next);
         self::assertStringContainsString('Add a server', $next->view(), 'the form stays open for a retry');
-        self::assertStringContainsString('server URL', $next->view());
+        // The add-form speaks the wizard's one validation voice from one const
+        // [review console__writer #10 + #15 / CU-035 + CU-039].
+        self::assertSame(ServerScreen::EMPTY_URL_ERROR, $next->error);
+        self::assertStringNotContainsString('Please', $next->view());
         if ($cmd !== null) {
             self::assertNotInstanceOf(BatchMsg::class, $cmd(), 'no AddServerMsg may fire without a URL');
         }

@@ -179,7 +179,10 @@ final class CastScreenTest extends TestCase
 
         self::assertSame([], $screen->deviceList());
         self::assertStringContainsString('No cast devices found', $screen->view());
-        self::assertStringContainsString('rescan', $screen->view());
+        // The empty placeholder adopts the house "Press k to X." voice — the
+        // parenthetical '(r to rescan)' style is retired [review
+        // console__writer #16 / CU-040].
+        self::assertStringContainsString('Press r to rescan.', $screen->view());
     }
 
     public function testSelectionInAnEmptyPickerIsANoOp(): void

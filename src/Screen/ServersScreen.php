@@ -63,6 +63,13 @@ final class ServersScreen implements Model, Themed, CapturesSlash
     use ThemedScreen;
 
     /**
+     * The one refusal sentence for removing the active server, shared by this
+     * list's `r` arm and the App removal chokepoint [review console__writer
+     * #15 / CU-039].
+     */
+    public const CANNOT_REMOVE_ACTIVE = 'Cannot remove the active server.';
+
+    /**
      * @param array<ServerEntry> $servers
      * @param ?Form $addForm the inline add-server form, or null in list mode;
      *                       while set, every key routes to {@see handleFormKey()}
@@ -231,7 +238,7 @@ final class ServersScreen implements Model, Themed, CapturesSlash
                         $this->activeServerId,
                         $this->selectedIndex,
                         false,
-                        'Cannot remove the active server.',
+                        self::CANNOT_REMOVE_ACTIVE,
                         $this->cols,
                         $this->rows,
                     ), null];
@@ -326,7 +333,7 @@ final class ServersScreen implements Model, Themed, CapturesSlash
                 $this->activeServerId,
                 $this->selectedIndex,
                 false,
-                'Please enter a server URL.',
+                ServerScreen::EMPTY_URL_ERROR,
                 $this->cols,
                 $this->rows,
                 $fresh,

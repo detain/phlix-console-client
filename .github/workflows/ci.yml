@@ -72,7 +72,7 @@ jobs:
         uses: shivammathur/setup-php@4424c9aab975b57bd706ee5a39c6b4334d6e4f60
         with:
           php-version: ${{ matrix.php-version }}
-          extensions: json
+          extensions: json, pcntl
           coverage: none
 
       - name: Install dependencies

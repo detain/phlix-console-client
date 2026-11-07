@@ -14,11 +14,11 @@ use SugarCraft\Core\Util\Color;
 use SugarCraft\Style\Style;
 
 /**
- * A named colour theme for the app shell. T1 kept it to two colour tokens:
+ * A named color theme for the app shell. T1 kept it to two color tokens:
  *
- *   - {@see $accent} — the brand / active-emphasis colour (the " Phlix " token in
- *     the header). `null` means "no colour" → the terminal's default foreground.
- *   - {@see $muted}  — the status-hint colour. `null` means "no colour".
+ *   - {@see $accent} — the brand / active-emphasis color (the " Phlix " token in
+ *     the header). `null` means "no color" → the terminal's default foreground.
+ *   - {@see $muted}  — the status-hint color. `null` means "no color".
  *
  * The default theme, {@see nocturne()}, carries `null` for both, so every styled
  * surface renders BYTE-IDENTICALLY to the pre-theme plain output: a fresh
@@ -32,22 +32,22 @@ use SugarCraft\Style\Style;
  * {@see Style::resolveProfile()} so a truecolor accent downgrades to 256 / ANSI
  * per the terminal's capability.
  *
- * ## Colour suppression — NO_COLOR / TERM=dumb
+ * ## Color suppression — NO_COLOR / TERM=dumb
  *
  * A user who exports {@see colorSuppressed()} — `NO_COLOR` with any non-empty
  * value (the no-color.org convention: the mere presence disables, an empty
  * value does not) or `TERM=dumb` (the classic line-mode terminal) — gets
  * COLOR-FREE output from every styled surface here, regardless of theme.
- * Suppression is colour-only, exactly as the two conventions specify: bold,
+ * Suppression is color-only, exactly as the two conventions specify: bold,
  * faint and reverse attributes survive, so emphasis and selection stay
- * visible on terminals that render colour poorly or not at all.
+ * visible on terminals that render color poorly or not at all.
  *
  * ## Content-widget roles (M-CONSOLE-48)
  *
  * Beyond the two chrome tokens, widgets (rating stars, badges, card titles,
- * the clear-rating danger mark, cast-avatar backgrounds) take their colours
+ * the clear-rating danger mark, cast-avatar backgrounds) take their colors
  * from {@see widgetStyle()} / {@see avatarStyle()} — the ONLY legal home of
- * colour hexes in src/ is the palette tables below. Four widgets used to
+ * color hexes in src/ is the palette tables below. Four widgets used to
  * hardcode raw truecolor (`#ffffff` card titles included), so they rendered
  * identically under every theme and illegibly on light terminals; a drift
  * pin (ThemePaletteSoleSourceTest) censuses src/ for hex literals outside
@@ -76,8 +76,8 @@ final readonly class Theme
      *                        (phlix-server's BuiltInThemes::IDS — 'nocturne',
      *                        'daylight', 'midnight' — or a plugin theme slug);
      *                        the display name is NOT a valid wire value
-     * @param ?string $accent brand / emphasis colour as hex (`#rrggbb`), or null for the terminal default
-     * @param ?string $muted  status-hint colour as hex, or null for the terminal default
+     * @param ?string $accent brand / emphasis color as hex (`#rrggbb`), or null for the terminal default
+     * @param ?string $muted  status-hint color as hex, or null for the terminal default
      */
     public function __construct(
         public string $name,
@@ -88,7 +88,7 @@ final readonly class Theme
     }
 
     /**
-     * Whether the process environment asks for colour-free output: `NO_COLOR`
+     * Whether the process environment asks for color-free output: `NO_COLOR`
      * set to any non-empty value (no-color.org: presence disables, an empty
      * value does not) or the classic `TERM=dumb` line-mode terminal.
      *
@@ -115,7 +115,7 @@ final readonly class Theme
      * this is a plain {@see Style::new()} that renders text unchanged (zero SGR),
      * keeping the header byte-identical to today. Otherwise it carries the accent
      * foreground, profile-resolved for the terminal. Under {@see colorSuppressed()}
-     * the colour is dropped — same zero-SGR identity as Nocturne.
+     * the color is dropped — same zero-SGR identity as Nocturne.
      */
     public function brandStyle(): Style
     {
@@ -129,7 +129,7 @@ final readonly class Theme
     /**
      * A ready style for the status-hint line. Null muted → plain (unchanged)
      * style; otherwise the muted foreground, profile-resolved. Under
-     * {@see colorSuppressed()} the colour is dropped (plain style).
+     * {@see colorSuppressed()} the color is dropped (plain style).
      */
     public function statusStyle(): Style
     {
@@ -155,7 +155,7 @@ final readonly class Theme
     /**
      * Content-widget palette: theme id => role => [hex|null, bold]. A null hex
      * means "terminal default" (daylight's title — the one text whose whole job
-     * was contrast, honestly degraded rather than recoloured).
+     * was contrast, honestly degraded rather than recolored).
      *
      * Nocturne carries the four widgets' historical hexes verbatim (M48 zero-
      * golden law: default-theme emission stays byte-identical); Daylight maps
@@ -203,9 +203,9 @@ final readonly class Theme
      * The ready style for a content-widget role: the role's attributes (bold
      * when it carries emphasis, reverse for an interactive cursor) plus the
      * theme's hex for it, profile-resolved exactly like {@see brandStyle()}.
-     * A null role hex renders attribute-only (terminal default colour) — and
+     * A null role hex renders attribute-only (terminal default color) — and
      * under {@see colorSuppressed()} every role renders that way: attributes
-     * kept, colour dropped.
+     * kept, color dropped.
      *
      * Unknown theme id or unknown role is a programming error — fail loud at
      * the boundary rather than silently render someone's stale guess (the
@@ -216,7 +216,7 @@ final readonly class Theme
         $palette = self::ROLE_COLORS[$this->id]
             ?? throw new InvalidArgumentException("Theme '{$this->id}' has no widget palette");
         [$hex, $bold] = $palette[$role]
-            ?? throw new InvalidArgumentException("Unknown widget colour role '{$role}'");
+            ?? throw new InvalidArgumentException("Unknown widget color role '{$role}'");
 
         $style = Style::new();
         if ($bold) {
@@ -237,7 +237,7 @@ final readonly class Theme
      * with, on the theme's ramp slot ($slot is the historical crc32 of the
      * member name — the call site keeps the slotting, the theme keeps the hues).
      * Under {@see colorSuppressed()} the chip keeps its faint attribute and
-     * loses only the coloured field.
+     * loses only the colored field.
      */
     public function avatarStyle(int $slot): Style
     {
@@ -257,7 +257,7 @@ final readonly class Theme
     }
 
     /**
-     * The identity / default theme: no colours, so the app renders exactly as it
+     * The identity / default theme: no colors, so the app renders exactly as it
      * did before the theme system existed.
      */
     public static function nocturne(): self
