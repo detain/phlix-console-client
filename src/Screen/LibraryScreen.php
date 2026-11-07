@@ -191,9 +191,12 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
 
         $total = $this->grid->total();
         if ($total === 0) {
-            $header = 'No items';
+            $header = Lang::t('library.no_items');
         } else {
-            $header = $total . ' items   ·   ' . ($this->grid->cursorIndex() + 1) . '/' . $total;
+            // Catalog _one/_many keys [review console__copywriter, CU-011] — each
+            // locale inflects its own noun (the house DetailScreen doctrine).
+            $header = Lang::t($total === 1 ? 'library.items_one' : 'library.items_many', ['count' => $total])
+                . '   ·   ' . ($this->grid->cursorIndex() + 1) . '/' . $total;
         }
         if ($this->hasActiveFilters()) {
             $header .= '   (filtered)';

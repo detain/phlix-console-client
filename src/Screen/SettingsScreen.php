@@ -41,7 +41,7 @@ use SugarCraft\Forms\Form;
  * unknown theme falls back to the current one; a non-numeric or out-of-range
  * interval re-prompts with an inline error (the form is rebuilt, keeping editing).
  */
-final class SettingsScreen implements Model, Themed
+final class SettingsScreen implements Model, Themed, HostsTextInput
 {
     use SubscriptionCapable;
     use ThemedScreen;
@@ -175,11 +175,12 @@ final class SettingsScreen implements Model, Themed
 
     /**
      * Is the focused form field a text-entry field? While it is, printable
-     * characters belong to the field — the screen's character shortcuts stand
-     * down (the capture-text law App applies to '/' and ':' via
-     * {@see \Phlix\Console\Screen\CapturesSlash}).
+     * characters belong to the field — the App's global `/` and `:` gate
+     * asks exactly this through {@see HostsTextInput} [review console__a11y,
+     * CU-007] (this screen does NOT blanket-capture via CapturesSlash; when
+     * focus sits on the theme Select, the shortcuts stay live).
      */
-    private function isEditingText(): bool
+    public function isEditingText(): bool
     {
         return $this->form->focusedField() instanceof Input;
     }

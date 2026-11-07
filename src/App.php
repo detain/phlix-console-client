@@ -140,6 +140,7 @@ use Phlix\Console\Screen\MusicArtistsScreen;
 use Phlix\Console\Screen\ArtistAlbumsScreen;
 use Phlix\Console\Screen\RegisterScreen;
 use Phlix\Console\Screen\CapturesSlash;
+use Phlix\Console\Screen\HostsTextInput;
 use Phlix\Console\Screen\PhotoAlbumScreen;
 use Phlix\Console\Screen\PhotosScreen;
 use Phlix\Console\Screen\PhotoViewerScreen;
@@ -1179,7 +1180,25 @@ final class App implements Model
         return $msg->type === KeyType::Char
             && $msg->rune === ':'
             && !$msg->ctrl
-            && !($this->topScreen() instanceof CapturesSlash);
+            && !$this->topCapturesPrintables();
+    }
+
+    /**
+     * Do the top screen's own keys own `/` and `:` right now [review
+     * console__a11y, CU-007]? Either the whole screen is marked
+     * {@see CapturesSlash} (its own filter/search, or the player, where an
+     * overlay would orphan playback), or the screen hosts a focused text
+     * {@see HostsTextInput} input — while a field is being typed into, the
+     * printable characters belong to the field, not to a global overlay.
+     */
+    private function topCapturesPrintables(): bool
+    {
+        $top = $this->topScreen();
+        if ($top instanceof CapturesSlash) {
+            return true;
+        }
+
+        return $top instanceof HostsTextInput && $top->isEditingText();
     }
 
     /** @return array{App, ?\Closure} */
@@ -1275,7 +1294,7 @@ final class App implements Model
         return $msg->type === KeyType::Char
             && $msg->rune === '/'
             && !$msg->ctrl
-            && !($this->topScreen() instanceof CapturesSlash);
+            && !$this->topCapturesPrintables();
     }
 
     /**
@@ -1302,10 +1321,11 @@ final class App implements Model
      * InputReader emits for a typed 0x20 (InputReader.php:499); everything
      * else printable is KeyType::Char. Consequence: paste behavior is key-
      * for-key identical to typing, including every capture gate — '/' and ':'
-     * search/palette hijacks skip screens implementing CapturesSlash (all
-     * eight implementers: the ServerScreen/ServersScreen/Login/Register/
-     * Search/Library/Player/Recommendations surfaces), so pasting
-     * "https://…" into the server field types it char-by-char into the field.
+     * search/palette hijacks skip screens implementing CapturesSlash (the
+     * ServerScreen/ServersScreen/Login/Register/Search/Library/Player/
+     * Recommendations surfaces) and screens whose focused field is being typed
+     * into ({@see HostsTextInput}), so pasting "https://…" into the server
+     * field types it char-by-char into the field.
      */
     private static function pasteAsKeys(string $content): ?\Closure
     {
@@ -1388,7 +1408,19 @@ final class App implements Model
 
     // ---- transitions ---------------------------------------------------
 
-    /** @return array{App, ?\Closure} */
+    /**
+     * Persist the chosen server and hand the session over to it.
+     *
+     * Every returned model carries $newConfig [review console__srphp, CU-003] —
+     * the same instance that was written to disk. withStack() alone copies the
+     * OLD $this->config, which kept the first-setup session on a roster-less
+     * view: the insecure-server banner never fired, and the next saveSettings
+     * derived from the stale config and rewrote config.json with the roster
+     * emptied. The sibling mutators (onServerAdd / onServerRemove /
+     * saveSettings) already re-install their saved Config; this now matches.
+     *
+     * @return array{App, ?\Closure}
+     */
     private function onServerSubmitted(string $url): array
     {
         $url = Config::normalizeUrl($url);
@@ -1396,6 +1428,9 @@ final class App implements Model
             return $this->goServerSetup(ServerScreen::EMPTY_URL_ERROR);
         }
 
+        // Pre-seeded so the catch arm keeps the last known-good config when the
+        // mutation itself throws; a pure save failure still carries the choice.
+        $newConfig = $this->config;
         try {
             $newConfig = $this->config->withServerUrl($url);
             $newConfig->save();
@@ -1407,20 +1442,20 @@ final class App implements Model
             ));
             $this->api->setBaseUrl($url);
 
-            return [$this->withStack([]), Cmd::batch(Cmd::send($toast), self::restoreCmd($this->auth, $this->api, $this->config))];
+            return [$this->withStack([])->withConfig($newConfig), Cmd::batch(Cmd::send($toast), self::restoreCmd($this->auth, $this->api, $newConfig))];
         }
         $this->api->setBaseUrl($url);
-        $restore = self::restoreCmd($this->auth, $this->api, $this->config);
+        $restore = self::restoreCmd($this->auth, $this->api, $newConfig);
 
         // Saving an http:// server stays possible but never silent [review
         // console__secaudit, M-CONSOLE-52]: name the exposure at the moment of
         // the choice, and the persistent banner in view() keeps naming it.
         // A TLS server keeps the plain restore Cmd untouched.
         if (!Config::isInsecureUrl($url)) {
-            return [$this->withStack([]), $restore];
+            return [$this->withStack([])->withConfig($newConfig), $restore];
         }
 
-        return [$this->withStack([]), Cmd::batch($restore, Cmd::send(ShowToastMsg::warning(
+        return [$this->withStack([])->withConfig($newConfig), Cmd::batch($restore, Cmd::send(ShowToastMsg::warning(
             'This server uses an insecure connection — your password and session tokens travel unprotected.',
         )))];
     }

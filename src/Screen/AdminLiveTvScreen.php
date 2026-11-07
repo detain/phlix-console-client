@@ -78,7 +78,7 @@ use SugarCraft\Forms\Form;
  * mutable view state set via clone-mutate (the established screen idiom). No live
  * poll.
  */
-final class AdminLiveTvScreen implements Breadcrumbed, Themed
+final class AdminLiveTvScreen implements Breadcrumbed, Themed, HostsTextInput
 {
     use SubscriptionCapable;
     use ThemedScreen;
@@ -270,6 +270,16 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed
         }
 
         return [$this, null];
+    }
+
+    /**
+     * [review console__a11y, CU-007] While the open rename/edit session focuses
+     * a text field, printable keys belong to the field: the App's global
+     * `/`/`:` gate asks this through {@see HostsTextInput}.
+     */
+    public function isEditingText(): bool
+    {
+        return $this->edit?->form->focusedField() instanceof Input;
     }
 
     public function view(): string

@@ -69,7 +69,7 @@ use SugarCraft\Forms\Form;
  * SCOPE: list + filter + per-row actions + create / edit forms + the profiles
  * jump-off.
  */
-final class AdminUsersScreen implements Breadcrumbed, Themed, Loadable, Shimmering
+final class AdminUsersScreen implements Breadcrumbed, Themed, Loadable, Shimmering, HostsTextInput
 {
     use SubscriptionCapable;
     use ThemedScreen;
@@ -385,6 +385,16 @@ final class AdminUsersScreen implements Breadcrumbed, Themed, Loadable, Shimmeri
         }
 
         return [$this, null];
+    }
+
+    /**
+     * [review console__a11y, CU-007] While the embedded form focuses a text
+     * field, printable keys belong to the field: the App's global `/`/`:` gate
+     * asks this through {@see HostsTextInput} instead of hijacking them.
+     */
+    public function isEditingText(): bool
+    {
+        return $this->form?->focusedField() instanceof Input;
     }
 
     public function view(): string

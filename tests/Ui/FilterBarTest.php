@@ -194,4 +194,35 @@ final class FilterBarTest extends TestCase
         self::assertStringContainsString("\033[", $searchFocused, 'the active control is styled');
         self::assertNotSame($searchFocused, $sortFocused, 'moving focus changes the highlight');
     }
+
+    /**
+     * [review console__copywriter, CU-010] the sort field and the order ride
+     * their own catalog keys: under ja the enum names and raw 'desc' must
+     * never reach the screen — one press on order used to replace the
+     * translated '昇順' with the untranslated wire value 'desc'.
+     */
+    public function testTheSortFieldAndOrderSpeakTheActiveLocale(): void
+    {
+        $bar = new FilterBar(sort: 'date_added', order: 'desc');
+
+        \SugarCraft\Core\I18n\T::setLocale('ja');
+
+        try {
+            $rendered = $bar->render();
+        } finally {
+            \SugarCraft\Core\I18n\T::setLocale('en');
+        }
+
+        self::assertStringContainsString('追加日', $rendered, 'the sort field is the translated label');
+        self::assertStringNotContainsString('date_added', $rendered, 'the wire enum never renders');
+        self::assertStringContainsString('降順', $rendered, 'the order label survives the toggle (the dead key is live)');
+        self::assertStringNotContainsString('desc', $rendered, 'the raw order value never renders');
+    }
+
+    public function testTheEnglishSortFieldStillRendersTheFamilyWords(): void
+    {
+        $bar = new FilterBar(sort: 'runtime');
+
+        self::assertStringContainsString('Sort: runtime', $bar->render(), 'en keeps the familiar lowercase field words');
+    }
 }

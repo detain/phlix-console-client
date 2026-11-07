@@ -59,6 +59,16 @@ use RuntimeException;
  * debt for a consolidation lane — growth here is the consolidation ticket, not
  * a reason to hand-vary the bodies (drift is the failure class 37 stops).
  *
+ * CU-007 field-aware printable gate (measured rotation, this lane): the `/`+`:`
+ * gate cure added a one-line isEditingText() guard to the ten Input-hosting
+ * screens; two pairs came out byte-identical because the guard body is the
+ * form property itself (editForm / form read the same way on their pair). The
+ * two x2 cohorts above are the measured red re-pinned IN this change — hand-
+ * varying the bodies to dodge the ratchet would recreate exactly the drift 37
+ * exists to stop. Named follow-up debt: a focused-text-input concern exposing
+ * one accessor can peel all ten sites (the six single-member variants would
+ * ride along); owned by the next consolidation lane.
+ *
  * Red-on-parent law: on the pre-M37 tree, guard 1 fails (37 copies, no trait
  * files) and guard 2 fails (pinned map post-dates the extraction).
  */
@@ -131,6 +141,8 @@ final class ScreenConcernSingleSourceTest extends TestCase
         'isCreating:b364a5cd3ed2' => 2,
         'isEditing:4b72f14022a8' => 2,
         'isEditing:7de7a84db62b' => 2,
+        'isEditingText:90427f1d6794' => 2,
+        'isEditingText:cabd08374f49' => 2,
         'isLoaded:4f7293604f52' => 24,
         'isLoading:0b9adf92891c' => 12,
         'isLoading:397ff32d7077' => 3,

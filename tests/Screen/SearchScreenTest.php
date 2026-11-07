@@ -628,4 +628,44 @@ final class SearchScreenTest extends TestCase
 
         return $result instanceof Msg ? [$result] : [];
     }
+
+    /**
+     * [review console__copywriter, CU-011] the result count rides the catalog
+     * _one/_many keys, so German inflects its own noun — no appended 's'.
+     */
+    public function testTheResultCountInflectsInTheActiveLocale(): void
+    {
+        \SugarCraft\Core\I18n\T::setLocale('de');
+
+        $three = '';
+        $one = '';
+
+        try {
+            // view() resolves the catalog at call time — render inside the locale window.
+            $three = $this->runSearch('matrix', 3)->view();
+            $one = $this->runSearch('matrix', 1)->view();
+        } finally {
+            \SugarCraft\Core\I18n\T::setLocale('en');
+        }
+
+        self::assertStringContainsString('3 Ergebnisse', $three, 'plural inflection from the catalog');
+        self::assertStringNotContainsString('3 results', $three);
+        self::assertStringContainsString('1 Ergebnis ', $one, 'singular drops the -en');
+    }
+
+    public function testTheEmptyStateSpeaksTheActiveLocale(): void
+    {
+        \SugarCraft\Core\I18n\T::setLocale('de');
+
+        $view = '';
+
+        try {
+            // view() resolves the catalog at call time — render inside the locale window.
+            $view = $this->runSearch('zzzz', 0)->view();
+        } finally {
+            \SugarCraft\Core\I18n\T::setLocale('en');
+        }
+
+        self::assertStringContainsString('Keine Ergebnisse für "zzzz"', $view, 'the quoted query rides the translated sentence');
+    }
 }

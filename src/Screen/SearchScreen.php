@@ -158,9 +158,13 @@ final class SearchScreen implements Breadcrumbed, CapturesSlash, Loadable, Shimm
         $total = $this->grid->total();
         if ($total === 0) {
             // The quoted query rides this line too — whole-line budget cols - 4.
-            $count = Truncate::withEllipsis('No results for "' . $this->searchText . '"', $this->cols - 4);
+            $count = Truncate::withEllipsis(Lang::t('search.no_results_for', ['query' => $this->searchText]), $this->cols - 4);
         } else {
-            $count = $total . ' result' . ($total === 1 ? '' : 's') . '   ·   ' . ($this->grid->cursorIndex() + 1) . '/' . $total;
+            // Catalog _one/_many keys [review console__copywriter, CU-011] so each
+            // locale inflects its own noun — the house DetailScreen doctrine, not
+            // an appended 's'.
+            $count = Lang::t($total === 1 ? 'search.results_one' : 'search.results_many', ['count' => $total])
+                . '   ·   ' . ($this->grid->cursorIndex() + 1) . '/' . $total;
         }
 
         $body = $inputLine . "\n" . $count . "\n" . $this->grid->render(true);

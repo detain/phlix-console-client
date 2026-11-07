@@ -60,7 +60,7 @@ use SugarCraft\Forms\Form;
  * selection, busy flag, the two pending confirms, and the embedded add-source form
  * are private mutable view state set via clone-mutate (the established idiom).
  */
-final class AdminPluginCatalogScreen implements Breadcrumbed, Themed
+final class AdminPluginCatalogScreen implements Breadcrumbed, Themed, HostsTextInput
 {
     use SubscriptionCapable;
     use ThemedScreen;
@@ -167,6 +167,16 @@ final class AdminPluginCatalogScreen implements Breadcrumbed, Themed
         }
 
         return [$this, null];
+    }
+
+    /**
+     * [review console__a11y, CU-007] While the embedded form focuses a text
+     * field, printable keys belong to the field: the App's global `/`/`:` gate
+     * asks this through {@see HostsTextInput} instead of hijacking them.
+     */
+    public function isEditingText(): bool
+    {
+        return $this->sourceForm?->focusedField() instanceof Input;
     }
 
     public function view(): string

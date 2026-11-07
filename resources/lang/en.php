@@ -75,10 +75,29 @@ return [
     'filter.search_placeholder' => '(type to filter)',
     'filter.search_label' => 'Search: ',
     'filter.sort_label' => 'Sort: ',
+    'filter.sort_name' => 'name',
+    'filter.sort_year' => 'year',
+    'filter.sort_rating' => 'rating',
+    'filter.sort_date_added' => 'date added',
+    'filter.sort_runtime' => 'runtime',
+    'filter.sort_genre' => 'genre',
+    'filter.sort_artist' => 'artist',
     'filter.order_label' => 'Order: ',
     'filter.order_asc' => 'asc',
     'filter.order_desc' => 'desc',
     'filter.genre_label' => 'Genres: ',
+
+    // ---- SearchScreen ----------------------------------------------
+    'search.no_results_for' => 'No results for "{query}"',
+    'search.results_one' => '{count} result',
+    'search.results_many' => '{count} results',
+
+
+    // ---- LibraryScreen -----------------------------------------------
+    'library.no_items' => 'No items',
+    'library.items_one' => '{count} item',
+    'library.items_many' => '{count} items',
+
 
     // ---- SyncPlay errors ----------------------------------------------
     'syncplay.not_authenticated' => 'Sign in before using watch groups.',

@@ -75,10 +75,29 @@ return [
     'filter.search_placeholder' => '(入力して絞り込み)',
     'filter.search_label' => '検索: ',
     'filter.sort_label' => '並び替え: ',
+    'filter.sort_name' => '名前',
+    'filter.sort_year' => '年',
+    'filter.sort_rating' => '評価',
+    'filter.sort_date_added' => '追加日',
+    'filter.sort_runtime' => '上映時間',
+    'filter.sort_genre' => 'ジャンル',
+    'filter.sort_artist' => 'アーティスト',
     'filter.order_label' => '順序: ',
     'filter.order_asc' => '昇順',
     'filter.order_desc' => '降順',
     'filter.genre_label' => 'ジャンル: ',
+
+    // ---- SearchScreen ----------------------------------------------
+    'search.no_results_for' => '{query} の結果はありません',
+    'search.results_one' => '{count} 件の結果',
+    'search.results_many' => '{count} 件の結果',
+
+
+    // ---- LibraryScreen -----------------------------------------------
+    'library.no_items' => 'アイテムはありません',
+    'library.items_one' => '{count} 個のアイテム',
+    'library.items_many' => '{count} 個のアイテム',
+
 
     // ---- SyncPlay errors ----------------------------------------------
     'syncplay.not_authenticated' => 'ウォッチグループを使う前にサインインしてください。',

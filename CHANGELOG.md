@@ -5,6 +5,71 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — w11/L8 review fix-forward (CU-003/007/008/010/011/014): the just-saved server is the live server (config-install + roster-clobber cure); `/` and `:` reach a focused text input field-first across all ten input-hosting screens; the plugin-update channel key gained a real stable/dev picker (and its dead Escape/Enter arms were cured); the sort field and result counts speak the active locale through catalog keys; the published phar now bundles the locale catalogs — 2026-11-07
+
+- **[review console__srphp #2 / CU-003]** `App::onServerSubmitted()`
+  persisted the new config but returned a model carrying the *old* one: the
+  next render read a stale `activeServer()`, so the insecure-server banner
+  could not fire in the very session that added an http:// server, and the
+  follow-up `saveSettings()` derived from the stale instance — saving
+  rewrote config.json with the server roster emptied. Every return arm
+  (success, failed-save, thrown-save) now installs the saved instance via
+  `withConfig($newConfig)`, and the restore command receives it too. Three
+  unit pins hold the law: live model equals saved server, the http submit
+  keeps the new server live so the banner can fire first-session, and a
+  failed save still carries the chosen server on the live model.
+- **[review console__a11y #1 / CU-007]** the global `/` (search) and `:`
+  (palette) gate asked only whether the top screen *ever* captures
+  printables (`CapturesSlash`), never whether a text field is focused — so
+  typing into any focused Input on ten screens (settings filter, admin value
+  editor — JSON was untypeable because the first `:` popped the palette)
+  was hijacked. New `HostsTextInput` marker interface carries a field-aware
+  `isEditingText()`; the gate consults the union (`CapturesSlash` or
+  focused-input host), lifting the idiom `SettingsScreen` already had
+  privately. All ten Input-hosting screens declare the marker; the
+  `SettingsScreen` docblock that claimed the capture law "via
+  CapturesSlash" — false while its filter field lost every slash — now tells
+  the truth. A census test pairs screens that construct an `Input` against
+  the marker set, and the App-level `/`+`:` pair pins cover both
+  focused/unfocused legs; a standalone behavioral probe re-verified the
+  hijack at parent before the cure.
+- **[review console__a11y #2 / CU-008]** `AdminPluginUpdateScreen`
+  advertised `c  set channel` but re-PUT the channel already loaded —
+  channel theater with no picker. `c` now arms an in-place stable/dev
+  picker (`s`/`d` pick, `Esc` cancels); the dispatch carries the *chosen*
+  value, matching the server's catalog-channel contract (exactly
+  `stable`/`dev`). Fold: the same handler's confirm modal compared
+  `$msg->string()` against `'Escape'`/`'Enter'` while the KeyType enum's
+  values are lowercase — both arms were dead, so after typing the confirm
+  word, Enter applied nothing, Escape cancelled nothing, and `q` was capped
+  out of the 6-codepoint buffer (deadlocked screen). The arms now use the
+  house `KeyType::` idiom, confirm-before-back-nav ordering follows the
+  PlaylistsScreen precedent, and the modifier-guard bail line keeps its
+  byte shape for the typed-confirm guard pin.
+- **[review console__copywriter #2 + #3 / CU-010]** the filter bar rendered
+  the raw wire enum (`Sort: date_added`) and localized the order value only
+  while null — after one toggle it showed the untranslated `desc` forever
+  (`filter.order_desc` sat dead in all seven catalogs). Sort fields and
+  order values now resolve through `filter.sort_*` / `filter.order_*`
+  catalog keys in every locale.
+- **[review console__copywriter #4 / CU-011]** search and library counts
+  hand-appended `s` (`1 items`) outside the house plural doctrine — now
+  `search.results_*` / `library.items_*` catalog sentences with
+  `{count}` placeholders inflect per locale, and the empty states
+  (`No results for …`, `No items`) travel with them.
+- **[review console__devops #1 + console__ipd #1 / CU-014]** `box.json`
+  bundled only `vendor/` and `src/`: inside the published phar
+  `Lang::DIR` resolved to a `resources/lang` path that was never packaged,
+  the loader returned an empty catalog, and *every* `Lang::t()` string in
+  the shipped artifact rendered as its raw dotted key — for English and
+  every locale alike (dynamic proof at parent: `resources-entries=0`,
+  `Lang::t('recommendations.title')` → `phlix.recommendations.title`). The
+  resources tree is now a first-class finder; `tests/PharTest.php` enforces
+  the packaging law from the tracked config in every CI test job, and
+  against the built phar end-to-end (seven locales packaged, the shipped
+  artifact resolves the German catalog through its own bundled autoload);
+  `docs/i18n.md` gains the fourth gate.
+
 > **How to read this file (three conventions, added 2026-11-03 with reviews
 > M7/M8; the third amended the same day with review m26).** (1) Since the October review→fix campaign, the `###` blocks under
 > this heading are campaign worklog entries: they carry ticket ids and

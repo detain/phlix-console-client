@@ -13,6 +13,8 @@ use PHPUnit\Framework\TestCase;
  * - The PHAR build script exists and is executable (when PHAR cannot be built in CI)
  * - If a PHAR exists, it runs --version and exits 0
  * - The PHAR --version output matches the expected format
+ * - box.json's finders cover the locale catalogs, and a built PHAR ships them
+ *   with a working end-to-end translation [CU-014]
  */
 final class PharTest extends TestCase
 {
@@ -178,6 +180,84 @@ final class PharTest extends TestCase
         // PHAR files start with #! for shebang or <?php for stub
         // A proper PHAR may start with #!/usr/bin/env php\n or similar
         $this->assertNotEmpty($header, 'PHAR should have a header');
+    }
+
+    /**
+     * The box.json finders must cover resources/, not just vendor/ and src/.
+     *
+     * [CU-014] The published phar bundled only vendor/ and src/: Lang::DIR
+     * (`__DIR__ . '/../../resources/lang'`) resolved to a phar path that was
+     * never packaged, the vendor T.php loader returned [] for the missing
+     * file, and every Lang::t() call in the shipped phar rendered the raw
+     * dotted key ('phlix.login.title') — English AND every locale. This
+     * assertion runs against the tracked config alone, so CI enforces the
+     * packaging law even in jobs that never build a phar.
+     */
+    public function testTheBoxConfigBundlesTheLocaleCatalogs(): void
+    {
+        $boxJsonPath = __DIR__ . '/../box.json';
+        if (!file_exists($boxJsonPath)) {
+            $this->markTestSkipped('box.json not found');
+        }
+
+        $decoded = json_decode((string) file_get_contents($boxJsonPath), true);
+        $this->assertIsArray($decoded, 'box.json should decode');
+
+        $coversCatalogs = false;
+        foreach ((array) ($decoded['finder'] ?? []) as $finder) {
+            if (!is_array($finder)) {
+                continue;
+            }
+            $in = (array) ($finder['in'] ?? []);
+            $name = (array) ($finder['name'] ?? []);
+            if (in_array('resources', $in, true) && in_array('*.php', $name, true)) {
+                $coversCatalogs = true;
+            }
+        }
+
+        $this->assertTrue(
+            $coversCatalogs,
+            'box.json must carry a finder for resources/**/*.php — without it the phar ships zero locale catalogs [CU-014]'
+        );
+    }
+
+    /**
+     * When a built phar is on disk, prove the catalogs rode along AND that
+     * the packaged artifact actually translates: the shipped autoload plus
+     * phar-relative Lang::DIR must render the German catalog end-to-end.
+     */
+    public function testThePackagedPharCarriesTranslatableCatalogs(): void
+    {
+        $pharPath = $this->findPhar();
+        if ($pharPath === null) {
+            $this->markTestSkipped('PHAR not built yet. Run: scripts/build-phar.sh');
+        }
+
+        $absolute = (string) realpath($pharPath);
+
+        foreach (['de', 'en', 'es', 'fr', 'it', 'ja', 'pt-br'] as $locale) {
+            $this->assertFileExists(
+                'phar://' . $absolute . '/resources/lang/' . $locale . '.php',
+                'the published phar must ship resources/lang/' . $locale . '.php [CU-014]'
+            );
+        }
+
+        $code = sprintf(
+            'require "phar://%s/vendor/autoload.php";'
+            . '\SugarCraft\Core\I18n\T::setLocale("de");'
+            . 'fwrite(STDOUT, \Phlix\Console\I18n\Lang::t("recommendations.title"));',
+            $absolute
+        );
+
+        $result = $this->runCommand('php', ['-r', $code]);
+
+        $this->assertSame(
+            0,
+            $result['exitCode'],
+            'probing the packaged translator should exit 0, stderr: ' . $result['stderr']
+        );
+        $this->assertStringContainsString('Für dich', $result['stdout'], 'the shipped phar resolves Lang::t() from its packaged de catalog');
+        $this->assertStringNotContainsString('phlix.recommendations.title', $result['stdout'], 'the raw dotted key must never render from a healthy phar');
     }
 
     /**

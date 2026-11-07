@@ -802,4 +802,29 @@ final class LibraryScreenTest extends TestCase
 
         return (int) parse_url((string) $this->socket->getAddress(), PHP_URL_PORT);
     }
+
+    /**
+     * [review console__copywriter, CU-011] the item count rides the catalog
+     * _one/_many keys — the old line appended bare ' items' even for one
+     * item, and no locale ever saw its own noun.
+     */
+    public function testTheItemCountInflectsInTheActiveLocale(): void
+    {
+        \SugarCraft\Core\I18n\T::setLocale('de');
+
+        $one = '';
+        $empty = '';
+
+        try {
+            // view() resolves the catalog at call time — render inside the locale window.
+            $one = $this->loadedScreen(1)->view();
+            $empty = $this->loadedScreen(0)->view();
+        } finally {
+            \SugarCraft\Core\I18n\T::setLocale('en');
+        }
+
+        self::assertStringContainsString('1 Eintrag ', $one, 'singular inflects (the old line said "1 items")');
+        self::assertStringNotContainsString('1 items', $one);
+        self::assertStringContainsString('Keine Einträge', $empty, 'the empty state is translated too');
+    }
 }

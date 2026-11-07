@@ -12,6 +12,10 @@
             "name": ["*.php", "*.stub"],
             "exclude": ["Tests", "tests", "test", ".phpstorm.meta.php", "phpstan.stubs.php"],
             "in": ["src"]
+        },
+        {
+            "name": "*.php",
+            "in": ["resources"]
         }
     ],
     "metadata": {

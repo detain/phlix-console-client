@@ -75,10 +75,29 @@ return [
     'filter.search_placeholder' => '(tapez pour filtrer)',
     'filter.search_label' => 'Recherche : ',
     'filter.sort_label' => 'Trier : ',
+    'filter.sort_name' => 'nom',
+    'filter.sort_year' => 'année',
+    'filter.sort_rating' => 'note',
+    'filter.sort_date_added' => 'date d’ajout',
+    'filter.sort_runtime' => 'durée',
+    'filter.sort_genre' => 'genre',
+    'filter.sort_artist' => 'artiste',
     'filter.order_label' => 'Ordre : ',
     'filter.order_asc' => 'asc',
     'filter.order_desc' => 'desc',
     'filter.genre_label' => 'Genres : ',
+
+    // ---- SearchScreen ----------------------------------------------
+    'search.no_results_for' => 'Aucun résultat pour « {query} »',
+    'search.results_one' => '{count} résultat',
+    'search.results_many' => '{count} résultats',
+
+
+    // ---- LibraryScreen -----------------------------------------------
+    'library.no_items' => 'Aucun élément',
+    'library.items_one' => '{count} élément',
+    'library.items_many' => '{count} éléments',
+
 
     // ---- SyncPlay errors ----------------------------------------------
     'syncplay.not_authenticated' => 'Connectez-vous avant d’utiliser les groupes synchronisés.',

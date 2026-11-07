@@ -59,7 +59,7 @@ use SugarCraft\Forms\Form;
  * SCOPE: list + schedule + create / delete / restore / S3-upload / edit-schedule
  * only. S3 download and the config-file editor are deferred.
  */
-final class AdminBackupScreen implements Breadcrumbed, Themed
+final class AdminBackupScreen implements Breadcrumbed, Themed, HostsTextInput
 {
     use SubscriptionCapable;
     use ThemedScreen;
@@ -185,6 +185,16 @@ final class AdminBackupScreen implements Breadcrumbed, Themed
         }
 
         return [$this, null];
+    }
+
+    /**
+     * [review console__a11y, CU-007] While either embedded form focuses a text
+     * field, printable keys belong to the field: the App's global `/`/`:` gate
+     * asks this through {@see HostsTextInput} instead of hijacking them.
+     */
+    public function isEditingText(): bool
+    {
+        return $this->labelForm?->focusedField() instanceof Input || $this->scheduleForm?->focusedField() instanceof Input;
     }
 
     public function view(): string

@@ -310,8 +310,12 @@ final readonly class FilterBar
         $search = $this->search === '' ? Lang::t('filter.search_placeholder') : $this->search;
 
         $base = $this->segment(self::SEARCH, Lang::t('filter.search_label') . $search)
-            . '    ' . $this->segment(self::SORT, Lang::t('filter.sort_label') . ($this->sort ?? 'name'))
-            . '    ' . $this->segment(self::ORDER, Lang::t('filter.order_label') . ($this->order ?? Lang::t('filter.order_asc')));
+            // The sort field and order ship through their own catalog keys
+            // [review console__copywriter, CU-010]: the enum names ('name',
+            // 'asc') are WIRE values, not display text — one press on order
+            // used to replace the translated label with a raw 'desc'.
+            . '    ' . $this->segment(self::SORT, Lang::t('filter.sort_label') . Lang::t('filter.sort_' . ($this->sort ?? self::SORTS[0])))
+            . '    ' . $this->segment(self::ORDER, Lang::t('filter.order_label') . Lang::t('filter.order_' . ($this->order ?? 'asc')));
 
         if ($this->availableGenres === []) {
             return $base;

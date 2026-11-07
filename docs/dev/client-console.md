@@ -76,7 +76,7 @@ src/
 │   ├── Dto/                # Typed Data Transfer Objects
 │   │   ├── MediaItem.php, Library.php, Album.php, Book.php, Coerce.php, etc.
 │   └── SyncPlay/           # SyncPlay (group watch) client
-├── Screen/                 # All TUI screens (84 files) + their contracts
+├── Screen/                 # All TUI screens (85 files) + their contracts
 │   ├── Loadable.php        # Interface: screen is loading its first data
 │   ├── Themed.php          # Interface: App may hand the theme to the screen
 │   ├── ThemedScreen.php    # Trait: implements Themed (clone-mutate)

@@ -39,6 +39,12 @@ final class LocaleCatalogsTest extends TestCase
      * - detail.cast_label = 'Cast' in Italian — established loanword used
      *   verbatim by Italian film media.
      * - detail.item = 'item' in Brazilian Portuguese — a registered loanword.
+     * - filter.sort_genre = 'genre' in French — the French word is spelled
+     *   identically (Le Trésor du langage français: genre, n.m., invariant
+     *   spelling vs. English), not an untranslated value.
+     * - library.items_one = '{count} item' in Brazilian Portuguese — the same
+     *   registered 'item' loanword as detail.item (singular; the plural row
+     *   is inflected to 'itens').
      *
      * @var array<string, list<string>>
      */
@@ -47,10 +53,10 @@ final class LocaleCatalogsTest extends TestCase
         // there is no word to translate, so every locale mirrors en byte-for-
         // byte (review M-CONSOLE-64; same class as the asc/desc order labels).
         'es' => ['filter.order_asc', 'filter.order_desc', 'player.hint_sleep'],
-        'fr' => ['filter.order_asc', 'filter.order_desc', 'player.hint_sleep'],
+        'fr' => ['filter.order_asc', 'filter.order_desc', 'filter.sort_genre', 'player.hint_sleep'],
         'de' => ['filter.order_asc', 'filter.order_desc', 'player.hint_sleep'],
         'it' => ['detail.cast_label', 'filter.order_asc', 'filter.order_desc', 'player.hint_sleep'],
-        'pt-br' => ['detail.item', 'filter.order_asc', 'filter.order_desc', 'player.hint_sleep'],
+        'pt-br' => ['detail.item', 'filter.order_asc', 'filter.order_desc', 'library.items_one', 'player.hint_sleep'],
         'ja' => ['player.hint_sleep'],
     ];
 

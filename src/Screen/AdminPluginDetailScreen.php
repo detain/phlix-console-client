@@ -65,7 +65,7 @@ use SugarCraft\Forms\Form;
  * it edits) are private mutable view state set via clone-mutate (the established
  * screen idiom).
  */
-final class AdminPluginDetailScreen implements Breadcrumbed, Themed
+final class AdminPluginDetailScreen implements Breadcrumbed, Themed, HostsTextInput
 {
     use SubscriptionCapable;
     use ThemedScreen;
@@ -167,6 +167,16 @@ final class AdminPluginDetailScreen implements Breadcrumbed, Themed
         }
 
         return [$this, null];
+    }
+
+    /**
+     * [review console__a11y, CU-007] While the embedded form focuses a text
+     * field, printable keys belong to the field: the App's global `/`/`:` gate
+     * asks this through {@see HostsTextInput} instead of hijacking them.
+     */
+    public function isEditingText(): bool
+    {
+        return $this->editForm?->focusedField() instanceof Input;
     }
 
     public function view(): string

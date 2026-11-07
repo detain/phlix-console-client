@@ -30,8 +30,14 @@ use SugarCraft\Core\SubscriptionCapable;
 
 /**
  * The admin Plugin Updates surface: shows available plugin updates, lets the
- * admin toggle auto-update, set the catalog channel, and apply updates after
- * an "update" confirmation.
+ * admin toggle auto-update, choose the catalog channel from the two the
+ * server accepts (`stable` | `dev` — PUT /api/v1/admin/plugins/catalog/
+ * channel), and apply updates after an "update" confirmation.
+ *
+ * `c` arms an inline picker instead of firing a request [review
+ * console__a11y, CU-008]: pressing it used to PUT the ALREADY-LOADED channel
+ * back — theater dressed as a control. The choice (s/d) is what ships;
+ * Escape cancels in place.
  *
  * The client is injected (built locally by the App from its shared ApiClient,
  * so the App holds no AdminClient field). Stable collaborators are readonly;
@@ -48,6 +54,10 @@ final class AdminPluginUpdateScreen implements Breadcrumbed, Themed
     private const LOAD_FAILED = 'Could not load plugin updates.';
     private const HINT = 'a  toggle auto-update      c  set channel      u  apply updates      Esc  back';
 
+    /** The two channels the server's channel endpoint accepts. */
+    private const CHANNEL_STABLE = 'stable';
+    private const CHANNEL_DEV = 'dev';
+
     /** @var list<array{name:string,current_version:string,latest_version:string}> */
     private array $updates = [];
     private bool $loaded = false;
@@ -55,6 +65,7 @@ final class AdminPluginUpdateScreen implements Breadcrumbed, Themed
     private bool $autoUpdate = false;
     private string $channel = 'stable';
     private ?string $pendingApply = null;
+    private ?string $pendingChannel = null;
     private string $typed = '';
 
     /** @var list<string> */
@@ -135,15 +146,28 @@ final class AdminPluginUpdateScreen implements Breadcrumbed, Themed
     /** @return array{self, ?\Closure} */
     private function handleKey(KeyMsg $msg): array
     {
-        $key = $msg->string();
-
-        if ($key === 'q' || $key === 'Escape') {
-            return [$this, Cmd::send(new NavigateBackMsg())];
+        // The channel picker is modal while armed — Escape cancels it in
+        // place, so this arm outranks the back-nav below [CU-008].
+        if ($this->pendingChannel !== null) {
+            return $this->handleChannelKey($msg);
         }
 
+        // The typed-confirm is modal too and outranks back-nav (the
+        // PlaylistsScreen family's ordering): named keys belong to the
+        // confirm while it is armed. [CU-008 fold] The old arms compared
+        // $msg->string() against 'Escape'/'Enter' — KeyType's values are
+        // LOWERCASE, so every named key here was dead: after typing the
+        // confirm word the screen dead-locked (Enter never applied, Escape
+        // never cancelled, q was capped out of the buffer).
         if ($this->pendingApply !== null) {
             return $this->handleConfirmKey($msg);
         }
+
+        if ($msg->type === KeyType::Escape || $msg->string() === 'q') {
+            return [$this, Cmd::send(new NavigateBackMsg())];
+        }
+
+        $key = $msg->string();
 
         if ($key === 'u') {
             return [$this->armApply(), null];
@@ -154,23 +178,53 @@ final class AdminPluginUpdateScreen implements Breadcrumbed, Themed
         }
 
         if ($key === 'c') {
-            return [$this, $this->setChannelCmd()];
+            return [$this->withPendingChannel('armed'), null];
         }
 
         return [$this, null];
     }
 
+    /**
+     * The two-option channel picker: `s` ships stable, `d` ships dev, Escape
+     * cancels — every other key is swallowed while the picker is open.
+     *
+     * @return array{self, ?\Closure}
+     */
+    private function handleChannelKey(KeyMsg $msg): array
+    {
+        if ($msg->type === KeyType::Escape) {
+            return [$this->withPendingChannel(null), null];
+        }
+
+        // Modifier-free selection only [CONSOLIDATED M16 doctrine]: ctrl/alt
+        // chords carry commands, never channel choices.
+        if ($msg->type !== KeyType::Char || $msg->ctrl || $msg->alt || $msg->rune === '') {
+            return [$this, null];
+        }
+
+        $channel = match ($msg->rune) {
+            's' => self::CHANNEL_STABLE,
+            'd' => self::CHANNEL_DEV,
+            default => null,
+        };
+        if ($channel === null) {
+            return [$this, null];
+        }
+
+        return [$this->withPendingChannel(null), $this->setChannelCmd($channel)];
+    }
+
     /** @return array{self, ?\Closure} */
     private function handleConfirmKey(KeyMsg $msg): array
     {
-        if ($msg->string() === 'Enter') {
+        if ($msg->type === KeyType::Enter) {
             if ($this->typed === 'update') {
                 return $this->doApplyUpdates();
             }
 
             return [$this->withError("Type 'update' and press Enter to confirm")->withPendingApply(null)->withTyped(''), null];
         }
-        if ($msg->string() === 'Escape') {
+        if ($msg->type === KeyType::Escape) {
             return [$this->withPendingApply(null)->withTyped(''), null];
         }
 
@@ -225,10 +279,8 @@ final class AdminPluginUpdateScreen implements Breadcrumbed, Themed
         });
     }
 
-    private function setChannelCmd(): \Closure
+    private function setChannelCmd(string $channel): \Closure
     {
-        $channel = $this->channel;
-
         return Cmd::promise(function () use ($channel): \React\Promise\PromiseInterface {
             return $this->admin->setPluginCatalogChannel($channel)->then(
                 static fn (): Msg => new AdminPluginUpdateActionDoneMsg('Channel set to ' . $channel),
@@ -272,6 +324,14 @@ final class AdminPluginUpdateScreen implements Breadcrumbed, Themed
     {
         $next = clone $this;
         $next->typed = $typed;
+
+        return $next;
+    }
+
+    private function withPendingChannel(?string $pending): self
+    {
+        $next = clone $this;
+        $next->pendingChannel = $pending;
 
         return $next;
     }
@@ -334,6 +394,10 @@ final class AdminPluginUpdateScreen implements Breadcrumbed, Themed
 
         $status = 'Auto-update: ' . ($this->autoUpdate ? 'ON' : 'OFF') . '   Channel: ' . $this->channel;
         $out .= "  {$status}\n";
+
+        if ($this->pendingChannel !== null) {
+            $out .= "\n  Channel — s  " . self::CHANNEL_STABLE . '   d  ' . self::CHANNEL_DEV . "   (current: {$this->channel})   Esc  cancel\n";
+        }
 
         if ($this->pendingApply !== null) {
             $out .= "  ⚠ Plugin updates can destroy settings including OAuth tokens (Trakt, Last.fm, etc.)\n\n";

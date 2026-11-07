@@ -87,6 +87,7 @@ use Phlix\Console\Screen\BookDetailScreen;
 use Phlix\Console\Screen\BooksScreen;
 use Phlix\Console\Screen\BrowseScreen;
 use Phlix\Console\Screen\CapturesSlash;
+use Phlix\Console\Screen\HostsTextInput;
 use Phlix\Console\Screen\DetailScreen;
 use Phlix\Console\Screen\LibraryScreen;
 use Phlix\Console\Screen\LoginScreen;
@@ -346,6 +347,77 @@ final class AppTest extends TestCase
         self::assertSame('https://chosen.tld', Config::load()->activeServer()?->url, 'config persisted to disk');
         // The follow-up Cmd is the restore (no token → null).
         self::assertInstanceOf(BootResolvedMsg::class, $this->runCmd($cmd));
+    }
+
+    /**
+     * [review console__srphp, CU-003] disk truth alone was not enough: the
+     * returned model kept the PRE-submit (empty) Config, so the whole
+     * first-setup session ran blind to its own server — the insecure banner
+     * never fired and the next saveSettings rewrote config.json with the
+     * roster emptied. The live model must carry the saved instance.
+     */
+    public function testServerSubmittedInstallsTheSavedConfigOnTheLiveModel(): void
+    {
+        [$app] = $this->makeApp(null, new FakeTransport());
+
+        [$next] = $app->update(new SubmitServerMsg('https://chosen.tld'));
+
+        self::assertSame('https://chosen.tld', $next->config()->activeServer()?->url, 'the returned model carries the saved server, never the stale pre-submit config');
+        self::assertSame(
+            array_map(static fn (ServerEntry $s): string => $s->url, Config::load()->servers),
+            array_map(static fn (ServerEntry $s): string => $s->url, $next->config()->servers),
+            'live and disk agree on the roster — a later save cannot clobber an emptied one',
+        );
+    }
+
+    /**
+     * [review console__srphp, CU-003] the http:// warning banner predicate
+     * reads $this->config->activeServer(); a stale live roster silenced it
+     * for the exact session that just chose an insecure server.
+     */
+    public function testHttpSubmitKeepsTheNewServerLiveSoTheBannerCanFireFirstSession(): void
+    {
+        [$app] = $this->makeApp(null, new FakeTransport());
+
+        [$next] = $app->update(new SubmitServerMsg('http://lab.local:8096'));
+
+        $active = $next->config()->activeServer();
+        self::assertNotNull($active, 'the insecure choice must be visible to the live model');
+        self::assertTrue(Config::isInsecureUrl($active->url), 'the banner reads the live config — a stale roster means silent http');
+    }
+
+    /**
+     * [review console__srphp, CU-003] the save-failure arm carries the
+     * in-memory choice too: the API already points at the submitted server,
+     * so a stale live config would both silence the banner and set up the
+     * same roster clobber on the next successful save.
+     */
+    public function testServerSubmitSurvivingAFailedSaveStillCarriesTheNewConfig(): void
+    {
+        [$app, , $api] = $this->makeApp(null, new FakeTransport());
+
+        // A regular file where the config DIRECTORY would live: save() throws.
+        if (!is_dir($this->dir)) {
+            mkdir($this->dir, 0o700, true);
+        }
+        $blocker = $this->dir . '/blocker';
+        file_put_contents($blocker, '');
+        putenv('XDG_CONFIG_HOME=' . $blocker);
+
+        try {
+            [$next, $cmd] = $app->update(new SubmitServerMsg('https://chosen.tld'));
+
+            self::assertSame('https://chosen.tld', $api->baseUrl(), 'the client still points at the chosen server');
+            self::assertNotNull($cmd, 'the failure toast rides the restore');
+            self::assertSame(
+                'https://chosen.tld',
+                $next->config()->activeServer()?->url,
+                'the live model keeps the chosen server instead of the roster-less old config',
+            );
+        } finally {
+            putenv('XDG_CONFIG_HOME=' . $this->dir);
+            @unlink($blocker);
+        }
     }
 
     /**
@@ -1715,6 +1787,47 @@ final class AppTest extends TestCase
 
         self::assertSame(Route::Library, $next->route(), 'a CapturesSlash screen keeps the / key');
         self::assertSame(1, $spy->keyCalls, 'the key reached the screen');
+    }
+
+    /**
+     * [review console__a11y, CU-007] while a HostsTextInput screen's focused
+     * field is being edited, `/` types into the field — no global search
+     * overlay; when focus sits elsewhere on the same screen, `/` is the
+     * shortcut again. The colon pair follows below.
+     */
+    public function testSlashTypesIntoAFocusedInputAndStillShortcutsWhenUnfocused(): void
+    {
+        $editing = new TextInputCaptureSpy(editable: true);
+        [$next] = $this->appWithStack([['route' => Route::Library, 'screen' => $editing]], loggedIn: true)
+            ->update(new KeyMsg(KeyType::Char, '/'));
+        self::assertSame(Route::Library, $next->route(), 'a focused text field owns the / key');
+        self::assertSame(1, $editing->keyCalls);
+
+        $idle = new TextInputCaptureSpy(editable: false);
+        [$after] = $this->appWithStack([['route' => Route::Library, 'screen' => $idle]], loggedIn: true)
+            ->update(new KeyMsg(KeyType::Char, '/'));
+        self::assertSame(Route::Search, $after->route(), 'the shortcut returns when no text field is focused');
+        self::assertSame(0, $idle->keyCalls);
+    }
+
+    /**
+     * [review console__a11y, CU-007] `:` reaches a focused text field instead
+     * of popping the palette (JSON values like {"a":1} were untypeable in the
+     * admin value editor); the palette still opens when focus is not editing.
+     */
+    public function testColonTypesIntoAFocusedInputAndStillOpensPaletteWhenUnfocused(): void
+    {
+        $editing = new TextInputCaptureSpy(editable: true);
+        [$next] = $this->appWithStack([['route' => Route::Browse, 'screen' => $editing]], loggedIn: true)
+            ->update(new KeyMsg(KeyType::Char, ':'));
+        self::assertNull($next->palette(), 'a focused text field owns the : key');
+        self::assertSame(1, $editing->keyCalls);
+
+        $idle = new TextInputCaptureSpy(editable: false);
+        [$after] = $this->appWithStack([['route' => Route::Browse, 'screen' => $idle]], loggedIn: true)
+            ->update(new KeyMsg(KeyType::Char, ':'));
+        self::assertNotNull($after->palette(), 'the palette shortcut returns when nothing is being typed');
+        self::assertSame(0, $idle->keyCalls);
     }
 
     public function testOpenSearchMsgPushesTheSearchScreen(): void
@@ -3699,6 +3812,49 @@ final class SpyTeardownScreen implements Model, Teardownable
 final class SlashCapturingScreen implements Model, CapturesSlash
 {
     public int $keyCalls = 0;
+
+    public function init(): ?\Closure
+    {
+        return null;
+    }
+
+    public function update(Msg $msg): array
+    {
+        if ($msg instanceof KeyMsg) {
+            $this->keyCalls++;
+        }
+
+        return [$this, null];
+    }
+
+    public function view(): string
+    {
+        return '';
+    }
+
+    public function subscriptions(): ?\SugarCraft\Core\Subscriptions
+    {
+        return null;
+    }
+}
+
+/**
+ * A {@see HostsTextInput} screen whose editing state the test controls — used
+ * to prove the App's `/` and `:` gates ask the focused-field question
+ * [review console__a11y, CU-007] instead of hijacking typed text.
+ */
+final class TextInputCaptureSpy implements Model, HostsTextInput
+{
+    public int $keyCalls = 0;
+
+    public function __construct(private readonly bool $editable)
+    {
+    }
+
+    public function isEditingText(): bool
+    {
+        return $this->editable;
+    }
 
     public function init(): ?\Closure
     {
