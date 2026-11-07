@@ -366,7 +366,7 @@ hints, rating stars, badges, danger marks, cast-avatar fields):
 | Signal | Effect |
 | --- | --- |
 | `NO_COLOR` set to **any non-empty value** | Colour drops out entirely — text and layout unchanged. A literal `NO_COLOR=0` still disables (the convention is presence-based; an empty value does **not** disable). |
-| `TERM=dumb` | Same suppression — for line-mode terminals (`ed`-style linters, some screen sessions) that render SGR poorly or not at all. |
+| `TERM` unset, empty, `dumb`, or `unknown` | Same suppression — for line-mode terminals (`ed`-style linters, some screen sessions), shells that never advertise a terminal type (minimal containers, tmux/screen misconfigs — the ncurses convention treats an unset `TERM` as the most basic terminal), and ncurses' own `unknown` fallback. |
 
 Suppression is colour-only by design: the structural attributes — **bold**
 emphasis, faint avatar initials, reverse-video selection cursor — survive, so
@@ -374,7 +374,7 @@ what is selected and what is emphasized stays visible without any palette.
 The default theme (Nocturne) keeps all **chrome** colourless — the header
 brand and status hints emit plain text — while **content widgets** (rating
 stars, recommendation badges, card titles, the clear-rating mark, cast-avatar
-backgrounds) carry the historical palette. Under `NO_COLOR` or `TERM=dumb`
+backgrounds) carry the historical palette. Under `NO_COLOR` or a basic `TERM`
 those widget colours drop to attribute-only output too (the bold emphasis on
 stars, badges and the danger mark survives), so a screen reader or a
 line-mode terminal still sees the same text and structure as everywhere else.
@@ -529,7 +529,7 @@ keys each individual screen adds, consolidated from the handlers (the
 
 | Screen | Keys |
 | --- | --- |
-| All screens | `Ctrl-Z` suspends the client to the background; resume it with `fg` |
+| All screens | `Ctrl-Z` suspends the client to the background; resume it with `fg` — needs the optional `pcntl`/`posix` extensions (see **PHAR requirements** above; a lean PHP build without them has no suspend) |
 | Photos → viewer | `←`/`→` previous/next photo (no wrap; manual paging resets the slideshow countdown), `i` EXIF panel on/off, `s` start/stop the slideshow, `Esc` back |
 | Cast — device list | `↑`/`↓` select, `Enter` start casting, `r` rescan for devices, `q`/`Esc` leave |
 | Cast — transport (session live) | `Space` play/pause, `r` refresh status, `x` stop the session (when the device allows stopping), `←`/`→` seek ∓10 s (`Shift`+arrow: ∓60 s, when the device allows seeking), `Esc` back to the device list |

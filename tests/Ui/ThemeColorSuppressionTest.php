@@ -1,9 +1,10 @@
 <?php
 
 /**
- * M-CONSOLE-04 (review console__a11y item 5) — NO_COLOR / TERM=dumb are honoured
- * by the theme's style factories: colour drops out of every emitter, the
- * structural attributes (bold, faint, reverse) stay, and Nocturne's zero-SGR
+ * M-CONSOLE-04 (review console__a11y item 5) — NO_COLOR and a basic TERM
+ * ('dumb', unset, empty, or ncurses' 'unknown' — the CU-059 breadth) are
+ * honoured by the theme's style factories: colour drops out of every emitter,
+ * the structural attributes (bold, faint, reverse) stay, and Nocturne's zero-SGR
  * identity is what every suppressed surface renders as.
  *
  * The tests manipulate the process environment with putenv — the house env
@@ -139,6 +140,45 @@ final class ThemeColorSuppressionTest extends TestCase
         $theme = Theme::midnight();
         self::assertNull($theme->brandStyle()->getForeground());
         self::assertNull($theme->widgetStyle(Theme::ROLE_DANGER)->getForeground());
+    }
+
+    // ---- basic-TERM breadth [review console__a11y #6 / CU-059] ---------
+    //
+    // 'dumb' was the only literal the arm honoured. A shell that never
+    // advertises a terminal type — TERM unset or empty, common in minimal
+    // containers and some tmux/screen misconfigs — or advertises ncurses'
+    // own fallback name 'unknown' is exactly as line-mode as 'dumb', yet
+    // used to receive the full truecolor SGR stream. The ncurses convention
+    // treats an unset TERM as the most basic terminal; so does the client.
+
+    public function testUnsetTermSuppressesColour(): void
+    {
+        $this->setEnv('NO_COLOR', null);
+        $this->setEnv('TERM', null);
+
+        self::assertTrue(
+            Theme::colorSuppressed(),
+            'TERM unset means "no terminal type advertised" — assume basic'
+        );
+    }
+
+    public function testEmptyTermSuppressesColour(): void
+    {
+        $this->setEnv('NO_COLOR', null);
+        $this->setEnv('TERM', '');
+
+        self::assertTrue(Theme::colorSuppressed(), 'TERM= is as uninformative as TERM unset');
+    }
+
+    public function testUnknownTermSuppressesColour(): void
+    {
+        $this->setEnv('NO_COLOR', null);
+        $this->setEnv('TERM', 'unknown');
+
+        self::assertTrue(
+            Theme::colorSuppressed(),
+            "ncurses' own fallback name is a basic-terminal signal"
+        );
     }
 
     public function testOrdinaryTermsDoNotTriggerTheDumbArm(): void

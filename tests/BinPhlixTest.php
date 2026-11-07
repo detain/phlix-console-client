@@ -357,6 +357,50 @@ final class BinPhlixTest extends TestCase
     }
 
     /**
+     * [review console__secaudit #4 / CU-056] the stated law is that EVERY
+     * curl probe pins TLS verification explicitly, "the law survives any
+     * future global-default or wrapper change" (bin/phlix mint comment) —
+     * but only VERIFYPEER was honoured on the doctor and selftest probes,
+     * leaving host-name matching on libcurl's compiled VERIFYHOST default.
+     * Structural pair-law over the whole script: every handle that sets
+     * VERIFYPEER=true must set VERIFYHOST=2 on the SAME handle (segments
+     * split at each curl_exec), and the site count cannot silently shrink
+     * below the three probes the law speaks of.
+     */
+    public function testEveryCurlProbePinsPeerAndHostNameVerification(): void
+    {
+        $src = file_get_contents('bin/phlix');
+        $this->assertIsString($src);
+
+        $peerSites = preg_match_all('/CURLOPT_SSL_VERIFYPEER,\s*true/', $src);
+        $hostSites = preg_match_all('/CURLOPT_SSL_VERIFYHOST,\s*2/', $src);
+
+        $this->assertGreaterThanOrEqual(
+            3,
+            $peerSites,
+            'doctor, selftest and the bearer-carrying mint are the three probes the pin law covers'
+        );
+        $this->assertSame(
+            $peerSites,
+            $hostSites,
+            'every probe that pins VERIFYPEER must pin VERIFYHOST=2 too — the compiled default is not the law'
+        );
+
+        $segments = preg_split('/@?curl_exec\(/', $src);
+        $this->assertIsArray($segments);
+
+        foreach ($segments as $index => $segment) {
+            if (preg_match('/CURLOPT_SSL_VERIFYPEER,\s*true/', $segment) === 1) {
+                $this->assertSame(
+                    1,
+                    preg_match('/CURLOPT_SSL_VERIFYHOST,\s*2/', $segment),
+                    "curl handle #{$index} sets VERIFYPEER without VERIFYHOST on the same handle"
+                );
+            }
+        }
+    }
+
+    /**
      * [review console m39] the run boundary law is symmetric: stdin refused
      * a non-terminal; stdout used to swallow the raw escape stream. Both
      * guards must exist, STDOUT-checked after STDIN (so the historical

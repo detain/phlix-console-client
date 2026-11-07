@@ -12,9 +12,13 @@
 #     @phlix/contracts dist/server-route-manifest.json and HARD-PINNED by md5 in
 #     tests/Unit/Api/ServerRouteManifestGateTest.php (EXPECTED_MD5
 #     06ce7ec95bc064cc0f13b94389af9a82 — gate s405-console-route-gate-v1).
-#  2. build/phlix.phar is a COMMITTED distribution artifact (mode 755) executed
-#     by tests/PharTest.php — any line-ending munging of the zip container or
-#     its stub bytes corrupts the shipped binary outright.
+#  2. build/phlix.phar was a COMMITTED distribution artifact (mode 755,
+#     executed by tests/PharTest.php) when this shield was cut; review
+#     M-CONSOLE-25 later retired it — the phar is now a CI/release BUILD
+#     output and .gitignore keeps /build/ out of the tree. The `*.phar
+#     binary` rule below stays as cheap future-proofing: any line-ending
+#     munging of a zip container or its stub bytes corrupts such a binary
+#     outright.
 #  3. docs/images/ terminal-capability references (png/gif) are committed
 #     rendering evidence.
 #
@@ -27,7 +31,8 @@
 # vendor/ (composer-managed, untracked) is unaffected.
 # =============================================================================
 * text=auto eol=lf
-# Committed binary artifacts and rendering evidence: never EOL-converted.
+# Committed rendering evidence — never EOL-converted. The phar rule is
+# future-proofing for build output (rationale 2), not a tracked file today.
 *.png binary
 *.gif binary
 *.phar binary

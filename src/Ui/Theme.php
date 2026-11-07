@@ -32,12 +32,13 @@ use SugarCraft\Style\Style;
  * {@see Style::resolveProfile()} so a truecolor accent downgrades to 256 / ANSI
  * per the terminal's capability.
  *
- * ## Color suppression — NO_COLOR / TERM=dumb
+ * ## Color suppression — NO_COLOR and a basic TERM
  *
  * A user who exports {@see colorSuppressed()} — `NO_COLOR` with any non-empty
  * value (the no-color.org convention: the mere presence disables, an empty
- * value does not) or `TERM=dumb` (the classic line-mode terminal) — gets
- * COLOR-FREE output from every styled surface here, regardless of theme.
+ * value does not), or a `TERM` that signals a basic terminal: unset, empty,
+ * the literal `dumb`, or ncurses' fallback name `unknown` — gets COLOR-FREE
+ * output from every styled surface here, regardless of theme.
  * Suppression is color-only, exactly as the two conventions specify: bold,
  * faint and reverse attributes survive, so emphasis and selection stay
  * visible on terminals that render color poorly or not at all.
@@ -90,7 +91,11 @@ final readonly class Theme
     /**
      * Whether the process environment asks for color-free output: `NO_COLOR`
      * set to any non-empty value (no-color.org: presence disables, an empty
-     * value does not) or the classic `TERM=dumb` line-mode terminal.
+     * value does not), or `TERM` signalling a basic terminal — unset or
+     * empty (no terminal type was ever advertised: minimal containers,
+     * tmux/screen misconfigs; the ncurses convention treats this as the most
+     * basic terminal), the literal `dumb` (the classic line-mode terminal),
+     * or ncurses' own fallback name `unknown`.
      *
      * Read fresh per call — the same per-decision-snapshot posture the rest of
      * the estate takes: a TUI process's environment does not change under it,
@@ -107,7 +112,9 @@ final readonly class Theme
             return true;
         }
 
-        return getenv('TERM') === 'dumb';
+        $term = getenv('TERM');
+
+        return $term === false || $term === '' || $term === 'dumb' || $term === 'unknown';
     }
 
     /**

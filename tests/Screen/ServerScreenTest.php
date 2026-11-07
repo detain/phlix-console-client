@@ -69,7 +69,8 @@ final class ServerScreenTest extends TestCase
         }
         // One imperative voice for field validation [review console__writer
         // #10 / CU-035]: the empty-URL refusal is the house imperative, the
-        // 'Please' family retires with this wave.
+        // 'Please enter' validation family retires with this wave (advisory
+        // 'Please …' sentences elsewhere stay by design).
         self::assertSame('Enter a server URL.', $next->error);
         self::assertStringContainsString('Enter a server URL.', $next->view());
     }

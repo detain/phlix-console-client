@@ -345,8 +345,8 @@ final class PlayerScreenTest extends TestCase
     }
 
     /**
-     * The rejected transcode start (:1300 arm) and a job that reaches `failed`
-     * (:1358 arm) are the one outcome — "the server could not get this title
+     * The rejected transcode start (:1313 arm) and a job that reaches `failed`
+     * (:1371 arm) are the one outcome — "the server could not get this title
      * playable" — and must render the one sentence. The second phrasing
      * ('This title could not be prepared for playback.') read as a second bug
      * [review console__writer #11 / CU-036]; the literal census pin lives in

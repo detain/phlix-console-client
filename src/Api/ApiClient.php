@@ -1195,7 +1195,7 @@ final class ApiClient
     /**
      * Fetch the authenticated user's persisted settings from the server.
      *
-     * @return PromiseInterface<array<string, mixed>>
+     * @return PromiseInterface<array<array-key, mixed>>
      */
     public function getUserSettings(): PromiseInterface
     {
@@ -1206,7 +1206,7 @@ final class ApiClient
      * Persist a full or partial settings map to the server.
      *
      * @param array<string, mixed> $settings
-     * @return PromiseInterface<array<string, mixed>>
+     * @return PromiseInterface<array<array-key, mixed>>
      */
     public function putUserSettings(array $settings): PromiseInterface
     {
@@ -1316,7 +1316,7 @@ final class ApiClient
      *
      * @param array<string,scalar|list<string>> $query
      * @param array<string,mixed>|null          $body
-     * @return PromiseInterface<array<string,mixed>>
+     * @return PromiseInterface<array<array-key,mixed>>
      */
     public function send(string $method, string $path, array $query = [], ?array $body = null): PromiseInterface
     {
@@ -1330,7 +1330,7 @@ final class ApiClient
      *
      * @param array<string,scalar|list<string>> $query
      * @param array<string,mixed>|null          $body
-     * @return PromiseInterface<array<string,mixed>>
+     * @return PromiseInterface<array<array-key,mixed>>
      */
     private function authed(string $method, string $path, array $query = [], ?array $body = null): PromiseInterface
     {
@@ -1389,7 +1389,7 @@ final class ApiClient
      *
      * @param array<string,scalar|list<string>> $query
      * @param array<string,mixed>|null          $body
-     * @return PromiseInterface<array<string,mixed>>
+     * @return PromiseInterface<array<array-key,mixed>>
      */
     private function exchange(string $method, string $path, array $query, ?array $body, bool $auth): PromiseInterface
     {
@@ -1416,12 +1416,16 @@ final class ApiClient
      *
      * For 2xx responses: if the body contains {success:false}, throws ApiError with
      * the message from the "message" or "error" key. If {success:true,data:...} is
-     * present, returns only the "data" key. Bare objects and arrays pass through unchanged.
+     * present, returns only the "data" key. Bare objects and arrays pass through
+     * unchanged — a top-level JSON LIST therefore keeps its integer keys, which is
+     * why the declared shape is array-key, not string (callers reaching for named
+     * keys guard with `?? null` and Coerce::map; the annotation states the same
+     * contract those guards already honour [review console__srphp #7 / CU-045]).
      *
      * For 4xx/5xx responses: throws ApiError (or AuthError on 401) using the "error"
      * key as message, or a generic fallback.
      *
-     * @return array<string,mixed>
+     * @return array<array-key,mixed>
      * @throws ApiError
      * @throws AuthError
      */

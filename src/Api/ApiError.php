@@ -16,7 +16,9 @@ namespace Phlix\Console\Api;
 class ApiError extends \RuntimeException
 {
     /**
-     * @param array<string,mixed>|null $body
+     * @param array<array-key,mixed>|null $body  Decoded error payload; integer
+     *                                           keys when the server returned a
+     *                                           bare JSON list (CU-045 law).
      */
     public function __construct(
         string $message,

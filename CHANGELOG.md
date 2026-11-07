@@ -22,6 +22,79 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > strictly descending date order (a 2026-10-31-stamped rider written in a
 > later batch sits below 2026-10-30 ones — newest batch on top still wins).
 
+### Fixed — w05/L1 review fix-forward (CU-045/056/057/058/059/060): honest decode() boundary shape; VERIFYHOST on every curl probe; .gitattributes phar rationale cured; SyncPlayModal intl claim cured; basic-TERM color suppression; manual Ctrl-Z proviso — 2026-11-06
+
+- **[review console__srphp #7 / CU-045] — `ApiClient::decode()`'s return
+  annotation stopped lying about bare lists.** It declared
+  `array<string,mixed>` while its own docblock admitted top-level JSON arrays
+  pass through unchanged — a bare list keeps integer keys, so every list
+  endpoint was annotated wrong at the boundary and callers guarded around the
+  fiction. The seam is now honest end to end: `decode()`, `exchange()`,
+  `authed()`, `send()` and the two settings methods declare
+  `array<array-key,mixed>`, and `ApiError::$body` (fed from decode's output)
+  follows. Guarded key access (`?? null` + `Coerce::map`) was already the call
+  law; the annotation now states the contract those guards honour. Zero
+  behavior change.
+- **[review console__secaudit #4 / CU-056] — all three curl probes now pin
+  host-name verification explicitly.** The `mint` law comment vows the
+  explicit pins "survive any future global-default or wrapper change", yet
+  `run --selftest` and `doctor` set `CURLOPT_SSL_VERIFYPEER` only and rode
+  libcurl's compiled `VERIFYHOST` default of 2 — behaviorally safe on stock
+  builds, law-integrity-empty. Both gained `CURLOPT_SSL_VERIFYHOST, 2`, and
+  the new `BinPhlixTest::testEveryCurlProbePinsPeerAndHostNameVerification`
+  pair-laws the whole script (every handle that sets VERIFYPEER sets
+  VERIFYHOST on the same handle; probe count ≥ 3) where the old m43 test only
+  guarded the bearer-carrying mint.
+- **[review console__devops #2 / CU-057] — `.gitattributes` stopped
+  contradicting `.gitignore` about the phar.** Its rationale still described
+  `build/phlix.phar` as a COMMITTED distribution artifact; review
+  M-CONSOLE-25 had since retired exactly that (`.gitignore` ignores
+  `/build/`, `git ls-files '*.phar'` is empty — truth at landing and re-proved
+  this wave). The rationale now records the history honestly (committed when
+  the shield was cut, build output since) and keeps `*.phar binary` as cheap
+  future-proofing.
+- **[review console__devops #3 / CU-058] — the SyncPlayModal backspace
+  docblock claimed composer.json lacks ext-intl; it requires it.**
+  `ext-intl: *` has been in the require set; the "would require ext-intl,
+  which composer.json does not require and the CI matrix does not install"
+  justification was false on the dependency contract. The codepoint-vs-
+  grapheme choice stands — restated truthfully: `mb_substr` with explicit
+  'UTF-8' is the house deletion idiom (FilterBar:176, SearchScreen:187
+  backspace the same way), keeping one rule across text surfaces rather than
+  one per screen. Prose only.
+- **[review console__a11y #6 / CU-059] — color suppression now covers every
+  basic-TERM signal, not just the literal `dumb`.** TERM unset or empty
+  (minimal containers, tmux/screen misconfigs — ncurses treats unset as the
+  most basic terminal) and ncurses' own `unknown` fallback emitted full
+  truecolor SGR at exactly the users the convention warns about.
+  `Theme::colorSuppressed()` honours all four now (three red-first tests),
+  and the manual's suppression table lists them.
+- **[review console__a11y #7 / CU-060] — the manual's Ctrl-Z row carries the
+  proviso the README already did.** "All screens: `Ctrl-Z` suspends" was
+  unconditional; the vendor arms it only where `pcntl`/`posix` exist, so a
+  lean PHP build silently lost the documented affordance. The row names the
+  extensions and points at the requirements block.
+- **[review w04/L2 DD carry-ins] — two stale test docblocks cured:** the
+  PlayerScreenTest twin-arm citation re-anchored to the post-CU-036 positions
+  (:1313/:1371), and ServerScreenTest's "the 'Please' family retires" narrowed
+  to the honest scope (the 'Please enter' validation family — advisory
+  'Please …' sentences remain by design).
+
+### Fixed — forward correction: the ext-json rationale shipped with CU-044 below is factually inverted — 2026-11-06
+
+- **[review w04/L2 adversarial DD minor] —** The composer-honesty entry below
+  justified declaring `ext-json` with "became disable-able in 8.4" — the
+  opposite of what PHP did. JSON has been a CORE, always-enabled extension
+  since PHP 8.0 (no longer disable-able even via `--disable-json`); the 8.4
+  "core extensions become optional" wave covered ctype/date/libxml/openssl/
+  pcre/sqlite3/std/tokenizer, never json, and "Composer stopped auto-adding
+  it" has no support. On the declared `php ^8.3` floor the requirement is
+  therefore guaranteed-satisfied — it stays as deliberate platform-contract
+  documentation of the codec's pervasiveness (harmless belt-and-tape), and
+  `ComposerHygieneTest` keeps pinning it with this corrected rationale in its
+  docblock. Behavior zero; the false fact rode a NEW entry per this file's
+  append-only law — the text below stands as written history.
+
 ### Fixed — w04/L2 review fix-forward (CU-035/036/039/040/041/044): imperative validation voice; user sentences single-sourced; rescan/download prose truth; US spelling; composer platform honesty — 2026-11-06
 
 - **[review console__copywriter / CU-035 + CU-039] — the empty-URL refusal

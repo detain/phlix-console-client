@@ -241,7 +241,11 @@ function runSelftest(?string $mode): bool
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_TIMEOUT, 20);  // 20-second timeout (C0.3 timeout + overhead)
             curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 20);
+            // [review console__secaudit #4 / CU-056] the pin law is explicit on
+            // every probe: VERIFYPEER alone left host-name matching on libcurl's
+            // compiled default — an option, not the law.
             curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
             curl_setopt($ch, CURLOPT_HTTPHEADER, [
                 'Accept: application/json',
             ]);
@@ -782,7 +786,10 @@ try {
                     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                     curl_setopt($ch, CURLOPT_TIMEOUT, 10);
                     curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+                    // [review console__secaudit #4 / CU-056] explicit on both
+                    // arms — same law as the mint and the selftest probe.
                     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+                    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
                     $response = @curl_exec($ch);
                     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
                     $curlError = curl_error($ch);

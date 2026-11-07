@@ -173,9 +173,13 @@ final class SyncPlayModal
      * sequence and rendered as a mojibake tail. Granularity is deliberately
      * codepoint, not grapheme cluster — a base character followed by
      * combining marks (or a ZWJ emoji sequence) sheds one mark per keystroke.
-     * Grapheme clustering would require ext-intl, which composer.json does
-     * not require and the CI matrix does not install; mb_substr with an
-     * explicit 'UTF-8' is the house idiom (see FilterBar, SearchScreen).
+     * That granularity is deliberate house idiom, not a capability limit:
+     * composer.json DOES require ext-intl, so IntlBreakIterator was available
+     * [review console__devops #3 / CU-058 cures the false "composer.json does
+     * not require" claim this comment used to carry] — and FilterBar and
+     * SearchScreen already backspace the same codepoint way (mb_substr with
+     * an explicit 'UTF-8'), which keeps one deletion rule across every text
+     * surface instead of one per screen.
      */
     public function backspace(): self
     {

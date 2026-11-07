@@ -16,9 +16,13 @@ use PHPUnit\Framework\TestCase;
  * #6 / console__srphp #6 / CU-044]:
  *
  *  - the extensions the runtime paths depend on are REQUIRED, not ambient:
- *    `json_decode`/`json_encode` pervade the API layer (ext-json became a
- *    disable-able package in 8.4 and Composer stopped auto-adding it), and
- *    the SIGINT/TERM teardown that promises "don't orphan ffplay/ffmpeg
+ *    `json_decode`/`json_encode` pervade the API layer — and ext-json has
+ *    been CORE (always enabled, not disable-able) since PHP 8.0, so its
+ *    declaration is redundant-by-design documentation of that codec
+ *    pervasiveness, not a capability gate [forward correction of the
+ *    "became a disable-able package in 8.4" rationale first shipped with
+ *    CU-044 — see the dated CHANGELOG correction entry], while the
+ *    SIGINT/TERM teardown that promises "don't orphan ffplay/ffmpeg
  *    children" is the pcntl_signal family (App.php). ext-curl stays
  *    deliberately undeclared — its doctor probe is loud by design.
  *  - the polyfill `provide` stays EXPLICIT and paired with the ceiling:
