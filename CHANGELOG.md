@@ -22,6 +22,40 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > strictly descending date order (a 2026-10-31-stamped rider written in a
 > later batch sits below 2026-10-30 ones — newest batch on top still wins).
 
+### Fixed — w06/L1 review fix-forward (CU-061/062/063/064/065/066): plain-language README intro with feature bullets and an early server caveat; upgrade guide discloses the never-tagged prerelease reality; policy docs linked from Further reading; honest `--selftest` ladder description in the manual; the sign-in gate on `/` and the palette disclosed at every claim site; `chafa` added to the README render-mode notes — 2026-11-06
+
+- **[review console__newcomer #1 / CU-061]** the README opened with one
+  ~15-line paragraph naming every subsystem and graphics protocol at a
+  first-time reader. The body now leads with a short definition, carries the
+  "you need one running before this client can do anything" server caveat in
+  that first paragraph, and lists the feature families as four bullets
+  (Browse / Watch together / Play in the terminal / Stay in control). The
+  command-palette enumeration and all intro doc pins are unchanged.
+- **[review console__newcomer #2 / CU-062]** docs/upgrade/v1.md offered
+  "migration steps from pre-1.0 versions" although no 0.x was ever shipped —
+  the repository has never cut a version tag; origin's only tag is the rolling
+  `latest` prerelease PHAR. A note under that line states what "pre-1.0"
+  actually refers to and links the README PHAR section.
+- **[review console__newcomer #3 / CU-063]** README's Further reading now
+  links docs/vendor-patches.md and docs/dev/dependencies.md; both policy docs
+  were reachable from no navigation surface.
+- **[review console__tui-arch #6 / CU-064]** the manual's command inventory
+  claimed `--selftest` runs a ladder of "boot, config, container, renderer";
+  runSelftest() walks config-loaded, object-graph-wired, http-reachable and
+  decode-ok — no renderer rung exists. The cell now names the real rungs and
+  says so outright.
+- **[review console__tui-arch #7 / CU-065]** `/` and the command palette are
+  gated on a signed-in session (src/App.php `paletteAndSearchAvailable()`);
+  the two README "from anywhere" claims, the README keys paragraph and both
+  manual search/palette rows now disclose the gate — before sign-in the keys
+  type as characters into the sign-in and server-pick forms.
+- **[review console__tui-arch #9 / CU-066]** the README render-mode table
+  omitted `chafa`, which `run`/`poster` accept and `frame` rejects — a note
+  below the table mirrors the manual and the dev guide.
+- New guards: tests/Docs/NewcomerClaimsDocsTest.php and
+  tests/Docs/ManualClaimsDocsTest.php (7 tests) pin all six truths; captured
+  red-first against the pre-fix documents.
+
 ### Fixed — w05/L1 review fix-forward (CU-045/056/057/058/059/060): honest decode() boundary shape; VERIFYHOST on every curl probe; .gitattributes phar rationale cured; SyncPlayModal intl claim cured; basic-TERM color suppression; manual Ctrl-Z proviso — 2026-11-06
 
 - **[review console__srphp #7 / CU-045] — `ApiClient::decode()`'s return

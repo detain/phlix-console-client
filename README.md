@@ -7,19 +7,26 @@
 
 **Phlix is an open-source media server you run yourself** — your own movies,
 shows and music on your own hardware, streamed to your devices. The server is a
-separate project, [`phlix-server`](https://github.com/detain/phlix-server);
-this repository is its full-window **terminal (TUI) client**: browse libraries
-as poster rails and virtualized grids, drill media detail and
-series → season → episode, open music, book, audiobook and photo libraries in
-browsers built for each; global search; a command palette wired to every
-screen in the client (the full screen-by-screen list lives in the
-manual's [Screens section](docs/clients/console.md#screens));
-**SyncPlay watch party** rooms; casting to **Chromecast / Roku / AirPlay / DLNA**;
-item **downloads**; a **full admin client** — and an in-terminal video player
-that **direct-plays** HEVC/AV1 the browser can't, with **trickplay** sprite
-thumbnails previewing while you scrub. Posters and video render as
-**sixel / kitty / iTerm2 / half-block ANSI** via the
-[SugarCraft](https://sugarcraft.github.io/) stack.
+separate project, [`phlix-server`](https://github.com/detain/phlix-server), and
+you need one running before this client can do anything. This repository is its
+full-window **terminal (TUI) client**: the whole library, browsed and played
+from any terminal — over SSH if you like.
+
+What it does once connected:
+
+- **Browse** — libraries as poster rails and virtualized grids; media detail
+  and series → season → episode drill-down; music, book, audiobook and photo
+  libraries open in browsers built for each; global search.
+- **Watch together** — **SyncPlay watch party** rooms, casting to
+  **Chromecast / Roku / AirPlay / DLNA**, and item **downloads**.
+- **Play in the terminal** — an in-terminal video player that **direct-plays**
+  HEVC/AV1 the browser can't, with **trickplay** sprite thumbnails previewing
+  while you scrub; posters and video render as **sixel / kitty / iTerm2 /
+  half-block ANSI** via the [SugarCraft](https://sugarcraft.github.io/) stack.
+- **Stay in control** — a **command palette** wired to every screen in the
+  client (the full screen-by-screen list lives in the manual's
+  [Screens section](docs/clients/console.md#screens)), and a **full admin
+  client** for server upkeep.
 
 The command palette is the one keypress to all of it — **Search**, **Home**,
 **Settings**, **Stats**, **Watch History**, **Favorites**, **Photos**,
@@ -54,7 +61,9 @@ Further reading: [the full manual](docs/clients/console.md) (keys, screens,
 configuration), [i18n](docs/i18n.md) (the env locale chain),
 [terminal graphics](docs/terminal-graphics.md) (protocol capabilities),
 [upgrade notes](docs/upgrade/v1.md),
-[development guide](docs/dev/client-console.md) (architecture and gates).
+[development guide](docs/dev/client-console.md) (architecture and gates),
+[vendor-patch policy](docs/vendor-patches.md),
+[dependency policy](docs/dev/dependencies.md).
 Issues and questions:
 [the issue tracker](https://github.com/detain/phlix-console-client/issues).
 
@@ -179,7 +188,8 @@ installed the PHAR on your PATH, the same commands run as `phlix …`.
 # poster → detail → drill series/season/episode. Opening a music, book,
 # audiobook, or photo library routes to its own browser instead (album list /
 # book grid / audiobook list / photo albums). Press `/` to search and Ctrl-K
-# (or `:`) for the command palette from anywhere. Esc walks back; Ctrl-C quits.
+# (or `:`) for the command palette — both once you're signed in (until then
+# they type as characters in the sign-in form). Esc walks back; Ctrl-C quits.
 bin/phlix run
 ```
 
@@ -191,7 +201,9 @@ shuffle-play the focused item (home rails / library grids / media detail) · `c`
 filter · `u` / `n` jump to the Up Next rail (home) · `[` / `]` page the Most
 Watched rail (home) · `q` quit the home browse view · `H` history, `P` playlists
 and the `a` watch filter on the home sidebar · `Tab` switch focus on the
-home screen · `Esc` back · `Ctrl-C` quit.
+home screen · `Esc` back · `Ctrl-C` quit. `/` and the palette are
+signed-in keys: until you sign in they type as characters into the sign-in
+and server-pick forms.
 
 **Watch state** — on a media detail screen: `r` rate (a star picker, 1–5 stars =
 ratings 2–10), `F` favorite, `w` watched, `l` / `j` thumbs up / down (every one
@@ -316,6 +328,10 @@ compatibility.
 > `kitty` is also supported (graphics, kitty protocol) but renders identically to
 > the other graphics modes in a capable terminal.
 
+> `chafa` is accepted by `run` and `poster` as well — the external chafa
+> renderer, resolved through sugar-image — and `frame` rejects it as a usage
+> error, taking the nine canonical names only.
+
 > **Status: every screen and subsystem below is shipped.** Working today: sign
 > in, browse your libraries as poster rails beside a sidebar, open a library into
 > a virtualized poster grid (scroll, filter, sort, A–Z jump), open any poster
@@ -332,9 +348,10 @@ compatibility.
 > between episodes, on-demand **subtitles**,
 > and a **transcode fallback** when a file can't be direct-played.
 >
-> Also shipped: **global search** (`/` from anywhere → a debounced query over a
+> Also shipped: **global search** (`/` → a debounced query over a
 > virtualized poster grid of `/media?search=` results), a **command palette**
-> (Ctrl-K or `:` → fuzzy-ranked actions), and **toasts**
+> (Ctrl-K or `:` → fuzzy-ranked actions) — both once you're signed in (until
+> then the keys type as characters) — and **toasts**
 > — transient top-right notifications that surface errors
 > which used to fail silently. The palette has since grown into the client's
 > universal navigator, registered screen-by-screen in `src/App.php`: **Search**,

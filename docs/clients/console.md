@@ -250,7 +250,7 @@ account as pending, and one with signups disabled says so.
 
 | Command | What it does |
 | --- | --- |
-| `run [--mode=NAME] [--selftest]` | Launch the full-window app (needs a TTY). `--selftest` runs the wiring ladder headless — boot, config, container, renderer — and exits. |
+| `run [--mode=NAME] [--selftest]` | Launch the full-window app (needs a TTY). `--selftest` walks the wiring ladder headless and exits — config loaded, object graph wired (container build, boot, player factory), server reachable over HTTP, response JSON decoded. There is no renderer rung. |
 | `watch [--hub URL] [--server-id ID] [--once] [--timeout SECS]` | Consume hub-relay `play_media` deliveries, headless (see below). |
 | `doctor` | Print terminal, extension, config and server diagnostics; also names the token and poster-cache paths to remove. |
 | `poster <image> [w] [h]` | Render one image at a cell size and exit — graphics-protocol probe. |
@@ -443,9 +443,9 @@ and will never press Enter for you.
 
 | Key | Action |
 | --- | --- |
-| `/` | Global search (or filter within a grid) |
+| `/` | Global search (or filter within a grid) — once you're signed in; on the sign-in and server-pick forms it types as characters |
 | Filter bar keys | While the library filter bar is open: `Tab` cycles to the next field (shift-`Tab` back), `←`/`→` change the focused field's value, `c` clears all filters, `Esc` closes the bar (applied filters stay) |
-| `Ctrl-K` or `:` | Open command palette |
+| `Ctrl-K` or `:` | Open command palette — same sign-in gate as `/` |
 
 #### Media playback
 
