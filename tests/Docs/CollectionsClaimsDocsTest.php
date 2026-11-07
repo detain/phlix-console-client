@@ -166,6 +166,38 @@ final class CollectionsClaimsDocsTest extends TestCase
         }
     }
 
+    // [review console__writer #2 / console__a11y #3, CU-028] The footer hint on
+    // both list screens advertised 'a  add      r  remove' while the handlers'
+    // a/r arms only raise the refusal notice above. Law: the hint describes
+    // what the keys do — the truthful short form is 'a/r  web only'.
+    public function testTheListScreenHintsDoNotAdvertiseRefusedCrud(): void
+    {
+        foreach (['CollectionsScreen', 'PlaylistsScreen'] as $class) {
+            $source = self::readRepoFile('src/Screen/' . $class . '.php');
+
+            self::assertSame(
+                1,
+                preg_match("/private const HINT = '[^']*a\/r  web only[^']*'/", $source),
+                $class . "'s HINT no longer carries the truthful 'a/r  web only' pair [CU-028]."
+            );
+
+            foreach (['a  add', 'r  remove'] as $claimed) {
+                self::assertSame(
+                    0,
+                    preg_match("/private const HINT = '[^']*" . $claimed . "[^']*'/", $source),
+                    $class . ": the HINT advertises '" . $claimed . "' again while the handler only"
+                    . ' refuses — fix the hint, never invent the key [CU-028].'
+                );
+            }
+
+            self::assertSame(
+                1,
+                preg_match("/private const HINT = '[^']*d  delete[^']*'/", $source),
+                $class . "'s HINT dropped 'd  delete' — delete is implemented and stays advertised."
+            );
+        }
+    }
+
     public function testDetailScreenStillCarriesNoMembershipSurface(): void
     {
         $source = self::readRepoFile('src/Screen/DetailScreen.php');

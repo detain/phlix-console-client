@@ -38,7 +38,7 @@ use SugarCraft\Forms\Form;
 
 /**
  * The admin Users surface: a windowed {@see Table} of every server user (Username
- * · Email · Role · Status · Last login), cycled through a status filter and
+ * · Email · Role · Status · Last Login), cycled through a status filter and
  * driven by per-row actions.
  *
  * `f` cycles the status filter (All → Pending → Active → Disabled → All),
@@ -691,7 +691,7 @@ final class AdminUsersScreen implements Breadcrumbed, Themed, Loadable, Shimmeri
             ['title' => 'Email', 'width' => 30],
             ['title' => 'Role', 'width' => 8],
             ['title' => 'Status', 'width' => 10],
-            ['title' => 'Last login', 'width' => 20],
+            ['title' => 'Last Login', 'width' => 20],
         ], $rows, $this->selected, $this->cols - 4, $this->viewportRows());
 
         return "\n" . $this->headerLine() . "\n" . $table . "\n\n" . $this->statusLine();

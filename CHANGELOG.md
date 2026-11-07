@@ -22,6 +22,50 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > strictly descending date order (a 2026-10-31-stamped rider written in a
 > later batch sits below 2026-10-30 ones — newest batch on top still wins).
 
+### Fixed — w03/L1 review fix-forward (CU-025/026/028/030/033/034): list-screen hint truthfulness; typed-confirm quoting unified; dev-guide/README claims cured; header casing + Admin prefix — 2026-11-06
+
+- **Major [review console__writer #2, console__a11y #3 / CU-028] — the hint
+  bar advertised CRUD the handlers refuse.** `CollectionsScreen`/
+  `PlaylistsScreen` footers read `a  add      r  remove` while both `a`/`r`
+  arms only raise the `ADD_ITEM_NOT_IMPLEMENTED` web-portal notice. The hints
+  now carry the truthful `a/r  web only` pair; `d  delete` (implemented) stays
+  advertised. No feature was invented. `CollectionsClaimsDocsTest` gained
+  `testTheListScreenHintsDoNotAdvertiseRefusedCrud` — it reddens if the
+  advertising form ever returns while the arms still refuse.
+- **[review console__writer #4/#5 / CU-030] — one quoting style for typed-
+  confirm prompts.** Three styles coexisted: single-quoted magic words in the
+  `*PendingAction` family, double-quoted in the two admin screens, bare in
+  `DuplicatePendingAction`. All now single-quote the word (`Type 'restart' …`),
+  and Enter-prose tracks the real gate (the admin screens submit on Enter and
+  say so; pending actions fire on buffer match and do not). The restart
+  screen's wrong-word toast now reuses the `RESTART_CONFIRM` const instead of
+  duplicating the sentence. `AdminTypedConfirmInputTest`'s M-CONSOLE-14
+  two-family law was rotated in the same commit (measured red first) to a
+  single-law scan with an anti-vacuous floor over the shipped prompts.
+- **[review console__ipd #3/#5, console__tui-arch #8 / CU-025] —
+  `docs/dev/client-console.md` truths.** The testing section claimed the
+  poster test self-skips without ffmpeg; it synthesizes its own gd image and
+  runs unconditionally — only the video-decode tests skip. The architecture
+  box omitted two shipped CLI commands (`version`, `help`) — the entrypoint
+  row now lists all seven and stays column-aligned per
+  `WatchCommandDocsTest`. The `src/` tree omitted `Download/` and `Spike/`
+  entirely and mislabeled `Media/` as "Poster/spike renderers"; the renderers
+  live in `Spike/`, so the tree gained the two real sections and `Media/` is
+  labeled for what it holds.
+- **[review console__ipd #4 / CU-026] — README fork-test count.** "one
+  fork-based test self-skips without them" — there are two
+  (`SyncPlayBearerCarrierHandshakeTest`, `SyncPlayTlsDialRoundTripTest`). The
+  `RuntimeRequirementsDocsTest` narrative docblock and failure message carry
+  the corrected count; its optional-label law is untouched.
+- **[review console__writer #8 / CU-033] — table-header casing law.**
+  `AdminUsersScreen`'s "Last login" joined the Title Case its siblings use
+  ("Last Watched", Username/Email/Role/Status); the `TableTest` fixture
+  literals synced (same width, zero-red).
+- **[review console__writer #9 / CU-034] — frame titles carry the section
+  prefix.** All four `ParentalControlsScreen` titles now open "Admin · Parental
+  Controls · …", matching `Admin · DLNA` et al.; `crumbLabel()` stays the bare
+  leaf name because the crumb trail already prints the Admin parent.
+
 ### Fixed — w02/L1 review fix-forward (CU-006/018/020/022/023/024): Federation Shares screen cured; manual key/i18n/cache truths — 2026-11-07
 
 - **Critical [review console__uxdesign C2, console__docmaint m4 / CU-006] —

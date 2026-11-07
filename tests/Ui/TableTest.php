@@ -109,7 +109,7 @@ final class TableTest extends TestCase
         ['title' => 'Email', 'width' => 30],
         ['title' => 'Role', 'width' => 8],
         ['title' => 'Status', 'width' => 10],
-        ['title' => 'Last login', 'width' => 20],
+        ['title' => 'Last Login', 'width' => 20],
     ];
 
     /** @return list<list<string>> */
@@ -128,7 +128,7 @@ final class TableTest extends TestCase
 
         self::assertStringContainsString('Username', $stripped, 'the header never renders as a stub');
         self::assertStringContainsString('alice', $stripped, 'the primary cell is readable, not `ali…`');
-        self::assertStringNotContainsString('Last login', $stripped, 'the rightmost named column yielded first');
+        self::assertStringNotContainsString('Last Login', $stripped, 'the rightmost named column yielded first');
         self::assertStringNotContainsString('2026-10-01', $stripped, 'dropped cells are gone, not clipped');
         self::assertStringContainsString('Status', $stripped, 'higher-priority named columns are kept');
     }
@@ -152,9 +152,9 @@ final class TableTest extends TestCase
     public function testNamedColumnsYieldRightToLeftByDeclarationPriority(): void
     {
         // Ladder for 68 fixed + gap cells + the 8-wide 'Username' floor:
-        // Last login goes below 80, Status below 59, Role below 48, Email below 39.
+        // Last Login goes below 80, Status below 59, Role below 48, Email below 39.
         $at79 = Ansi::strip(Table::render(self::ADMIN_COLUMNS, self::adminRows(), 0, 79, 5));
-        self::assertStringNotContainsString('Last login', $at79);
+        self::assertStringNotContainsString('Last Login', $at79);
         self::assertStringContainsString('Status', $at79);
 
         $at58 = Ansi::strip(Table::render(self::ADMIN_COLUMNS, self::adminRows(), 0, 58, 5));
@@ -193,7 +193,7 @@ final class TableTest extends TestCase
         $lines = self::lines(Ansi::strip(Table::render(self::ADMIN_COLUMNS, self::adminRows(), 0, 100, 5)));
 
         self::assertSame(
-            'Username                     Email                          Role     Status     Last login          ',
+            'Username                     Email                          Role     Status     Last Login          ',
             $lines[0]
         );
         self::assertSame(str_repeat('─', 100), $lines[1]);

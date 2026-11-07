@@ -234,16 +234,16 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed
     {
         if ($this->form !== null) {
             $title = $this->section === 'streamLimits'
-                ? 'Parental Controls · Stream Limits · Edit'
+                ? 'Admin · Parental Controls · Stream Limits · Edit'
                 : ($this->editing !== null
-                    ? 'Parental Controls · ' . self::SECTION_LABELS[$this->section] . ' · Edit'
-                    : 'Parental Controls · ' . self::SECTION_LABELS[$this->section] . ' · Create');
+                    ? 'Admin · Parental Controls · ' . self::SECTION_LABELS[$this->section] . ' · Edit'
+                    : 'Admin · Parental Controls · ' . self::SECTION_LABELS[$this->section] . ' · Create');
 
             return Chrome::frame($title, $this->formBody($this->form), self::FORM_HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
         }
 
         return Chrome::frame(
-            'Parental Controls · ' . $this->profileName,
+            'Admin · Parental Controls · ' . $this->profileName,
             $this->body(),
             self::HINT,
             $this->cols,

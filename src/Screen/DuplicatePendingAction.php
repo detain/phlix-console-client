@@ -43,7 +43,7 @@ final readonly class DuplicatePendingAction
         $item = $this->primaryName === '' ? 'this item' : "'{$this->primaryName}'";
         $label = $count === 1 ? '1 item' : "{$count} items";
 
-        return "Merge {$label} into {$item}? Type {$this->primaryName} to confirm: " . $this->typed;
+        return "Merge {$label} into {$item}? Type '{$this->primaryName}' to confirm: " . $this->typed;
     }
 
     /**

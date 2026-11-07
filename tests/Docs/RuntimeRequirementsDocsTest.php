@@ -7,8 +7,9 @@
  * intl, ffi, json) and the curl the diagnostics commands and watch's
  * relay-token mint call. Raw mode is
  * plain `stty` (vendor sugar-core Util/RawMode.php); pcntl/posix appear in
- * vendor only behind function_exists() guards (Ctrl-Z suspend) and in one
- * self-skipping fork-based test.
+ * vendor only behind function_exists() guards (Ctrl-Z suspend) and in two
+ * self-skipping fork-based tests (SyncPlay bearer-carrier + TLS-dial
+ * round-trip).
  *
  * The enforced set is derived from composer.lock production requires — never
  * restated from prose — and pinned against every runtime-requirements list
@@ -170,8 +171,8 @@ final class RuntimeRequirementsDocsTest extends TestCase
                     'optional',
                     $line,
                     $label . ' names pcntl/posix without calling them optional: ' . trim($line)
-                    . ' — they are guarded vendor sugar (Ctrl-Z suspend) and a self-skipping '
-                    . 'fork test, never a TTY/raw-mode runtime need.'
+                    . ' — they are guarded vendor sugar (Ctrl-Z suspend) and two '
+                    . 'self-skipping fork tests, never a TTY/raw-mode runtime need.'
                 );
             }
         }

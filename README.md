@@ -73,7 +73,7 @@ Issues and questions:
 - `ext-curl` — the `doctor` / `run --selftest` server-reachability probes and
   `watch`'s hub relay-token mint call it; the TUI itself needs no curl.
 - `pcntl` + `posix` are **optional**: SugarCraft enables Ctrl-Z suspend with
-  them where present and one fork-based test self-skips without them — raw
+  them where present and two fork-based tests self-skip without them — raw
   mode itself is plain `stty`, no extension needed.
 - **ffmpeg** + **ffprobe** (video decode + frame grabs).
 - **ffplay** or **mpv** (audio playback — video, music, audiobooks).

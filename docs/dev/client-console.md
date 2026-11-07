@@ -11,7 +11,7 @@ video playback.
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        bin/phlix                                 │
-│              CLI entrypoint: doctor, poster, frame, watch, run   │
+│ CLI entrypoint: doctor, poster, frame, watch, run, version, help │
 └──────────────────┬──────────────────────────────────────────────┘
                    │ builds object graph
                    ▼
@@ -105,7 +105,14 @@ src/
 ├── Media/
 │   ├── PosterLoader.php    # Fetches + tiles poster images per mode
 │   ├── MosaicFactory.php   # Creates Mosaic renderers per mode
-│   └── ...                 # Poster/spike renderers
+│   └── ...                 # Card factories (book/photo/poster) + trickplay cache
+├── Download/
+│   ├── DownloadService.php # Downloads media files from signed URLs (`d` key)
+│   ├── DownloadResult.php  # Result of a successful download operation
+│   └── DownloadException.php
+├── Spike/
+│   ├── PosterSpike.php     # Phase-0 proof: render an image to the terminal
+│   └── VideoSpike.php      # Phase-0 proof: probe + decode first N frames
 ├── Store/
 │   ├── AuthStore.php       # Sign in/out, token refresh, session
 │   ├── LibrariesStore.php  # Library list store
@@ -511,8 +518,9 @@ vendor/bin/phpunit    # or: composer test
 
 Tests live flat under `tests/` (`phpunit.xml.dist` points its suite at
 `<directory>tests</directory>`) — screens in `tests/Screen/`, the shared
-docs-truth pins in `tests/Docs/`. The poster and video-decode tests
-self-skip when ffmpeg is unavailable.
+docs-truth pins in `tests/Docs/`. The video-decode tests self-skip when
+ffmpeg is unavailable; the poster test synthesizes its own image with `gd`
+and runs unconditionally.
 
 ### Static analysis
 

@@ -57,7 +57,7 @@ final class AdminServerRestartScreen implements Breadcrumbed, Themed
 
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const RESTART_FAILED = 'Server restart failed.';
-    private const RESTART_CONFIRM = 'Type "restart" and press Enter to confirm';
+    private const RESTART_CONFIRM = "Type 'restart' and press Enter to confirm";
     private const HINT = 'r  restart server      Esc  back';
 
     /** The server's ack message once the restart resolves ('' never; null = no ack yet). */
@@ -178,7 +178,7 @@ final class AdminServerRestartScreen implements Breadcrumbed, Themed
                 return [$next, $this->restartCmd()];
             }
 
-            return [$this->withTyped(''), Cmd::send(ShowToastMsg::error('Type "restart" and press Enter to confirm.'))];
+            return [$this->withTyped(''), Cmd::send(ShowToastMsg::error(self::RESTART_CONFIRM . '.'))];
         }
 
         // Accumulate character input (up to 10 codepoints — M-CONSOLE-67).

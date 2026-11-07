@@ -44,7 +44,7 @@ final class PlaylistsScreen implements Model, Teardownable, Breadcrumbed, Themed
     use SelectsNext;
     use SelectsPrevious;
 
-    private const HINT = 'q  back      ↑↓  navigate      ⏎  open      a  add      r  remove      d  delete';
+    private const HINT = 'q  back      ↑↓  navigate      ⏎  open      a/r  web only      d  delete';
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load playlists.';
     private const ADD_ITEM_NOT_IMPLEMENTED = 'Item add/remove happens on the server web portal — not in the console.';

@@ -6,6 +6,9 @@
  * length Latin users get — the law the sibling *PendingAction helpers already
  * ship (`mb_strlen($next, 'UTF-8')`).
  *
+ * CU-030 (review console__writer): all typed-confirm prompts quote the magic
+ * word with single quotes; Enter-prose only appears where Enter is required.
+ *
  * @copyright 2026 Joe Huss <detain@interserver.net>
  * @license   MIT
  */
@@ -45,7 +48,7 @@ final class AdminTypedConfirmInputTest extends TestCase
     {
         $screen = new AdminServerRestartScreen($this->adminClient());
 
-        // 'r' arms the typed-confirm mode ("Type \"restart\" and press Enter to confirm").
+        // 'r' arms the typed-confirm mode ("Type 'restart' and press Enter to confirm").
         [$screen] = $screen->update(new KeyMsg(KeyType::Char, 'r'));
 
         foreach (self::RUNES as $rune) {
@@ -61,7 +64,7 @@ final class AdminTypedConfirmInputTest extends TestCase
     {
         $screen = new AdminPluginUpdateScreen($this->adminClient());
 
-        // 'u' arms the pending-apply typed-confirm ("Type \"update\" and press Enter to confirm").
+        // 'u' arms the pending-apply typed-confirm ("Type 'update' and press Enter to confirm").
         [$screen] = $screen->update(new KeyMsg(KeyType::Char, 'u'));
 
         $firstFour = array_slice(self::RUNES, 0, 4);
@@ -87,36 +90,45 @@ final class AdminTypedConfirmInputTest extends TestCase
         self::assertSame('restart', $this->typed($screen));
     }
 
-    // [review console__copywriter m7, M-CONSOLE-14] The double-quoted typed-
-    // confirm family (the two admin screens) said "Type \"x\" to confirm" in
-    // one place and "Type \"x\" and press Enter to confirm" in another — the
-    // same screen contradicted itself. Law: one template for the family. The
-    // single-quote pending-action prompts (PlaylistPendingAction et al.) are a
-    // separate, internally consistent family and stay as they are.
+    // [review console__writer #4/#5, CU-030 — supersedes the M-CONSOLE-14 two-
+    // family law recorded below] Every typed-confirm prompt now quotes the
+    // magic word with single quotes — the form the *PendingAction family always
+    // used; the admin screens joined it. Enter-prose tracks the real gate: the
+    // two admin screens demand Enter (their handleConfirmKey submits on it) and
+    // say so; the pending actions fire the instant the buffer matches and say
+    // nothing about Enter.
+    //
+    // [original M-CONSOLE-14 law, historical] The double-quoted typed-confirm
+    // family (the two admin screens) said "Type \"x\" to confirm" in one place
+    // and "Type \"x\" and press Enter to confirm" in another — the same screen
+    // contradicted itself; that round unified within the family only, and
+    // CU-030 unified across both.
 
-    public function testTheDoubleQuotedConfirmPromptsFollowOneTemplate(): void
+    public function testTheTypedConfirmPromptsQuoteTheMagicWordWithSingleQuotes(): void
     {
         $offenders = [];
+        $found = 0;
         $paths = glob(dirname(__DIR__, 2) . '/src/Screen/*.php');
         self::assertIsArray($paths);
 
         foreach ($paths as $path) {
-            foreach (token_get_all((string) file_get_contents($path)) as $token) {
-                if (!is_array($token) || $token[0] !== T_CONSTANT_ENCAPSED_STRING) {
-                    continue;
-                }
+            $code = (string) file_get_contents($path);
+            if (preg_match_all('/Type (.{0,30}?)to confirm/u', $code, $hits) < 1) {
+                continue;
+            }
 
-                if (preg_match('/Type "/', $token[1]) !== 1) {
-                    continue;
-                }
+            foreach ($hits[1] as $word) {
+                $found++;
 
-                if (preg_match('/^Type "\w+" and press Enter to confirm[:.]?\s*$/', trim(trim($token[1], "'\""))) !== 1) {
-                    $offenders[] = basename($path) . ': ' . $token[1];
+                if (preg_match("/^'[^'\\n]{0,24}'( and press Enter)?$/u", trim($word)) !== 1) {
+                    $offenders[] = basename($path) . ': Type ' . $word . 'to confirm';
                 }
             }
         }
 
-        self::assertSame([], $offenders, 'typed-confirm wording drifted off the single template [M-CONSOLE-14]');
+        // Anti-vacuous floor: the eight shipped prompt literals must stay found.
+        self::assertGreaterThanOrEqual(8, $found, 'the typed-confirm scan stopped seeing the family it guards [CU-030]');
+        self::assertSame([], $offenders, 'typed-confirm prompts must quote the magic word with single quotes [CU-030]');
     }
 
     public function testTheConfirmTemplateIsActuallyLiveInTheAdminScreens(): void
@@ -124,8 +136,12 @@ final class AdminTypedConfirmInputTest extends TestCase
         $restart = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Screen/AdminServerRestartScreen.php');
         $update = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Screen/AdminPluginUpdateScreen.php');
 
-        self::assertStringContainsString('Type "restart" and press Enter to confirm', $restart);
-        self::assertStringContainsString('Type "update" and press Enter to confirm', $update);
+        self::assertStringContainsString("Type 'restart' and press Enter to confirm", $restart);
+        self::assertStringContainsString("Type 'update' and press Enter to confirm", $update);
+
+        // [review console__writer #5] The restart screen serves both its render
+        // and its wrong-word toast from the single const — no duplicated literal.
+        self::assertStringContainsString('ShowToastMsg::error(self::RESTART_CONFIRM', $restart);
     }
 
     // [CONSOLIDATED M16] The InputReader decodes Ctrl+letter as a Char carrying
