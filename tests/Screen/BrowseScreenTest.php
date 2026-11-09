@@ -154,6 +154,85 @@ final class BrowseScreenTest extends TestCase
         self::assertStringNotContainsString('No libraries yet.', $view, 'a failure is not silently re-labelled as an empty account');
     }
 
+    // ---- CU-049 round-2: the published "R  refresh" hint is a REAL key --------
+    // [review w13 L8 DD major] The empty-state arm shipped "R  refresh  q  quit"
+    // while handleRailsKey no-oped every keystroke behind its empty-rails guard
+    // — a dead key advertised in the one state the guard made reachable. These
+    // drive the REAL update() key path at HANDLER level (the render pin above
+    // cannot see this hole); the law they hold: the hint row never lies.
+
+    public function testRefreshKeyReachesTheFetchFromTheEmptyState(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, ['items' => []])                              // continue-watching
+            ->json(200, ['items' => []])                              // most-watched
+            ->json(200, ['items' => []])                              // next-up
+            ->json(200, ['libraries' => [['id' => 'lib-a', 'name' => 'Movies', 'type' => 'movie']]]);
+
+        [$screen] = $this->screenWith($transport)->update(new LibrariesLoadedMsg([]));
+        self::assertSame(0, $transport->requestCount(), 'reaching the empty state costs no requests');
+
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'R'));
+        self::assertInstanceOf(\Closure::class, $cmd, 'the advertised "R  refresh" must reach the fetch, not die behind the empty-rails guard');
+
+        foreach ($this->runBatch($cmd) as $msg) {
+            [$screen] = $screen->update($msg);
+        }
+
+        self::assertSame(4, $transport->requestCount(), 'a refresh re-queries the browse feeds and the libraries');
+        self::assertSame(['lib-a'], $screen->railIds(), 'the empty state recovers when a library appeared server-side');
+    }
+
+    public function testRefreshKeyIsLiveFromSidebarFocusInTheEmptyState(): void
+    {
+        // The empty-state hint row publishes "R  refresh" wherever the focus
+        // ring sits — the Tab-away path must not silence the advertised key.
+        $transport = (new FakeTransport())
+            ->json(200, ['items' => []])
+            ->json(200, ['items' => []])
+            ->json(200, ['items' => []])
+            ->json(200, ['libraries' => []]);
+
+        [$screen] = $this->screenWith($transport)->update(new LibrariesLoadedMsg([]));
+        [$screen] = $screen->update(new KeyMsg(KeyType::Tab)); // focus the (empty) sidebar
+
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'R'));
+        self::assertInstanceOf(\Closure::class, $cmd, 'refresh is focus-independent, like the q/Esc escape it shares the hint row with');
+
+        $msgs = $this->runBatch($cmd);
+        self::assertContains(LibrariesLoadedMsg::class, array_map('get_class', $msgs), 'the libraries leg of the batch ran');
+        self::assertSame(4, $transport->requestCount());
+    }
+
+    public function testFilterKeyKeepsCyclingInTheEmptyState(): void
+    {
+        // [review w13 L8 DD info] The 'a' arm sat behind the same empty-rails
+        // guard, so zero libraries froze the watch-filter mid-cycle. The
+        // Favorites step is a live recovery path even without libraries —
+        // the cycle stays alive in the empty state.
+        $transport = (new FakeTransport())->json(200, [
+            'items' => [['id' => 'f1', 'name' => 'F', 'type' => 'movie', 'poster_url' => null]],
+            'total' => 1,
+            'limit' => 18,
+            'offset' => 0,
+        ]);
+        [$screen] = $this->screenWith($transport)->update(new LibrariesLoadedMsg([]));
+
+        [$screen, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'a')); // All → Watched
+        self::assertNull($cmd, 'the watched/unwatched steps fetch nothing while nothing is loaded');
+        [$screen, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'a')); // Watched → Unwatched
+        self::assertNull($cmd, '…and keep not fetching on the second step');
+        [$screen, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'a')); // Unwatched → Favorites
+        self::assertInstanceOf(\Closure::class, $cmd, 'the cycle must REACH the Favorites step — that is where content can appear');
+
+        foreach ($this->runBatch($cmd) as $msg) {
+            [$screen] = $screen->update($msg);
+        }
+
+        self::assertSame(1, $transport->requestCount(), 'only the Favorites step queries');
+        self::assertSame(['favorites'], $screen->railIds(), 'the filter cycle recovers content even with zero libraries');
+    }
+
     public function testLibrariesLoadedCreatesEmptyRailsAndFetchesMedia(): void
     {
         [$next, $cmd] = $this->screen()->update(new LibrariesLoadedMsg([

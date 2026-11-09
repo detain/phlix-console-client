@@ -589,6 +589,27 @@ final class BrowseScreen implements Breadcrumbed, Themed
             return [$this->withFocus($msg->shift ? $this->focus->previous() : $this->focus->next()), null];
         }
 
+        // 'R' → manual refresh: invalidate browse caches and re-fetch.
+        // Focus-independent BY LAW [CU-049 round-2, review w13 L8 DD major]:
+        // the empty-state hint row publishes "R  refresh" wherever the focus
+        // ring sits, so the arm runs HERE, pre-routing — exactly like the
+        // q/Esc escape above it. Behind handleRailsKey's empty-rails guard it
+        // was a dead key advertised in the one state that guard made
+        // reachable (rails focus + zero libraries), and Tab-to-sidebar stranded
+        // it a second way; the estate's no-dead-keys law says a hint that
+        // lies about a key is worse than no hint at all.
+        if ($msg->type === KeyType::Char && $msg->rune === 'R') {
+            $this->libraries->invalidate();
+            $this->media->invalidate();
+            $next = $this->withLibraryRails([]);
+            $next = $next->withContinueRail(null);
+            $next = $next->withFavoritesRail(null);
+            $next = $next->withMostWatchedRail(null);
+            $next = $next->withNextUpRail(null);
+
+            return [$next, Cmd::batch($next->fetchContinueWatching(), $next->fetchMostWatched(), $next->fetchNextUp(), $next->fetchLibraries())];
+        }
+
         return $this->focus->isFocused(self::SIDEBAR) || !$this->railsFit()
             ? $this->handleSidebarKey($msg)
             : $this->handleRailsKey($msg);
@@ -624,6 +645,39 @@ final class BrowseScreen implements Breadcrumbed, Themed
     /** @return array{self, ?\Closure} */
     private function handleRailsKey(KeyMsg $msg): array
     {
+        // 'a' → cycle watch filter: All → Watched → Unwatched → Favorites → All.
+        // Hoisted above the empty-rails guard [CU-049 round-2, review w13 L8
+        // DD info fold]: the zero-library state used to freeze the cycle
+        // mid-streak — the same unreachability class the 'R' fold cured at the
+        // routing level. The Favorites step is a live recovery path even with
+        // no libraries (favorites ride the user, not the shelves), so the
+        // cycle stays alive wherever its hint renders. The movement arms
+        // below keep the guard: with nothing on screen there is nothing to
+        // move. ('R' no longer lives here — see the pre-routing fold in
+        // handleKey.)
+        if ($msg->type === KeyType::Char && $msg->rune === 'a') {
+            $nextFilter = ($this->watchFilter + 1) % 4;
+
+            if ($nextFilter === self::FILTER_FAVORITES) {
+                // Switching to Favorites: clear library rails and continue rail, then fetch favorites
+                $next = $this->withWatchFilter($nextFilter);
+                $next = $next->withLibraryRails([]);
+                $next = $next->withContinueRail(null);
+                $next = $next->withFavoritesRail(null);
+
+                return [$next, $next->fetchFavorites()];
+            }
+
+            // Switching away from Favorites: clear favorites rail
+            if ($this->watchFilter === self::FILTER_FAVORITES) {
+                $next = $this->withWatchFilter($nextFilter);
+
+                return [$next->withFavoritesRail(null), null];
+            }
+
+            return [$this->withWatchFilter($nextFilter), null];
+        }
+
         $ids = $this->orderedRailIds();
         $count = count($ids);
         if ($count === 0) {
@@ -657,43 +711,6 @@ final class BrowseScreen implements Breadcrumbed, Themed
             $delta = $msg->type === KeyType::Right ? 1 : -1;
 
             return [$this->replaceRail($railId, $rail->moveCursor($delta, $perRow)), null];
-        }
-
-        // 'a' → cycle watch filter: All → Watched → Unwatched → Favorites → All
-        if ($msg->type === KeyType::Char && $msg->rune === 'a') {
-            $nextFilter = ($this->watchFilter + 1) % 4;
-
-            if ($nextFilter === self::FILTER_FAVORITES) {
-                // Switching to Favorites: clear library rails and continue rail, then fetch favorites
-                $next = $this->withWatchFilter($nextFilter);
-                $next = $next->withLibraryRails([]);
-                $next = $next->withContinueRail(null);
-                $next = $next->withFavoritesRail(null);
-
-                return [$next, $next->fetchFavorites()];
-            }
-
-            // Switching away from Favorites: clear favorites rail
-            if ($this->watchFilter === self::FILTER_FAVORITES) {
-                $next = $this->withWatchFilter($nextFilter);
-
-                return [$next->withFavoritesRail(null), null];
-            }
-
-            return [$this->withWatchFilter($nextFilter), null];
-        }
-
-        // 'R' → manual refresh: invalidate browse caches and re-fetch
-        if ($msg->type === KeyType::Char && $msg->rune === 'R') {
-            $this->libraries->invalidate();
-            $this->media->invalidate();
-            $next = $this->withLibraryRails([]);
-            $next = $next->withContinueRail(null);
-            $next = $next->withFavoritesRail(null);
-            $next = $next->withMostWatchedRail(null);
-            $next = $next->withNextUpRail(null);
-
-            return [$next, Cmd::batch($next->fetchContinueWatching(), $next->fetchMostWatched(), $next->fetchNextUp(), $next->fetchLibraries())];
         }
 
         // 'U' or 'N' → scroll to up-next rail

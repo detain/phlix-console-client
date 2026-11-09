@@ -5,6 +5,42 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — w13/L8 round-2 review cure (CU-049 dead-key major + CU-037 minors): the empty state's advertised "R  refresh" stopped lying — the refresh arm is focus-independent, the watch-filter cycle stays alive at zero libraries, and the keep-hint scanner reads both quote shapes with its canary now guarding the discovery itself — 2026-11-09
+
+- **[review w13 L8 DD major / CU-049]** The zero-library arm advertised
+  "R  refresh" while `handleRailsKey` no-oped every keystroke behind its
+  empty-rails guard — a dead key published in exactly the state the guard
+  made reachable, with Tab-to-sidebar stranding it a second way. The refresh
+  arm now runs in `handleKey` before focus routing (the q/Esc escape it
+  shares its hint row with is the precedent): focus-independent,
+  cache-invalidating, re-fetching — the empty state recovers live when a
+  library appears server-side. Three handler-level tests driving the REAL
+  key path (red at the parent commit, per the no-render-level-test law)
+  pin both refresh focus paths and the empty→populated transition.
+- **[review w13 L8 DD info]** The 'a' watch-filter arm — behind the same
+  guard — was hoisted above it in the same fold: zero libraries no longer
+  freeze the cycle mid-streak, and the Favorites step (which rides the
+  user, not the shelves) stays a live recovery path out of the empty state.
+- **[review w13 L8 DD minors / CU-037]** The scan legs read single-quoted
+  literals only: a planted double-quoted `->withPlaceholder("blank = host")`
+  passed every leg green (reproduced on the parent). Both scanners now
+  match either quote shape (opener captured, closer back-referenced), and
+  the self-conviction canary runs THE SAME two methods the file walks run —
+  previously it duplicated the patterns, pinning the body but not the
+  discovery (estate tripwire law, w12 L1 family). Proofs measured:
+  narrowing the shared regex back to single-quotes reddens the canary at
+  exactly the double-quoted arms it plants, and planted single- AND
+  double-quoted violations in a real screen each convict.
+- **[record correction]** Two figures in this program's written trail were
+  wrong and are corrected here as a new entry, history verbatim: the
+  round-1 register's CU-043 red-proof claimed "4 failures" — re-executed,
+  the six-`with*` pin is ONE test method that aborts at its first failed
+  assertion: `Tests: 1, Assertions: 2, Failures: 1` (class-level run
+  measures the same 1F); and the entry above (kept verbatim) said "three
+  BrowseScreenTest pins convicted" at the parent — measured: two convict,
+  and the third (error-precedence) is green-both-sides BY DESIGN, a
+  preserved-behavior guard rather than a conviction.
+
 ### Fixed — w13/L8 review fix-forward (CU-037/043/049/053/054): the config copy family stopped silently dropping the boot load-error; the doctor's retired live terminal probe stays retired behind an opt-in; zero-library accounts get an honest empty state instead of an eternal spinner; the blank-field keep hints settled on one sentence law; and the media glyphs stop pushing full-width lines one cell past the margin — 2026-11-09
 
 - **[review console__srphp #5 / CU-043]** The six `Config::with*()` copy
