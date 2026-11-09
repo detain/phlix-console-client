@@ -5,6 +5,26 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — w14/L2 i18n cure (CU-009): the command palette speaks every shipped locale — 23 raw English labels now route through `Lang::t()` with catalog keys across all 7 locales — 2026-11-09
+
+- **[review console__copywriter / CU-009]** `App::staticActions()` built every palette entry
+  with hardcoded English (`'Home'`, `'Favorites'`, `'Sign Out'`, …), so a German or Japanese
+  session still summoned an English command palette. All 23 arms — including both metrics
+  ternaries, the play/pause/stop trio and the `Go to {name}` library jumps — now resolve
+  `palette.*` keys present in every catalog (en de es fr it ja pt-br, inserted at one shared
+  position; `scripts/check-i18n-catalogs.php` passes at 117 keys with placeholders in sync).
+  `ScreenInventoryDocsTest` was rotated from a raw-label census to a label-KEY census: every
+  palette arm must be a `Lang::t('palette.*')` call whose key sits in the pinned 23-key set
+  AND whose English value is documented in the manual's Command palette row (a planted raw
+  label reddens the census — measured). Two i18n-gate adjudications rode the cure: the fr
+  English-identity whitelist gained the loanword pair `palette.collections`/`palette.photos`,
+  and the host/guest semantic net now skips keys whose English says "Invite" (French renders
+  invite/invité with one stem; the net targets role mistranslations, not the invite-links
+  feature). `src/App.php` deliberately stays off `scripts/check-i18n-hardcoded.php`'s pinned
+  file list — it still carries 24 pre-existing non-palette prose strings outside this item's
+  scope (measured via scanner probe); the palette arms' translation law is enforced by the
+  key census instead, which convicts structurally.
+
 ### Fixed — w14/L2 security cure (CU-055): the poster fetch's SSRF allow-list is now owed only to the configured server's authority — every other host runs the vendor deny-list unmodified, per hop — 2026-11-09
 
 - **[review console__secaudit m3 / CU-055]** `PosterLoader::allowedHosts()` allow-listed each

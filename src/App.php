@@ -1249,42 +1249,45 @@ final class App implements Model
     private function staticActions(): array
     {
         $actions = [
-            new PaletteAction('Search', new OpenSearchMsg()),
-            new PaletteAction('Home', new GoHomeMsg()),
-            new PaletteAction('Settings', new OpenSettingsMsg()),
-            new PaletteAction('Stats', new OpenStatsMsg()),
-            new PaletteAction('Watch History', new OpenWatchHistoryMsg()),
-            new PaletteAction('Favorites', new OpenFavoritesMsg()),
-            new PaletteAction('Photos', new OpenPhotosMsg()),
-            new PaletteAction('Music Artists', new OpenMusicArtistsMsg()),
-            new PaletteAction('Playlists', new OpenPlaylistsMsg()),
-            new PaletteAction('Collections', new OpenCollectionsMsg()),
-            new PaletteAction('Servers', new OpenServersMsg()),
-            new PaletteAction('Shared With Me', new OpenSharedWithMeMsg()),
-            new PaletteAction('Invite Links', new OpenInviteLinksMsg()),
-            new PaletteAction('Federation Shares', new OpenFederationSharesMsg()),
+            new PaletteAction(Lang::t('palette.search'), new OpenSearchMsg()),
+            new PaletteAction(Lang::t('palette.home'), new GoHomeMsg()),
+            new PaletteAction(Lang::t('palette.settings'), new OpenSettingsMsg()),
+            new PaletteAction(Lang::t('palette.stats'), new OpenStatsMsg()),
+            new PaletteAction(Lang::t('palette.watch_history'), new OpenWatchHistoryMsg()),
+            new PaletteAction(Lang::t('palette.favorites'), new OpenFavoritesMsg()),
+            new PaletteAction(Lang::t('palette.photos'), new OpenPhotosMsg()),
+            new PaletteAction(Lang::t('palette.music_artists'), new OpenMusicArtistsMsg()),
+            new PaletteAction(Lang::t('palette.playlists'), new OpenPlaylistsMsg()),
+            new PaletteAction(Lang::t('palette.collections'), new OpenCollectionsMsg()),
+            new PaletteAction(Lang::t('palette.servers'), new OpenServersMsg()),
+            new PaletteAction(Lang::t('palette.shared_with_me'), new OpenSharedWithMeMsg()),
+            new PaletteAction(Lang::t('palette.invite_links'), new OpenInviteLinksMsg()),
+            new PaletteAction(Lang::t('palette.federation_shares'), new OpenFederationSharesMsg()),
             // The metrics / HUD overlay is toggled from the palette (no global key,
             // so no conflict); the label flips with the current visibility.
-            new PaletteAction($this->metricsVisible ? 'Hide metrics' : 'Show metrics', new ToggleMetricsMsg()),
+            new PaletteAction(
+                $this->metricsVisible ? Lang::t('palette.hide_metrics') : Lang::t('palette.show_metrics'),
+                new ToggleMetricsMsg()
+            ),
         ];
         // The admin area is offered ONLY to an admin user — the gate is the
         // restored/current user's is_admin flag. A non-admin (or logged-out) palette
         // never sees it.
         if ($this->auth->currentUser()?->isAdmin === true) {
-            $actions[] = new PaletteAction('Admin', new OpenAdminMsg());
+            $actions[] = new PaletteAction(Lang::t('palette.admin'), new OpenAdminMsg());
         }
         // Playback controls are universal (no key conflict) — surfaced in the
         // palette only while a session (music or audiobook) is playing, so they
         // reach the App-owned audio from any screen.
         if ($this->nowPlaying !== null) {
             $actions[] = new PaletteAction(
-                $this->nowPlaying->paused() ? 'Resume playback' : 'Pause playback',
+                $this->nowPlaying->paused() ? Lang::t('palette.resume_playback') : Lang::t('palette.pause_playback'),
                 new ToggleAudioMsg(),
             );
-            $actions[] = new PaletteAction('Stop playback', new StopAudioMsg());
+            $actions[] = new PaletteAction(Lang::t('palette.stop_playback'), new StopAudioMsg());
         }
-        $actions[] = new PaletteAction('Sign out', new RequestLogoutMsg());
-        $actions[] = new PaletteAction('Quit', new RequestQuitMsg());
+        $actions[] = new PaletteAction(Lang::t('palette.sign_out'), new RequestLogoutMsg());
+        $actions[] = new PaletteAction(Lang::t('palette.quit'), new RequestQuitMsg());
 
         return $actions;
     }
@@ -1372,7 +1375,7 @@ final class App implements Model
 
         $actions = [];
         foreach ($libraries as $library) {
-            $actions[] = new PaletteAction('Go to ' . $library->name, new OpenLibraryMsg($library->id, $library->name, $library->type, $library->itemCount));
+            $actions[] = new PaletteAction(Lang::t('palette.go_to', ['name' => $library->name]), new OpenLibraryMsg($library->id, $library->name, $library->type, $library->itemCount));
         }
         foreach ($this->staticActions() as $action) {
             $actions[] = $action;

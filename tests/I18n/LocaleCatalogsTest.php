@@ -45,6 +45,9 @@ final class LocaleCatalogsTest extends TestCase
      * - library.items_one = '{count} item' in Brazilian Portuguese — the same
      *   registered 'item' loanword as detail.item (singular; the plural row
      *   is inflected to 'itens').
+     * - palette.collections / palette.photos = 'Collections'/'Photos' in
+     *   French — established spelling-identical loanwords used verbatim by
+     *   French media software (same class as filter.sort_genre; CU-009).
      *
      * @var array<string, list<string>>
      */
@@ -53,7 +56,10 @@ final class LocaleCatalogsTest extends TestCase
         // there is no word to translate, so every locale mirrors en byte-for-
         // byte (review M-CONSOLE-64; same class as the asc/desc order labels).
         'es' => ['filter.order_asc', 'filter.order_desc', 'player.hint_sleep'],
-        'fr' => ['filter.order_asc', 'filter.order_desc', 'filter.sort_genre', 'player.hint_sleep'],
+        'fr' => [
+            'filter.order_asc', 'filter.order_desc', 'filter.sort_genre',
+            'palette.collections', 'palette.photos', 'player.hint_sleep',
+        ],
         'de' => ['filter.order_asc', 'filter.order_desc', 'player.hint_sleep'],
         'it' => ['detail.cast_label', 'filter.order_asc', 'filter.order_desc', 'player.hint_sleep'],
         'pt-br' => ['detail.item', 'filter.order_asc', 'filter.order_desc', 'library.items_one', 'player.hint_sleep'],
@@ -315,7 +321,11 @@ final class LocaleCatalogsTest extends TestCase
      * Both-directions host/guest semantic guard derived from en.php:
      * (1) every value whose English says "host" must carry that locale's
      * host term; (2) a locale's guest term may only appear where the
-     * English value itself says "guest".
+     * English value itself says "guest" — or where the English says
+     * "invite": French and kin render 'invite' with the same invit- stem
+     * as 'invité' (guest), so an English 'Invite' makes the locale stem
+     * legitimate (the net targets role mistranslations, not the
+     * invite-links feature; CU-009 palette.invite_links exposure).
      */
     #[DataProvider('localeRows')]
     public function testHostRoleStringsSayHostAndNeverTheGuestTerm(string $locale): void
@@ -331,7 +341,10 @@ final class LocaleCatalogsTest extends TestCase
                 );
             }
 
-            if (preg_match('/\bguest\b/i', $enValue) !== 1) {
+            if (
+                preg_match('/\bguest\b/i', $enValue) !== 1
+                && preg_match('/\binvit/i', $enValue) !== 1
+            ) {
                 self::assertDoesNotMatchRegularExpression(
                     self::GUEST_ROLE_TERMS[$locale],
                     $value,

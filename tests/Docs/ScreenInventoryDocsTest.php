@@ -224,37 +224,40 @@ final class ScreenInventoryDocsTest extends TestCase
     ];
 
     /**
-     * Every literal label App hands to a PaletteAction (static actions in
-     * sorted order, plus the dynamic `Go to ` library-jump prefix), pinned
-     * so a new or renamed action reddens the census and its docs row
-     * together.
+     * Every palette action's LABEL SOURCE in App, in sorted order. Post-CU-009 the
+     * labels are `Lang::t('palette.<name>')` keys (the primary navigation surface
+     * is translated like the rest of the app); the census now pins the translation
+     * KEY each arm renders from, so a new/renamed action still reddens the census
+     * and its docs row together. The library jump contributes its
+     * `palette.go_to` key; the resolved English value (via en.php) is what the
+     * Command palette row must name.
      *
      * @var list<string>
      */
-    private const PALETTE_LABELS = [
-        'Admin',
-        'Collections',
-        'Favorites',
-        'Federation Shares',
-        'Go to',
-        'Hide metrics',
-        'Home',
-        'Invite Links',
-        'Music Artists',
-        'Pause playback',
-        'Photos',
-        'Playlists',
-        'Quit',
-        'Resume playback',
-        'Search',
-        'Servers',
-        'Settings',
-        'Shared With Me',
-        'Show metrics',
-        'Sign out',
-        'Stats',
-        'Stop playback',
-        'Watch History',
+    private const PALETTE_LABEL_KEYS = [
+        'palette.admin',
+        'palette.collections',
+        'palette.favorites',
+        'palette.federation_shares',
+        'palette.go_to',
+        'palette.hide_metrics',
+        'palette.home',
+        'palette.invite_links',
+        'palette.music_artists',
+        'palette.pause_playback',
+        'palette.photos',
+        'palette.playlists',
+        'palette.quit',
+        'palette.resume_playback',
+        'palette.search',
+        'palette.servers',
+        'palette.settings',
+        'palette.shared_with_me',
+        'palette.show_metrics',
+        'palette.sign_out',
+        'palette.stats',
+        'palette.stop_playback',
+        'palette.watch_history',
     ];
 
     public function testTheLiveScreenRegistryCensusMatchesThePinnedList(): void
@@ -353,14 +356,14 @@ final class ScreenInventoryDocsTest extends TestCase
 
     public function testThePaletteLabelCensusMatchesThePinnedList(): void
     {
-        $labels = self::extractPaletteActionLabels();
+        $labels = self::extractPaletteActionKeys();
         sort($labels);
 
         self::assertSame(
-            self::PALETTE_LABELS,
+            self::PALETTE_LABEL_KEYS,
             $labels,
-            'src/App.php offers a different set of palette labels than the pinned census. '
-            . 'Any add/rename must move PALETTE_LABELS and the manual\'s Command palette row together.'
+            'src/App.php offers a different set of palette label keys than the pinned census. '
+            . 'Any add/rename must move PALETTE_LABEL_KEYS and the manual\'s Command palette row together.'
         );
     }
 
@@ -370,10 +373,18 @@ final class ScreenInventoryDocsTest extends TestCase
         self::assertArrayHasKey(self::PALETTE_ROW, $rows, 'The Command palette row vanished from the Screens table.');
 
         $row = $rows[self::PALETTE_ROW];
+        $english = require __DIR__ . '/../../resources/lang/en.php';
         $missing = [];
-        foreach (self::PALETTE_LABELS as $label) {
+        foreach (self::PALETTE_LABEL_KEYS as $key) {
+            // The row documents the English label each action renders (the
+            // library jump as its bare 'Go to' prefix, placeholder stripped).
+            $label = rtrim((string) ($english[$key] ?? $key));
+            if (str_ends_with($label, ' {name}')) {
+                $label = rtrim(substr($label, 0, -strlen(' {name}')));
+            }
+
             if (!str_contains($row, $label)) {
-                $missing[] = $label;
+                $missing[] = "$key => $label";
             }
         }
 
@@ -424,17 +435,19 @@ final class ScreenInventoryDocsTest extends TestCase
     }
 
     /**
-     * Literal first-argument strings of every `new PaletteAction(` in App:
-     * one label for plain arms, both arms of the visibility/session
-     * ternaries (`'Show metrics' : 'Hide metrics'` style). The dynamic
-     * library jump contributes its `'Go to '` prefix.
+     * The translation key behind every `new PaletteAction(` label in App:
+     * the first-argument `Lang::t('palette.<name>')` key — one for plain
+     * arms, both arms of the visibility/session ternaries, and the
+     * library jump's `palette.go_to`. A raw literal label (pre-CU-009
+     * shape or a planted one) yields no key and reddens the census:
+     * the palette stays translated by law.
      *
      * @return list<string>
      */
-    private static function extractPaletteActionLabels(): array
+    private static function extractPaletteActionKeys(): array
     {
         $tokens = token_get_all(self::readRepoFile(self::APP_SOURCE));
-        $labels = [];
+        $keys = [];
         $count = count($tokens);
 
         for ($index = 0; $index < $count; $index++) {
@@ -453,10 +466,12 @@ final class ScreenInventoryDocsTest extends TestCase
                 continue;
             }
 
-            // Walk from the opening paren (depth 0 until it is consumed),
-            // collecting string literals up to the first top-level comma
-            // (the label argument boundary): plain arms yield one label,
-            // ternaries yield two.
+            // Walk from the opening paren (depth 0 until it is consumed) up to
+            // the first top-level comma (the label-argument boundary), reading
+            // each `Lang::t(` call site: 'Lang' T_DOUBLE_COLON 't' '(' then the
+            // first string literal is the key. Token ARRAYS are compared by
+            // their [0] id — never as strings (estate T_DOUBLE_COLON scanner
+            // class, cure precedent a3f500d1).
             $depth = 0;
             for ($cursor = $index + 1; $cursor < $count; $cursor++) {
                 $current = $tokens[$cursor];
@@ -478,13 +493,34 @@ final class ScreenInventoryDocsTest extends TestCase
                     break;
                 }
 
-                if (is_array($current) && $current[0] === T_CONSTANT_ENCAPSED_STRING) {
-                    $labels[] = trim(substr($current[1], 1, -1));
+                if (!is_array($current) || $current[0] !== T_STRING || $current[1] !== 't') {
+                    continue;
+                }
+
+                $owner = self::previousSignificant($tokens, $cursor);
+                if (!is_array($owner) || $owner[0] !== T_DOUBLE_COLON) {
+                    continue;
+                }
+
+                $ownerIndex = self::previousSignificantIndex($tokens, $cursor);
+                $namespace = $ownerIndex === null ? null : self::previousSignificant($tokens, $ownerIndex);
+                if (!is_array($namespace) || $namespace[0] !== T_STRING || $namespace[1] !== 'Lang') {
+                    continue;
+                }
+
+                $callOpenIndex = self::nextSignificantIndex($tokens, $cursor);
+                if ($callOpenIndex === null || $tokens[$callOpenIndex] !== '(') {
+                    continue;
+                }
+
+                $keyToken = self::nextSignificant($tokens, $callOpenIndex);
+                if (is_array($keyToken) && $keyToken[0] === T_CONSTANT_ENCAPSED_STRING) {
+                    $keys[] = trim(substr($keyToken[1], 1, -1));
                 }
             }
         }
 
-        return array_values(array_unique($labels));
+        return array_values(array_unique($keys));
     }
 
     /**
@@ -534,6 +570,37 @@ final class ScreenInventoryDocsTest extends TestCase
         }
 
         return '';
+    }
+
+    /** Index of the next non-trivia token after $index, or null at EOF. */
+    private static function nextSignificantIndex(array $tokens, int $index): ?int
+    {
+        $count = count($tokens);
+        for ($cursor = $index + 1; $cursor < $count; $cursor++) {
+            $token = $tokens[$cursor];
+            if (is_array($token) && in_array($token[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true)) {
+                continue;
+            }
+
+            return $cursor;
+        }
+
+        return null;
+    }
+
+    /** Index of the previous non-trivia token before $index, or null at BOF. */
+    private static function previousSignificantIndex(array $tokens, int $index): ?int
+    {
+        for ($cursor = $index - 1; $cursor >= 0; $cursor--) {
+            $token = $tokens[$cursor];
+            if (is_array($token) && in_array($token[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true)) {
+                continue;
+            }
+
+            return $cursor;
+        }
+
+        return null;
     }
 
     /** @param list<array{0:int,1:string}|string> $tokens */
