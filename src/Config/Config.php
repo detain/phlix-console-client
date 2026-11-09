@@ -316,6 +316,9 @@ final class Config
             activeServerId: $this->activeServerId,
             theme: $theme,
             slideshowInterval: $interval,
+            // [CU-043] the boot-time loud diagnostic is config state: a copy
+            // that drops it silently reclassifies a broken file as "absent".
+            loadError: $this->loadError,
         );
     }
 
@@ -327,6 +330,7 @@ final class Config
             activeServerId: $id,
             theme: $this->theme,
             slideshowInterval: $this->slideshowInterval,
+            loadError: $this->loadError,
         );
     }
 
@@ -342,6 +346,7 @@ final class Config
             activeServerId: $this->activeServerId,
             theme: $this->theme,
             slideshowInterval: $this->slideshowInterval,
+            loadError: $this->loadError,
         );
     }
 
@@ -361,6 +366,7 @@ final class Config
             activeServerId: $id,
             theme: $this->theme,
             slideshowInterval: $this->slideshowInterval,
+            loadError: $this->loadError,
         );
     }
 
@@ -377,6 +383,7 @@ final class Config
             activeServerId: $this->activeServerId,
             theme: $themeId,
             slideshowInterval: $this->slideshowInterval,
+            loadError: $this->loadError,
         );
     }
 
@@ -391,6 +398,7 @@ final class Config
             activeServerId: $this->activeServerId,
             theme: $this->theme,
             slideshowInterval: self::clampInterval($seconds),
+            loadError: $this->loadError,
         );
     }
 

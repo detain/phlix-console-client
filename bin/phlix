@@ -16,7 +16,8 @@ const HELP_TEXT = <<<TXT
 phlix — Phlix console client
 
 usage:
-  phlix doctor                              report terminal + server diagnostics
+  phlix doctor [--probe]                    report terminal + server diagnostics
+                                            (default reads env only; --probe queries the terminal)
   phlix poster <image> [w] [h]              render an image at a cell size
   phlix frame  <video|gif> [n] [cols] [rows]  decode N frames to ANSI
   phlix watch [--hub URL] [--server-id ID] [--once] [--timeout SECS]
@@ -774,7 +775,11 @@ try {
             echo "Token path: " . $tokenPath . "\n";
             echo "Server URL: " . ($serverUrl ?? '(none)') . "\n";
             echo "\n";
-            echo (new Capabilities())->report(), "\n";
+            // [CU-053] the default survey is env-only: doctor must never write
+            // probe queries into the user's terminal. The live DA1/XTWINOPS
+            // probe (retired from default paths, CONSOLIDATED M17) rides behind
+            // an explicit --probe opt-in.
+            echo (new Capabilities())->report(in_array('--probe', $argv, true)), "\n";
             echo "\n";
             echo "Poster cache directory: {$cacheDir}\n";
             echo "Poster cache entry limit: {$cacheEntries}\n";

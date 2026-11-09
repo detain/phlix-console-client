@@ -125,4 +125,9 @@ return [
     'syncplay.group_full' => 'That watch group is full.',
     'syncplay.queue_limit_exceeded' => 'The playback queue for that watch group is full.',
     'syncplay.unknown_error' => 'A sync error occurred.',
+    'browse.loading' => 'Loading your libraries…',
+    'browse.no_libraries' => 'No libraries yet.',
+    'browse.no_libraries_admin' => 'Press : for the command palette, then Admin → Libraries to add one.',
+    'browse.no_libraries_member' => 'Ask an administrator to add one.',
+    'browse.hint_refresh_quit' => 'R  refresh      q  quit',
 ];

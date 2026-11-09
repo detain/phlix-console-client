@@ -125,4 +125,9 @@ return [
     'syncplay.group_full' => 'Ce groupe synchronisé est complet.',
     'syncplay.queue_limit_exceeded' => 'La file de lecture de ce groupe synchronisé est pleine.',
     'syncplay.unknown_error' => 'Une erreur de synchronisation est survenue.',
+    'browse.loading' => 'Chargement de vos bibliothèques…',
+    'browse.no_libraries' => 'Aucune bibliothèque pour le moment.',
+    'browse.no_libraries_admin' => 'Appuyez sur : pour ouvrir la palette de commandes, puis Admin → Libraries pour en ajouter une.',
+    'browse.no_libraries_member' => 'Demandez à un administrateur d’en ajouter une.',
+    'browse.hint_refresh_quit' => 'R  recharger      q  quitter',
 ];

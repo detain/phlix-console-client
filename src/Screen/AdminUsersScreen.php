@@ -327,7 +327,8 @@ final class AdminUsersScreen implements Breadcrumbed, Themed, Loadable, Shimmeri
                 ->withTitle('Email')
                 ->withValue($user->email),
             Input::new('password')
-                ->withTitle('New password (blank = unchanged)')
+                ->withTitle('New password')
+                ->withPlaceholder('leave blank to keep the current password')
                 ->withPassword(),
         );
     }
@@ -629,7 +630,7 @@ final class AdminUsersScreen implements Breadcrumbed, Themed, Loadable, Shimmeri
         $form = Form::new(
             Input::new('username')->withTitle('Username')->withValue($username),
             Input::new('email')->withTitle('Email')->withValue($email),
-            Input::new('password')->withTitle('New password (blank = unchanged)')->withPassword(),
+            Input::new('password')->withTitle('New password')->withPlaceholder('leave blank to keep the current password')->withPassword(),
         );
         $next = $this->withForm($form, $user);
         $next->formError = $error;

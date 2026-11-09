@@ -120,6 +120,8 @@ final class BrowseScreen implements Breadcrumbed, Themed
     private int $railCursor = 0;
     private int $railScroll = 0;
     private ?string $error = null;
+    /** CU-049: the libraries request has been ANSWERED (even with nothing). */
+    private bool $librariesLoaded = false;
     private FocusRing $focus;
     private Sidebar $sidebar;
     /** @var list<string> */
@@ -208,11 +210,28 @@ final class BrowseScreen implements Breadcrumbed, Themed
             // Server-supplied display names and wire reasons are unbounded user
             // data [review console__uxdesign, M-CONSOLE-70]: both lines ride the
             // content panel at a 2-space indent, so each gets the cols - 6 budget.
-            $body = $this->error !== null
-                ? "\n  " . Truncate::withEllipsis($this->error, $this->cols - 6)
-                : "\n  " . Truncate::withEllipsis("Welcome, {$name}.", $this->cols - 6) . "\n\n  Loading your libraries…";
+            if ($this->error !== null) {
+                $body = "\n  " . Truncate::withEllipsis($this->error, $this->cols - 6);
+                $hint = 'q  quit';
+            } elseif (!$this->librariesLoaded) {
+                $body = "\n  " . Truncate::withEllipsis("Welcome, {$name}.", $this->cols - 6)
+                    . "\n\n  " . Lang::t('browse.loading');
+                $hint = 'q  quit';
+            } else {
+                // CU-049: the request was ANSWERED and the answer is "nothing" —
+                // that is a state, not a spinner. Name it, give the way forward
+                // (admins the palette path, members the admin ask), and keep the
+                // escape + refresh keys published on the hint row.
+                $body = "\n  " . Truncate::withEllipsis("Welcome, {$name}.", $this->cols - 6)
+                    . "\n\n  " . Truncate::withEllipsis(Lang::t('browse.no_libraries'), $this->cols - 6)
+                    . "\n  " . Truncate::withEllipsis(
+                        $this->user->isAdmin ? Lang::t('browse.no_libraries_admin') : Lang::t('browse.no_libraries_member'),
+                        $this->cols - 6,
+                    );
+                $hint = Lang::t('browse.hint_refresh_quit');
+            }
 
-            return Chrome::frame('Browse', $body, 'q  quit', $this->cols, $this->rows, $this->crumbs, $this->theme());
+            return Chrome::frame('Browse', $body, $hint, $this->cols, $this->rows, $this->crumbs, $this->theme());
         }
 
         // Collapse law (M-CONSOLE-71): below the threshold the join cannot pay
@@ -370,6 +389,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
         $next = $this->withLibraryRails($rails);
         $next->libraryTypes = $types;
         $next->libraryCounts = $counts;
+        $next->librariesLoaded = true;
         $next = $next->withSidebar($next->sidebar->withEntries($next->sidebarEntries()));
 
         // Clamp the cursor in case a reload returned fewer rails than before.

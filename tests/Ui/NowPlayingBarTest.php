@@ -10,6 +10,7 @@ use Phlix\Console\Api\Dto\AudiobookChapter;
 use Phlix\Console\Audio\AudiobookSession;
 use Phlix\Console\Audio\MusicSession;
 use Phlix\Console\Tests\Video\FakeAudioPlayer;
+use Phlix\Console\Ui\DisplayCells;
 use Phlix\Console\Ui\NowPlayingBar;
 use Phlix\Console\Ui\Theme;
 use PHPUnit\Framework\TestCase;
@@ -95,7 +96,7 @@ final class NowPlayingBarTest extends TestCase
     {
         $bar = NowPlayingBar::render($this->nowPlaying(position: 83), $width);
 
-        self::assertSame($width, Width::string($bar), "the bar fills exactly {$width} cells");
+        self::assertSame($width, DisplayCells::string($bar), "the bar fills exactly {$width} emoji-aware cells");
     }
 
     /** @return iterable<string, array{int}> */
@@ -117,7 +118,7 @@ final class NowPlayingBarTest extends TestCase
         ]);
         $bar = NowPlayingBar::render($this->nowPlaying(position: 83, album: $album), 40);
 
-        self::assertSame(40, Width::string($bar));
+        self::assertSame(40, DisplayCells::string($bar), 'CU-054 metric: the truncated bar still fills the row in emoji-aware cells');
         self::assertStringContainsString('1:23 / 4:19', $bar, 'the right-aligned clock is never truncated away');
     }
 
@@ -127,7 +128,7 @@ final class NowPlayingBarTest extends TestCase
         $bar = NowPlayingBar::render($this->nowPlaying(position: 83), 80, Theme::nocturne());
 
         self::assertStringNotContainsString("\e[", $bar, 'Nocturne is a plain (no-SGR) bar');
-        self::assertSame(80, Width::string($bar));
+        self::assertSame(80, DisplayCells::string($bar), 'CU-054 metric: emoji-aware cells fill the row exactly');
     }
 
     public function testDefaultThemeIsNocturneIdentity(): void
@@ -147,7 +148,7 @@ final class NowPlayingBarTest extends TestCase
         $bar = NowPlayingBar::render($this->nowPlaying(position: 83), 80, Theme::midnight());
 
         self::assertMatchesRegularExpression('/\e\[[0-9;]*m▶ Come Together\e\[0m/', $bar, 'the glyph + title are accent-wrapped');
-        self::assertSame(80, Width::string($bar), 'the SGR does not count toward the cell width');
+        self::assertSame(80, DisplayCells::string($bar), 'the SGR does not count toward the cell width (CU-054 emoji-aware metric)');
     }
 
     // ---- audiobook sessions render via the same interface --------------
@@ -175,6 +176,24 @@ final class NowPlayingBarTest extends TestCase
     {
         $bar = NowPlayingBar::render($this->audiobookSession(positionMs: 5_400_000), 80);
 
-        self::assertSame(80, Width::string($bar));
+        self::assertSame(80, DisplayCells::string($bar), 'CU-054 metric: the audiobook bar fits 80 emoji-aware cells');
+    }
+
+    public function testTheLeadingMediaGlyphCellIsReserved(): void
+    {
+        // CU-054: the bar leads with ▶ — the vendored scorer charges it 1 cell,
+        // an emoji-aware terminal charges 2. The layout must hold back that
+        // under-counted cell so the row never occupies $width+1 (DECAWM wrap
+        // would scroll the frame under the bar). Both metrics pinned: the
+        // conservative count fills the row exactly; the vendor count is short
+        // by precisely the reserved glyph.
+        $bar = NowPlayingBar::render($this->nowPlaying(position: 83), 80);
+
+        self::assertSame(80, DisplayCells::string($bar), 'emoji-aware cells fill the requested width exactly');
+        self::assertSame(79, Width::string($bar), 'one cell is held back for the under-counted leading glyph');
+
+        $paused = NowPlayingBar::render($this->nowPlaying(paused: true, position: 83), 80);
+
+        self::assertSame(80, DisplayCells::string($paused), 'the pause glyph reserves the same single cell');
     }
 }

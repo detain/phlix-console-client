@@ -125,4 +125,9 @@ return [
     'syncplay.group_full' => 'そのウォッチグループは満員です。',
     'syncplay.queue_limit_exceeded' => 'そのウォッチグループの再生キューが満杯です。',
     'syncplay.unknown_error' => '同期エラーが発生しました。',
+    'browse.loading' => 'ライブラリを読み込んでいます…',
+    'browse.no_libraries' => 'まだライブラリがありません。',
+    'browse.no_libraries_admin' => ': を押してコマンドパレットを開き、Admin → Libraries から追加してください。',
+    'browse.no_libraries_member' => '管理者にライブラリの追加を依頼してください。',
+    'browse.hint_refresh_quit' => 'R  更新      q  終了',
 ];

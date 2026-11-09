@@ -598,17 +598,17 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed, HostsTextInput
             Input::new('pre_pad')
                 ->withTitle('Pre-padding (seconds)')
                 ->withValue($prePad)
-                ->withPlaceholder('leave blank to keep')
+                ->withPlaceholder('leave blank to keep the current value')
                 ->validation(self::isNonNegativeIntOrBlank(...), 'Enter a whole number of 0 or more, or leave blank.'),
             Input::new('post_pad')
                 ->withTitle('Post-padding (seconds)')
                 ->withValue($postPad)
-                ->withPlaceholder('leave blank to keep')
+                ->withPlaceholder('leave blank to keep the current value')
                 ->validation(self::isNonNegativeIntOrBlank(...), 'Enter a whole number of 0 or more, or leave blank.'),
             Input::new('max')
                 ->withTitle('Max recordings')
                 ->withValue($max)
-                ->withPlaceholder('leave blank to keep')
+                ->withPlaceholder('leave blank to keep the current value')
                 ->validation(self::isNonNegativeIntOrBlank(...), 'Enter a whole number of 0 or more, or leave blank.'),
             Input::new('days')
                 ->withTitle('Days ahead')

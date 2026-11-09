@@ -125,4 +125,9 @@ return [
     'syncplay.group_full' => 'Ese grupo de visionado está lleno.',
     'syncplay.queue_limit_exceeded' => 'La cola de reproducción de ese grupo de visionado está llena.',
     'syncplay.unknown_error' => 'Ocurrió un error de sincronización.',
+    'browse.loading' => 'Cargando tus bibliotecas…',
+    'browse.no_libraries' => 'Aún no hay bibliotecas.',
+    'browse.no_libraries_admin' => 'Pulse : para abrir la paleta de comandos y añada una desde Admin → Libraries.',
+    'browse.no_libraries_member' => 'Pida a un administrador que añada una.',
+    'browse.hint_refresh_quit' => 'R  recargar      q  salir',
 ];

@@ -102,6 +102,58 @@ final class BrowseScreenTest extends TestCase
         self::assertStringContainsString('Joe Huss', $view);
     }
 
+    // ---- CU-049: zero libraries is a STATE, not an eternal spinner --------
+
+    private function adminScreen(): BrowseScreen
+    {
+        $api = new ApiClient('https://srv', new FakeTransport());
+
+        return new BrowseScreen(
+            AuthUser::fromArray(['id' => 'u', 'username' => 'joe', 'display_name' => 'Joe Huss', 'is_admin' => true]),
+            new LibrariesStore($api),
+            new MediaStore($api),
+            new FavoritesStore($api),
+            new PosterLoader(Mosaic::halfBlock()),
+            'https://srv',
+            cols: 120,
+            rows: 40,
+        );
+    }
+
+    public function testAnEmptyLibraryListRendersAnHonestEmptyState(): void
+    {
+        [$next] = $this->screen()->update(new LibrariesLoadedMsg([]));
+
+        $view = $next->view();
+
+        self::assertStringNotContainsString('Loading', $view, 'nothing is pending any more — the spinner must stop lying');
+        self::assertStringContainsString('No libraries yet.', $view, 'the empty state names itself');
+        self::assertStringContainsString('Ask an administrator', $view, 'a member is told the real path forward');
+        self::assertStringContainsString('R  refresh', $view, 'the empty state advertises the refresh escape key');
+    }
+
+    public function testAdminsSeeThePalettePathWhenNoLibrariesExist(): void
+    {
+        [$next] = $this->adminScreen()->update(new LibrariesLoadedMsg([]));
+
+        $view = $next->view();
+
+        // The menu labels 'Admin' + 'Libraries' are app constants (unlocalized
+        // tokens), so the hint matches what the palette actually shows.
+        self::assertStringContainsString('Admin → Libraries', $view, 'an admin is given the keyboard path to add one');
+        self::assertStringNotContainsString('Ask an administrator', $view, 'an admin is not told to ask themselves');
+    }
+
+    public function testAFailedLibraryLoadStillExplainsItselfOverTheEmptyState(): void
+    {
+        [$next] = $this->screen()->update(new LibrariesFailedMsg('Could not load the libraries.'));
+
+        $view = $next->view();
+
+        self::assertStringContainsString('Could not load the libraries.', $view, 'the error arm keeps precedence');
+        self::assertStringNotContainsString('No libraries yet.', $view, 'a failure is not silently re-labelled as an empty account');
+    }
+
     public function testLibrariesLoadedCreatesEmptyRailsAndFetchesMedia(): void
     {
         [$next, $cmd] = $this->screen()->update(new LibrariesLoadedMsg([

@@ -5,6 +5,69 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — w13/L8 review fix-forward (CU-037/043/049/053/054): the config copy family stopped silently dropping the boot load-error; the doctor's retired live terminal probe stays retired behind an opt-in; zero-library accounts get an honest empty state instead of an eternal spinner; the blank-field keep hints settled on one sentence law; and the media glyphs stop pushing full-width lines one cell past the margin — 2026-11-09
+
+- **[review console__srphp #5 / CU-043]** The six `Config::with*()` copy
+  methods rebuilt `new self(...)` without forwarding the readonly
+  `$loadError`, so every write-through copy silently erased the boot
+  complaint the `load()` contract promised to keep LOUD. All six now
+  forward it; `testWithCopiesPreserveLoadError` pins the round-trip (red
+  before the cure, green after).
+- **[review console__uxdesign #5 / CU-049]** An account with zero visible
+  libraries — a fresh install before an admin adds one, or every
+  library request succeeding empty — stared at "Loading your libraries…"
+  forever: nothing marked the request *answered*. `BrowseScreen` now
+  tracks a `librariesLoaded` flag; when the answer arrives empty the
+  screen shows an honest state — "No libraries yet." plus an
+  admin-aware line (administrators get the palette path
+  `Admin → Libraries`, members get "Ask an administrator to add one.")
+  and an `R refresh` hint. Five new `browse.*` catalog keys ship in all
+  seven locales; three `BrowseScreenTest` pins convicted the eternal
+  spinner and the missing path at the parent commit.
+- **[review console__tuispec #1 / CU-053]** `phlix doctor` re-ran the
+  live DA1/XTWINOPS terminal probe on every invocation — the very
+  mechanism retired from the startup path after it misdetected under
+  tmux and buried users under ~90k malformed lines (M17). The doctor
+  now reads a pure environment-derived snapshot by default
+  (`Capabilities::detectFromEnv()`, mirroring the vendored classifier's
+  env table); the live query survives only behind an explicit
+  `phlix doctor --probe`, and the report labels which stage ran
+  ("Protocol source : environment (no terminal was queried)" vs
+  "live DA1/XTWINOPS query"). `CapabilitiesTest` was rewritten around a
+  controlled env table (12-case provider) and `BinPhlixTest` pins the
+  doctor arms and help line.
+- **[review console__writer #13 / CU-037]** Blank-field keep hints had
+  drifted across three idioms ("leave blank to keep", "blank = host",
+  "New password (blank = unchanged)"). The form fields now share one
+  sentence law — "leave blank to keep the current …" (the password
+  fields moved from a suffixed title into a placeholder so the title
+  reads clean); the `ServersScreen` label field, which *derives* rather
+  than keeps, reads "leave blank to use the server URL". The compact
+  `blank = x` form is reserved for width-capped table placeholders and
+  says so in a comment — none remain. `BlankKeepHintIdiomTest` scans
+  the screen sources for the law and carries a tripwire fixture that
+  proves the scanner actually convicts the old spellings.
+- **[review console__tuispec #2 / CU-054]** The media glyphs ⏸/▶ score
+  one cell in the vendored `Width` scorer but emoji-aware terminals
+  (kitty/wezterm/foot) charge two, so a line truncated to *exactly*
+  `cols` occupied `cols+1` and DECAWM-wrapped one row — sliding pixel
+  payloads under the player's absolute chrome. New `Ui\DisplayCells`
+  charges the conservative extra cell; `NowPlayingBar` now reserves it
+  before doing its layout math (the bar occupies at most `width`
+  emoji-aware cells, and exactly that when nothing truncates), and
+  `PlayerScreen`'s status and up-next lines truncate through it.
+  `DisplayCellsTest` (9), a leading-glyph reservation pin and a
+  long-label up-next pin (81 cells vs 80 convicted at the parent)
+  cover it; five `NowPlayingBarTest` full-width goldens moved to the
+  emoji-aware metric — disclosed re-baselines, the teeth unchanged.
+- **No change [review console__uxdesign #8 / CU-052]:** the claim that
+  the now-playing bar replaces the hint row (and its documented Esc/q
+  safety keys) was measured false on both the reviewer's tree and this
+  one — `Chrome::frame()` renders the hint two lines above the bottom
+  border, and the bar splices into the border line; the escape keys
+  provably survive the composite (pin, probe and file:line evidence in
+  the w13/L8 register).
+
 ### Fixed — w12/L1 review fix-forward (CU-004/012/019/029/031/032): per-server token isolation made real with server-side revoke at sign-out; the auth-failure sentences joined the locale catalog; the admin screens got their key reference; success toasts, hint-bar spacing and load-failure sentences each settled on one house law — 2026-11-09
 
 - **[review console__secaudit #1 / CU-004]** Token isolation per server was

@@ -42,6 +42,32 @@ final class BinPhlixTest extends TestCase
         $this->assertStringContainsString('phlix help', $output['stdout']);
     }
 
+    /**
+     * [review console__tuispec #1 / CU-053] end-to-end wiring: the default
+     * `phlix doctor` must report the ENV snapshot (the retired live probe
+     * may never run on a default path), and --probe must switch the label.
+     * An isolated HOME means no server URL, so doctor exits before the
+     * reachability curl; the non-tty pipes keep even the --probe arm silent.
+     */
+    public function testDoctorDefaultsToEnvSnapshotAndProbeFlagOptsIn(): void
+    {
+        $quiet = $this->runPhlixWithDeadline(['doctor'], 15.0, $this->scratchHome(), ['TERM_PROGRAM' => 'ghostty']);
+        $this->assertSame(0, $quiet['exitCode'], 'doctor stdout: ' . $quiet['stdout'] . ' stderr: ' . $quiet['stderr']);
+        $this->assertStringContainsString('Protocol source : environment', $quiet['stdout']);
+        $this->assertStringContainsString('Render protocol : kitty', $quiet['stdout'], 'the env table must drive the default answer');
+        $this->assertStringNotContainsString('live DA1/XTWINOPS query', $quiet['stdout']);
+
+        $probing = $this->runPhlixWithDeadline(['doctor', '--probe'], 15.0, $this->scratchHome(), ['TERM_PROGRAM' => 'ghostty']);
+        $this->assertSame(0, $probing['exitCode'], 'doctor --probe stderr: ' . $probing['stderr']);
+        $this->assertStringContainsString('Protocol source : live DA1/XTWINOPS query', $probing['stdout']);
+    }
+
+    public function testDoctorHelpAdvertisesTheProbeOptIn(): void
+    {
+        $output = $this->runPhlix(['help']);
+        $this->assertStringContainsString('phlix doctor [--probe]', $output['stdout']);
+    }
+
     public function testNoArgumentExitsZeroAndPrintsHelp(): void
     {
         $output = $this->runPhlix([]);

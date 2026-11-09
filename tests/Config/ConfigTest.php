@@ -39,6 +39,41 @@ final class ConfigTest extends TestCase
         self::assertFalse($config->hasServer());
     }
 
+    /**
+     * [review console__srphp #5 / CU-043] The loud-law contract: load() says a
+     * file that exists but cannot be honoured is LOUD — App surfaces the reason
+     * once at boot. A with* copy that drops $loadError silently downgrades a
+     * broken-config session to "defaults came from absence", so every copy must
+     * carry the diagnostic forward.
+     */
+    public function testWithCopiesPreserveLoadError(): void
+    {
+        $broken = new Config(
+            servers: [new ServerEntry(id: 's1', label: 'First', url: 'https://a.example')],
+            activeServerId: 's1',
+            loadError: 'Config file is not valid JSON.',
+        );
+        self::assertNotNull($broken->loadError);
+
+        $withTheme = $broken->withTheme('midnight');
+        self::assertSame('Config file is not valid JSON.', $withTheme->loadError, 'withTheme must forward loadError');
+
+        $withInterval = $broken->withSlideshowInterval(120);
+        self::assertSame('Config file is not valid JSON.', $withInterval->loadError, 'withSlideshowInterval must forward loadError');
+
+        $withActive = $broken->withActiveServerId('s1');
+        self::assertSame('Config file is not valid JSON.', $withActive->loadError, 'withActiveServerId must forward loadError');
+
+        $withServers = $broken->withServers([new ServerEntry(id: 's2', label: 'Second', url: 'https://b.example')]);
+        self::assertSame('Config file is not valid JSON.', $withServers->loadError, 'withServers must forward loadError');
+
+        $withUrl = $broken->withServerUrl('https://c.example');
+        self::assertSame('Config file is not valid JSON.', $withUrl->loadError, 'withServerUrl must forward loadError');
+
+        $withSettings = $broken->withServerSettings(['theme' => 'daylight']);
+        self::assertSame('Config file is not valid JSON.', $withSettings->loadError, 'withServerSettings must forward loadError');
+    }
+
     public function testSaveThenLoadRoundTrips(): void
     {
         $path = $this->dir . '/config.json';

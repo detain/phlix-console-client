@@ -130,4 +130,9 @@ return [
     'syncplay.group_full' => 'Esse grupo de exibição está cheio.',
     'syncplay.queue_limit_exceeded' => 'A fila de reprodução desse grupo de exibição está cheia.',
     'syncplay.unknown_error' => 'Ocorreu um erro de sincronização.',
+    'browse.loading' => 'Carregando suas bibliotecas…',
+    'browse.no_libraries' => 'Nenhuma biblioteca ainda.',
+    'browse.no_libraries_admin' => 'Pressione : para abrir a paleta de comandos e adicione uma em Admin → Libraries.',
+    'browse.no_libraries_member' => 'Peça a um administrador para adicionar uma.',
+    'browse.hint_refresh_quit' => 'R  recarregar      q  sair',
 ];

@@ -342,7 +342,7 @@ final class AdminPluginDetailScreen implements Breadcrumbed, Themed, HostsTextIn
             ->withTitle('New value')
             ->withValue($value);
         if ($field->secret) {
-            $input = $input->withPlaceholder('leave blank to keep');
+            $input = $input->withPlaceholder('leave blank to keep the current value');
         }
 
         return Form::new($input);

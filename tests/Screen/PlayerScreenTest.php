@@ -25,6 +25,7 @@ use Phlix\Console\Msg\TranscodeStatusMsg;
 use Phlix\Console\Msg\UpNextTickMsg;
 use Phlix\Console\Screen\PlayerScreen;
 use Phlix\Console\Tests\Api\FakeTransport;
+use Phlix\Console\Ui\DisplayCells;
 use PHPUnit\Framework\TestCase;
 use React\EventLoop\Loop;
 use React\Http\Message\Response;
@@ -296,6 +297,43 @@ final class PlayerScreenTest extends TestCase
         self::assertTrue($cur->isReady());
 
         return $cur;
+    }
+
+    // ---- CU-054: full-width rows must fit emoji-aware cells --------------
+
+    public function testTheUpNextLineWithALongLabelFitsEmojiAwareCells(): void
+    {
+        // Convict: a 90-char next-episode label pushes the up-next line past the
+        // frame, so the vendored truncation lands it on EXACTLY the column count
+        // while it leads with ▶ (scored 1 cell, charged 2 by emoji-aware
+        // terminals) — the row would occupy cols+1, DECAWM-wrap, and scroll every
+        // graphics line under the absolute chrome. The conservative cell count
+        // must stay inside the frame.
+        $transport = (new FakeTransport())
+            ->json(200, $this->markersResponse())
+            ->json(200, $this->continueWatching())
+            ->json(200, $this->playbackResponse('ep1', 'episode'))
+            ->json(200, ['items' => [
+                ['id' => 'ep1', 'name' => 'Pilot', 'type' => 'episode', 'season_number' => 1, 'episode_number' => 1],
+                ['id' => 'ep2', 'name' => 'Ep 2', 'type' => 'episode', 'season_number' => 1, 'episode_number' => 2, 'episode_title' => str_repeat('Endless ', 12)],
+            ], 'total' => 2]);
+        $decoder = new FakeDecoder($this->frames(0)); // empty decoder → ends on first tick
+        $factory = static fn (string $u, int $c, int $r): Player => Player::fromDecoder($decoder, fps: 24.0, totalFrames: 2400, cellsW: $c, cellsH: $r, videoPath: '/fake', paused: true);
+        $api = new ApiClient('https://srv', $transport);
+        $screen = new PlayerScreen($this->episodeItem('ep1'), 'https://srv', $api, $factory, new SyncPlayService($api), cols: 80, rows: 24);
+
+        [$ended] = $this->ready($screen)->update(new VideoTickMsg());
+        self::assertSame(8, $ended->upNextCountdown(), 'the countdown is running');
+
+        $status = null;
+        foreach (explode("\n", $ended->view()) as $line) {
+            if (str_contains($line, 'Up next')) {
+                $status = $line;
+            }
+        }
+        self::assertNotNull($status, 'the countdown renders its line');
+        self::assertStringContainsString('Endless', $status, 'the long label is on the truncated row');
+        self::assertLessThanOrEqual(80, DisplayCells::string($status), 'the up-next row fits 80 emoji-aware cells');
     }
 
     // ---- build / direct-play -------------------------------------------

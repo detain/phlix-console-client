@@ -125,4 +125,9 @@ return [
     'syncplay.group_full' => 'Quel gruppo di visione è pieno.',
     'syncplay.queue_limit_exceeded' => 'La coda di riproduzione di quel gruppo di visione è piena.',
     'syncplay.unknown_error' => 'Si è verificato un errore di sincronizzazione.',
+    'browse.loading' => 'Caricamento delle librerie…',
+    'browse.no_libraries' => 'Ancora nessuna libreria.',
+    'browse.no_libraries_admin' => 'Premi : per aprire la palette dei comandi, poi Admin → Libraries per aggiungerne una.',
+    'browse.no_libraries_member' => 'Chiedi a un amministratore di aggiungerne una.',
+    'browse.hint_refresh_quit' => 'R  ricaricare      q  uscire',
 ];

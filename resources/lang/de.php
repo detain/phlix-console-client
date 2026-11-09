@@ -125,4 +125,9 @@ return [
     'syncplay.group_full' => 'Diese synchronisierte Gruppe ist voll.',
     'syncplay.queue_limit_exceeded' => 'Die Wiedergabeliste dieser synchronisierten Gruppe ist voll.',
     'syncplay.unknown_error' => 'Ein Synchronisierungsfehler ist aufgetreten.',
+    'browse.loading' => 'Ihre Bibliotheken werden geladen…',
+    'browse.no_libraries' => 'Noch keine Bibliotheken.',
+    'browse.no_libraries_admin' => 'Drücken Sie : für die Befehlspalette, dann Admin → Libraries, um eine hinzuzufügen.',
+    'browse.no_libraries_member' => 'Bitten Sie einen Administrator, eine hinzuzufügen.',
+    'browse.hint_refresh_quit' => 'R  neu laden      q  beenden',
 ];

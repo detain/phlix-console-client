@@ -77,6 +77,7 @@ use Phlix\Console\Ui\SubtitleTrackList;
 use Phlix\Console\Ui\Scrubber;
 use Phlix\Console\Ui\SyncPlayModal;
 use Phlix\Console\Ui\SyncPlayOverlay;
+use Phlix\Console\Ui\DisplayCells;
 use Phlix\Console\Ui\Truncate;
 use SugarCraft\Core\BatchMsg;
 use SugarCraft\Core\Cmd;
@@ -2537,7 +2538,12 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
         $title = Width::truncate($this->item->name, max(8, $this->cols - 60));
         $line = sprintf('%s %s%s   ·   %s', $glyph, $title, $prompt, $hint);
 
-        return Style::new()->bold()->render(Width::truncate($line, max(1, $this->cols)));
+        // CU-054: these lines ride the full frame width and lead with ▶/⏸, so
+        // truncate by conservative cells — a ⏸ the scorer calls 1 cell is
+        // charged 2 by an emoji-aware terminal, which would push the row to
+        // cols+1, wrap it, and scroll the pixel payloads out from under the
+        // absolute chrome.
+        return Style::new()->bold()->render(DisplayCells::truncate($line, max(1, $this->cols)));
     }
 
     /** "▶ Up next: S01E03 The Title · starting in 7…   n play now   Esc back". */
@@ -2547,7 +2553,12 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
         $title = $next !== null ? $this->episodeLabel($next) : '';
         $line = sprintf('▶ Up next: %s · starting in %d…   n play now   Esc back', $title, $this->upNext ?? 0);
 
-        return Style::new()->bold()->render(Width::truncate($line, max(1, $this->cols)));
+        // CU-054: these lines ride the full frame width and lead with ▶/⏸, so
+        // truncate by conservative cells — a ⏸ the scorer calls 1 cell is
+        // charged 2 by an emoji-aware terminal, which would push the row to
+        // cols+1, wrap it, and scroll the pixel payloads out from under the
+        // absolute chrome.
+        return Style::new()->bold()->render(DisplayCells::truncate($line, max(1, $this->cols)));
     }
 
     /** "S01E03 The Title" for an episode, else its name. */

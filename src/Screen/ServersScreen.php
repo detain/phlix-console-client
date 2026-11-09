@@ -358,6 +358,10 @@ final class ServersScreen implements Model, Themed, CapturesSlash
 
     private static function buildAddForm(): Form
     {
+        // Blank-hint idiom law [review console__writer #13, CU-037]: form
+        // fields speak the full sentence ('leave blank to …'). The compact
+        // 'blank = x' shape is reserved for width-capped TABLE placeholders,
+        // where a sentence cannot fit — a full-width form row always can.
         return Form::new(
             Input::new('server_url')
                 ->withTitle('Server URL')
@@ -365,7 +369,7 @@ final class ServersScreen implements Model, Themed, CapturesSlash
                 ->required(),
             Input::new('label')
                 ->withTitle('Label')
-                ->withPlaceholder('blank = host'),
+                ->withPlaceholder('leave blank to use the server URL'),
         );
     }
 
