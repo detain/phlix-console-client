@@ -143,6 +143,10 @@ final class ExceptionSentences
             $line .= ' <- ' . $previous::class . ': ' . $previous->getMessage();
         }
 
-        error_log($context . ' failed: ' . $line);
+        // Contexts whose sentence already ends in 'failed' must not double
+        // the word on the log line [review w12 L1 round-2 info 4].
+        $prefix = str_ends_with($context, 'failed') ? $context : $context . ' failed';
+
+        error_log($prefix . ': ' . $line);
     }
 }

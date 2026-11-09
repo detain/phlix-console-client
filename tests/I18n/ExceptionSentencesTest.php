@@ -189,6 +189,34 @@ final class ExceptionSentencesTest extends TestCase
         );
     }
 
+    // ---- log sink: the 'failed' suffix never doubles ---------------------
+
+    public function testTheLogSinkNeverDoublesTheFailedWord(): void
+    {
+        // Review w12 L1 round-2 info 4: contexts whose sentence already ends
+        // in 'failed' ('SyncPlay socket join failed', PlayerScreen :2315;
+        // 'Settings saved locally, but server sync failed', App :2408) were
+        // logged '...failed failed: ...'. Both discriminator arms pinned: a
+        // 'failed'-ending context stays single; a plain context still gains
+        // its ' failed' suffix, byte-identical to the pre-cure template.
+        $logFile = (string) tempnam(sys_get_temp_dir(), 'phlix-console-exception-log-');
+        $previous = ini_get('error_log');
+        ini_set('error_log', $logFile);
+
+        try {
+            ExceptionSentences::composed('SyncPlay socket join failed', new \RuntimeException(self::HOSTILE));
+            ExceptionSentences::composed('Could not add server', new \RuntimeException(self::HOSTILE));
+            $log = (string) file_get_contents($logFile);
+        } finally {
+            ini_set('error_log', $previous === false ? '' : (string) $previous);
+            unlink($logFile);
+        }
+
+        self::assertStringContainsString('SyncPlay socket join failed: RuntimeException: ' . self::HOSTILE, $log);
+        self::assertStringNotContainsString('failed failed', $log);
+        self::assertStringContainsString('Could not add server failed: RuntimeException: ' . self::HOSTILE, $log);
+    }
+
     // ---- source boundary: ApiClient mints clean NetworkErrors ------------
 
     public function testNetworkErrorMessageIsTheCuratedSentence(): void
