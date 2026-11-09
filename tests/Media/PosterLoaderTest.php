@@ -47,7 +47,7 @@ final class PosterLoaderTest extends \PHPUnit\Framework\TestCase
     {
         $this->startServer();
         $cache = new DiskCache($this->cacheDir);
-        $loader = new PosterLoader(Mosaic::halfBlock(), $cache);
+        $loader = new PosterLoader(Mosaic::halfBlock(), $cache, serverBaseUrl: fn (): string => "http://127.0.0.1:{$this->port}");
         $url = "http://127.0.0.1:{$this->port}/poster.png";
 
         $result = $this->await($loader->load($url, 8, 12));
@@ -64,7 +64,7 @@ final class PosterLoaderTest extends \PHPUnit\Framework\TestCase
     {
         $this->startServer();
         $cache = new DiskCache($this->cacheDir);
-        $loader = new PosterLoader(Mosaic::halfBlock(), $cache);
+        $loader = new PosterLoader(Mosaic::halfBlock(), $cache, serverBaseUrl: fn (): string => "http://127.0.0.1:{$this->port}");
         $url = "http://127.0.0.1:{$this->port}/poster.png";
 
         $first = $this->await($loader->load($url, 8, 12));
@@ -77,7 +77,7 @@ final class PosterLoaderTest extends \PHPUnit\Framework\TestCase
     public function testWithoutCacheStillRenders(): void
     {
         $this->startServer();
-        $loader = new PosterLoader(Mosaic::halfBlock());
+        $loader = new PosterLoader(Mosaic::halfBlock(), serverBaseUrl: fn (): string => "http://127.0.0.1:{$this->port}");
 
         $ansi = $this->await($loader->load("http://127.0.0.1:{$this->port}/poster.png", 6, 9));
 
@@ -87,7 +87,7 @@ final class PosterLoaderTest extends \PHPUnit\Framework\TestCase
     public function testInlineModeLeavesTheImageLayerEmpty(): void
     {
         $this->startServer();
-        $loader = new PosterLoader(Mosaic::halfBlock(), null);
+        $loader = new PosterLoader(Mosaic::halfBlock(), null, serverBaseUrl: fn (): string => "http://127.0.0.1:{$this->port}");
 
         $this->await($loader->load("http://127.0.0.1:{$this->port}/poster.png", 6, 9));
 
@@ -97,7 +97,7 @@ final class PosterLoaderTest extends \PHPUnit\Framework\TestCase
     public function testOverlayModeReturnsAMarkerBlockAndRegistersTheBlob(): void
     {
         $this->startServer();
-        $loader = new PosterLoader(Mosaic::sixel(), null);
+        $loader = new PosterLoader(Mosaic::sixel(), null, serverBaseUrl: fn (): string => "http://127.0.0.1:{$this->port}");
 
         $result = $this->await($loader->load("http://127.0.0.1:{$this->port}/poster.png", 6, 9));
 
@@ -119,7 +119,7 @@ final class PosterLoaderTest extends \PHPUnit\Framework\TestCase
     public function testOverlayModeReusesTheIdForTheSamePosterAndSize(): void
     {
         $this->startServer();
-        $loader = new PosterLoader(Mosaic::sixel(), null);
+        $loader = new PosterLoader(Mosaic::sixel(), null, serverBaseUrl: fn (): string => "http://127.0.0.1:{$this->port}");
         $url = "http://127.0.0.1:{$this->port}/poster.png";
 
         $a = $this->await($loader->load($url, 6, 9));
@@ -161,7 +161,7 @@ final class PosterLoaderTest extends \PHPUnit\Framework\TestCase
     public function testReleaseRemovesPlacementFromImageLayerAndDigestIndex(): void
     {
         $this->startServer();
-        $loader = new PosterLoader(Mosaic::sixel(), null);
+        $loader = new PosterLoader(Mosaic::sixel(), null, serverBaseUrl: fn (): string => "http://127.0.0.1:{$this->port}");
         $url = "http://127.0.0.1:{$this->port}/poster.png";
 
         $result = $this->await($loader->load($url, 6, 9));
@@ -177,7 +177,7 @@ final class PosterLoaderTest extends \PHPUnit\Framework\TestCase
     public function testReleaseAllExceptKeepsOnlyNamedDigests(): void
     {
         $this->startServer();
-        $loader = new PosterLoader(Mosaic::sixel(), null);
+        $loader = new PosterLoader(Mosaic::sixel(), null, serverBaseUrl: fn (): string => "http://127.0.0.1:{$this->port}");
         $url = "http://127.0.0.1:{$this->port}/poster.png";
 
         // Load three different posters (using different URLs would require more server setup,
@@ -204,7 +204,7 @@ final class PosterLoaderTest extends \PHPUnit\Framework\TestCase
     public function testDigestDiffersForSameBytesAtDifferentSizes(): void
     {
         $this->startServer();
-        $loader = new PosterLoader(Mosaic::sixel(), null);
+        $loader = new PosterLoader(Mosaic::sixel(), null, serverBaseUrl: fn (): string => "http://127.0.0.1:{$this->port}");
         $url = "http://127.0.0.1:{$this->port}/poster.png";
 
         $a = $this->await($loader->load($url, 6, 9));

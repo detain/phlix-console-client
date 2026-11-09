@@ -363,7 +363,7 @@ final class PhotosScreenTest extends TestCase
         $port = $this->startCoverServer();
         $transport = (new FakeTransport())
             ->json(200, ['albums' => [$this->album('a0', '2026-06-23', "http://127.0.0.1:{$port}/cover.png")]]);
-        $screen = $this->screenWith($transport, new PosterLoader(Mosaic::halfBlock()));
+        $screen = $this->screenWith($transport, new PosterLoader(Mosaic::halfBlock(), serverBaseUrl: static fn (): string => "http://127.0.0.1:{$port}"));
 
         $msgs = $this->runBatch($screen->init());
         [$loaded, $coverCmd] = $screen->update($msgs[0]);
@@ -388,7 +388,7 @@ final class PhotosScreenTest extends TestCase
         $port = $this->startCoverServer();
         $base = "http://127.0.0.1:{$port}";
         $transport = (new FakeTransport())->json(200, ['albums' => [$this->album('a0', '2026-06-23', '/cover.png')]]);
-        $screen = $this->screenWith($transport, new PosterLoader(Mosaic::halfBlock()), $base);
+        $screen = $this->screenWith($transport, new PosterLoader(Mosaic::halfBlock(), serverBaseUrl: static fn (): string => $base), $base);
 
         $msgs = $this->runBatch($screen->init());
         [, $coverCmd] = $screen->update($msgs[0]);

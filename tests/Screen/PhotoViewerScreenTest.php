@@ -130,7 +130,7 @@ final class PhotoViewerScreenTest extends TestCase
     public function testInitLoadsTheImageAndExif(): void
     {
         $port = $this->startImageServer();
-        $screen = $this->screen($this->album(3, "http://127.0.0.1:{$port}/f.png"), posters: new PosterLoader(Mosaic::halfBlock()));
+        $screen = $this->screen($this->album(3, "http://127.0.0.1:{$port}/f.png"), posters: new PosterLoader(Mosaic::halfBlock(), serverBaseUrl: static fn (): string => "http://127.0.0.1:{$port}"));
 
         $msgs = $this->runBatch($screen->init());
 
@@ -150,7 +150,7 @@ final class PhotoViewerScreenTest extends TestCase
     {
         $port = $this->startImageServer();
         $base = "http://127.0.0.1:{$port}";
-        $screen = $this->screen($this->album(1, '/f.png'), posters: new PosterLoader(Mosaic::halfBlock()), base: $base);
+        $screen = $this->screen($this->album(1, '/f.png'), posters: new PosterLoader(Mosaic::halfBlock(), serverBaseUrl: static fn (): string => $base), base: $base);
 
         $image = $this->firstOf($this->runBatch($screen->init()), PhotoImageLoadedMsg::class);
         self::assertInstanceOf(PhotoImageLoadedMsg::class, $image, 'a relative full_url resolved against the base and rendered');
@@ -289,7 +289,7 @@ final class PhotoViewerScreenTest extends TestCase
         $screen = $this->screen(
             $this->album(3, "http://127.0.0.1:{$port}/f.png"),
             store: $this->wrap($transport),
-            posters: new PosterLoader(Mosaic::halfBlock()),
+            posters: new PosterLoader(Mosaic::halfBlock(), serverBaseUrl: static fn (): string => "http://127.0.0.1:{$port}"),
         );
         $this->runBatch($screen->init()); // p0 loads
 

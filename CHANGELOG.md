@@ -5,6 +5,21 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — w14/L2 security cure (CU-055): the poster fetch's SSRF allow-list is now owed only to the configured server's authority — every other host runs the vendor deny-list unmodified, per hop — 2026-11-09
+
+- **[review console__secaudit m3 / CU-055]** `PosterLoader::allowedHosts()` allow-listed each
+  URL's OWN host unconditionally — sugar-image's private/loopback/metadata deny-list was dead
+  code for every console poster fetch (a wire-named artwork host resolving to 169.254.169.254 or
+  an RFC1918 machine was requested without judgement). The bypass is now granted only when
+  `ServerAuthority::trusted()` accepts the URL against the live configured server base — the
+  same media-authority law the stream/cast sinks honour — read per fetch so a server switch
+  re-anchors it; everything else (public CDNs, hostile or stale names) faces the vendor guard
+  on the initial URL AND every redirect hop. Fail-closed default: no bound server, no grant.
+  Positive control pins self-hosted loopback/LAN artwork still renders. New
+  tests/Media/PosterLoaderSsrfTest.php (6 tests; 3 convicted the old shape when its method body
+  was re-planted under the new seam); 24 existing test constructions rotated to the seam, all
+  attributed from measured reds (parent baseline green).
+
 ### Fixed — w13/L8 round-2 review cure (CU-049 dead-key major + CU-037 minors): the empty state's advertised "R  refresh" stopped lying — the refresh arm is focus-independent, the watch-filter cycle stays alive at zero libraries, and the keep-hint scanner reads both quote shapes with its canary now guarding the discovery itself — 2026-11-09
 
 - **[review w13 L8 DD major / CU-049]** The zero-library arm advertised

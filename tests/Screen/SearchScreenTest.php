@@ -377,7 +377,7 @@ final class SearchScreenTest extends TestCase
             'limit' => 50,
             'offset' => 0,
         ]);
-        $screen = $this->screenWith($transport, new PosterLoader(Mosaic::halfBlock()), $base);
+        $screen = $this->screenWith($transport, new PosterLoader(Mosaic::halfBlock(), serverBaseUrl: static fn (): string => $base), $base);
         [$screen] = $screen->update(new KeyMsg(KeyType::Char, 'm'));
         [$screen, $fetch] = $screen->update(new SearchDebouncedMsg(1));
         $range = $this->runCmd($fetch);

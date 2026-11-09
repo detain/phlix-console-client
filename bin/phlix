@@ -122,7 +122,14 @@ function buildContainer(?string $mode): array
     if ($posterCacheEntries < 1) {
         $posterCacheEntries = 16384;
     }
-    $posters = new PosterLoader(MosaicFactory::forPosterGrid($mode), new DiskCache(Config::preparePosterCacheDir(), $posterCacheEntries));
+    // The poster SSRF bypass is owed only to the configured server's authority
+    // [review console__secaudit m3 / CU-055]; the closure is read per fetch so a
+    // later server switch re-anchors it without rebuilding the loader.
+    $posters = new PosterLoader(
+        MosaicFactory::forPosterGrid($mode),
+        new DiskCache(Config::preparePosterCacheDir(), $posterCacheEntries),
+        serverBaseUrl: fn (): string => $api->baseUrl(),
+    );
 
     return [
         'config' => $config,

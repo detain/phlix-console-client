@@ -249,7 +249,8 @@ final class BookDetailScreenTest extends TestCase
     {
         $port = $this->startCoverServer();
         $transport = (new FakeTransport())->json(200, $this->detailResponse(['cover_url' => "http://127.0.0.1:{$port}/cover.png"]));
-        $screen = $this->screenWith($transport);
+        $loader = new PosterLoader(Mosaic::halfBlock(), serverBaseUrl: static fn (): string => "http://127.0.0.1:{$port}");
+        $screen = $this->screenWith($transport, $loader);
 
         $loadMsg = $this->runBatch($screen->init())[0];
         [$loaded, $heroCmd] = $screen->update($loadMsg);

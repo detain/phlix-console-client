@@ -905,7 +905,7 @@ final class BrowseScreenTest extends TestCase
     public function testPosterCmdRendersAndProducesPosterLoadedMsg(): void
     {
         $port = $this->startPosterServer();
-        $loader = new PosterLoader(Mosaic::halfBlock());
+        $loader = new PosterLoader(Mosaic::halfBlock(), serverBaseUrl: static fn (): string => "http://127.0.0.1:{$port}");
         $page = MediaPage::fromArray(['items' => [['id' => 'm1', 'name' => 'M', 'type' => 'movie', 'poster_url' => "http://127.0.0.1:{$port}/p.png"]], 'total' => 1, 'limit' => 18, 'offset' => 0]);
 
         $screen = $this->screenWith(new FakeTransport(), $loader)->update(new LibrariesLoadedMsg([$this->library('lib-a', 'Movies')]))[0];
@@ -983,7 +983,7 @@ final class BrowseScreenTest extends TestCase
     private function posterCmdFor(string $posterUrl, string $base = 'https://srv'): ?\Closure
     {
         $page = MediaPage::fromArray(['items' => [['id' => 'm1', 'name' => 'M', 'type' => 'movie', 'poster_url' => $posterUrl]], 'total' => 1, 'limit' => 18, 'offset' => 0]);
-        $screen = $this->screenWith(new FakeTransport(), new PosterLoader(Mosaic::halfBlock()), $base)
+        $screen = $this->screenWith(new FakeTransport(), new PosterLoader(Mosaic::halfBlock(), serverBaseUrl: static fn (): string => $base), $base)
             ->update(new LibrariesLoadedMsg([$this->library('lib-a', 'Movies')]))[0];
 
         return $screen->update(new LibraryMediaLoadedMsg('lib-a', $page))[1];

@@ -412,7 +412,8 @@ final class DetailScreenTest extends TestCase
     {
         $port = $this->startPosterServer();
         $transport = (new FakeTransport())->json(200, $this->detailResponse(['poster_url' => "http://127.0.0.1:{$port}/p.png"]));
-        $screen = $this->screenWith($transport);
+        $loader = new PosterLoader(Mosaic::halfBlock(), serverBaseUrl: static fn (): string => "http://127.0.0.1:{$port}");
+        $screen = $this->screenWith($transport, $loader);
 
         $loadMsg = $this->runBatch($screen->init())[0];
         [$loaded, $heroCmd] = $screen->update($loadMsg);
@@ -754,7 +755,7 @@ final class DetailScreenTest extends TestCase
         $transport = (new FakeTransport())
             ->json(200, $this->detailResponse(['type' => 'series', 'name' => 'My Show']))
             ->json(200, ['items' => $childRows, 'total' => count($childRows), 'limit' => 50, 'offset' => 0]);
-        $screen = $this->screenWith($transport, new PosterLoader(Mosaic::halfBlock()), $base);
+        $screen = $this->screenWith($transport, new PosterLoader(Mosaic::halfBlock(), serverBaseUrl: static fn (): string => $base), $base);
 
         $itemMsg = $this->runBatch($screen->init())[0];
         self::assertInstanceOf(DetailLoadedMsg::class, $itemMsg);

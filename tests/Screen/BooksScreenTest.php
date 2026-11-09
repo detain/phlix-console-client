@@ -334,7 +334,7 @@ final class BooksScreenTest extends TestCase
         $transport = (new FakeTransport())
             ->json(200, $this->booksPage(0, 1, 50))
             ->json(200, $this->bookDetail('0', "http://127.0.0.1:{$port}/cover.png"));
-        $screen = $this->screenWith($transport, 1, new PosterLoader(Mosaic::halfBlock()));
+        $screen = $this->screenWith($transport, 1, new PosterLoader(Mosaic::halfBlock(), serverBaseUrl: static fn (): string => "http://127.0.0.1:{$port}"));
 
         $range = $this->runBatch($screen->init())[0];
         self::assertInstanceOf(BooksRangeLoadedMsg::class, $range);
@@ -363,7 +363,7 @@ final class BooksScreenTest extends TestCase
         $api = new ApiClient($base, (new FakeTransport())
             ->json(200, $this->booksPage(0, 1, 50))
             ->json(200, $this->bookDetail('0', '/cover.png')));
-        $screen = new BooksScreen(new BooksStore($api), new PosterLoader(Mosaic::halfBlock()), $base, 'lib-books', 'Library', 1, cols: 120, rows: 40);
+        $screen = new BooksScreen(new BooksStore($api), new PosterLoader(Mosaic::halfBlock(), serverBaseUrl: static fn (): string => $base), $base, 'lib-books', 'Library', 1, cols: 120, rows: 40);
 
         $range = $this->runBatch($screen->init())[0];
         [, $coverCmd] = $screen->update($range);

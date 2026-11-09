@@ -82,7 +82,7 @@ final class PhotoAlbumScreenTest extends TestCase
         // The album carries signed thumbnails → init renders the visible ones
         // directly (no data fetch) → GridPosterLoadedMsgs.
         $port = $this->startCoverServer();
-        $screen = $this->screen($this->album(3, "http://127.0.0.1:{$port}/cover.png"), new PosterLoader(Mosaic::halfBlock()));
+        $screen = $this->screen($this->album(3, "http://127.0.0.1:{$port}/cover.png"), new PosterLoader(Mosaic::halfBlock(), serverBaseUrl: static fn (): string => "http://127.0.0.1:{$port}"));
 
         $cmd = $screen->init();
         self::assertInstanceOf(\Closure::class, $cmd, 'init loads the visible thumbnails');
@@ -100,7 +100,7 @@ final class PhotoAlbumScreenTest extends TestCase
     {
         $port = $this->startCoverServer();
         $base = "http://127.0.0.1:{$port}";
-        $screen = $this->screen($this->album(1, '/cover.png'), new PosterLoader(Mosaic::halfBlock()), $base);
+        $screen = $this->screen($this->album(1, '/cover.png'), new PosterLoader(Mosaic::halfBlock(), serverBaseUrl: static fn (): string => $base), $base);
 
         $posterMsgs = array_filter($this->runBatch($screen->init()), static fn (Msg $m): bool => $m instanceof GridPosterLoadedMsg);
         self::assertNotEmpty($posterMsgs, 'a relative thumbnail resolved against the base and rendered');

@@ -561,7 +561,7 @@ final class LibraryScreenTest extends TestCase
             'limit' => 50,
             'offset' => 0,
         ]);
-        $screen = $this->screenWith($transport, new PosterLoader(Mosaic::halfBlock()));
+        $screen = $this->screenWith($transport, new PosterLoader(Mosaic::halfBlock(), serverBaseUrl: static fn (): string => "http://127.0.0.1:{$port}"));
 
         $range = $this->runBatch($screen->init())[0];
         [$loaded, $cmd] = $screen->update($range);
@@ -646,7 +646,7 @@ final class LibraryScreenTest extends TestCase
             'limit' => 50,
             'offset' => 0,
         ]);
-        $screen = $this->screenWith($transport, new PosterLoader(Mosaic::halfBlock()), "http://127.0.0.1:{$port}");
+        $screen = $this->screenWith($transport, new PosterLoader(Mosaic::halfBlock(), serverBaseUrl: static fn (): string => "http://127.0.0.1:{$port}"), "http://127.0.0.1:{$port}");
 
         $range = $this->runBatch($screen->init())[0];
         [$loaded, $cmd] = $screen->update($range);

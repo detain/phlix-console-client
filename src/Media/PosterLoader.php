@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Media;
 
+use Phlix\Console\Api\ServerAuthority;
 use React\Promise\PromiseInterface;
 use SugarCraft\Core\Util\Semaphore;
 use SugarCraft\Image\DiskCache;
@@ -42,6 +43,7 @@ final class PosterLoader
         private readonly Mosaic $mosaic,
         private readonly ?DiskCache $cache = null,
         ?Semaphore $semaphore = null,
+        private readonly ?\Closure $serverBaseUrl = null,
     ) {
         $this->inline = $mosaic->isInline();
         $this->images = new ImageLayer();
@@ -91,17 +93,34 @@ final class PosterLoader
     }
 
     /**
-     * Phlix only ever loads image URLs handed back by its own configured server,
-     * which for a self-hosted deployment is routinely on localhost or a LAN
-     * address. sugar-image's SSRF guard rejects private/reserved hosts by
-     * default, so allow-list the URL's own host — any cross-host redirect stays
-     * guarded. The host VALUES are phlix knowledge and stay here; the guarding
-     * mechanism itself is upstream's.
+     * Which host (if any) may bypass sugar-image's SSRF deny-list.
+     *
+     * [review console__secaudit m3 / CU-055] The previous shape allow-listed the
+     * URL's OWN host for every fetch — a blanket bypass: any wire-named artwork
+     * URL whose host resolves to a cloud-metadata endpoint (169.254.169.254) or
+     * an RFC1918 machine reached the fetch unguarded, and a per-hop redirect
+     * follower that first honoured the deny-list never saw the second hop,
+     * because the bypass applied to every host in it.
+     *
+     * The bypass is owed to exactly one authority: the configured phlix server
+     * itself (or a subdomain beneath it), which for a self-hosted deployment is
+     * routinely loopback or a LAN address. That is {@see ServerAuthority::trusted()},
+     * the same media-authority law the stream/cast sinks honour. Everything
+     * else — public CDNs, hostile or stale wire names — gets a null allow-list,
+     * so the vendor guard runs unmodified on the initial URL AND every redirect
+     * hop; public internet hosts pass it honestly, private/reserved ones are
+     * refused before a socket is opened. The guard MECHANISM stays upstream's.
      *
      * @return list<string>|null
      */
     private function allowedHosts(string $url): ?array
     {
+        $baseUrl = $this->serverBaseUrl !== null ? ($this->serverBaseUrl)() : '';
+
+        if (!ServerAuthority::trusted($baseUrl, $url)) {
+            return null;
+        }
+
         $host = parse_url($url, PHP_URL_HOST);
 
         return is_string($host) && $host !== '' ? [$host] : null;
