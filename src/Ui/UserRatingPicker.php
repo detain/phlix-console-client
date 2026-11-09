@@ -197,7 +197,7 @@ final class UserRatingPicker
     {
         $dim = Style::new()->faint();
 
-        return $dim->render('←/→ or 1-6  select    ⏎ confirm    Esc  cancel');
+        return $dim->render('←/→ or 1-6  select      ⏎  confirm      Esc  cancel');
     }
 
     /**

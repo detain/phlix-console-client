@@ -1441,10 +1441,15 @@ final class App implements Model
                 'save server URL to ' . Config::path(),
             ));
             $this->api->setBaseUrl($url);
+            // The (id, URL) pair moves together [review console__secaudit #1 /
+            // CU-004]: bind the auth store to the roster entry this config just
+            // selected (or reselected), so restore() keys persistence to it.
+            $this->auth->setCurrentServer($newConfig->activeServerId);
 
             return [$this->withStack([])->withConfig($newConfig), Cmd::batch(Cmd::send($toast), self::restoreCmd($this->auth, $this->api, $newConfig))];
         }
         $this->api->setBaseUrl($url);
+        $this->auth->setCurrentServer($newConfig->activeServerId);
         $restore = self::restoreCmd($this->auth, $this->api, $newConfig);
 
         // Saving an http:// server stays possible but never silent [review
@@ -1540,18 +1545,18 @@ final class App implements Model
                 $reason = $error instanceof ApiError
                     ? match (true) {
                         // Username already taken (409 Conflict)
-                        $error->statusCode === 409 => 'That username is already taken. Please choose a different one.',
+                        $error->statusCode === 409 => Lang::t('auth.register_taken'),
                         // Account pending approval (403 with "approval" in message) or registration disabled (403)
                         $error->statusCode === 403
                             => stripos($error->getMessage(), 'approval') !== false
-                                ? 'Your account is pending approval. You\'ll be able to sign in once an administrator approves it.'
-                                : 'Registration is currently disabled on this server.',
+                                ? Lang::t('auth.register_pending')
+                                : Lang::t('auth.register_disabled'),
                         // Password too weak — server message contains "password" hint
                         $error->statusCode === 400 && stripos($error->getMessage(), 'password') !== false
-                            => 'Your password is too weak. Please choose a stronger one.',
+                            => Lang::t('auth.register_weak_password'),
                         default => ExceptionSentences::sentence($error, 'auth.register'),
                     }
-                    : 'Registration failed. Please try again.';
+                    : Lang::t('auth.register_failed');
 
                 return new RegisterFailedMsg($reason);
             },
@@ -1579,10 +1584,38 @@ final class App implements Model
     /** @return array{App, ?\Closure} */
     private function requestLogout(): array
     {
-        // Drop the stored token so the next launch shows login, then go there.
+        // Server-side teardown first, while the bearer is still live: the
+        // server now ships a real logout (and the hub its JSON twin), and a
+        // local-only drop left every minted JWT valid until its expiry window
+        // [review console__secaudit #2 / CU-004]. The revoke REQUEST is issued
+        // before the local drop because the Authorization header is captured
+        // from the live client token at send time.
+        $bundle = $this->api->token();
+        try {
+            $revoke = $bundle === null ? null : $this->api->logoutAt($this->api->baseUrl(), $bundle);
+        } catch (\Throwable $e) {
+            $revoke = \React\Promise\reject($e);
+        }
+
+        // Local teardown is unconditional — a dead server must never strand
+        // the session here. Drop the stored token so the next launch shows
+        // login, then go there.
         $this->auth->logout();
 
-        return $this->goLogin(null);
+        [$app, $init] = $this->goLogin(null);
+        if ($revoke === null) {
+            return [$app, $init];
+        }
+
+        // Failure is disclosed, never silent: the user IS signed out locally;
+        // the server-side session rides its token expiry until it can be
+        // revoked.
+        return [$app, Cmd::batch($init, Cmd::promise(
+            static fn (): PromiseInterface => $revoke->then(
+                static fn (array $_): ?Msg => null,
+                static fn (\Throwable $e): Msg => ShowToastMsg::warning(Lang::t('auth.logout_revoke_failed')),
+            ),
+        ))];
     }
 
     /** @return array{App, ?\Closure} */
@@ -2003,26 +2036,28 @@ final class App implements Model
         $this->libraries->invalidate();
         $this->media->invalidate();
 
-        // Update API base URL for the new server
+        // Move the client and the auth store to the new server TOGETHER — the
+        // (id, URL) pair is what the per-server token keying hangs off
+        // [review console__secaudit #1 / CU-004]. The previous shape read a
+        // throwaway TokenStore whose per-server lookup could never hit (the
+        // keyed writer had no callers), then restore() re-loaded the single
+        // legacy slot — shipping the PREVIOUS server's bearer to the new
+        // host's origin, and wiping the shared slot on rejection.
         $this->api->setBaseUrl($server->url);
+        $this->auth->setCurrentServer($serverId);
 
-        // Load and set the token for the new server from per-server token storage
-        $tokens = \Phlix\Console\Config\TokenStore::default()->getForServer($serverId);
-        if ($tokens !== null) {
-            $bundle = new \Phlix\Console\Config\TokenBundle($tokens['token'], $tokens['refresh']);
-            $this->api->setToken($bundle);
-        } else {
-            // No stored token — clear and let the user re-authenticate
-            $this->api->clearToken();
-        }
-
-        // Clear the in-memory auth user so the next screen render will
-        // re-check the token and either restore the user or redirect to login.
+        // Clear the in-memory auth user so no stale identity renders while
+        // the new server's own bundle is resolved.
         $this->auth->clearUser();
 
-        // Attempt to re-authenticate with the new server's token asynchronously.
-        // BootResolvedMsg will drive goBrowse or goLogin based on the result.
-        return [$this, Cmd::promise(
+        // restore() resolves the new server's keyed bundle (or honours the
+        // legacy migration feed once), holds NO bearer when the server has no
+        // stored bundle, and never issues a request with a foreign one.
+        // BootResolvedMsg drives goBrowse or goLogin based on the result; the
+        // saved $newConfig rides the model so the active selection (and the
+        // active-removal guard below it) is never stale [review console__srphp,
+        // CU-003 sibling].
+        return [$this->withConfig($newConfig), Cmd::promise(
             fn () => $this->auth->restore()->then(
                 static fn (?\Phlix\Console\Api\Dto\AuthUser $user): \SugarCraft\Core\Msg => new \Phlix\Console\Msg\BootResolvedMsg($user),
             ),
@@ -2072,7 +2107,10 @@ final class App implements Model
     }
 
     /**
-     * Remove a server from the config.
+     * Remove a server from the config — and with it, the credentials that
+     * server minted [review console__secaudit #2 / CU-004]: the stored bundle
+     * is dropped (ONLY that server's entry) and its origin is asked,
+     * best-effort, to end the session before the local state disappears.
      *
      * @return array{App, ?\Closure}
      */
@@ -2085,6 +2123,14 @@ final class App implements Model
             return [$this, Cmd::send($toast)];
         }
 
+        $removed = null;
+        foreach ($this->config->servers as $s) {
+            if ($s->id === $serverId) {
+                $removed = $s;
+                break;
+            }
+        }
+
         $newServers = array_values(array_filter(
             $this->config->servers,
             static fn (\Phlix\Console\Config\ServerEntry $s): bool => $s->id !== $serverId,
@@ -2093,15 +2139,30 @@ final class App implements Model
         try {
             $newConfig = $this->config->withServers($newServers);
             $newConfig->save();
-
-            $toast = ShowToastMsg::info('Server removed.');
-
-            return [$this->withConfig($newConfig), Cmd::send($toast)];
         } catch (\Throwable $e) {
             $toast = ShowToastMsg::warning(ExceptionSentences::contextOnly('Could not remove server', $e));
 
             return [$this, Cmd::send($toast)];
         }
+
+        // The roster entry is gone — forget the token it minted. detach
+        // returns the bundle (before dropping it) so the revoke below can
+        // carry it; a server whose tokens live only in the unattributed
+        // legacy slot has no keyed entry to revoke, and the slot stays for
+        // its true owner's own migration.
+        $bundle = $this->auth->detachServerToken($serverId);
+
+        $toast = ShowToastMsg::info('Server removed.');
+        if ($removed === null || $bundle === null) {
+            return [$this->withConfig($newConfig), Cmd::send($toast)];
+        }
+
+        return [$this->withConfig($newConfig), Cmd::batch(Cmd::send($toast), Cmd::promise(
+            fn (): PromiseInterface => $this->api->logoutAt($removed->url, $bundle)->then(
+                static fn (array $_): ?Msg => null,
+                static fn (\Throwable $e): Msg => ShowToastMsg::warning(Lang::t('auth.logout_revoke_failed')),
+            ),
+        ))];
     }
 
     /**
@@ -2822,7 +2883,10 @@ final class App implements Model
 
     private function friendlyError(\Throwable $error): string
     {
-        return ExceptionSentences::sentence($error, 'login', 'Could not sign in. Please try again.');
+        // The sign-in generic rides the catalog like every other
+        // user-facing sentence [review console__copywriter #5 / CU-012];
+        // the inline literal here was its last producer.
+        return ExceptionSentences::sentence($error, 'login', Lang::t('auth.signin_failed'));
     }
 
     private function isInterrupt(KeyMsg $msg): bool

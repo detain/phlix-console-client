@@ -295,12 +295,12 @@ final class AdminDlnaScreen implements Breadcrumbed, Themed
     {
         $status = $this->status;
         if ($status === null || $this->error !== null) {
-            return 'r refresh   Esc back';
+            return 'r  refresh      Esc  back';
         }
 
-        $action = $status->running ? 't stop' : 's start';
+        $action = $status->running ? 't  stop' : 's  start';
 
-        return $action . '   r refresh   Esc back';
+        return $action . '      r  refresh      Esc  back';
     }
 
     // ---- breadcrumb ----------------------------------------------------

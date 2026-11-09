@@ -115,11 +115,11 @@ final class CollectionsScreenTest extends TestCase
         $loadingProperty->setAccessible(true);
         $loadingProperty->setValue($screen, false);
 
-        $msg = new CollectionsFailedMsg('Could not load collections.');
+        $msg = new CollectionsFailedMsg('Could not load the collections.');
         [$nextScreen] = $screen->update($msg);
 
         $this->assertFalse($nextScreen->isLoading());
-        $this->assertSame('Could not load collections.', $nextScreen->error());
+        $this->assertSame('Could not load the collections.', $nextScreen->error());
     }
 
     public function testScreenNavigation(): void

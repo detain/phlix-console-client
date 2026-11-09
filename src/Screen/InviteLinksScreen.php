@@ -128,7 +128,7 @@ final class InviteLinksScreen implements Model, Breadcrumbed, Themed
             return [
                 $this->pending(),
                 Cmd::batch(
-                    Cmd::send(ShowToastMsg::success('Invite link created.')),
+                    Cmd::send(ShowToastMsg::success('Invite link created')),
                     $this->fetchCmd(),
                 ),
             ];

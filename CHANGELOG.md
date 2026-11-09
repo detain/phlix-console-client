@@ -5,6 +5,62 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — w12/L1 review fix-forward (CU-004/012/019/029/031/032): per-server token isolation made real with server-side revoke at sign-out; the auth-failure sentences joined the locale catalog; the admin screens got their key reference; success toasts, hint-bar spacing and load-failure sentences each settled on one house law — 2026-11-09
+
+- **[review console__secaudit #1 / CU-004]** Token isolation per server was
+  dead code: `TokenStore::getForServer()` never had a writer, so switching
+  servers shipped the *previous* server's access+refresh bearer to the new
+  host, and a rejection then wiped the single stored slot. The bundle now
+  lives keyed by the active server UUID end to end: `AuthStore` binds the
+  server it rides (re-pointed the instant the base URL moves), persists
+  through `onTokenChanged` to that key, honours the legacy single slot
+  exactly once as a migration stamped by the validation that proved it, and
+  a rejection removes **only** that server's entry. A switch to a server
+  with no stored bundle issues zero authenticated requests. Guard tests:
+  five in `AuthStoreTest` (including the never-ship-a-foreign-bearer pin and
+  the remove-only-that-server pin that killed a missing closure-capture
+  defect mid-cure), and the store API gained `clearLegacy()`/typed-bundle
+  accessors.
+- **[review console__secaudit #2 / CU-004]** Sign-out and server-removal
+  were local-only — the server never learned to drop the session. `logout`
+  now sends a best-effort revoke before dropping the local bundle:
+  `ApiClient::logoutAt()` posts the server's root `/auth/logout` first and
+  falls back to the hub's `/api/v1/auth/logout` on 404, answering from the
+  removed bundle's bearer (never the live token, never the refresh path);
+  failure surfaces as a `Could not sign out on the server…` warning toast
+  and the device clears its local state either way. Six pins in the new
+  `LogoutRevokeTest`.
+- **[review console__copywriter / CU-012]** The register/sign-in failure
+  sentences were raw English in `App` match arms and `ApiClient`. Seven
+  `auth.*` catalog keys (`register_taken`, `register_pending`,
+  `register_disabled`, `register_weak_password`, `register_failed`,
+  `signin_failed`, `logout_revoke_failed`) now carry them in all seven
+  locales, typographic apostrophes included.
+- **[review console__docmaint #5, console__a11y #5 / CU-019]** The manual's
+  key reference omitted every admin screen. A new *Administration keys*
+  table documents all twenty-three from their handlers' advertised hints —
+  including the typed-word confirms (Restart wants `restart`, Plugin
+  Updates `update`, Duplicates the survivor's exact name). The stale Live
+  TV row is cured: the Guide really answers `g`/`R`/`S` and the other
+  sections `s`/`e`/`E`/`x`/`u` per the section hints, with `y`/`n`
+  confirms.
+- **[review console__writer #3 / CU-029]** Success toasts adopted the
+  period-less house law (`User created`, `Settings updated`, `Done`, …);
+  error/info sentences keep their terminator. `ToastSentencePunctuationTest`
+  re-typed kind-first: success literals must not end in punctuation, other
+  toast kinds must.
+- **[review console__tuispec / CU-031]** Hint bars settled on one rhythm —
+  two spaces between a key and its label, six between pairs — across the
+  ten compact deviants (Dlna, Remote Access, Plugins, Parental Controls,
+  Live TV, Webhooks, Libraries, Settings, Transcoding, the rating picker);
+  narrow terminals still elide words through `Chrome::fitHint()`, which
+  never truncates a key.
+- **[review console__writer / CU-032]** The load-failure family standardized
+  on `Could not load the <thing>.` (nineteen deviant sites across fifteen
+  screens — four of them the home rails — and three catalog keys); the uniform
+  pagination (`more X`) and detail (`this X`) neighbours are exempt by
+  design. A new `LoadFailureSentenceTest` greps the law so drift reddens.
+
 ### Fixed — w11/L8 review fix-forward (CU-003/007/008/010/011/014): the just-saved server is the live server (config-install + roster-clobber cure); `/` and `:` reach a focused text input field-first across all ten input-hosting screens; the plugin-update channel key gained a real stable/dev picker (and its dead Escape/Enter arms were cured); the sort field and result counts speak the active locale through catalog keys; the published phar now bundles the locale catalogs — 2026-11-07
 
 - **[review console__srphp #2 / CU-003]** `App::onServerSubmitted()`

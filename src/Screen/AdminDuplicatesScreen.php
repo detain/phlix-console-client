@@ -50,7 +50,7 @@ final class AdminDuplicatesScreen implements Breadcrumbed, Themed
     use SelectsPrevious;
 
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
-    private const LOAD_FAILED = 'Could not load duplicate groups.';
+    private const LOAD_FAILED = 'Could not load the duplicate groups.';
     private const HINT = 'Enter  view      r  refresh      Esc  back';
     private const GROUP_HINT = 'm  arm-merge      Esc  close';
 
@@ -226,7 +226,7 @@ final class AdminDuplicatesScreen implements Breadcrumbed, Themed
         return Cmd::promise(fn (): \React\Promise\PromiseInterface => $this->admin->merge($action->primaryId, $action->duplicateIds)
             ->then(
                 /** @param array{moved: int, deleted: int} $result */
-                static fn (array $result): Msg => ShowToastMsg::success(sprintf('Merge complete: %d moved, %d deleted.', $result['moved'], $result['deleted'])),
+                static fn (array $result): Msg => ShowToastMsg::success(sprintf('Merge complete: %d moved, %d deleted', $result['moved'], $result['deleted'])),
                 static fn (\Throwable $e): Msg => $e instanceof AuthError
                     ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                     : ShowToastMsg::error(ExceptionSentences::composed('Merge failed', $e, 'admin-duplicates')),

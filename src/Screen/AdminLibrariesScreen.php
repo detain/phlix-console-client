@@ -93,10 +93,10 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load the libraries.';
     private const HISTORY_FAILED = 'Could not load the scan history.';
-    private const HINT = 'c create   u update   d delete   p prune   M clear-metadata   A clear-artwork   D delete-all   s scan   R rescan   m match   h history   r refresh   Esc back';
-    private const HISTORY_HINT = '↑/↓ scroll   r refresh   h/Esc close';
-    private const CREATE_HINT = '↑↓ type   Enter next field   Esc cancel';
-    private const UPDATE_HINT = '↑↓ type   Enter update   Esc cancel';
+    private const HINT = 'c  create      u  update      d  delete      p  prune      M  clear-metadata      A  clear-artwork      D  delete-all      s  scan      R  rescan      m  match      h  history      r  refresh      Esc  back';
+    private const HISTORY_HINT = '↑/↓  scroll      r  refresh      h/Esc  close';
+    private const CREATE_HINT = '↑↓  type      Enter  next field      Esc  cancel';
+    private const UPDATE_HINT = '↑↓  type      Enter  update      Esc  cancel';
 
     /** The fields for the create/edit form, in order. */
     private const FORM_FIELDS = ['name', 'type', 'path'];
@@ -609,7 +609,7 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
         $next = $this->idle();
         $next->pollEpoch = $this->pollEpoch + 1;
         $library = $next->selectedLibrary();
-        $toast = Cmd::send(ShowToastMsg::success($msg->message === '' ? 'Library job queued.' : $msg->message));
+        $toast = Cmd::send(ShowToastMsg::success($msg->message === '' ? 'Library job queued' : $msg->message));
         if ($library === null) {
             return [$next, $toast];
         }

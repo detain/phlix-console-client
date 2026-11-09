@@ -50,8 +50,8 @@ final class AdminTranscodingScreen implements Breadcrumbed, Themed
     use ResizesTo;
 
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
-    private const LOAD_FAILED = 'Could not load transcoding settings.';
-    private const HINT = '↑↓ select   e/⏎ edit tone-mapping   r refresh   Esc back';
+    private const LOAD_FAILED = 'Could not load the transcoding settings.';
+    private const HINT = '↑↓  select      e/⏎  edit tone-mapping      r  refresh      Esc  back';
     private const EDIT_HINT = 'Enter  save      Esc  cancel';
     private const TONE_MAPPING_SECTION = 0;
 
@@ -275,7 +275,7 @@ final class AdminTranscodingScreen implements Breadcrumbed, Themed
     {
         return Cmd::promise(static fn () => $promise->then(
             static function (ToneMappingSettings $s): Msg {
-                return new TranscodingActionDoneMsg('Tone-mapping settings updated.');
+                return new TranscodingActionDoneMsg('Tone-mapping settings updated');
             },
             static fn (\Throwable $e): Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))

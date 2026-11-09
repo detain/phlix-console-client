@@ -91,7 +91,7 @@ final class TranslatorTest extends TestCase
         self::assertSame('For You', Lang::t('recommendations.title'));
         self::assertSame('q  back      ↑↓  navigate      ⏎  open      x  dismiss', Lang::t('recommendations.hint'));
         self::assertSame('Your session expired. Please sign in again.', Lang::t('auth.session_expired'));
-        self::assertSame('Could not load recommendations.', Lang::t('recommendations.load_failed'));
+        self::assertSame('Could not load the recommendations.', Lang::t('recommendations.load_failed'));
         self::assertSame('Loading recommendations…', Lang::t('recommendations.loading'));
         self::assertNotEmpty(Lang::t('recommendations.empty'));
         self::assertSame('Could not dismiss the recommendation.', Lang::t('recommendations.dismiss_failed'));

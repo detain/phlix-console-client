@@ -70,7 +70,7 @@ final class AdminSettingsScreen implements Breadcrumbed, Themed, HostsTextInput
 
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load the settings.';
-    private const HINT = '↑↓ select   e/⏎ edit   r refresh   Esc back';
+    private const HINT = '↑↓  select      e/⏎  edit      r  refresh      Esc  back';
     private const EDIT_HINT = 'Enter  save      Esc  cancel';
 
     /** @var list<ServerSetting> */
@@ -126,7 +126,7 @@ final class AdminSettingsScreen implements Breadcrumbed, Themed, HostsTextInput
     private function actionCmd(PromiseInterface $promise): \Closure
     {
         return Cmd::promise(static fn () => $promise->then(
-            static fn (string $message): Msg => new AdminSettingActionDoneMsg($message === '' ? 'Settings updated.' : $message),
+            static fn (string $message): Msg => new AdminSettingActionDoneMsg($message === '' ? 'Settings updated' : $message),
             static fn (\Throwable $e): Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
                 : new AdminSettingActionFailedMsg(ExceptionSentences::sentence($e, 'admin-settings-screen')),

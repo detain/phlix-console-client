@@ -62,7 +62,7 @@ final class AdminPluginsScreen implements Breadcrumbed, Themed, HostsTextInput
 
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load the plugins.';
-    private const HINT = 'e enable/disable   D detail/settings   C catalog   x uninstall   i install URL   r refresh   Esc back';
+    private const HINT = 'e  enable/disable      D  detail/settings      C  catalog      x  uninstall      i  install URL      r  refresh      Esc  back';
     private const INSTALL_HINT = 'Enter  install      Esc  cancel';
 
     /** @var list<Plugin> */

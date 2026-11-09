@@ -121,11 +121,11 @@ final class WatchHistoryScreenTest extends TestCase
         $loadingProperty->setAccessible(true);
         $loadingProperty->setValue($screen, false);
 
-        $msg = new WatchHistoryFailedMsg('Could not load watch history.');
+        $msg = new WatchHistoryFailedMsg('Could not load the watch history.');
         [$nextScreen] = $screen->update($msg);
 
         $this->assertFalse($nextScreen->isLoading());
-        $this->assertSame('Could not load watch history.', $nextScreen->error());
+        $this->assertSame('Could not load the watch history.', $nextScreen->error());
     }
 
     public function testScreenNavigation(): void

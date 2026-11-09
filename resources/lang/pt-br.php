@@ -22,8 +22,15 @@ declare(strict_types=1);
  */
 
 return [
-    // ---- Auth (session expiry — shared by every surface) ---------
+    // ---- Auth (session expiry + sign-in/register failures — every surface) --
     'auth.session_expired' => 'Sua sessão expirou. Entre novamente.',
+    'auth.register_taken' => 'Esse nome de usuário já está em uso. Escolha outro.',
+    'auth.register_pending' => 'Sua conta está pendente de aprovação. Você poderá entrar quando um administrador aprová-la.',
+    'auth.register_disabled' => 'O cadastro está desativado no momento neste servidor.',
+    'auth.register_weak_password' => 'Sua senha é muito fraca. Escolha uma mais forte.',
+    'auth.register_failed' => 'Falha no cadastro. Tente novamente.',
+    'auth.signin_failed' => 'Não foi possível entrar. Tente novamente.',
+    'auth.logout_revoke_failed' => 'Não foi possível sair no servidor. Você saiu deste dispositivo.',
 
     // ---- Errors (shared failure surface — ExceptionSentences) ------
     'errors.network' => 'Não foi possível contatar o servidor. Verifique a URL e a sua conexão.',

@@ -101,7 +101,7 @@ final class StatsScreen implements Model
             ->then(fn ($stats) => new StatsLoadedMsg($stats))
             ->catch(fn (\Throwable $e): Msg => $e instanceof AuthError
                 ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
-                : ShowToastMsg::error(ExceptionSentences::sentence($e, 'stats overview', 'Could not load server statistics.')));
+                : ShowToastMsg::error(ExceptionSentences::sentence($e, 'stats overview', 'Could not load the server statistics.')));
     }
 
     /** @return array{self, null} */

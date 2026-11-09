@@ -48,7 +48,7 @@ final class CollectionsScreen implements Model, Teardownable, Breadcrumbed, Them
 
     private const HINT = 'q  back      ↑↓  navigate      ⏎  open      a/r  web only      d  delete';
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
-    private const LOAD_FAILED = 'Could not load collections.';
+    private const LOAD_FAILED = 'Could not load the collections.';
     private const ADD_ITEM_NOT_IMPLEMENTED = 'Item add/remove happens on the server web portal — not in the console.';
     private const DELETE_CONFIRM_CANCELLED = 'Delete cancelled.';
 

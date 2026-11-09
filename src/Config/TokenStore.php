@@ -20,7 +20,11 @@ namespace Phlix\Console\Config;
  *
  * Migration: on load, if the legacy flat TokenBundle format is detected (a
  * single `access_token` key without `by_server` wrapper), the existing bundle
- * is stored under the special "legacy" server id.
+ * is stored under the special "legacy" server id. The per-server auth paths in
+ * {@see \Phlix\Console\Store\AuthStore} honour that slot only as a migration
+ * feed: it is stamped to the server whose validation proved it (on success) or
+ * retired (on rejection), so an unattributed bearer never keeps travelling to
+ * other servers' origins [review console__secaudit #1 / CU-004].
  *
  * For backward compatibility, the legacy {@see save(TokenBundle)} and
  * {@see load()} methods operate on the "legacy" server id.
@@ -99,21 +103,20 @@ final class TokenStore
     }
 
     /**
-     * Load the token for a specific server, or null if absent / invalid.
-     *
-     * @return array{token: string, refresh: string}|null
+     * Load the full token bundle for a specific server, or null if absent or
+     * expired. Carrying the complete bundle (not just the two secrets) keeps
+     * the per-server path lossless: token type and absolute expiry survive a
+     * restart exactly as they do in the legacy slot [review console__secaudit
+     * #1 / CU-004].
      */
-    public function getForServer(string $serverId): ?array
+    public function getForServer(string $serverId): ?TokenBundle
     {
         $this->ensureLoaded();
 
         if (isset($this->cache[$serverId])) {
             $entry = $this->cache[$serverId];
             if ($entry['token']->isValid()) {
-                return [
-                    'token' => $entry['token']->accessToken,
-                    'refresh' => $entry['token']->refreshToken,
-                ];
+                return $entry['token'];
             }
 
             return null;
@@ -122,30 +125,49 @@ final class TokenStore
         return null;
     }
 
-    /**
-     * Store a token bundle for a specific server.
-     *
-     * @param array{token: string, refresh: string} $tokens
-     */
-    public function setForServer(string $serverId, array $tokens): void
+    /** Store a token bundle for a specific server. */
+    public function setForServer(string $serverId, TokenBundle $bundle): void
     {
         $this->ensureLoaded();
-
-        $bundle = new TokenBundle(
-            accessToken: $tokens['token'],
-            refreshToken: $tokens['refresh'],
-        );
 
         $this->cache[$serverId] = ['token' => $bundle, 'migrated' => false];
         $this->persist();
     }
 
-    /** Remove the token for a specific server (no-op if absent). */
+    /**
+     * Remove the token for a specific server (no-op if absent — and a genuine
+     * no-op: an absent entry does not rewrite the file). Never touches any
+     * other server's entry.
+     */
     public function removeForServer(string $serverId): void
     {
         $this->ensureLoaded();
 
+        if (!isset($this->cache[$serverId])) {
+            return;
+        }
+
         unset($this->cache[$serverId]);
+        $this->persist();
+    }
+
+    /**
+     * Retire the legacy (unattributed) migration slot only (no-op if absent).
+     *
+     * This is the scoped drop the per-server auth paths use: a logout or a
+     * rejection against one server consumes the unattributed feed without
+     * vaporising the keyed bundles of every other server — which whole-store
+     * {@see clear()} (kept for the unbound/env-stub paths and tests) would do.
+     */
+    public function clearLegacy(): void
+    {
+        $this->ensureLoaded();
+
+        if (!isset($this->cache[self::LEGACY_SERVER_ID])) {
+            return;
+        }
+
+        unset($this->cache[self::LEGACY_SERVER_ID]);
         $this->persist();
     }
 

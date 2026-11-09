@@ -164,8 +164,8 @@ final class AdminLiveTvScreenTest extends TestCase
         self::assertStringContainsString('hdhomerun', $view);
         self::assertStringContainsString('[ Tuners ]', $view, 'the active tab is accented');
         self::assertStringContainsString('Channels', $view, 'the other tabs render');
-        self::assertStringContainsString('s scan', $view);
-        self::assertStringContainsString('E rename', $view, 'the rename action hint shows');
+        self::assertStringContainsString('s  scan', $view);
+        self::assertStringContainsString('E  rename', $view, 'the rename action hint shows');
     }
 
     public function testEmptyTunersPlaceholder(): void
@@ -489,7 +489,7 @@ final class AdminLiveTvScreenTest extends TestCase
         $view = $screen->view();
         self::assertStringContainsString('BBC One', $view);
         self::assertStringContainsString('101', $view);
-        self::assertStringContainsString('e toggle-enabled', $view);
+        self::assertStringContainsString('e  toggle-enabled', $view);
 
         [$busy, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'e'));
         $done = $this->runCmd($cmd);
@@ -548,7 +548,7 @@ final class AdminLiveTvScreenTest extends TestCase
         self::assertCount(1, (array) $screen->guideList());
         $view = $screen->view();
         self::assertStringContainsString('The News', $view);
-        self::assertStringContainsString('g refresh-guide', $view);
+        self::assertStringContainsString('g  refresh-guide', $view);
         // The long channel id is shortened.
         self::assertStringContainsString('…', $view);
 
@@ -647,7 +647,7 @@ final class AdminLiveTvScreenTest extends TestCase
         self::assertStringContainsString('Movie', $view);
         self::assertStringContainsString('Scheduled', $view);
         self::assertStringContainsString('2.0 MiB', $view, 'storage size is humanized');
-        self::assertStringContainsString('x delete', $view);
+        self::assertStringContainsString('x  delete', $view);
 
         [$armed] = $screen->update(new KeyMsg(KeyType::Char, 'x'));
         self::assertSame('r-1', $armed->pendingDeleteId());
@@ -824,8 +824,8 @@ final class AdminLiveTvScreenTest extends TestCase
         $screen = $this->onGuide($transport);
 
         $view = $screen->view();
-        self::assertStringContainsString('R record', $view);
-        self::assertStringContainsString('S record-series', $view);
+        self::assertStringContainsString('R  record', $view);
+        self::assertStringContainsString('S  record-series', $view);
 
         // R arms — NO request fired yet.
         [$armed, $armCmd] = $screen->update(new KeyMsg(KeyType::Char, 'R'));

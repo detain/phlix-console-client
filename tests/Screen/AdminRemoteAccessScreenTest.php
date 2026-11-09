@@ -223,20 +223,20 @@ final class AdminRemoteAccessScreenTest extends TestCase
         $screen = $this->loaded($this->statusTransport($this->activePayloads()));
 
         // Hub (paired) → unenroll.
-        self::assertStringContainsString('u unenroll', $screen->view());
+        self::assertStringContainsString('u  unenroll', $screen->view());
 
         [$sub] = $screen->update(new KeyMsg(KeyType::Down));
-        self::assertStringContainsString('x release', $sub->view());
+        self::assertStringContainsString('x  release', $sub->view());
 
         [$relay] = $sub->update(new KeyMsg(KeyType::Down));
         $relayView = $relay->view();
-        self::assertStringContainsString('e enable', $relayView);
-        self::assertStringContainsString('p ping', $relayView);
+        self::assertStringContainsString('e  enable', $relayView);
+        self::assertStringContainsString('p  ping', $relayView);
 
         [$pf] = $relay->update(new KeyMsg(KeyType::Down));
         $pfView = $pf->view();
-        self::assertStringContainsString('e enable', $pfView);
-        self::assertStringContainsString('d disable', $pfView);
+        self::assertStringContainsString('e  enable', $pfView);
+        self::assertStringContainsString('d  disable', $pfView);
     }
 
     public function testHintForAnUnpairedHubNotesTheWebAdmin(): void
@@ -245,11 +245,11 @@ final class AdminRemoteAccessScreenTest extends TestCase
 
         // Hub panel selected, unpaired → no unenroll, points at the web admin.
         self::assertStringContainsString('Press p to pair with a hub', $screen->view());
-        self::assertStringNotContainsString('u unenroll', $screen->view());
+        self::assertStringNotContainsString('u  unenroll', $screen->view());
 
         // Subdomain (unclaimed) → claim.
         [$sub] = $screen->update(new KeyMsg(KeyType::Down));
-        self::assertStringContainsString('c claim', $sub->view());
+        self::assertStringContainsString('c  claim', $sub->view());
     }
 
     // ---- relay actions -------------------------------------------------

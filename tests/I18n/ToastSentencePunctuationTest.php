@@ -15,22 +15,22 @@ use RecursiveIteratorIterator;
 use ReflectionClass;
 
 /**
- * Regression tests for review console__copywriter m2 (M-CONSOLE-09): the
- * toast family carried two grammars side by side — period-less standalone
- * sentences ('Could not play this track', 'User updated') living beside
- * period-ed siblings ('Setting updated.', 'Server removed.', 'PIN must be
- * 4 or 6 digits.').
+ * Toast punctuation law, in two ratified halves:
  *
- * Ratified law (the review's own suggestion): a user-facing sentence always
- * ends in sentence punctuation; a colon-terminated literal is a prefix
- * template whose tail is dynamic prose ('Failed to X: ' — its M-CONSOLE-08
- * template-family law is a separate item), and labels/field titles never
- * take a period. The composed exception family is normalized at runtime by
- * ExceptionSentences::terminate(); the bare literals that bypass it are
- * pinned here — directly, for every `ShowToastMsg::kind('<literal>')` call
- * site parsed from source with token_get_all (never restated from prose),
- * and by named guard for the const / fallback shapes the parser cannot see
- * through.
+ * 1. M-CONSOLE-09 (review console__copywriter m2): the composed exception
+ *    family is normalized at runtime by ExceptionSentences::terminate(); the
+ *    ERROR/INFO/WARNING literals that bypass it must end their sentence, and
+ *    a colon-terminated literal is a prefix template whose tail is dynamic
+ *    prose ('Failed to X: ').
+ * 2. CU-029 (review console__writer #3, wave w12 L1): SUCCESS toasts take NO
+ *    trailing period — the period-less success sentences ('Profile created',
+ *    'Tuners rescanned', 'Plugin installed') were the majority and this trip
+ *    was the drift. Error-path punctuation stays as law (1) ratified it.
+ *
+ * Both halves are pinned here — directly, for every
+ * `ShowToastMsg::kind('<literal>')` call site parsed from source with
+ * token_get_all (never restated from prose), and by named guard for the
+ * ternary-fallback / mutationCmd-label shapes the parser cannot see through.
  */
 final class ToastSentencePunctuationTest extends TestCase
 {
@@ -38,10 +38,19 @@ final class ToastSentencePunctuationTest extends TestCase
     private const TERMINATED = '/[.!?:…\x{2026}]$/u';
 
     /**
-     * Every direct string-literal first argument of a ShowToastMsg factory
-     * in src/ must be a terminated sentence or an explicit ':' prefix.
+     * The four ShowToastMsg factories, grouped by the punctuation law they
+     * follow: 'success' is the CU-029 period-less family; the rest keep the
+     * M-CONSOLE-09 terminated-sentence family.
      */
-    public function testEveryDirectToastLiteralEndsItsSentence(): void
+    private const SUCCESS_KIND = 'success';
+
+    /**
+     * Direct string-literal first arguments of ShowToastMsg factories in src/
+     * must follow their kind's law: error/info/warning sentences end with
+     * punctuation (a ':' prefix template counts); success sentences carry no
+     * trailing punctuation at all.
+     */
+    public function testEveryDirectToastLiteralFollowsItsKindsPunctuationLaw(): void
     {
         $violations = [];
         foreach (self::phpFiles() as $file) {
@@ -63,6 +72,7 @@ final class ToastSentencePunctuationTest extends TestCase
                 ) {
                     continue;
                 }
+                $kind = $tokens[$k][1];
                 $open = self::nextMeaningful($tokens, $k + 1);
                 if ($open === null || $tokens[$open] !== '(') {
                     continue;
@@ -73,13 +83,17 @@ final class ToastSentencePunctuationTest extends TestCase
                 }
                 $raw = $tokens[$lit][1];
                 $inner = substr($raw, 1, -1);
-                if (preg_match(self::TERMINATED, $inner) !== 1) {
-                    $violations[] = basename($file) . ':' . $tokens[$lit][2] . " '{$inner}'";
+                $isTerminated = preg_match(self::TERMINATED, $inner) === 1;
+                if ($kind === self::SUCCESS_KIND ? $isTerminated : !$isTerminated) {
+                    $law = $kind === self::SUCCESS_KIND
+                        ? 'a success toast must carry no trailing punctuation'
+                        : 'a ' . $kind . ' toast must end its sentence';
+                    $violations[] = basename($file) . ':' . $tokens[$lit][2] . " '{$inner}' ({$law})";
                 }
             }
         }
 
-        $this->assertSame([], $violations, 'unterminated toast sentence literals: ' . implode(', ', $violations));
+        $this->assertSame([], $violations, 'toast punctuation drift: ' . implode(', ', $violations));
     }
 
     /**
@@ -104,15 +118,46 @@ final class ToastSentencePunctuationTest extends TestCase
     }
 
     /**
-     * Named fallback literals the parser cannot see through: mutationCmd /
-     * ternary-fallback / ack sites, each pinned in its terminated form and
-     * the un-terminated shape explicitly refused.
+     * Named SUCCESS fallbacks the parser cannot see through (mutationCmd
+     * labels, ternary-fallback acks) — each pinned period-less, the
+     * terminated shape explicitly refused [CU-029].
      */
-    public function testNamedFallbackLiteralsAreTerminated(): void
+    public function testNamedSuccessFallbacksCarryNoTrailingPeriod(): void
     {
         $pins = [
-            'src/Screen/AdminUsersScreen.php' => ['User updated', 'User created'],
+            'src/Screen/AdminUsersScreen.php' => ['User created', 'User updated', 'Done'],
             'src/Screen/AdminLibrariesScreen.php' => ['Library job queued'],
+            'src/Screen/AdminUserProfilesScreen.php' => ['Done'],
+            'src/Screen/ParentalControlsScreen.php' => ['Done'],
+            'src/Screen/SharedWithMeScreen.php' => ['Share accepted', 'Share rejected', 'Done'],
+            'src/Screen/FederationSharesScreen.php' => ['Share revoked', 'Done'],
+        ];
+        foreach ($pins as $relative => $sentences) {
+            $source = (string) file_get_contents(__DIR__ . '/../../' . $relative);
+            foreach ($sentences as $sentence) {
+                $this->assertStringContainsString(
+                    "'{$sentence}'",
+                    $source,
+                    "{$relative}: success fallback '{$sentence}' must be present",
+                );
+                $this->assertStringNotContainsString(
+                    "'{$sentence}.",
+                    $source,
+                    "{$relative}: the period-ful success fallback '{$sentence}.' must not come back",
+                );
+            }
+        }
+    }
+
+    /**
+     * Named NON-toast fallbacks (rendered as screen body prose or error
+     * lines, invisible to the literal scan): these keep the terminated
+     * sentence law — the CU-029 period-less law is for success TOASTS only,
+     * so the un-terminated shape is the regression being refused here.
+     */
+    public function testNamedFallbackSentencesOutsideSuccessToastsStayTerminated(): void
+    {
+        $pins = [
             'src/Ui/SyncPlayModal.php' => ['Could not complete the action'],
             'src/Screen/AdminServerRestartScreen.php' => ['Restart signal sent'],
         ];
@@ -122,12 +167,7 @@ final class ToastSentencePunctuationTest extends TestCase
                 $this->assertStringContainsString(
                     "'{$sentence}.",
                     $source,
-                    "{$relative}: '{$sentence}' must be a terminated sentence",
-                );
-                $this->assertStringNotContainsString(
-                    "'{$sentence}',",
-                    $source,
-                    "{$relative}: the un-terminated '{$sentence}' literal must not come back",
+                    "{$relative}: body/error sentence '{$sentence}' must stay terminated",
                 );
             }
         }
@@ -136,12 +176,13 @@ final class ToastSentencePunctuationTest extends TestCase
     /**
      * The docblock echo of the subtitle toast must carry the same string as
      * the code (review-era drift: prose quoted the old period-less form).
+     * Error-family toast: the terminated law (1) applies.
      */
     public function testSubtitleToastDocblockEchoesTheTerminatedLiteral(): void
     {
         $source = (string) file_get_contents(__DIR__ . '/../../src/Screen/PlayerScreen.php');
 
-        $this->assertStringContainsString("'Could not load subtitles.'", $source);
+        $this->assertStringContainsString("'Could not load the subtitles.'", $source);
         $this->assertStringNotContainsString("'Could not load subtitles'", $source);
     }
 

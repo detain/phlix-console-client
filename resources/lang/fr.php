@@ -17,8 +17,15 @@ declare(strict_types=1);
  */
 
 return [
-    // ---- Auth (session expiry — shared by every surface) ---------
+    // ---- Auth (session expiry + sign-in/register failures — every surface) --
     'auth.session_expired' => 'Votre session a expiré. Veuillez vous reconnecter.',
+    'auth.register_taken' => 'Ce nom d’utilisateur est déjà pris. Veuillez en choisir un autre.',
+    'auth.register_pending' => 'Votre compte est en attente d’approbation. Vous pourrez vous connecter une fois qu’un administrateur l’aura approuvé.',
+    'auth.register_disabled' => 'L’inscription est actuellement désactivée sur ce serveur.',
+    'auth.register_weak_password' => 'Votre mot de passe est trop faible. Veuillez en choisir un plus robuste.',
+    'auth.register_failed' => 'L’inscription a échoué. Veuillez réessayer.',
+    'auth.signin_failed' => 'Connexion impossible. Veuillez réessayer.',
+    'auth.logout_revoke_failed' => 'La déconnexion n’a pas pu aboutir sur le serveur. Vous êtes bien déconnecté sur cet appareil.',
 
     // ---- Errors (shared failure surface — ExceptionSentences) ------
     'errors.network' => 'Impossible de joindre le serveur. Vérifiez l’URL et votre connexion.',

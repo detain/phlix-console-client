@@ -44,7 +44,7 @@ final class WatchHistoryScreen implements Model, Teardownable, Breadcrumbed, The
 
     private const HINT = 'q  back      ↑↓  navigate      ⏎  open';
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
-    private const LOAD_FAILED = 'Could not load watch history.';
+    private const LOAD_FAILED = 'Could not load the watch history.';
 
     /** @var list<RecentlyWatchedItem> */
     private array $items = [];

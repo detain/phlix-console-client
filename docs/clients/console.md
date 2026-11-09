@@ -537,8 +537,41 @@ keys each individual screen adds, consolidated from the handlers (the
 | Collections / Playlists | `↑`/`↓` (or `j`/`k`) select, `Enter` open, `d` delete (type the word `delete` to confirm); `a`/`r` answer with a notice — see the Screens table |
 | Servers | `↑`/`↓` select, `Enter` switch to it, `a` add one manually, `h` reload the list from the saved config, `r` remove |
 | Settings | Move between the fields per the on-screen hints; `s` opens **Servers**, `l` signs out (both letter cases accepted) |
-| Live TV (admin) | `r` refresh anywhere; in the Tuners section `s` rescans tuner hardware; on the Guide `R` records the selected program and `S` records its whole series (only offered when the program carries a series id) |
 | Recommendations | `↑`/`↓` (or `j`/`k`) navigate, `Enter` opens, `x`/`X` dismiss a suggestion, `q`/`Q`/`Esc` back |
+
+#### Administration keys
+
+Admin screens hang off the **Admin** entry in the command palette (`Ctrl-K`),
+which opens the section menu. Each row is the keys the screen itself advertises in
+its footer hint, consolidated from the handlers; `r` (refresh) and `Esc` (back)
+are the floor under every one of them and are listed anyway because some
+screens add their own back aliases:
+
+| Admin screen | Keys |
+| --- | --- |
+| Menu | `↑`/`↓` select, `Enter` open |
+| Dashboard | `r` refresh |
+| Users | `c` create, `E` edit, `P` profiles for the selected user, `f` filter, `a` approve, `d` disable, `x` delete, `j` reject, `m` toggle admin, `p` reset password, `r` refresh — `d`/`x`/`j`/`m` arm and want `y` to confirm (`n`/`Esc` cancel); create/edit forms: `Tab`/`↑`/`↓` fields, `Enter` save |
+| User Profiles | `c` create, `E` edit, `x` delete (wants `y`), `p` set PIN, `k` clear PIN (wants `y`), `r` refresh; forms: `Tab`/`↑`/`↓` fields, `Enter` save |
+| Watch History | `u` filter by user, `r` refresh |
+| Settings | `↑`/`↓` select a setting, `e` or `Enter` edit, `r` refresh; the editor takes `Enter` to save |
+| Transcoding | `↑`/`↓` select, `e` or `Enter` edit tone-mapping, `r` refresh; the editor takes `Enter` to save |
+| Libraries | `c` create, `u` update, `d` delete, `p` prune, `M` clear metadata, `A` clear artwork, `D` delete-all, `s` scan, `R` rescan, `m` match, `h` history, `r` refresh — the destructive ones want `y`; the history overlay takes `↑`/`↓`, `r`, and `h`/`Esc` to close; create/update forms take `↑`/`↓` and `Enter` |
+| Plugins | `e` enable/disable, `D` detail/settings, `C` catalog, `x` uninstall (wants `y`), `i` install from URL (`Enter` installs), `r` refresh |
+| Plugin Catalog | `↑`/`↓` select, `Enter` or `i` install, `a` add source, `x` remove source (wants `y`), `r` refresh |
+| Plugin Detail | `↑`/`↓` select a setting, `e` or `Enter` edit (`Enter` saves), `r` refresh |
+| Plugin Updates | `a` toggle auto-update, `c` set channel (then `s` stable / `d` dev), `u` arms the apply — type the word `update` and press `Enter`, `Esc` cancels |
+| Auth Providers | `e` toggle, `r` refresh |
+| Backup | `c` create, `x` delete (wants `y`), `R` restore (wants `y`), `s` upload to S3, `e` schedule, `r` refresh; the label field takes `Enter` to create, the schedule form `Enter` to save |
+| Logs | `Tab` focus, `↑`/`↓`/`PgUp`/`PgDn` move, `Enter` open an entry, `r` refresh |
+| Metrics | `r` refresh |
+| Dlna | `s` start / `t` stop (the hint shows whichever fits the server's state), `r` refresh |
+| Remote Access | `↑`/`↓` switch panel, `r` refresh; per panel — Hub: `p` pair or `u` unenroll; Subdomain: `c` claim or `x` release; Relay: `e` enable, `d` disable, `p` ping; Port-forward: `e` enable, `d` disable, `c` open the candidates overlay (`↑`/`↓` scroll, `r` refresh, `c`/`Esc` close) — every action arms and wants `y`, `n` cancels |
+| Server Restart | `r` arms the restart — type the word `restart` and press `Enter` to send the signal, `Esc` cancels |
+| Duplicates | `Enter` view a group, `r` refresh; inside a group `m` arms a merge — type the survivor's exact name to confirm, `Esc` cancels |
+| Filesystem | `↑`/`↓` select, `Enter` enter a directory, `←` go to the parent, `r` refresh |
+| Webhooks | `r` refetches (the list itself is read-only here) |
+| Live TV | `Tab` or `←`/`→` switch section, `↑`/`↓` select, `r` refresh, then per section — Tuners: `s` scan, `e` toggle enabled, `E` rename, `x` delete (wants `y`); Channels: `e` toggle enabled, `E` rename; Guide: `g` refresh the guide, `R` record the selected program, `S` record its whole series (only offered when the program carries a series id), both wanting `y`; Recordings: `x` delete (wants `y`), `u` flip upcoming/all; Rules: `E` edit, `x` delete (wants `y`) — rename/edit forms take `Enter` to save |
 
 ### Downloads
 

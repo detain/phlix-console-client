@@ -1058,7 +1058,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
      * Fetch the subtitle tracks, pick the default (or first), fetch + parse its
      * WebVTT → SubtitleVttLoadedMsg(?WebVtt). If no track is available, returns
      * SubtitleVttLoadedMsg(null). On VTT fetch failure, returns ShowToastMsg::error
-     * ('Could not load subtitles.') — the promise chain uses ->then(success)->catch(error)
+     * ('Could not load the subtitles.') — the promise chain uses ->then(success)->catch(error)
      * rather than the two-argument .then(success, error) form to satisfy PHPStan level 9
      * type inference on ReactPHP promises.
      *
@@ -1081,10 +1081,10 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
                             try {
                                 return new SubtitleVttLoadedMsg(\SugarCraft\Video\Subtitle\WebVtt::parse($vttBody));
                             } catch (\Throwable $e) {
-                                return ShowToastMsg::error('Could not load subtitles.');
+                                return ShowToastMsg::error('Could not load the subtitles.');
                             }
                         },
-                        static fn (): Msg => ShowToastMsg::error('Could not load subtitles.'),
+                        static fn (): Msg => ShowToastMsg::error('Could not load the subtitles.'),
                     );
             },
             static fn (): Msg => new SubtitleVttLoadedMsg(null),

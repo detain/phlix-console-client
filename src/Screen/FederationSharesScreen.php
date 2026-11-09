@@ -323,8 +323,8 @@ final class FederationSharesScreen implements Model, Breadcrumbed, Themed
     private function actionSentence(string $action): string
     {
         return match ($action) {
-            'revoked' => 'Share revoked.',
-            default => 'Done.',
+            'revoked' => 'Share revoked',
+            default => 'Done',
         };
     }
 

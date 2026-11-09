@@ -102,9 +102,16 @@ function buildContainer(?string $mode): array
 {
     $config = Config::load();
     // Honour PHLIX_SERVER_URL from the environment for CI / stub server use.
-    $serverUrl = getenv('PHLIX_SERVER_URL') ?: $config->activeServer()?->url;
+    $envUrl = getenv('PHLIX_SERVER_URL') ?: false;
+    $active = $config->activeServer();
+    $serverUrl = $envUrl !== false ? $envUrl : $active?->url;
     $api = new ApiClient($serverUrl ?? '');
-    $auth = new AuthStore($api, TokenStore::default());
+    // Token persistence is keyed to the bound roster server [review
+    // console__secaudit #1 / CU-004]. An env-overridden URL may be ANY server,
+    // keyed or not — it runs unbound (legacy slot) rather than misattributing
+    // tokens to whatever id the config happens to mark active.
+    $boundServerId = $envUrl !== false ? null : $active?->id;
+    $auth = new AuthStore($api, TokenStore::default(), $boundServerId);
     $libraries = new LibrariesStore($api);
     $media = new MediaStore($api);
     // Cell modes tile as text; graphics modes (sixel/kitty/iterm2) tile as

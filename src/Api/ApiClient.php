@@ -152,7 +152,11 @@ final class ApiClient
                 throw new ApiError(
                     is_string($data['message'] ?? null)
                         ? Sanitize::untrustedForDisplay($data['message'])
-                        : 'Your account is pending approval.',
+                        // Same catalog sentence the App's 403-approval arm
+                        // renders [review console__copywriter #5 / CU-012]:
+                        // the client-side default was the family's one producer
+                        // still bypassing the catalog.
+                        : Lang::t('auth.register_pending'),
                     202,
                     $data,
                 );
@@ -215,6 +219,72 @@ final class ApiClient
             );
 
         return $deferred->promise();
+    }
+
+    /**
+     * Revoke one specific bundle against one specific base URL — the
+     * server-side sign-out every logout/server-removal path shares.
+     *
+     * Estate logout law (re-verified at current tips): phlix-server registers
+     * the teardown ROOT-LEVEL ONLY — POST /auth/logout
+     * (src/Server/Core/Application.php:462-463; the handler
+     * src/Server/Http/Controllers/AuthController::logout ends every session
+     * behind the bearer, then answers a 302 redirect to /login). phlix-hub
+     * answers the JSON twin POST /api/v1/auth/logout with 204
+     * (src/Application.php:484 → AuthController::logoutJson). The ladder
+     * tries the server form and falls back to the hub form on a 404.
+     * Deliberately NOT routed through authed(): a 401 here means the session
+     * is already dead, and refreshing-and-retrying would churn a freshly
+     * rotated credential against a host that just rejected the old one.
+     * Ack shapes on the server leg: React's Browser DOES follow the 302 to
+     * /login, and decode() maps that HTML 200 (no JSON error envelope) to a
+     * resolved [] — following the redirect is harmless because the logout
+     * handler has already run. A raw 3xx (no followable Location) is also
+     * accepted by revokeOnce for the same reason.
+     *
+     * @return PromiseInterface<array<array-key,mixed>>
+     */
+    public function logoutAt(string $baseUrl, TokenBundle $bundle): PromiseInterface
+    {
+        return $this->revokeOnce("$baseUrl/auth/logout", $bundle)->then(
+            null,
+            function (\Throwable $error) use ($baseUrl, $bundle): PromiseInterface {
+                if ($error instanceof ApiError && $error->statusCode === 404) {
+                    return $this->revokeOnce("$baseUrl/api/v1/auth/logout", $bundle);
+                }
+
+                throw $error;
+            },
+        );
+    }
+
+    /**
+     * One explicit-bearer revoke request: the Authorization header is built
+     * from $bundle (never from the client's current token), because the
+     * removal path drops local state while the request is in flight.
+     *
+     * @return PromiseInterface<array<array-key,mixed>>
+     */
+    private function revokeOnce(string $url, TokenBundle $bundle): PromiseInterface
+    {
+        return $this->transport->send('POST', $url, [
+            'Accept' => 'application/json',
+            'Authorization' => $bundle->authorizationHeader(),
+        ], '')->then(
+            static fn (ResponseInterface $response): array => self::decode($response),
+            static fn (\Throwable $error): never => throw $error instanceof ApiError
+                ? $error
+                : new NetworkError(ExceptionSentences::network(), 0, null, $error),
+        )->then(
+            null,
+            static function (\Throwable $error): array {
+                if ($error instanceof ApiError && $error->statusCode >= 300 && $error->statusCode < 400) {
+                    return [];
+                }
+
+                throw $error;
+            },
+        );
     }
 
     // ---- servers (hub) -------------------------------------------------

@@ -97,9 +97,16 @@ final class ServerRouteManifestGateTest extends TestCase
         ['src/Api/ApiClient.php', 'GET', '/api/v1/media/{P}/subtitles/{P}'],
     ];
 
-    /** Variable-receiver composition sites (cast enum + transport terminal). */
+    /**
+     * Variable-receiver composition sites (cast enum + transport terminal).
+     *
+     * ApiClient is 2 since [CU-004]: revokeOnce() sends the logout POST
+     * through the transport terminal with a variable path (the server/hub
+     * URL pair is composed once in logoutAt and arrives as a parameter),
+     * beside the pre-existing terminal site.
+     */
     private const COMPOSITION_SITES = [
-        'src/Api/ApiClient.php' => 1,
+        'src/Api/ApiClient.php' => 2,
         'src/Api/Cast/CastClient.php' => 5,
     ];
 

@@ -14,8 +14,15 @@ declare(strict_types=1);
  */
 
 return [
-    // ---- Auth (session expiry — shared by every surface) ---------
+    // ---- Auth (session expiry + sign-in/register failures — every surface) --
     'auth.session_expired' => 'Your session expired. Please sign in again.',
+    'auth.register_taken' => 'That username is already taken. Please choose a different one.',
+    'auth.register_pending' => 'Your account is pending approval. You’ll be able to sign in once an administrator approves it.',
+    'auth.register_disabled' => 'Registration is currently disabled on this server.',
+    'auth.register_weak_password' => 'Your password is too weak. Please choose a stronger one.',
+    'auth.register_failed' => 'Registration failed. Please try again.',
+    'auth.signin_failed' => 'Could not sign in. Please try again.',
+    'auth.logout_revoke_failed' => 'Could not sign out on the server. You are signed out on this device.',
 
     // ---- Errors (shared failure surface — ExceptionSentences) ------
     'errors.network' => 'Could not reach the server. Check the URL and your connection.',
@@ -24,7 +31,7 @@ return [
     // ---- RecommendationsScreen ----------------------------------------
     'recommendations.title' => 'For You',
     'recommendations.hint' => 'q  back      ↑↓  navigate      ⏎  open      x  dismiss',
-    'recommendations.load_failed' => 'Could not load recommendations.',
+    'recommendations.load_failed' => 'Could not load the recommendations.',
     'recommendations.loading' => 'Loading recommendations…',
     'recommendations.empty' => "No recommendations yet.\n  Start watching to get personalized suggestions!",
     'recommendations.dismiss_failed' => 'Could not dismiss the recommendation.',
@@ -32,8 +39,8 @@ return [
 
     // ---- DetailScreen -------------------------------------------------
     'detail.load_failed' => 'Could not load this title.',
-    'detail.similar_load_failed' => 'Could not load similar titles.',
-    'detail.missing_episodes_load_failed' => 'Could not load missing episodes.',
+    'detail.similar_load_failed' => 'Could not load the similar titles.',
+    'detail.missing_episodes_load_failed' => 'Could not load the missing episodes.',
     'detail.children_load_failed' => 'Could not load this content.',
     'detail.rating_save_failed' => 'Could not save the rating: ',
     'detail.play_notice' => '▶  This title has no playable source.',

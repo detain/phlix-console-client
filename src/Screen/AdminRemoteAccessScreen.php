@@ -995,22 +995,22 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
     {
         $status = $this->status;
         if ($status === null || $this->error !== null) {
-            return 'r refresh   Esc back';
+            return 'r  refresh      Esc  back';
         }
         if ($this->pendingConfirm !== null) {
-            return 'y confirm   n cancel';
+            return 'y  confirm      n  cancel';
         }
 
-        return $this->panelActionHint($status) . '   ↑↓ panel   r refresh   Esc back';
+        return $this->panelActionHint($status) . '      ↑↓  panel      r  refresh      Esc  back';
     }
 
     private function panelActionHint(RemoteAccessStatus $status): string
     {
         return match ($this->panel) {
-            self::PANEL_HUB => $status->hub->paired ? 'u unenroll' : 'p pair',
-            self::PANEL_SUBDOMAIN => $status->subdomain->claimed ? 'x release' : 'c claim',
-            self::PANEL_RELAY => 'e enable   d disable   p ping',
-            self::PANEL_PORTFORWARD => 'e enable   d disable   c candidates',
+            self::PANEL_HUB => $status->hub->paired ? 'u  unenroll' : 'p  pair',
+            self::PANEL_SUBDOMAIN => $status->subdomain->claimed ? 'x  release' : 'c  claim',
+            self::PANEL_RELAY => 'e  enable      d  disable      p  ping',
+            self::PANEL_PORTFORWARD => 'e  enable      d  disable      c  candidates',
             default => '',
         };
     }

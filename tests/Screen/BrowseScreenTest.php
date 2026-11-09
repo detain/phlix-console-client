@@ -681,7 +681,7 @@ final class BrowseScreenTest extends TestCase
         self::assertNotNull($screen->rail('most-watched'));
 
         // Failure clears it.
-        [$cleared] = $screen->update(new MostWatchedFailedMsg('Could not load most watched.'));
+        [$cleared] = $screen->update(new MostWatchedFailedMsg('Could not load the most watched.'));
 
         self::assertNull($cleared->rail('most-watched'));
     }
@@ -689,7 +689,7 @@ final class BrowseScreenTest extends TestCase
     public function testMostWatchedFailedIsIgnoredWhenNoRailPresent(): void
     {
         // A failure with no rail already must not crash or add a rail.
-        [$next] = $this->screen()->update(new MostWatchedFailedMsg('Could not load most watched.'));
+        [$next] = $this->screen()->update(new MostWatchedFailedMsg('Could not load the most watched.'));
 
         self::assertNull($next->rail('most-watched'));
         self::assertSame([], $next->railIds());
@@ -697,9 +697,9 @@ final class BrowseScreenTest extends TestCase
 
     public function testFailedLibrariesShowsError(): void
     {
-        [$next] = $this->screen()->update(new LibrariesFailedMsg('Could not load libraries.'));
+        [$next] = $this->screen()->update(new LibrariesFailedMsg('Could not load the libraries.'));
 
-        self::assertStringContainsString('Could not load libraries.', $next->view());
+        self::assertStringContainsString('Could not load the libraries.', $next->view());
     }
 
     public function testViewRendersPopulatedRail(): void

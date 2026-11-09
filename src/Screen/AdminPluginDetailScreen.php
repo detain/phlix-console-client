@@ -358,7 +358,7 @@ final class AdminPluginDetailScreen implements Breadcrumbed, Themed, HostsTextIn
      */
     private function onSaved(AdminPluginSettingSavedMsg $msg): array
     {
-        return [$this->withDetail($msg->detail), Cmd::send(ShowToastMsg::success('Setting updated.'))];
+        return [$this->withDetail($msg->detail), Cmd::send(ShowToastMsg::success('Setting updated'))];
     }
 
     /** @return array{self, ?\Closure} */

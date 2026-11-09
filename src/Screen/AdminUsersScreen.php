@@ -77,7 +77,7 @@ final class AdminUsersScreen implements Breadcrumbed, Themed, Loadable, Shimmeri
     use ResizesTo;
 
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
-    private const LOAD_FAILED = 'Could not load users.';
+    private const LOAD_FAILED = 'Could not load the users.';
     private const HINT = 'c  create      E  edit      P  profiles      f  filter      a  approve      d  disable      x  delete      j  reject      m  admin      p  reset-pw      r  refresh      Esc  back';
     private const FORM_HINT = 'Tab/↑↓  field      Enter  save      Esc  cancel';
 
@@ -237,7 +237,7 @@ final class AdminUsersScreen implements Breadcrumbed, Themed, Loadable, Shimmeri
 
         return [$this->closeForm()->working(), $this->mutationCmd(
             $this->admin->createUser($username, $email, $password, $isAdmin),
-            'User created.',
+            'User created',
         )];
     }
 
@@ -268,7 +268,7 @@ final class AdminUsersScreen implements Breadcrumbed, Themed, Loadable, Shimmeri
 
         return [$this->closeForm()->working(), $this->mutationCmd(
             $this->admin->updateUser($user->id, $newUsername, $newEmail, $newPassword),
-            'User updated.',
+            'User updated',
         )];
     }
 
@@ -502,7 +502,7 @@ final class AdminUsersScreen implements Breadcrumbed, Themed, Loadable, Shimmeri
 
         $toast = $msg->revealedPassword !== null
             ? ShowToastMsg::success($msg->message)
-            : ShowToastMsg::success($msg->message === '' ? 'Done.' : $msg->message);
+            : ShowToastMsg::success($msg->message === '' ? 'Done' : $msg->message);
 
         return [$next, Cmd::batch(Cmd::send($toast), $this->fetchCmd())];
     }

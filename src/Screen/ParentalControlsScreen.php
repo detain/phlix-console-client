@@ -69,15 +69,15 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed, HostsTextInp
     use ResizesTo;
 
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
-    private const LOAD_FAILED = 'Could not load parental controls.';
+    private const LOAD_FAILED = 'Could not load the parental controls.';
     private const HINT = '←→/Tab  section      ↑↓  select      c  create      E  edit      x  delete      u  update-limits      r  refresh      Esc  back';
     private const FORM_HINT = 'Enter  save      Esc  cancel';
 
     /** @var array<string, string> per-section action hints */
     private const SECTION_HINTS = [
-        'schedules' => 'c create   E edit   x delete',
-        'tags' => 'c create   x delete',
-        'streamLimits' => 'u update-limits',
+        'schedules' => 'c  create      E  edit      x  delete',
+        'tags' => 'c  create      x  delete',
+        'streamLimits' => 'u  update-limits',
     ];
 
     /** Confirmable actions that arm an inline (y/n) prompt before firing. */
@@ -593,7 +593,7 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed, HostsTextInp
     /** @return array{self, ?\Closure} */
     private function onActionDone(ParentalActionDoneMsg $msg): array
     {
-        $toast = ShowToastMsg::success($msg->message === '' ? 'Done.' : $msg->message);
+        $toast = ShowToastMsg::success($msg->message === '' ? 'Done' : $msg->message);
 
         return [$this->working(), Cmd::batch(Cmd::send($toast), $this->fetchCmd($this->section))];
     }
@@ -973,7 +973,7 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed, HostsTextInp
             return '  Working…';
         }
 
-        return '  ' . self::SECTION_HINTS[$this->section] . '   r refresh';
+        return '  ' . self::SECTION_HINTS[$this->section] . '      r  refresh';
     }
 
     private function formBody(Form $form): string

@@ -43,7 +43,7 @@ final class AdminAuthProvidersScreen implements Breadcrumbed, Themed
     use SelectsPrevious;
 
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
-    private const LOAD_FAILED = 'Could not load auth providers.';
+    private const LOAD_FAILED = 'Could not load the auth providers.';
     private const HINT = 'e  toggle      r  refresh      Esc  back';
 
     /** @var list<array{name:string,enabled:bool,configured:bool}> */

@@ -486,7 +486,7 @@ final class AdminUserProfilesScreen implements Breadcrumbed, Themed, HostsTextIn
     /** @return array{self, ?\Closure} */
     private function onActionDone(AdminProfileActionDoneMsg $msg): array
     {
-        $toast = ShowToastMsg::success($msg->message === '' ? 'Done.' : $msg->message);
+        $toast = ShowToastMsg::success($msg->message === '' ? 'Done' : $msg->message);
 
         return [$this->working(), Cmd::batch(Cmd::send($toast), $this->fetchCmd())];
     }

@@ -86,7 +86,7 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed, HostsTextInput
 
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load this section.';
-    private const HINT = 'Tab/←→ section   ↑↓ select   action keys below   r refresh   Esc back';
+    private const HINT = 'Tab/←→  section      ↑↓  select      action keys below      r  refresh      Esc  back';
     private const FORM_HINT = 'Enter  save      Esc  cancel';
 
     /** The edit-form kinds (which target a form's submit drives). */
@@ -96,11 +96,11 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed, HostsTextInput
 
     /** @var array<value-of<LiveTvSection>, string> per-section action hints. */
     private const SECTION_HINTS = [
-        'tuners' => 's scan   e toggle-enabled   E rename   x delete',
-        'channels' => 'e toggle-enabled   E rename',
-        'guide' => 'g refresh-guide   R record   S record-series',
-        'recordings' => 'x delete   u upcoming/all',
-        'rules' => 'E edit   x delete',
+        'tuners' => 's  scan      e  toggle-enabled      E  rename      x  delete',
+        'channels' => 'e  toggle-enabled      E  rename',
+        'guide' => 'g  refresh-guide      R  record      S  record-series',
+        'recordings' => 'x  delete      u  upcoming/all',
+        'rules' => 'E  edit      x  delete',
     ];
 
     private LiveTvSection $section = LiveTvSection::Tuners;

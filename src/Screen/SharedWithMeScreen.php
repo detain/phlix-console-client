@@ -322,9 +322,9 @@ final class SharedWithMeScreen implements Model, Breadcrumbed, Themed
     private function actionSentence(string $action): string
     {
         return match ($action) {
-            'accepted' => 'Share accepted.',
-            'rejected' => 'Share rejected.',
-            default => 'Done.',
+            'accepted' => 'Share accepted',
+            'rejected' => 'Share rejected',
+            default => 'Done',
         };
     }
 

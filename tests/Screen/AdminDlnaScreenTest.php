@@ -149,7 +149,7 @@ final class AdminDlnaScreenTest extends TestCase
         self::assertStringContainsString('http://10.0.0.5:1900/', $view);
         self::assertStringContainsString('Press t to stop', $view);
         // The hint offers stop when running.
-        self::assertStringContainsString('t stop', $view);
+        self::assertStringContainsString('t  stop', $view);
     }
 
     public function testRendersTheStoppedStatusPanel(): void
@@ -159,7 +159,7 @@ final class AdminDlnaScreenTest extends TestCase
         $view = $screen->view();
         self::assertStringContainsString('Stopped', $view);
         self::assertStringContainsString('Press s to start', $view);
-        self::assertStringContainsString('s start', $view);
+        self::assertStringContainsString('s  start', $view);
     }
 
     public function testRendersTheNotConfiguredStatusPanelWithItsMessage(): void
@@ -436,9 +436,9 @@ final class AdminDlnaScreenTest extends TestCase
         $screen = $this->screenWith((new FakeTransport())->json(200, $this->runningPayload()));
 
         $view = $screen->view();
-        self::assertStringContainsString('r refresh', $view);
-        self::assertStringNotContainsString('s start', $view);
-        self::assertStringNotContainsString('t stop', $view);
+        self::assertStringContainsString('r  refresh', $view);
+        self::assertStringNotContainsString('s  start', $view);
+        self::assertStringNotContainsString('t  stop', $view);
     }
 
     public function testCrumbLabelAndWithCrumbsAreImmutable(): void

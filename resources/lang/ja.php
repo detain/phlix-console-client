@@ -17,8 +17,15 @@ declare(strict_types=1);
  */
 
 return [
-    // ---- Auth (session expiry — shared by every surface) ---------
+    // ---- Auth (session expiry + sign-in/register failures — every surface) --
     'auth.session_expired' => 'セッションの有効期限が切れました。もう一度ログインしてください。',
+    'auth.register_taken' => 'このユーザー名はすでに使用されています。別の名前を選んでください。',
+    'auth.register_pending' => 'アカウントは承認待ちです。管理者によって承認されるとサインインできます。',
+    'auth.register_disabled' => 'このサーバーでは現在、登録が無効になっています。',
+    'auth.register_weak_password' => 'パスワードが弱すぎます。より強いパスワードを選んでください。',
+    'auth.register_failed' => '登録に失敗しました。もう一度お試しください。',
+    'auth.signin_failed' => 'サインインできませんでした。もう一度お試しください。',
+    'auth.logout_revoke_failed' => 'サーバー側でサインアウトできませんでした。このデバイスからはサインアウト済みです。',
 
     // ---- Errors (shared failure surface — ExceptionSentences) ------
     'errors.network' => 'サーバーに接続できませんでした。URL と接続を確認してください。',
