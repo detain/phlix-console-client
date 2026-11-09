@@ -5,6 +5,24 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — w13/L8 round-3 review cure (CU-049 dead-key class, one state deeper): the sidebar hint's "H history"/"P playlists" are live from every state that publishes them, and the empty sidebar no longer advertises library movement it cannot serve — 2026-11-09
+
+- **[review w13 L8 DD major / CU-049 round-3]** Round-2's 'a' hoist let the watch-filter cycle lift
+  the favorites rail on a zero-library account; with that rail up the FULL sidebar hint row renders —
+  above `handleSidebarKey`'s empty-sidebar guard, which silenced "H history" and "P playlists" into
+  dead keys (with "↑↓ library"/"⏎ open" advertising movement nothing can serve): the no-dead-keys law
+  re-violated through the cure's own new path. The two user-scoped arms — history and playlists ride
+  the user, not the shelves — are hoisted PRE-ROUTING in `handleKey`, the exact shape of the 'R'
+  cure; the library-specific arms stay behind the guard, and a single-sourced `sidebarHint()` now
+  trims the '↑↓ library ⏎ open' pair whenever the sidebar holds nothing (the M-CONSOLE-71 'Tab rails'
+  precedent, folded into the helper so both hint sites render the same honest row). New tests: 2
+  convictions executed red at the parent (hint-visible/press-inert, advertised-dead-keys) plus the
+  full hint↔key matrix over BOTH rails states (favorites-over-no-libraries × populated) and BOTH
+  focus zones — 3 preservation pins green at parent, the law the cure must not cost a real key.
+  Mutation-killed: un-hoisting convicts both liveness pins, dropping the trim convicts the honesty
+  pin, an unconditional trim convicts the populated matrix. File 69 tests; suite +5 tests/+31
+  assertions measured.
+
 ### Changed — w14/L2 i18n cure (CU-009): the command palette speaks every shipped locale — 23 raw English labels now route through `Lang::t()` with catalog keys across all 7 locales — 2026-11-09
 
 - **[review console__copywriter / CU-009]** `App::staticActions()` built every palette entry

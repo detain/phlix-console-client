@@ -242,8 +242,8 @@ final class BrowseScreen implements Breadcrumbed, Themed
 
         if (!$railsVisible) {
             $body = $this->sidebar->render($this->contentHeight());
-            // Same hint minus the key that no longer leads anywhere.
-            $hint = str_replace('      Tab  rails', '', self::SIDEBAR_HINT);
+            // Same hint minus every key that state no longer reaches.
+            $hint = $this->sidebarHint();
 
             return Chrome::frame('Browse', $body, $hint, $this->cols, $this->rows, $this->crumbs, $this->theme());
         }
@@ -263,7 +263,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
         $railsBody = $blocks === [] ? '' : Layout::joinVerticalWithSpacing(0.0, 1, ...$blocks);
         $body = Layout::joinHorizontalWithSpacing(0.0, self::SIDEBAR_GAP, $this->sidebar->render($this->contentHeight()), $railsBody);
 
-        return Chrome::frame('Browse', $body, $railsFocused ? $this->railsHint() : self::SIDEBAR_HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
+        return Chrome::frame('Browse', $body, $railsFocused ? $this->railsHint() : $this->sidebarHint(), $this->cols, $this->rows, $this->crumbs, $this->theme());
     }
 
     // ---- data loading --------------------------------------------------
@@ -610,6 +610,22 @@ final class BrowseScreen implements Breadcrumbed, Themed
             return [$next, Cmd::batch($next->fetchContinueWatching(), $next->fetchMostWatched(), $next->fetchNextUp(), $next->fetchLibraries())];
         }
 
+        // 'H'/'P' → watch history / playlists. Like 'R' above, these ride the
+        // USER and not the library shelves, so they are focus- and state-
+        // independent BY LAW [CU-049 round-3, review w13 L8 DD major]: the
+        // sidebar hint row publishes "H history  P playlists" wherever it
+        // renders — and once the hoisted 'a' cycle lifts a favorites rail over
+        // zero libraries, that hint row renders above the empty-sidebar guard
+        // that used to silence both keys. A hint that lies about a key is
+        // worse than no hint at all; the arms move out front, the guard keeps
+        // only what genuinely needs library entries.
+        if ($msg->type === KeyType::Char && ($msg->rune === 'h' || $msg->rune === 'H')) {
+            return [$this, Cmd::send(new OpenWatchHistoryMsg())];
+        }
+        if ($msg->type === KeyType::Char && ($msg->rune === 'p' || $msg->rune === 'P')) {
+            return [$this, Cmd::send(new OpenPlaylistsMsg())];
+        }
+
         return $this->focus->isFocused(self::SIDEBAR) || !$this->railsFit()
             ? $this->handleSidebarKey($msg)
             : $this->handleRailsKey($msg);
@@ -618,6 +634,9 @@ final class BrowseScreen implements Breadcrumbed, Themed
     /** @return array{self, ?\Closure} */
     private function handleSidebarKey(KeyMsg $msg): array
     {
+        // The guard silences the LIBRARY-SPECIFIC arms only. H/P live pre-
+        // routing in handleKey now [CU-049 round-3], and the view never
+        // advertises what stays behind this guard (see sidebarHint()).
         if ($this->sidebar->isEmpty()) {
             return [$this, null];
         }
@@ -629,14 +648,6 @@ final class BrowseScreen implements Breadcrumbed, Themed
         }
         if ($msg->type === KeyType::Enter) {
             return $this->openLibrary($this->sidebar->selectedId());
-        }
-        // H → open watch history
-        if ($msg->type === KeyType::Char && ($msg->rune === 'h' || $msg->rune === 'H')) {
-            return [$this, Cmd::send(new OpenWatchHistoryMsg())];
-        }
-        // P → open playlists
-        if ($msg->type === KeyType::Char && ($msg->rune === 'p' || $msg->rune === 'P')) {
-            return [$this, Cmd::send(new OpenPlaylistsMsg())];
         }
 
         return [$this, null];
@@ -962,6 +973,30 @@ final class BrowseScreen implements Breadcrumbed, Themed
     private function displayName(): string
     {
         return $this->user->displayName !== '' ? $this->user->displayName : $this->user->username;
+    }
+
+    /**
+     * The sidebar-focus hint row, minus every key the CURRENT state silences
+     * [review w13 L8 round-3, the no-dead-keys law]. Two honest trims:
+     * 'Tab rails' when the rails collapse below the join threshold
+     * (M-CONSOLE-71 — the original str_replace site, now single-sourced), and
+     * the 'library'/'open' pair when the sidebar holds nothing to move over.
+     * 'H'/'P' stay advertised unconditionally because their arms live
+     * pre-routing now; 'a'/'R' likewise never appear in THIS hint.
+     */
+    private function sidebarHint(): string
+    {
+        $hint = self::SIDEBAR_HINT;
+
+        if (!$this->railsFit()) {
+            $hint = str_replace('      Tab  rails', '', $hint);
+        }
+
+        if ($this->sidebar->isEmpty()) {
+            $hint = str_replace('↑↓  library      ⏎  open      ', '', $hint);
+        }
+
+        return $hint;
     }
 
     /** Build the rails-region hint, including the current watch-filter label. */

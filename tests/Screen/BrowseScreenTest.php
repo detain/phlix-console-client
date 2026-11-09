@@ -19,6 +19,8 @@ use Phlix\Console\Msg\LibraryMediaLoadedMsg;
 use Phlix\Console\Msg\MostWatchedFailedMsg;
 use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\OpenLibraryMsg;
+use Phlix\Console\Msg\OpenPlaylistsMsg;
+use Phlix\Console\Msg\OpenWatchHistoryMsg;
 use Phlix\Console\Msg\PosterLoadedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Screen\BrowseScreen;
@@ -58,7 +60,7 @@ final class BrowseScreenTest extends TestCase
         return $this->screenWith(new FakeTransport());
     }
 
-    private function screenWith(FakeTransport $transport, ?PosterLoader $posters = null, string $base = 'https://srv'): BrowseScreen
+    private function screenWith(FakeTransport $transport, ?PosterLoader $posters = null, string $base = 'https://srv', int $cols = 120): BrowseScreen
     {
         $api = new ApiClient($base, $transport);
 
@@ -69,7 +71,7 @@ final class BrowseScreenTest extends TestCase
             new FavoritesStore($api),
             $posters ?? new PosterLoader(Mosaic::halfBlock()),
             $base,
-            cols: 120,
+            cols: $cols,
             rows: 40,
         );
     }
@@ -231,6 +233,154 @@ final class BrowseScreenTest extends TestCase
 
         self::assertSame(1, $transport->requestCount(), 'only the Favorites step queries');
         self::assertSame(['favorites'], $screen->railIds(), 'the filter cycle recovers content even with zero libraries');
+    }
+
+    // ---- CU-049 round-3: the hint row never lies, in ANY rails state -------
+    // [review w13 L8 DD major] Round-2's 'a' hoist made the favorites rail
+    // liftable over zero libraries; with that rail up, the FULL sidebar hint
+    // row renders — above the empty-sidebar guard that silenced H and P into
+    // dead keys. Same law as the 'R' fold, one state deeper: every key the
+    // published hint advertises must reach, in both rails states (favorites
+    // over no libraries × populated libraries) and both focus zones.
+
+    /** Favorites raised via the real 'a' cycle over a zero-library account. */
+    private function favoritesRaisedOverZeroLibraries(int $cols = 120): BrowseScreen
+    {
+        $transport = (new FakeTransport())->json(200, [
+            'items' => [['id' => 'f1', 'name' => 'F', 'type' => 'movie', 'poster_url' => null]],
+            'total' => 1,
+            'limit' => 18,
+            'offset' => 0,
+        ]);
+        [$screen] = $this->screenWith($transport, cols: $cols)->update(new LibrariesLoadedMsg([]));
+        [$screen] = $screen->update(new KeyMsg(KeyType::Char, 'a')); // All → Watched
+        [$screen] = $screen->update(new KeyMsg(KeyType::Char, 'a')); // Watched → Unwatched
+        [$screen, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'a')); // → Favorites
+        self::assertInstanceOf(\Closure::class, $cmd, 'the cycle reached its fetching step');
+
+        foreach ($this->runBatch($cmd) as $msg) {
+            [$screen] = $screen->update($msg);
+        }
+
+        self::assertSame(['favorites'], $screen->railIds(), 'the rail the conviction state needs');
+
+        return $screen;
+    }
+
+    public function testHistoryAndPlaylistsKeysAreLiveOverAFavoritesRailWithNoLibraries(): void
+    {
+        // THE CONVICTION TEST: hint visible, keys advertised, press inert.
+        $screen = $this->favoritesRaisedOverZeroLibraries();
+        [$screen] = $screen->update(new KeyMsg(KeyType::Tab)); // focus the empty sidebar
+
+        self::assertTrue($screen->sidebar()->isEmpty(), 'the guard state the round-2 fold created');
+        $view = $screen->view();
+        self::assertStringContainsString('H  history', $view, 'the hint row advertises H here');
+        self::assertStringContainsString('P  playlists', $view, '…and P');
+
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'h'));
+        self::assertInstanceOf(
+            OpenWatchHistoryMsg::class,
+            $cmd?->__invoke(),
+            'the advertised "H  history" must reach, not die behind the empty-sidebar guard',
+        );
+
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'P'));
+        self::assertInstanceOf(
+            OpenPlaylistsMsg::class,
+            $cmd?->__invoke(),
+            'the advertised "P  playlists" likewise — both ride the user, not the shelves',
+        );
+    }
+
+    public function testEmptySidebarNeverAdvertisesLibraryMovementOrOpen(): void
+    {
+        // The arms that legitimately stay behind the guard (library Up/Down/
+        // Enter — there is nothing to move over) must be TRIMMED from the
+        // published hint, the same honesty the M-CONSOLE-71 Tab trim ships.
+        $screen = $this->favoritesRaisedOverZeroLibraries();
+        [$screen] = $screen->update(new KeyMsg(KeyType::Tab));
+
+        $view = $screen->view();
+
+        self::assertStringNotContainsString('↑↓  library', $view, 'no entries, no advertised movement');
+        self::assertStringNotContainsString('⏎  open', $view, 'nothing selected, no advertised open');
+        self::assertStringContainsString('Tab  rails', $view, 'Tab still fits and still toggles at 120 cols');
+        self::assertStringContainsString('q  quit', $view, 'the escape stays published');
+    }
+
+    public function testPopulatedSidebarAdvertisesAndDeliversEveryKey(): void
+    {
+        // The full-matrix counterpart: with libraries loaded, every token of
+        // the untrimmed hint must be live (the cure may not cost a real key).
+        $screen = $this->screen()->update(new LibrariesLoadedMsg([
+            $this->library('lib-a', 'Movies'),
+            $this->library('lib-b', 'TV'),
+        ]))[0];
+        [$screen] = $screen->update(new KeyMsg(KeyType::Tab));
+
+        $view = $screen->view();
+        self::assertStringContainsString('↑↓  library', $view);
+        self::assertStringContainsString('⏎  open', $view);
+        self::assertStringContainsString('H  history', $view);
+        self::assertStringContainsString('P  playlists', $view);
+
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'h'));
+        self::assertInstanceOf(OpenWatchHistoryMsg::class, $cmd?->__invoke());
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'p'));
+        self::assertInstanceOf(OpenPlaylistsMsg::class, $cmd?->__invoke());
+
+        [$moved] = $screen->update(new KeyMsg(KeyType::Down));
+        self::assertSame('lib-b', $moved->sidebar()->selectedId(), 'the advertised ↑↓ arms move');
+
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Enter));
+        self::assertInstanceOf(OpenLibraryMsg::class, $cmd?->__invoke(), 'the advertised ⏎ opens');
+    }
+
+    public function testPopulatedRailsFocusDeliversAAndRAndMovement(): void
+    {
+        // 168 cols: the rails hint is long, and Chrome's fitHint law drops
+        // whole words from the middle at narrower widths (its own suite pins
+        // that) — the FULL published row is what these liveness claims test.
+        $screen = $this->screenWith(new FakeTransport(), cols: 168)->update(new LibrariesLoadedMsg([
+            $this->library('lib-a', 'Movies'),
+            $this->library('lib-b', 'TV'),
+        ]))[0]; // rails focus by default
+
+        $view = $screen->view();
+        self::assertStringContainsString('a  filter(All)', $view);
+        self::assertStringContainsString('R  refresh', $view);
+
+        [$next, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'a'));
+        self::assertNull($cmd, 'the Watched step is a pure state move');
+        self::assertStringContainsString('a  filter(Watched)', $next->view(), '…and the state visibly moves');
+
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'R'));
+        self::assertInstanceOf(\Closure::class, $cmd, 'the advertised R re-fetches');
+
+        [$next] = $screen->update(new KeyMsg(KeyType::Down));
+        self::assertSame(1, $next->railCursor(), 'the advertised ↑↓ arms move rails');
+    }
+
+    public function testFavoritesFocusDeliversAAndRAndMovesOnToTheHonestEmptyState(): void
+    {
+        // The sibling state of the conviction: same favorites rail, focus
+        // still on it. Its hint advertises a/R; cycling off Favorites empties
+        // the rails, and the view falls back to the honest empty-state hint
+        // whose own keys (R/q) stay live — no new advertised-dead state.
+        $screen = $this->favoritesRaisedOverZeroLibraries(cols: 168);
+
+        $view = $screen->view();
+        self::assertStringContainsString('a  filter(♥ Favorites)', $view);
+        self::assertStringContainsString('R  refresh', $view);
+
+        [, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'R'));
+        self::assertInstanceOf(\Closure::class, $cmd);
+
+        [$next, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'a'));
+        self::assertNull($cmd);
+        self::assertSame([], $next->railIds(), 'cycling off Favorites clears the lifted rail');
+        self::assertStringContainsString('R  refresh', $next->view(), 'the empty-state hint, whose keys are live by the round-2 fold');
     }
 
     public function testLibrariesLoadedCreatesEmptyRailsAndFetchesMedia(): void
