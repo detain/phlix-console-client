@@ -17,6 +17,11 @@
  * surface. Here the docs surface is README.md's feature intro (title through
  * "## Requirements"), so a palette action added to or renamed in App.php
  * reddens this suite until the intro enumerates it in the same change.
+ * Post-CU-009 the labels ship as `Lang::t('palette.<name>')` keys whose
+ * English catalog values are the words the intro already names, so the walk
+ * reads each key under that same label-key law and resolves it through
+ * resources/lang/en.php — the guard tests the label the user actually sees,
+ * whichever shape the code carries.
  */
 
 declare(strict_types=1);
@@ -157,16 +162,24 @@ final class ReadmeFeatureIntroDocsTest extends TestCase
     }
 
     /**
-     * Literal first-argument strings of every `new PaletteAction(` in App
-     * (both ternary arms included); per ScreenInventoryDocsTest, whose
-     * token walk this mirrors so the census cannot drift between the two
-     * docs surfaces.
+     * The user-visible label behind every `new PaletteAction(` in App under
+     * the CU-009 label-key law: each first-argument `Lang::t('palette.<name>')`
+     * key (both ternary arms included) resolves to its shipped English value
+     * in resources/lang/en.php, and the library jump contributes that value
+     * with its placeholder stripped — the same resolution
+     * ScreenInventoryDocsTest applies to the manual's Command palette row.
+     * A raw literal sitting directly at the label boundary (the pre-CU-009
+     * shape, or a planted untranslated one) is still collected verbatim, so
+     * it must be named by the intro too. The `Lang::t` detection mirrors
+     * ScreenInventoryDocsTest's token walk so the census cannot drift
+     * between the two docs surfaces.
      *
      * @return list<string>
      */
     private static function extractPaletteActionLabels(): array
     {
         $tokens = token_get_all(self::readRepoFile(self::APP_SOURCE));
+        $english = require __DIR__ . '/../../resources/lang/en.php';
         $labels = [];
         $count = count($tokens);
 
@@ -186,8 +199,11 @@ final class ReadmeFeatureIntroDocsTest extends TestCase
                 continue;
             }
 
-            // Collect string literals up to the first top-level comma
-            // (the label-argument boundary); ternary labels yield both arms.
+            // Walk from the opening paren (depth 0 until it is consumed),
+            // up to the first top-level comma (the label-argument boundary).
+            // The walk is depth-aware: a direct literal sits at depth 1, a
+            // CU-009 label nests its key inside `Lang::t(` one level deeper,
+            // and the go_to arm's params array must never be scooped.
             $depth = 0;
             for ($cursor = $index + 1; $cursor < $count; $cursor++) {
                 $current = $tokens[$cursor];
@@ -209,9 +225,43 @@ final class ReadmeFeatureIntroDocsTest extends TestCase
                     break;
                 }
 
-                if (is_array($current) && $current[0] === T_CONSTANT_ENCAPSED_STRING) {
+                if (is_array($current) && $current[0] === T_CONSTANT_ENCAPSED_STRING && $depth === 1) {
                     $labels[] = trim(substr($current[1], 1, -1));
+                    continue;
                 }
+
+                if (!is_array($current) || $current[0] !== T_STRING || $current[1] !== 't') {
+                    continue;
+                }
+
+                $owner = self::previousSignificant($tokens, $cursor);
+                if (!is_array($owner) || $owner[0] !== T_DOUBLE_COLON) {
+                    continue;
+                }
+
+                $ownerIndex = self::previousSignificantIndex($tokens, $cursor);
+                $namespace = $ownerIndex === null ? null : self::previousSignificant($tokens, $ownerIndex);
+                if (!is_array($namespace) || $namespace[0] !== T_STRING || $namespace[1] !== 'Lang') {
+                    continue;
+                }
+
+                $callOpenIndex = self::nextSignificantIndex($tokens, $cursor);
+                if ($callOpenIndex === null || $tokens[$callOpenIndex] !== '(') {
+                    continue;
+                }
+
+                $keyToken = self::nextSignificant($tokens, $callOpenIndex);
+                if (!is_array($keyToken) || $keyToken[0] !== T_CONSTANT_ENCAPSED_STRING) {
+                    continue;
+                }
+
+                $key = trim(substr($keyToken[1], 1, -1));
+                $label = (string) ($english[$key] ?? $key);
+                if (str_ends_with($label, ' {name}')) {
+                    $label = rtrim(substr($label, 0, -strlen(' {name}')));
+                }
+
+                $labels[] = $label;
             }
         }
 
@@ -232,6 +282,37 @@ final class ReadmeFeatureIntroDocsTest extends TestCase
         }
 
         return '';
+    }
+
+    /** Index of the next non-trivia token after $index, or null at EOF. */
+    private static function nextSignificantIndex(array $tokens, int $index): ?int
+    {
+        $count = count($tokens);
+        for ($cursor = $index + 1; $cursor < $count; $cursor++) {
+            $token = $tokens[$cursor];
+            if (is_array($token) && in_array($token[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true)) {
+                continue;
+            }
+
+            return $cursor;
+        }
+
+        return null;
+    }
+
+    /** Index of the previous non-trivia token before $index, or null at BOF. */
+    private static function previousSignificantIndex(array $tokens, int $index): ?int
+    {
+        for ($cursor = $index - 1; $cursor >= 0; $cursor--) {
+            $token = $tokens[$cursor];
+            if (is_array($token) && in_array($token[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true)) {
+                continue;
+            }
+
+            return $cursor;
+        }
+
+        return null;
     }
 
     /** @param list<array{0:int,1:string}|string> $tokens */

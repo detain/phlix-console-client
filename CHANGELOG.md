@@ -5,6 +5,25 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — w14/L2 completion (CU-009 docs-pin adjudication): the two doc gates the palette i18n left behind now read the shipped label-key law — 2026-11-09
+
+- **[CU-009 follow-up]** The palette i18n rotated all 23 labels to `Lang::t('palette.<name>')`
+  keys whose en-catalog values are byte-identical to the words the docs already promise — no
+  user-visible label moved — but two docs guards still parsed the PRE-change code shape and landed
+  red standalone (executed at 3826760, pristine probe): `ReadmeFeatureIntroDocsTest` collected raw
+  label literals and post-rotation scooped the 23 translation keys plus the go_to params array's
+  `'name'` as labels (24 false absences against an intro that already names every shipped label),
+  and `CollectionsClaimsDocsTest` matched the raw `metricsVisible ? 'Hide metrics' : 'Show
+  metrics'` literal for the Stats row. Adjudication: the stale side is the PINS, not the docs. The
+  README-intro walk now follows the same label-key law its sibling census adopted in the palette
+  commit — reading each `Lang::t` call site's key and resolving it through `resources/lang/en.php`
+  (go_to placeholder stripped exactly as the Screens-table check strips it) — while a raw literal
+  at the label boundary stays collected verbatim, so a planted untranslated label convicts in BOTH
+  docs surfaces (mutation M1). The Stats-row pin matches the shipped ternary over the keys (M3) AND
+  pins the en-catalog values behind them (M4), so a relabel reddens with the row text instead of
+  silently stranding it — and relabelling any palette key reddens the intro guard (M2), a check the
+  raw-literal era could not express. Docs/README prose untouched; enforcement shapes preserved.
+
 ### Fixed — w13/L8 round-3 review cure (CU-049 dead-key class, one state deeper): the sidebar hint's "H history"/"P playlists" are live from every state that publishes them, and the empty sidebar no longer advertises library movement it cannot serve — 2026-11-09
 
 - **[review w13 L8 DD major / CU-049 round-3]** Round-2's 'a' hoist let the watch-filter cycle lift

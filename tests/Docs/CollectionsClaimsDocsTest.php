@@ -265,8 +265,28 @@ final class CollectionsClaimsDocsTest extends TestCase
         );
         self::assertSame(
             1,
-            preg_match('/metricsVisible \? \'Hide metrics\' : \'Show metrics\'/', $app),
+            preg_match(
+                '/metricsVisible \? Lang::t\(\'palette\.hide_metrics\'\)'
+                . ' : Lang::t\(\'palette\.show_metrics\'\)/',
+                $app
+            ),
             'The Stats row points the HUD at the palette Show/Hide metrics toggle; that action moved.'
+        );
+        // CU-009 moved the toggle's labels behind catalog keys while the row
+        // still promises the Show/Hide English words; pin the en-catalog
+        // values the keys resolve to, so a relabel reddens WITH the row text
+        // instead of silently stranding it (the raw-label pin did this by
+        // construction — the key shape only preserves the wiring).
+        $english = require __DIR__ . '/../../resources/lang/en.php';
+        self::assertSame(
+            'Hide metrics',
+            $english['palette.hide_metrics'] ?? null,
+            'The Stats row promises the HUD-off arm reads "Hide metrics"; the palette no longer renders it.'
+        );
+        self::assertSame(
+            'Show metrics',
+            $english['palette.show_metrics'] ?? null,
+            'The Stats row promises the HUD-on arm reads "Show metrics"; the palette no longer renders it.'
         );
     }
 
