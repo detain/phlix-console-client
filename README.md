@@ -463,10 +463,13 @@ vendor/bin/phpunit   # or: composer test
 
 The video-decode test self-skips when `ffmpeg` is unavailable; the poster test
 synthesizes its own image with `gd`, so no binary fixtures ever need to be
-downloaded. The suite does carry one vendored text fixture:
+downloaded. The suite does carry two vendored text fixtures:
 `tests/fixtures/server-route-manifest.json`, the byte-for-byte server route
 manifest that `tests/Unit/Api/ServerRouteManifestGateTest.php` checks every
-wire URL against.
+wire URL against, and `tests/fixtures/contracts-error-codes.json`, the
+byte-for-byte `@phlix/contracts` error-code registry that
+`tests/Unit/Api/ContractsErrorCodesGateTest.php` pins the SyncPlay wire-code
+map against.
 
 ## Static analysis
 

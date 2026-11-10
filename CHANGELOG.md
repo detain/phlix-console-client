@@ -5,6 +5,28 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — LW-090-b [w21/L2] console error-code registry gate: the SyncPlay wire-code map is now byte-anchored to the shipped contracts registry — the cascade trio's unpinned half — 2026-11-09
+
+- **The missing pin.** The route-manifest half of the contracts trio has been gated since S405
+  (`ServerRouteManifestGateTest`, md5 pin `90b79e35…`), but the console never vendored the error-code
+  registry: `SyncPlayErrors::CODE_KEYS` carried 20 wire codes (8 dotted `syncplay.*` + 12 SCREAMING
+  carriers) with no live pin to `@phlix/contracts` `dist/error-codes.json` — a registry move or a
+  dropped mapping would silently rot `localize()`. Verified at this wave: the shipped route-manifest
+  fixture is byte-identical to the v0.5.7 artifact (zero re-vendor owed; the v0.5.7 release itself
+  holds the trio byte-identical).
+- **The gate.** New `tests/fixtures/contracts-error-codes.json` — byte-for-byte copy of the registry at
+  tag v0.5.7 (md5 `5d1783a71a3c4e128b2021327cad3717`, 205 codes) — and `tests/Unit/Api/
+  ContractsErrorCodesGateTest.php`, five laws: fixture md5/integrity, set-equality of the registry
+  `syncplay.*` family with the console's dotted codes, containment of the SCREAMING carriers inside the
+  registry, behavioral `localize()` resolution of every mapped code (no prose fallback, no empty, no raw
+  `phlix.*` key render), and a planted-probe non-vacuity control. Each law was convicted red-first in a
+  clean clone at parent `b24addcf`: fixture byte-drift → integrity alone; dropped dotted row → equality
+  alone; bogus catalog key → behavior alone; registry-side added code → integrity + equality; invented
+  carrier → containment alone. README Test section now names both vendored fixtures.
+- **Measured figures.** Full suite parent 3720 tests / 25023 assertions / 16 skipped (exit 0) → tip
+  3725 / 25035 / 16: exactly **+5 tests / +12 assertions**, all from the new gate. PHPStan both configs
+  `[OK]`; PHPCS bare PSR-12 and the repo tests config rc=0 on the new file. No locale files touched.
+
 ### Fixed — w13/L8 round-6 review cure (four minors, one law, four states deeper): stale-cursor favorites render, cycling off re-raises the shelves, and both hint rows publish per-key truth — 2026-11-09
 
 - **[review w13L8 round-5, minors 1-4]** Four residuals of the same hint-honesty family, cured together and
