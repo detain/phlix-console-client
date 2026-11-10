@@ -1252,7 +1252,6 @@ final class App implements Model
             new PaletteAction(Lang::t('palette.search'), new OpenSearchMsg()),
             new PaletteAction(Lang::t('palette.home'), new GoHomeMsg()),
             new PaletteAction(Lang::t('palette.settings'), new OpenSettingsMsg()),
-            new PaletteAction(Lang::t('palette.stats'), new OpenStatsMsg()),
             new PaletteAction(Lang::t('palette.watch_history'), new OpenWatchHistoryMsg()),
             new PaletteAction(Lang::t('palette.favorites'), new OpenFavoritesMsg()),
             new PaletteAction(Lang::t('palette.photos'), new OpenPhotosMsg()),
@@ -1270,10 +1269,14 @@ final class App implements Model
                 new ToggleMetricsMsg()
             ),
         ];
-        // The admin area is offered ONLY to an admin user — the gate is the
-        // restored/current user's is_admin flag. A non-admin (or logged-out) palette
-        // never sees it.
+        // The admin-only screens are offered ONLY to an admin user — the gate is
+        // the restored/current user's is_admin flag. A non-admin (or logged-out)
+        // palette never sees them. [review console__enduser #3, CU-021] Stats
+        // joined Admin here: its data comes from /api/v1/admin/stats/* through
+        // AdminClient, so advertising it to every member promised a screen their
+        // account could never load (a guaranteed error toast).
         if ($this->auth->currentUser()?->isAdmin === true) {
+            $actions[] = new PaletteAction(Lang::t('palette.stats'), new OpenStatsMsg());
             $actions[] = new PaletteAction(Lang::t('palette.admin'), new OpenAdminMsg());
         }
         // Playback controls are universal (no key conflict) — surfaced in the
@@ -1892,10 +1895,10 @@ final class App implements Model
     /** @return array{App, ?\Closure} */
     private function openStats(): array
     {
-        // The stats panel aggregates the libraries the App already fetches, so it
-        // reuses the App's LibrariesStore (the same cache the browse home + palette
-        // use) — no new store instance.
-        $screen = new StatsScreen(new AdminClient($this->api));
+        // Server statistics come from the admin stats API via AdminClient [CU-021:
+        // review console__enduser #3] — the palette only offers this screen to admin
+        // accounts, mirroring the Admin action's is_admin gate.
+        $screen = new StatsScreen(new AdminClient($this->api), $this->cols, $this->rows);
 
         return [$this->push(Route::Stats, $screen), $screen->init()];
     }

@@ -29,10 +29,11 @@ What it does once connected:
   client** for server upkeep.
 
 The command palette is the one keypress to all of it — **Search**, **Home**,
-**Settings**, **Stats**, **Watch History**, **Favorites**, **Photos**,
+**Settings**, **Watch History**, **Favorites**, **Photos**,
 **Music Artists**, **Playlists**, **Collections**, **Servers**,
 **Shared With Me**, **Invite Links**, **Federation Shares**,
-**Show metrics** / **Hide metrics**, **Admin** (admins only),
+**Show metrics** / **Hide metrics**, **Stats** and **Admin** (admins only —
+Stats reads the admin stats API),
 **Resume playback** / **Pause playback** / **Stop playback** (while a
 music or audiobook session is live), **Sign out** and **Quit** — plus a
 **Go to <library>** jump per library.
@@ -214,11 +215,12 @@ and playlists. The manual's [Watching & ratings](docs/clients/console.md#watchin
 section covers the loop in full.
 
 The command palette (`Ctrl-K` or `:`) is the universal navigator: **Search**,
-**Home**, **Settings** (theme + slideshow interval), the read-only **Stats**
-screen, **Watch History**, **Favorites**, **Photos**, **Music Artists**,
+**Home**, **Settings** (theme + slideshow interval), **Watch History**,
+**Favorites**, **Photos**, **Music Artists**,
 **Playlists**, **Collections**, **Servers**, **Shared With Me**, **Invite
 Links**, **Federation Shares**, **Show metrics** / **Hide metrics**, **Sign out**,
-**Quit** — plus a `Go to <library>` jump per library, the **Admin** menu
+**Quit** — plus a `Go to <library>` jump per library, the read-only **Stats**
+screen and the **Admin** menu
 when you're signed in as an admin (see *Status* below), and **Resume
 playback** / **Pause playback** and **Stop playback** while a music or
 audiobook session is live. Every live screen is listed with how to reach
@@ -355,10 +357,10 @@ compatibility.
 > — transient top-right notifications that surface errors
 > which used to fail silently. The palette has since grown into the client's
 > universal navigator, registered screen-by-screen in `src/App.php`: **Search**,
-> **Home**, **Settings**, **Stats**, **Watch History**, **Favorites**,
+> **Home**, **Settings**, **Watch History**, **Favorites**,
 > **Photos**, **Music Artists**, **Playlists**, **Collections**, **Servers**,
 > **Shared With Me**, **Invite Links**, **Federation Shares**, **Show metrics**
-> / **Hide metrics**, **Admin** (offered only while signed in as an admin),
+> / **Hide metrics**, **Stats** and **Admin** (offered only while signed in as an admin),
 > **Resume playback** / **Pause playback** and **Stop playback** (while a music
 > or audiobook session is live), **Sign out**, and **Quit** — plus a `Go to
 > <library>` jump per library. The same list, with what each action opens, is
@@ -390,7 +392,7 @@ compatibility.
 > stays ([Accessibility and basic terminals](docs/clients/console.md#accessibility-and-basic-terminals)). A persistent **Now-Playing bar** spans
 > every screen so music and audiobook audio keeps playing (and stays controllable)
 > as you navigate; the palette also toggles a diagnostic **metrics HUD** overlay
-> and opens a read-only **Stats** screen, and lists load behind **animated shimmer
+> and (for admin accounts) opens a read-only **Stats** screen, and lists load behind **animated shimmer
 > skeletons**.
 >
 > **Full admin parity plus casting** (the **Admin** action appears in

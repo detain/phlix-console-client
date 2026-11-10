@@ -59,9 +59,11 @@ final class CollectionsClaimsDocsTest extends TestCase
         'Series' => 'Not a screen of its own — `Enter` on a series opens nested **Detail** screens'
             . ' in container mode: a seasons grid, then each season\'s episodes grid,'
             . ' with breadcrumbs tracking the drill-down',
-        'Stats' => 'Read-only server statistics screen — counts and health reported by the server'
-            . ' via the admin API; the live metrics HUD is separate, toggled by the palette\'s'
-            . ' Show/Hide metrics actions',
+        'Stats' => 'Read-only server statistics screen — admin accounts only: the palette gates it behind'
+            . ' the same `is_admin` check as **Admin**, since the data comes from the server\'s admin stats'
+            . ' API. Playback totals and storage snapshot sums render in the shared chrome with humanized'
+            . ' byte counts; a failed fetch shows its reason in the frame with `r` to retry. The live'
+            . ' metrics HUD is separate, toggled by the palette\'s Show/Hide metrics actions',
     ];
 
     /**

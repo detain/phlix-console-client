@@ -1469,7 +1469,10 @@ final class AppTest extends TestCase
         self::assertNotNull($next->palette());
         self::assertInstanceOf(\Closure::class, $cmd, 'opening fires the libraries fetch');
         $labels = array_map(static fn ($a): string => $a->label, $next->palette()->actions());
-        self::assertSame(['Search', 'Home', 'Settings', 'Stats', 'Watch History', 'Favorites', 'Photos', 'Music Artists', 'Playlists', 'Collections', 'Servers', 'Shared With Me', 'Invite Links', 'Federation Shares', 'Show metrics', 'Sign out', 'Quit'], $labels);
+        // [CU-021: review console__enduser #3] Stats no longer sits in the unconditional
+        // head list — it reads the admin stats API, so it hangs off the is_admin block
+        // with Admin (see testThePaletteOffersStatsOnlyToAnAdminUser).
+        self::assertSame(['Search', 'Home', 'Settings', 'Watch History', 'Favorites', 'Photos', 'Music Artists', 'Playlists', 'Collections', 'Servers', 'Shared With Me', 'Invite Links', 'Federation Shares', 'Show metrics', 'Sign out', 'Quit'], $labels);
     }
 
     public function testCtrlKTogglesThePaletteClosed(): void
@@ -2101,12 +2104,28 @@ final class AppTest extends TestCase
 
     // ---- stats -----------------------------------------------------------
 
-    public function testTheStaticPaletteActionsIncludeStats(): void
+    // [CU-021: review console__enduser #3] Stats left the unconditional head list for
+    // the is_admin block (its data comes from the admin stats API) — the same gate
+    // pair the Admin action carries.
+    public function testThePaletteOffersStatsOnlyToAnAdminUser(): void
     {
-        [$open] = $this->paletteApp()->update($this->ctrlK());
-
+        [$adminApp] = $this->appWithAdminUser(true);
+        [$open] = $adminApp->update($this->ctrlK());
         $labels = array_map(static fn ($a): string => $a->label, $open->palette()->actions());
-        self::assertContains('Stats', $labels, 'the command palette offers a Stats action');
+        self::assertContains('Stats', $labels, 'an admin sees the Stats action');
+        self::assertSame(
+            array_search('Admin', $labels, true) - 1,
+            array_search('Stats', $labels, true),
+            'Stats parks in the admin block directly before Admin'
+        );
+    }
+
+    public function testThePaletteHidesStatsFromANonAdminUser(): void
+    {
+        [$plainApp] = $this->appWithAdminUser(false);
+        [$open] = $plainApp->update($this->ctrlK());
+        $labels = array_map(static fn ($a): string => $a->label, $open->palette()->actions());
+        self::assertNotContains('Stats', $labels, 'a member is never offered a screen their account cannot load');
     }
 
     public function testOpenStatsPushesTheStatsScreenWithAFetchCmd(): void

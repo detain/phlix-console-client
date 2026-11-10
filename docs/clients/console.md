@@ -630,10 +630,10 @@ without moving it, and a screen's own keys are consolidated under
 | **Player** | In-terminal video player with scrubber and controls |
 | **Cast** | Casting target list — Chromecast/DLNA/AirPlay/Roku — opened with `C` on a detail screen (works on streamable items) |
 | **Search** | Global debounced search over virtualized results grid |
-| **Command palette** | Fuzzy-ranked actions: Search, Home, Settings, Stats, Watch History, Favorites, Photos, Music Artists, Playlists, Collections, Servers, Shared With Me, Invite Links, Federation Shares, Show metrics / Hide metrics, Sign out, Quit — plus a `Go to <library>` jump per library, Admin when signed in as an admin, and Resume playback / Pause playback and Stop playback while a music or audiobook session is live |
+| **Command palette** | Fuzzy-ranked actions: Search, Home, Settings, Watch History, Favorites, Photos, Music Artists, Playlists, Collections, Servers, Shared With Me, Invite Links, Federation Shares, Show metrics / Hide metrics, Sign out, Quit — plus a `Go to <library>` jump per library, Stats and Admin when signed in as an admin, and Resume playback / Pause playback and Stop playback while a music or audiobook session is live |
 | **Admin** | Admin menu over the server: dashboard, users, auth providers, backups, plugins (install / catalog / edit / updates), logs, metrics, server settings, transcoding, libraries, filesystem, DLNA, port-forward candidates, server restart, live TV, parental profiles and controls, watch history, webhooks, duplicates |
 | **Settings** | Theme selection, photo slideshow interval; `s` opens **Servers**, `l` signs out |
-| **Stats** | Read-only server statistics screen — counts and health reported by the server via the admin API; the live metrics HUD is separate, toggled by the palette's Show/Hide metrics actions |
+| **Stats** | Read-only server statistics screen — admin accounts only: the palette gates it behind the same `is_admin` check as **Admin**, since the data comes from the server's admin stats API. Playback totals and storage snapshot sums render in the shared chrome with humanized byte counts; a failed fetch shows its reason in the frame with `r` to retry. The live metrics HUD is separate, toggled by the palette's Show/Hide metrics actions |
 | **Server Setup** | The first-run server-URL form — `Enter` connects, `Esc` quits |
 | **Login** | Sign-in form — `Tab` moves fields, `Enter` signs in, `s` opens **Register**, `Esc` quits |
 | **Register** | Sign-up form (username, email, password); on success you are signed straight in |

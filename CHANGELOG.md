@@ -5,6 +5,50 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — CU-021 [review console__enduser #3, console__uxdesign #9, console__tui-arch #5]: Stats is gated to admins and renders like every other screen — 2026-11-09
+
+- The palette offered **Stats** to every signed-in user although its data comes from
+  `/api/v1/admin/stats/*` through `AdminClient` — a member's tap was guaranteed failure
+  theater. `palette.stats` moved into the `is_admin` block beside **Admin** (same gate,
+  same no-gate-on-the-handler posture: a directly dispatched `OpenStatsMsg` still opens,
+  and a mid-session demotion now lands honestly: a 403 renders "Server statistics need an
+  admin account." in the frame). The handler docblock that claimed the screen "reuses the
+  App's LibrariesStore" was fiction (it always used the admin API) — rewritten truthfully.
+- `StatsScreen` retired its chrome-less raw-string render: it now goes through the shared
+  `Chrome::frame` (`Breadcrumbed` + `Themed` + `ResizesTo`, window geometry honored via
+  `WindowSizeMsg` instead of the hardcoded 80×24), the bound keys are advertised by the
+  status hint (`Esc  back      r  refresh`), and storage sizes print through the new
+  shared `Ui\Bytes::human` formatter (the admin screens' private-copy algorithm lifted to
+  one public source; folding their three copies onto it is a named follow-up). The old
+  body also read map keys (`active_sessions`, `used_bytes`) that the list payloads never
+  carry — both lines silently printed 0; playback/storage now sum the real rows.
+- Failure law rotated from toast-then-forever-Loading to error-in-frame (the
+  FederationShares shape): a new `StatsFailedMsg` arms the body with the curated reason +
+  "Press r to retry.", and a successful re-fetch clears it. `StatsScreenTest`
+  `testNetworkErrorProducesToastError` → `testNetworkErrorRendersTheErrorInFrame`
+  (red-first executed against the new screen: the `StatsFailedMsg` convicted the old
+  `ShowToastMsg` assertion verbatim). Five new tests: chrome + hint line, humanized
+  storage (`12345678901 → 11.5 GiB`, raw digits absent), 403 admin copy,
+  `WindowSizeMsg` refit + too-small honesty, error clears on successful retry.
+  The file runs 15/49 (was 10/23) green.
+- `AppTest`: the exact static-palette label list (17, `Stats` in the head) rotated to the
+  16-label member list — the gate's behavior change convicted it red first, verbatim —
+  and the `Stats`-present test was replaced by the Admin-pair shape:
+  `testThePaletteOffersStatsOnlyToAnAdminUser` (order pin: `Stats` sits directly before
+  `Admin`) + `testThePaletteHidesStatsFromANonAdminUser`. The direct-`OpenStatsMsg` push
+  test is unchanged and stays green (handler intentionally ungated, mirroring `openAdmin`).
+- `ScreenConcernSingleSourceTest`: `withCrumbs` family re-pinned 48→**49** from the
+  measured red ("pinned 48, seen 49", same commit) — the new screen's copy is
+  byte-identical to the family by design; the crumbs concern-trait extraction remains the
+  named follow-up the FederationShares landing recorded.
+- Docs moved with the behavior: the manual's Command-palette row now reads "Stats and
+  Admin when signed in as an admin", its Stats row describes the gate + chrome + retry
+  body (the `CollectionsClaimsDocsTest` verbatim pin rotated against the red "row moved"
+  conviction), and the README's four palette mentions qualify Stats as the admin surface
+  it is. `phpstan` prod (changed files) + `phpstan-tests` [OK]; `phpcs` src: 3 new/clean
+  files zero findings, `App.php` warnings 18 = 18 unchanged; tests config 0E on all four
+  changed test files.
+
 ### Fixed — CU-013 [review console__copywriter #6-#9, console__writer #12]: locale hint format drift — 2026-11-09
 
 - `recommendations.hint` rendered the same logical string in two conventions: the en reference
