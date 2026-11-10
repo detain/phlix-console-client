@@ -5,6 +5,31 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — w13/L8 round-5 review cure (MAJOR-R4-1): the libraries account's empty favorites stops saying "No libraries yet." — 2026-11-09
+
+- **[review w13L8 round-4, MAJOR-R4-1]** Round-4's `onFavorites([] → [$this, null]` mirror satisfied its
+  own law (the empty arm's published R/q are live) but broke the OTHER half of CU-049 honesty: an account
+  that HAS libraries and zero favorites fell into the same arm, which renders "No libraries yet." — a
+  sentence about the user's own shelves that is simply false — and hid the sidebar the parent's card-less
+  box carried visibly (reviewer-executed tip-vs-parent contrast: parent ed4423b6 showed the "♥ Favorites"
+  box + "Movies" entry; a NEW R4 regression, not pre-existing). Cure: two honest landings, one per
+  emptiness cause. `onFavorites` now checks `accountHasLibraries()` (the `libraryTypes` signal, written
+  only from the server's accepted libraries): zero libraries keeps round 4's null landing into the
+  truthfully-named empty arm; libraries-present raises the favorites rail (cursor/scroll clamped) so the
+  box names its own state. The reintroduced state's Law A duty is met by a `railsHint()` zero-cards trim
+  mirroring the ratified sidebarHint() empty-sidebar pair: over a fully card-less rail set the hint
+  publishes only Tab / a / R / q (each verified to change the delivered state over zero cards) and drops
+  the six keys that need a card or a second rail. Shape (i) chosen over a dedicated empty-favorites arm
+  (shape (ii)) because the latter costs a new 7-locale catalog key + parity gates while still hiding the
+  sidebar. Tests (same file): shared `advertisedDeadTokens()` audit; zero-libraries law KEPT green as
+  permanent law; two new tests red-first at parent 7f47494c (copy-lie contrast 6T/23A/1F — the failure IS
+  the "does not contain No libraries yet." conviction; hint-lie test green at parent by construction);
+  mutations: strip the trim → exactly 1 failure convicting all six tokens verbatim, revert the branch to
+  round 4's unconditional null → exactly 1 failure on the copy law. Suite 3702/24858 (parent, executed)
+  → 3704/24871 (post, executed): +2 tests / +13 assertions exact. phpstan prod+tests [OK]; phpcs src
+  0E/15W unchanged, tests config + bare PSR-12 on the changed file 0E/0W; i18n gate pair rc=0 (zero lang
+  files touched). Register: .reviews/2026-11-09/FIX-console-w13L8-round5.md.
+
 ### Fixed — w13/L8 round-4 review cure (CU-049 dead-key class, deepest leg): the zero-card favorites state no longer advertises six keys it can never serve — 2026-11-09
 
 - **[review console chain ed4423b MAJOR-1 / CU-049 round-4]** Round-3's cure stopped one card deeper

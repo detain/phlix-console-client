@@ -459,14 +459,32 @@ final class BrowseScreen implements Breadcrumbed, Themed
     private function onFavorites(array $items): array
     {
         if ($items === []) {
-            // Empty: render nothing (not an empty box) — the sibling doctrine
-            // (onContinueWatching / onMostWatched / onNextUp). [review console
-            // chain ed4423b, MAJOR-1] The old card-less rail here bypassed
-            // CU-049's honest empty arm: focus defaulted to RAILS and
-            // railsHint() published ⏎ open / ←→ items / s shuffle / u up-next /
-            // [ ] page over cards that never existed — six advertised-dead
-            // keys (reviewer-executed probe; w13L8-R4 conviction tests).
-            return [$this, null];
+            // Two honest landings, one per emptiness cause [review w13L8
+            // round-4, MAJOR-R4-1]. (1) A ZERO-LIBRARIES account keeps the
+            // sibling doctrine (onContinueWatching / onMostWatched /
+            // onNextUp): render nothing, and CU-049's empty arm names that
+            // state truthfully [chain ed4423b MAJOR-1 cure, KEPT — w13L8-R4
+            // conviction tests]. The old card-less rail there made
+            // railIds()===["favorites"] bypass the arm and railsHint()
+            // advertise six keys over cards that never existed. (2) An
+            // account WITH libraries must NOT land in that arm: the 'a'
+            // Favorites step clears the library rails BEFORE fetching, so
+            // the arm's "No libraries yet." would misdescribe the user's
+            // own shelves (the review's executed tip-vs-parent contrast — a
+            // NEW R4 regression) and hide the sidebar the box carried
+            // visibly. The card-less favorites rail returns FOR THIS STATE
+            // ONLY — and railsHint()'s zero-cards trim keeps its hint
+            // advertising only what the state serves: both laws, at once.
+            if (!$this->accountHasLibraries()) {
+                return [$this, null];
+            }
+
+            // The rail set collapses to ['favorites'] while the cursor and
+            // scroll may still sit deep in the cleared shelves; clamp so the
+            // box always lands inside the window.
+            $next = $this->withFavoritesRail(new Rail('♥ Favorites', []));
+
+            return [$next->withCursor(0, 0), null];
         }
 
         $cards = [];
@@ -887,6 +905,38 @@ final class BrowseScreen implements Breadcrumbed, Themed
         return $ids;
     }
 
+    /**
+     * Whether the last ANSWERED libraries request carried entries. The 'a'
+     * Favorites step and the 'R' refresh clear libraryRails; this signal —
+     * written only by onLibraries() from the server's answer — tells "the
+     * account has nothing" (CU-049's honestly-named state) apart from "the
+     * account HAS shelves and the current filter is not showing them"
+     * [review w13L8 round-4, MAJOR-R4-1].
+     */
+    private function accountHasLibraries(): bool
+    {
+        return $this->libraryTypes !== [];
+    }
+
+    /**
+     * Whether ANY rail in the ordered set carries a card — the railsHint()
+     * trim's honesty gate: a fully card-less rail set serves no
+     * card-dependent key, and the hint may never advertise what cannot be
+     * delivered (575b338's law; the under-advertising direction is the one
+     * round-3 documents as safe).
+     */
+    private function anyRailHasCards(): bool
+    {
+        foreach ($this->orderedRailIds() as $railId) {
+            $rail = $this->railById($railId);
+            if ($rail !== null && $rail->cards !== []) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /** @return list<array{id: string, label: string}> library rails as sidebar entries */
     private function sidebarEntries(): array
     {
@@ -1010,7 +1060,24 @@ final class BrowseScreen implements Breadcrumbed, Themed
     {
         $filter = self::FILTER_LABELS[$this->watchFilter] ?? 'All';
 
-        return "↑↓  rails      ←→  items      ⏎  open      Tab  menu      a  filter({$filter})      R  refresh      s  shuffle      u  up-next      [ ]  page      q  quit";
+        // The FULL row is the first literal return of this body BY PIN: the
+        // docs census (GridKeysDocsTest / WatchStateLoopDocsTest) parses it
+        // by anchor and non-greedy regex — the zero-cards trim below must
+        // never reorder past it.
+        if ($this->anyRailHasCards()) {
+            return "↑↓  rails      ←→  items      ⏎  open      Tab  menu      a  filter({$filter})      R  refresh      s  shuffle      u  up-next      [ ]  page      q  quit";
+        }
+
+        // Zero cards anywhere in the rail set — the honest favorites-empty
+        // box [review w13L8 round-4, MAJOR-R4-1, Law A] and the media-not-
+        // yet-landed bootstrap, where under-advertising is the direction the
+        // round-3 doctrine sanctions. ↑↓ moves nothing over a one-rail set,
+        // ←→ / ⏎ / s need a focused card, u needs an up-next rail, [ ]
+        // belongs to the Most Watched rail alone; Tab, 'a', R and q are the
+        // four arms this state genuinely delivers (focus toggle, filter
+        // cycle, pre-routing refresh, quit — the same single-source trim
+        // doctrine as sidebarHint()'s empty-sidebar pair).
+        return "Tab  menu      a  filter({$filter})      R  refresh      q  quit";
     }
 
     /**

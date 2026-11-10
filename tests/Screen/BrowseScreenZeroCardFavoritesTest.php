@@ -6,6 +6,7 @@ namespace Phlix\Console\Tests\Screen;
 
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\Dto\AuthUser;
+use Phlix\Console\Api\Dto\Library;
 use Phlix\Console\Media\PosterLoader;
 use Phlix\Console\Msg\BrowseFavoritesLoadedMsg;
 use Phlix\Console\Msg\LibrariesLoadedMsg;
@@ -40,6 +41,21 @@ use SugarCraft\Image\Mosaic;
  * onMostWatched / onNextUp: "Empty: render nothing (not an empty box)"), so
  * the state falls into the honest empty arm instead of advertising keys it
  * can never serve.
+ *
+ * w13L8-R5 [review w13L8round4, MAJOR-R4-1]: that cure widened one arm's
+ * reach past its truth. An account WITH libraries cycling to Favorites and
+ * getting an empty answer fell into the SAME arm and printed "No libraries
+ * yet." — a false statement about the user's own data (the 'a' step clears
+ * the library rails before fetching; librariesLoaded is true and the shelves
+ * exist) — plus the sidebar the pre-R4 box carried visibly. Two laws now hold
+ * this state, one test each: (Law B) no empty-state message may misdescribe
+ * WHY the state is empty — the libraries-account landing names Favorites,
+ * never the libraries-empty copy, and keeps the sidebar; (Law A, permanent,
+ * shape-agnostic) no hint row may advertise a key the current state cannot
+ * serve — the probe below re-runs the reviewer's six tokens over the restored
+ * card-less favorites box, where railsHint() publishes only the four arms
+ * (Tab / a / R / q) that genuinely deliver with zero cards. A zero-LIBRARIES
+ * account keeps R4's honest empty-arm landing unchanged.
  */
 final class BrowseScreenZeroCardFavoritesTest extends TestCase
 {
@@ -101,15 +117,42 @@ final class BrowseScreenZeroCardFavoritesTest extends TestCase
         return $screen;
     }
 
-    public function testTheZeroCardFavoritesStateNeverAdvertisesAKeyItCannotServe(): void
+    /**
+     * The R5 probe state through the same real 'a' key path, over an account
+     * WITH libraries: one Movies shelf ANSWERED (its media batch is dropped —
+     * the Favorites step clears the library rails anyway, the injection
+     * idiom BrowseScreenTest established), then 'a' cycles to Favorites and
+     * the favorites answer is whatever the transport carries. requestCount()
+     * 1 pins the answer that arrived is the Favorites one.
+     */
+    private function librariesFavoritesCycledWith(FakeTransport $transport): BrowseScreen
     {
-        // THE CONVICTION [review ed4423b MAJOR-1]. Shape-agnostic by law:
-        // whether the cure falls into the empty arm or trims the hint, every
-        // token this state PUBLISHES must be DELIVERED — a null-cmd over a
-        // byte-identical view is the advertised-dead shape the reviewer
-        // executed. Red at ed4423b with the probe's tokens in the verdict.
-        $transport = (new FakeTransport())->json(200, ['items' => [], 'total' => 0, 'limit' => 18, 'offset' => 0]);
-        $screen = $this->favoritesCycledWith($transport);
+        [$screen] = $this->screenWith($transport)->update(new LibrariesLoadedMsg([
+            Library::fromArray(['id' => 'lib-a', 'name' => 'Movies', 'type' => 'movie']),
+        ]));
+        [$screen] = $screen->update(new KeyMsg(KeyType::Char, 'a')); // All → Watched
+        [$screen] = $screen->update(new KeyMsg(KeyType::Char, 'a')); // Watched → Unwatched
+        [$screen, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'a')); // → Favorites
+        self::assertInstanceOf(\Closure::class, $cmd, 'the cycle must REACH the Favorites step');
+
+        foreach ($this->runBatch($cmd) as $msg) {
+            [$screen] = $screen->update($msg);
+        }
+
+        self::assertSame(1, $transport->requestCount(), 'only the Favorites step queries — the answer arrived');
+
+        return $screen;
+    }
+
+    /**
+     * The shape-agnostic Law A audit: every probe token the published view
+     * ADVERTISES must be SERVED — a null-cmd over a byte-identical view is
+     * the advertised-dead shape the reviewer executed.
+     *
+     * @return list<string> the convicted tokens (empty means the hint lies about nothing)
+     */
+    private function advertisedDeadTokens(BrowseScreen $screen): array
+    {
         $view = $screen->view();
 
         $advertisedDead = [];
@@ -124,28 +167,46 @@ final class BrowseScreenZeroCardFavoritesTest extends TestCase
             }
         }
 
+        return array_values(array_unique($advertisedDead));
+    }
+
+    public function testTheZeroCardFavoritesStateNeverAdvertisesAKeyItCannotServe(): void
+    {
+        // THE CONVICTION [review ed4423b MAJOR-1]. Shape-agnostic by law:
+        // whether the cure falls into the empty arm or trims the hint, every
+        // token this state PUBLISHES must be DELIVERED — a null-cmd over a
+        // byte-identical view is the advertised-dead shape the reviewer
+        // executed. Red at ed4423b with the probe's tokens in the verdict.
+        $transport = (new FakeTransport())->json(200, ['items' => [], 'total' => 0, 'limit' => 18, 'offset' => 0]);
+        $screen = $this->favoritesCycledWith($transport);
+
         self::assertSame(
             [],
-            array_values(array_unique($advertisedDead)),
+            $this->advertisedDeadTokens($screen),
             'the zero-card favorites hint lies about these keys (press = null cmd, view byte-identical)',
         );
     }
 
-    public function testAnEmptyFavoritesResponseRaisesNoRail(): void
+    public function testAnEmptyFavoritesResponseOnAZeroLibraryAccountRaisesNoRail(): void
     {
         // Sibling-doctrine mirror of testEmptyMostWatchedAddsNoRail and
-        // testEmptyContinueWatchingAddsNoRail: the answer "your favorites
-        // are empty" renders nothing, not an empty box.
+        // testEmptyContinueWatchingAddsNoRail — for the ZERO-LIBRARIES half
+        // of the split law [w13L8-R5]: this account's emptiness IS CU-049's
+        // state, so the answer renders nothing and the view names the real
+        // reason through the honest empty arm. The libraries-account half
+        // (the box that names Favorites) is pinned via the real key path in
+        // testTheLibrariesAccountEmptyFavoritesNamesFavoritesNotLibraries.
         [$next] = $this->screenWith(new FakeTransport())->update(new BrowseFavoritesLoadedMsg([]));
 
-        self::assertSame([], $next->railIds(), 'empty favorites renders nothing');
+        self::assertSame([], $next->railIds(), 'empty favorites renders nothing here');
         self::assertNull($next->rail('favorites'), 'no card-less rail exists to be focused');
     }
 
     public function testTheZeroCardFavoritesStateFallsIntoTheHonestEmptyArm(): void
     {
-        // The cure's landing, via the same real key path: CU-049's empty arm
-        // names the state, and its hint ('R  refresh      q  quit')
+        // The R4 cure's landing, via the same real key path, KEPT: CU-049's
+        // empty arm is the honest naming FOR THIS FIXTURE (the libraries
+        // answer was empty), and its hint ('R  refresh      q  quit')
         // advertises only the pre-routing live keys [round-2/round-3 folds].
         // Red at ed4423b: the card-less rail box renders here instead.
         $transport = (new FakeTransport())->json(200, ['items' => [], 'total' => 0, 'limit' => 18, 'offset' => 0]);
@@ -178,6 +239,48 @@ final class BrowseScreenZeroCardFavoritesTest extends TestCase
         $rail = $screen->rail('favorites');
         self::assertNotNull($rail);
         self::assertCount(1, $rail->cards);
+    }
+
+    public function testTheLibrariesAccountEmptyFavoritesNamesFavoritesNotLibraries(): void
+    {
+        // LAW B [review w13L8round4, MAJOR-R4-1 — the executed R4-DD
+        // contrast]. An account WITH libraries cycles to Favorites and the
+        // answer is EMPTY: the view must name the FAVORITES emptiness and
+        // keep the sidebar, never print CU-049's libraries-empty copy over
+        // shelves the user does have. RED at parent 7f47494c by construction:
+        // the R4 cure routed this state into the arm that renders "No
+        // libraries yet." with the 'Movies' shelf hidden — the review's
+        // tip-vs-parent executed contrast, now pinned.
+        $transport = (new FakeTransport())->json(200, ['items' => [], 'total' => 0, 'limit' => 18, 'offset' => 0]);
+        $screen = $this->librariesFavoritesCycledWith($transport);
+
+        $view = $screen->view();
+        self::assertStringNotContainsString('No libraries yet.', $view, 'the account has libraries — that is a lie');
+        self::assertSame(['favorites'], $screen->railIds(), 'the card-less Favorites box is the honest landing');
+        self::assertStringContainsString('♥ Favorites', $view, 'the view names the filter that IS empty');
+        self::assertStringContainsString('Movies', $view, 'the sidebar the box carries stays visible');
+        self::assertStringContainsString('a  filter(♥ Favorites)', $view, 'the cycle-out key stays published');
+        self::assertStringContainsString('Tab  menu', $view, 'the focus toggle is published where it delivers');
+        self::assertStringContainsString('R  refresh', $view, 'the pre-routing hoists stay published');
+        self::assertStringContainsString('q  quit', $view);
+    }
+
+    public function testTheLibrariesAccountZeroFavoritesStateNeverAdvertisesAKeyItCannotServe(): void
+    {
+        // LAW A over the R5 state (the permanent shape-agnostic law, second
+        // fixture): the restored card-less favorites box must publish ONLY
+        // what zero cards can serve. With the railsHint() trim in place none
+        // of the six card-dependent tokens is advertised, so the audit is
+        // green; strip the trim and all six convict over byte-identical
+        // views (mutation-proven in the round-5 register).
+        $transport = (new FakeTransport())->json(200, ['items' => [], 'total' => 0, 'limit' => 18, 'offset' => 0]);
+        $screen = $this->librariesFavoritesCycledWith($transport);
+
+        self::assertSame(
+            [],
+            $this->advertisedDeadTokens($screen),
+            'the libraries-account zero-card favorites hint lies about these keys',
+        );
     }
 
     // ---- harness (offline FakeTransport kit, mirrors BrowseScreenTest) ----
