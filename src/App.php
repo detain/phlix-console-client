@@ -287,6 +287,107 @@ final class App implements Model
     }
 
     /**
+     * The full set of keys {@see copyWith()} accepts — the constructor's own
+     * parameter names, pinned. [CU-042: review console__srphp #4]
+     *
+     * @var list<string>
+     */
+    private const COPY_KEYS = [
+        'config', 'auth', 'api', 'libraries', 'media', 'posters', 'stack',
+        'bootCmd', 'cols', 'rows', 'toast', 'toastTicking', 'palette', 'theme',
+        'nowPlaying', 'audioFactory', 'metricsVisible', 'shimmerPhase',
+        'shimmerTicking',
+    ];
+
+    /**
+     * [CU-042: review console__srphp #4] The single copy-with seam for derived
+     * App instances. Every copy site used to hand-spell the whole 19-positional
+     * `new self(...)` list, so inserting a parameter meant touching 13 sites and
+     * two same-typed neighbors (the toastTicking/metricsVisible/shimmerPhase
+     * bool+int adjacency) could swap silently with the type checker happy.
+     *
+     * Behavior is the sites' forwarding contract, made explicit: forward ALL
+     * of $this, then apply named overrides. bootCmd defaults to null because
+     * every copy site discarded the one-shot boot command — except
+     * {@see resized()}, which re-supplies $this->bootCmd on the override list
+     * (the pre-init WindowSizeMsg law, kept where it belongs). The
+     * runtime-only {@see $exitSignalProgram} was never part of any copy site's
+     * 19-argument list and stays out of this one: copies start with it unset,
+     * exactly as before.
+     *
+     * Unknown override keys throw: the seam fails loud on a typo'd copy rather
+     * than silently dropping it into the spread.
+     *
+     * @phpstan-param array{
+     *     config?: Config, auth?: AuthStore, api?: ApiClient,
+     *     libraries?: LibrariesStore, media?: MediaStore,
+     *     posters?: PosterLoader,
+     *     stack?: list<array{route: Route, screen: Model}>,
+     *     bootCmd?: ?\Closure, cols?: int, rows?: int,
+     *     toast?: ?Toast, toastTicking?: bool,
+     *     palette?: ?CommandPalette, theme?: ?Theme,
+     *     nowPlaying?: ?NowPlayingSession, audioFactory?: ?\Closure,
+     *     metricsVisible?: bool, shimmerPhase?: int,
+     *     shimmerTicking?: bool
+     * } $overrides
+     */
+    private function copyWith(array $overrides = []): self
+    {
+        /** @var array<int, string> $keys */
+        $keys = array_keys($overrides);
+        foreach ($keys as $key) {
+            if (!in_array($key, self::COPY_KEYS, true)) {
+                throw new \InvalidArgumentException(
+                    'App::copyWith(): unknown override key ' . $key . '.'
+                );
+            }
+        }
+
+        return new self(...array_merge($this->copyDefaults(), $overrides));
+    }
+
+    /**
+     * The complete constructor-value set forwarded from the current instance.
+     *
+     * @phpstan-return array{
+     *     config: Config, auth: AuthStore, api: ApiClient,
+     *     libraries: LibrariesStore, media: MediaStore,
+     *     posters: PosterLoader,
+     *     stack: list<array{route: Route, screen: Model}>,
+     *     bootCmd: null, cols: int, rows: int,
+     *     toast: Toast, toastTicking: bool,
+     *     palette: ?CommandPalette, theme: Theme,
+     *     nowPlaying: ?NowPlayingSession, audioFactory: \Closure,
+     *     metricsVisible: bool, shimmerPhase: int,
+     *     shimmerTicking: bool
+     * }
+     */
+    private function copyDefaults(): array
+    {
+        return [
+            'config' => $this->config,
+            'auth' => $this->auth,
+            'api' => $this->api,
+            'libraries' => $this->libraries,
+            'media' => $this->media,
+            'posters' => $this->posters,
+            'stack' => $this->stack,
+            'bootCmd' => null,
+            'cols' => $this->cols,
+            'rows' => $this->rows,
+            'toast' => $this->toast,
+            'toastTicking' => $this->toastTicking,
+            'palette' => $this->palette,
+            'theme' => $this->theme,
+            'nowPlaying' => $this->nowPlaying,
+            'audioFactory' => $this->audioFactory,
+            'metricsVisible' => $this->metricsVisible,
+            'shimmerPhase' => $this->shimmerPhase,
+            'shimmerTicking' => $this->shimmerTicking,
+        ];
+    }
+
+    /**
      * Pick the entry screen from persisted config.
      *
      * @param ?(\Closure(string, ?int): \SugarCraft\Video\AudioPlayer) $audioFactory the music-player factory (a recording fake in tests); null = the production ffplay/mpv factory
@@ -998,27 +1099,10 @@ final class App implements Model
 
     private function withToast(Toast $toast, bool $ticking): self
     {
-        return new self(
-            $this->config,
-            $this->auth,
-            $this->api,
-            $this->libraries,
-            $this->media,
-            $this->posters,
-            $this->stack,
-            null,
-            $this->cols,
-            $this->rows,
-            $toast,
-            $ticking,
-            $this->palette,
-            $this->theme,
-            $this->nowPlaying,
-            $this->audioFactory,
-            $this->metricsVisible,
-            $this->shimmerPhase,
-            $this->shimmerTicking,
-        );
+        return $this->copyWith([
+            'toast' => $toast,
+            'toastTicking' => $ticking,
+        ]);
     }
 
     // ---- shimmer (loading-skeleton animation) --------------------------
@@ -1131,27 +1215,10 @@ final class App implements Model
     /** A copy carrying the shimmer animation $phase + whether its tick is in flight. */
     private function withShimmer(int $phase, bool $ticking): self
     {
-        return new self(
-            $this->config,
-            $this->auth,
-            $this->api,
-            $this->libraries,
-            $this->media,
-            $this->posters,
-            $this->stack,
-            null,
-            $this->cols,
-            $this->rows,
-            $this->toast,
-            $this->toastTicking,
-            $this->palette,
-            $this->theme,
-            $this->nowPlaying,
-            $this->audioFactory,
-            $this->metricsVisible,
-            $phase,
-            $ticking,
-        );
+        return $this->copyWith([
+            'shimmerPhase' => $phase,
+            'shimmerTicking' => $ticking,
+        ]);
     }
 
     // ---- command palette -----------------------------------------------
@@ -1389,27 +1456,9 @@ final class App implements Model
 
     private function withPalette(?CommandPalette $palette): self
     {
-        return new self(
-            $this->config,
-            $this->auth,
-            $this->api,
-            $this->libraries,
-            $this->media,
-            $this->posters,
-            $this->stack,
-            null,
-            $this->cols,
-            $this->rows,
-            $this->toast,
-            $this->toastTicking,
-            $palette,
-            $this->theme,
-            $this->nowPlaying,
-            $this->audioFactory,
-            $this->metricsVisible,
-            $this->shimmerPhase,
-            $this->shimmerTicking,
-        );
+        return $this->copyWith([
+            'palette' => $palette,
+        ]);
     }
 
     // ---- transitions ---------------------------------------------------
@@ -2935,27 +2984,11 @@ final class App implements Model
 
         // Build the replacement App directly with the given config, bypassing the
         // chain of $this->method()->... which would always use $this->config.
-        return new self(
-            $config,
-            $this->auth,
-            $this->api,
-            $this->libraries,
-            $this->media,
-            $this->posters,
-            [['route' => $route, 'screen' => $screen]],
-            null,
-            $this->cols,
-            $this->rows,
-            $this->toast,
-            $this->toastTicking,
-            $this->palette,
-            $this->theme,
-            null,
-            $this->audioFactory,
-            $this->metricsVisible,
-            $this->shimmerPhase,
-            $this->shimmerTicking,
-        );
+        return $this->copyWith([
+            'config' => $config,
+            'stack' => [['route' => $route, 'screen' => $screen]],
+            'nowPlaying' => null,
+        ]);
     }
 
     /** Push a frame on top (drill-in). */
@@ -3018,27 +3051,9 @@ final class App implements Model
      */
     private function withStack(array $stack): self
     {
-        return new self(
-            $this->config,
-            $this->auth,
-            $this->api,
-            $this->libraries,
-            $this->media,
-            $this->posters,
-            $stack,
-            null,
-            $this->cols,
-            $this->rows,
-            $this->toast,
-            $this->toastTicking,
-            $this->palette,
-            $this->theme,
-            $this->nowPlaying,
-            $this->audioFactory,
-            $this->metricsVisible,
-            $this->shimmerPhase,
-            $this->shimmerTicking,
-        );
+        return $this->copyWith([
+            'stack' => $stack,
+        ]);
     }
 
     /**
@@ -3066,27 +3081,13 @@ final class App implements Model
         // BEFORE calling init(), so a resize that lands first must NOT drop the
         // one-shot boot Cmd (token-restore) — else init() returns null, the
         // restore never runs, and the app hangs forever on "Connecting…".
-        $app = new self(
-            $this->config,
-            $this->auth,
-            $this->api,
-            $this->libraries,
-            $this->media,
-            $this->posters,
-            $stack,
-            $this->bootCmd,
-            $cols,
-            $rows,
-            $this->toast,
-            $this->toastTicking,
-            $this->palette?->resizedTo($cols, $rows),
-            $this->theme,
-            $this->nowPlaying,
-            $this->audioFactory,
-            $this->metricsVisible,
-            $this->shimmerPhase,
-            $this->shimmerTicking,
-        );
+        $app = $this->copyWith([
+            'stack' => $stack,
+            'bootCmd' => $this->bootCmd,
+            'cols' => $cols,
+            'rows' => $rows,
+            'palette' => $this->palette?->resizedTo($cols, $rows),
+        ]);
 
         return [$app, $cmds === [] ? null : Cmd::batch(...$cmds)];
     }
@@ -3155,27 +3156,9 @@ final class App implements Model
      */
     public function withTheme(Theme $theme): self
     {
-        return new self(
-            $this->config,
-            $this->auth,
-            $this->api,
-            $this->libraries,
-            $this->media,
-            $this->posters,
-            $this->stack,
-            null,
-            $this->cols,
-            $this->rows,
-            $this->toast,
-            $this->toastTicking,
-            $this->palette,
-            $theme,
-            $this->nowPlaying,
-            $this->audioFactory,
-            $this->metricsVisible,
-            $this->shimmerPhase,
-            $this->shimmerTicking,
-        );
+        return $this->copyWith([
+            'theme' => $theme,
+        ]);
     }
 
     /**
@@ -3185,27 +3168,9 @@ final class App implements Model
      */
     public function withConfig(Config $config): self
     {
-        return new self(
-            $config,
-            $this->auth,
-            $this->api,
-            $this->libraries,
-            $this->media,
-            $this->posters,
-            $this->stack,
-            null,
-            $this->cols,
-            $this->rows,
-            $this->toast,
-            $this->toastTicking,
-            $this->palette,
-            $this->theme,
-            $this->nowPlaying,
-            $this->audioFactory,
-            $this->metricsVisible,
-            $this->shimmerPhase,
-            $this->shimmerTicking,
-        );
+        return $this->copyWith([
+            'config' => $config,
+        ]);
     }
 
     /**
@@ -3216,27 +3181,9 @@ final class App implements Model
      */
     private function withNowPlaying(?NowPlayingSession $nowPlaying): self
     {
-        return new self(
-            $this->config,
-            $this->auth,
-            $this->api,
-            $this->libraries,
-            $this->media,
-            $this->posters,
-            $this->stack,
-            null,
-            $this->cols,
-            $this->rows,
-            $this->toast,
-            $this->toastTicking,
-            $this->palette,
-            $this->theme,
-            $nowPlaying,
-            $this->audioFactory,
-            $this->metricsVisible,
-            $this->shimmerPhase,
-            $this->shimmerTicking,
-        );
+        return $this->copyWith([
+            'nowPlaying' => $nowPlaying,
+        ]);
     }
 
     /**
@@ -3248,27 +3195,9 @@ final class App implements Model
      */
     public function withAudioFactory(\Closure $audioFactory): self
     {
-        return new self(
-            $this->config,
-            $this->auth,
-            $this->api,
-            $this->libraries,
-            $this->media,
-            $this->posters,
-            $this->stack,
-            null,
-            $this->cols,
-            $this->rows,
-            $this->toast,
-            $this->toastTicking,
-            $this->palette,
-            $this->theme,
-            $this->nowPlaying,
-            $audioFactory,
-            $this->metricsVisible,
-            $this->shimmerPhase,
-            $this->shimmerTicking,
-        );
+        return $this->copyWith([
+            'audioFactory' => $audioFactory,
+        ]);
     }
 
     /**
@@ -3278,26 +3207,8 @@ final class App implements Model
      */
     private function withMetricsVisible(bool $metricsVisible): self
     {
-        return new self(
-            $this->config,
-            $this->auth,
-            $this->api,
-            $this->libraries,
-            $this->media,
-            $this->posters,
-            $this->stack,
-            null,
-            $this->cols,
-            $this->rows,
-            $this->toast,
-            $this->toastTicking,
-            $this->palette,
-            $this->theme,
-            $this->nowPlaying,
-            $this->audioFactory,
-            $metricsVisible,
-            $this->shimmerPhase,
-            $this->shimmerTicking,
-        );
+        return $this->copyWith([
+            'metricsVisible' => $metricsVisible,
+        ]);
     }
 }

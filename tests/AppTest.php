@@ -1442,6 +1442,29 @@ final class AppTest extends TestCase
         self::assertTrue($resized->toast()->hasActiveAlert(), 'the toast queue survives a resize');
     }
 
+    // ---- copyWith seam -------------------------------------------------
+
+    /**
+     * [CU-042: review console__srphp #4] The copy-with seam fails loud: an
+     * override key the constructor does not accept throws instead of sliding
+     * silently into the named-argument spread (where PHP itself would raise an
+     * unknown-named-argument Error only at run time, and a wrong-shape value
+     * would surface far from the typo). New-surface pin — the seam did not
+     * exist before the refactor; the mutation proof for its removal is in the
+     * lane register (stripping the guard reddens exactly this test).
+     */
+    public function testCopyWithRejectsAnUnknownOverrideKey(): void
+    {
+        $app = $this->appWithStack([['route' => Route::Browse, 'screen' => new SpyTeardownScreen()]]);
+        $copyWith = new \ReflectionMethod(App::class, 'copyWith');
+        $copyWith->setAccessible(true);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('unknown override key shimmerTickings');
+
+        $copyWith->invoke($app, ['shimmerTickings' => true]);
+    }
+
     // ---- command palette -----------------------------------------------
 
     private function ctrlK(): KeyMsg

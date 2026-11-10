@@ -5,6 +5,35 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Refactored — CU-042 [review console__srphp #4]: the 11 derived-App copy sites route through one copyWith seam — 2026-11-09
+
+- `src/App.php` carried thirteen hand-spelled `new self(...)` constructions of its
+  nineteen-positional constructor: two boot creations (kept — they are not copies, they
+  already mix named args) and eleven copy sites. Review #4's hazard — two same-typed
+  neighbors (`toastTicking`/`metricsVisible` bools, `shimmerPhase` int) swapping with the
+  type checker happy — was real, and this lane's own mutation probe proved the suite does
+  not catch every such swap (M2 below).
+- The eleven copy bodies now call one `private copyWith(array $overrides = [])`: forward
+  all nineteen constructor values from `$this` (`copyDefaults()`, with a phpstan shape so
+  the named-argument spread stays fully typed under level 9), apply named overrides.
+  `bootCmd` sits null in the forwarded set because every copy site but `resized()`
+  discarded the one-shot boot command — the discard law is now stated once, and the
+  pre-init WindowSizeMsg exception re-supplies `$this->bootCmd` as an explicit override.
+  Unknown override keys throw `InvalidArgumentException` naming the key. The runtime-only
+  `exitSignalProgram` was never in any copy site's argument list and stays out of the
+  seam: copies start with it unset, byte-for-byte as before.
+- Behavior identity is proven by a property-forwarding fixture (14 snapshots x the full
+  property table, SAME/NEW identity tags relative to each site's source), run against the
+  pre- and post-refactor code in separate processes: zero diff. New pin
+  `AppTest::testCopyWithRejectsAnUnknownOverrideKey` (AppTest 210/809 -> 211/811).
+  Mutations: M1 strip the unknown-key guard -> exactly that test reddens; M2 forward
+  `metricsVisible` into `toastTicking` -> the fixture diffs while the full AppTest suite
+  PASSES (the review's swap hazard, measured live); M3 drop `resized()`'s bootCmd
+  override -> fixture diffs AND
+  `testBootCmdSurvivesTheStartupResizeAndStillRestores` reddens; M4 drop `replace()`'s
+  `nowPlaying => null` -> three session-expiry cohort tests redden. All reverted;
+  phpstan both configs and phpcs (both configs + bare PSR-12) clean on the changed files.
+
 ### Refactored — CU-046 [review console__srphp #8]: Lang::t() registration cost measured, documented, and pinned — 2026-11-09
 
 - The review read the per-call `T::register()` inside `Lang::t()` as a render-hot-path
