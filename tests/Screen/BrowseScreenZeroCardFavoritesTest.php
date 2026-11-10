@@ -56,13 +56,35 @@ use SugarCraft\Image\Mosaic;
  * card-less favorites box, where railsHint() publishes only the four arms
  * (Tab / a / R / q) that genuinely deliver with zero cards. A zero-LIBRARIES
  * account keeps R4's honest empty-arm landing unchanged.
+ *
+ * w13L8-R6 [review w13L8round5, minors R5-1..R5-4 — the same two laws, four
+ * states deeper]: (R5-1) a POPULATED favorites answer over a stale screen
+ * cursor rendered NO box — the raise collapses ids to ['favorites'] and only
+ * the empty branch clamped, so view() sliced past the single rail while the
+ * FULL hint advertised five unservable keys. (R5-2) Law B survived on the
+ * cycle-OFF leg: 'a' back to All for an account WITH shelves fell into the
+ * empty arm and printed "No libraries yet." over the shelves the Favorites
+ * step had hidden. (R5-3) Law A survived in the SIDEBAR zone: the card-less
+ * favorites box keeps the stale one-entry sidebar, whose hint still published
+ * '↑↓ library' (clamps over a single entry) and '⏎ open' (railById over the
+ * cleared libraryRails — the null-cmd the reviewer executed). (R5-4) the root
+ * card: railsHint()'s trim was a binary ANY-cards gate — a populated
+ * single-rail favorites box advertised ↑↓ (one rail clamps), ←→ (one card
+ * clamps), u (no up-next rail) and [ ] (paging is the Most Watched rail's).
+ * The cure makes both hint rows per-segment honest, single-sourced from the
+ * arms in handleRailsKey()/handleSidebarKey().
  */
 final class BrowseScreenZeroCardFavoritesTest extends TestCase
 {
     /**
      * The probe keys of the reviewer's conviction: the hint token that
      * publishes the arm, and the keystroke that must then be served
-     * ("[ ]  page" stands for both paging keys and is pressed twice).
+     * ("[ ]  page" stands for both paging keys and is pressed twice). The
+     * R6 round adds the SIDEBAR-zone token so every audit in this file
+     * covers both hint rows (rails hints never contain that substring, so
+     * the pre-existing cells are unaffected). NOTE the audit convention:
+     * pair tokens ('↑↓', '←→', '[ ]') press ONE forward direction and the
+     * audited screen must not sit at that direction's clamp edge.
      *
      * @var list<array{0: string, 1: KeyType, 2: string}>
      */
@@ -74,6 +96,7 @@ final class BrowseScreenZeroCardFavoritesTest extends TestCase
         ['u  up-next', KeyType::Char, 'u'],
         ['[ ]  page', KeyType::Char, '['],
         ['[ ]  page', KeyType::Char, ']'],
+        ['↑↓  library', KeyType::Down, ''],
     ];
 
     private function screenWith(FakeTransport $transport, int $cols = 168): BrowseScreen
@@ -98,11 +121,14 @@ final class BrowseScreenZeroCardFavoritesTest extends TestCase
      * 'a' cycled to Favorites, the favorites answer EMPTY (or populated for
      * the preservation pin). The fetch pin proves the cycle reached its
      * fetching step — the Favorites step is the only one that queries in
-     * this state, exactly as CU-049 round-2's test pins.
+     * this state, exactly as CU-049 round-2's test pins. $cols widens the
+     * frame for the R6 populated audits, which need the FULL hint row
+     * published intact to convict it (Chrome's fitHint drops words from the
+     * middle at narrower widths).
      */
-    private function favoritesCycledWith(FakeTransport $transport): BrowseScreen
+    private function favoritesCycledWith(FakeTransport $transport, int $cols = 168): BrowseScreen
     {
-        [$screen] = $this->screenWith($transport)->update(new LibrariesLoadedMsg([]));
+        [$screen] = $this->screenWith($transport, $cols)->update(new LibrariesLoadedMsg([]));
         [$screen] = $screen->update(new KeyMsg(KeyType::Char, 'a')); // All → Watched
         [$screen] = $screen->update(new KeyMsg(KeyType::Char, 'a')); // Watched → Unwatched
         [$screen, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'a')); // → Favorites
@@ -130,6 +156,40 @@ final class BrowseScreenZeroCardFavoritesTest extends TestCase
         [$screen] = $this->screenWith($transport)->update(new LibrariesLoadedMsg([
             Library::fromArray(['id' => 'lib-a', 'name' => 'Movies', 'type' => 'movie']),
         ]));
+        [$screen] = $screen->update(new KeyMsg(KeyType::Char, 'a')); // All → Watched
+        [$screen] = $screen->update(new KeyMsg(KeyType::Char, 'a')); // Watched → Unwatched
+        [$screen, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'a')); // → Favorites
+        self::assertInstanceOf(\Closure::class, $cmd, 'the cycle must REACH the Favorites step');
+
+        foreach ($this->runBatch($cmd) as $msg) {
+            [$screen] = $screen->update($msg);
+        }
+
+        self::assertSame(1, $transport->requestCount(), 'only the Favorites step queries — the answer arrived');
+
+        return $screen;
+    }
+
+    /**
+     * The R5-1 probe state [review w13L8 round-5]: SIX shelves answered, the
+     * cursor scrolled deep into them (Down x3 — rows 40 puts it at rail 3),
+     * then 'a' cycles to Favorites and the answer is POPULATED. The raise
+     * collapses ids to ['favorites'] with the cursor stranded outside the
+     * set: the un-clamped populated branch renders no box and publishes the
+     * FULL hint over keys the stale focus cannot serve.
+     */
+    private function populatedFavoritesOverStaleCursorWith(FakeTransport $transport): BrowseScreen
+    {
+        $libraries = [];
+        for ($i = 1; $i <= 6; $i++) {
+            $libraries[] = Library::fromArray(['id' => 'lib-' . $i, 'name' => 'Shelf ' . $i, 'type' => 'movie']);
+        }
+
+        [$screen] = $this->screenWith($transport, 240)->update(new LibrariesLoadedMsg($libraries));
+        [$screen] = $screen->update(new KeyMsg(KeyType::Down));
+        [$screen] = $screen->update(new KeyMsg(KeyType::Down));
+        [$screen] = $screen->update(new KeyMsg(KeyType::Down));
+
         [$screen] = $screen->update(new KeyMsg(KeyType::Char, 'a')); // All → Watched
         [$screen] = $screen->update(new KeyMsg(KeyType::Char, 'a')); // Watched → Unwatched
         [$screen, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'a')); // → Favorites
@@ -281,6 +341,202 @@ final class BrowseScreenZeroCardFavoritesTest extends TestCase
             $this->advertisedDeadTokens($screen),
             'the libraries-account zero-card favorites hint lies about these keys',
         );
+    }
+
+    public function testPopulatedFavoritesOverAStaleScreenCursorStillRenderTheirBox(): void
+    {
+        // LAW A + the visible box [review w13L8 round-5, R5-1 — the
+        // invisible-box state]. The reviewer's executed probe: six shelves,
+        // Down x3, 'a' x3, favorites answer WITH a card. The populated raise
+        // never clamped the screen cursor (the round-5 register's "self-
+        // clamps on read" premise, disproven), so view() sliced the window
+        // past the single rail and rendered NO box while railsHint()
+        // published five keys the stale focus could not serve. RED at parent
+        // 4a60f8ca: the cursor pin and the '♥ Favorites' containment are the
+        // invisible box; the audit carries the reviewer's five convictions
+        // ({←→ items, ⏎ open, s shuffle, u up-next, [ ] page} — only ↑↓
+        // rescued, exactly as recorded). The cure routes the populated raise
+        // through the same single-source clamp the empty branch uses.
+        $transport = (new FakeTransport())->json(200, [
+            'items' => [['id' => 'f1', 'name' => 'F', 'type' => 'movie', 'poster_url' => null]],
+            'total' => 1,
+            'limit' => 18,
+            'offset' => 0,
+        ]);
+        $screen = $this->populatedFavoritesOverStaleCursorWith($transport);
+
+        self::assertSame(['favorites'], $screen->railIds());
+        self::assertSame(0, $screen->railCursor(), 'the stale shelf cursor clamps into the one-rail favorites set');
+        self::assertStringContainsString(
+            '♥ Favorites',
+            $screen->view(),
+            'the box lands inside the window at the clamped cursor',
+        );
+
+        $view = $screen->view();
+        self::assertStringNotContainsString(
+            'No libraries yet.',
+            $view,
+            'the account has shelves — a visible box names Favorites, never the libraries lie',
+        );
+        self::assertSame(
+            [],
+            $this->advertisedDeadTokens($screen),
+            'the stale-cursor favorites hint lies about these keys',
+        );
+    }
+
+    public function testCyclingOffFavoritesReRaisesTheShelvesTheStepHid(): void
+    {
+        // LAW B, second leg [review w13L8 round-5, R5-2 — the cycle-OFF
+        // lie]. The 'a' Favorites step hides the library rails to render the
+        // favorites answer; cycling OFF cleared the favorites rail but never
+        // restored the shelves, so ids fell to [] while librariesLoaded
+        // stayed true — and the empty arm printed "No libraries yet." over
+        // an account that HAS a Movies shelf. RED at parent on the closure
+        // pin (the cure-off leg returned null) and on the lie string (the
+        // reviewer's executed C1 contrast). The cure re-fetches exactly the
+        // legs the Favorites step cleared (continue + libraries), guarded by
+        // accountHasLibraries() so the zero-library account keeps its honest
+        // null-cmd landing (BrowseScreenTest's favorites-cycle pins).
+        $transport = (new FakeTransport())
+            ->json(200, ['items' => [], 'total' => 0, 'limit' => 18, 'offset' => 0]) // the Favorites answer
+            ->json(200, ['items' => []]) // continue re-fetch (empty: no rail)
+            // the shelves re-answer: the cycled-off legs come back
+            ->json(200, ['libraries' => [['id' => 'lib-a', 'name' => 'Movies', 'type' => 'movie']]]);
+        $screen = $this->librariesFavoritesCycledWith($transport);
+
+        [$screen, $cmd] = $screen->update(new KeyMsg(KeyType::Char, 'a')); // Favorites → All
+        self::assertInstanceOf(\Closure::class, $cmd, 'cycling off re-queries the legs the Favorites step cleared');
+
+        foreach ($this->runBatch($cmd) as $msg) {
+            [$screen] = $screen->update($msg);
+        }
+
+        self::assertSame(
+            3,
+            $transport->requestCount(),
+            'favorites, continue, libraries — the per-library media batch is dropped, the file idiom',
+        );
+        self::assertSame(['lib-a'], $screen->railIds(), 'the shelves the Favorites step hid come back');
+
+        $view = $screen->view();
+        self::assertStringContainsString('Movies', $view, 'the raised rail renders');
+        self::assertStringNotContainsString(
+            'No libraries yet.',
+            $view,
+            'the account has a Movies shelf — that string is a lie',
+        );
+        self::assertStringNotContainsString('♥ Favorites', $view, 'the favorites rail is gone with its filter');
+        self::assertSame([], $this->advertisedDeadTokens($screen), 'the cycle-off hint lies about these keys');
+    }
+
+    public function testTheCardLessFavoritesBoxTrimsTheStaleSidebarKeys(): void
+    {
+        // LAW A in the SIDEBAR zone [review w13L8 round-5, R5-3]. Tab off the
+        // R5 cure state: the sidebar still carries the single shelf the
+        // Favorites step hid — its rail is gone, its entry is stale. The
+        // un-trimmed hint published '↑↓  library' (Sidebar::down clamps over
+        // a one-entry list) and '⏎  open' (openLibrary -> railById over the
+        // cleared libraryRails -> null) — both null-cmds over byte-identical
+        // views, the reviewer's executed C3 pair. RED at parent on both
+        // containment flips AND the audit; post-cure the hint composes to
+        // the arms the state serves: H / P / Tab / q.
+        $transport = (new FakeTransport())->json(200, ['items' => [], 'total' => 0, 'limit' => 18, 'offset' => 0]);
+        $screen = $this->librariesFavoritesCycledWith($transport);
+        [$screen, $cmd] = $screen->update(new KeyMsg(KeyType::Tab));
+        self::assertNull($cmd, 'Tab is a focus move');
+
+        $view = $screen->view();
+        self::assertStringNotContainsString('↑↓  library', $view, 'one stale entry — the arrows move nothing');
+        self::assertStringNotContainsString('⏎  open', $view, 'the rail behind the stale entry is gone');
+        self::assertStringContainsString('H  history', $view, 'the user-riding arms stay published');
+        self::assertStringContainsString('P  playlists', $view);
+        self::assertStringContainsString('Tab  rails', $view);
+        self::assertStringContainsString('q  quit', $view);
+        self::assertSame(
+            [],
+            $this->advertisedDeadTokens($screen),
+            'the sidebar hint lies about these keys',
+        );
+    }
+
+    public function testThePopulatedSingleRailFavoritesHintTrimsWhatASingleRailCannotServe(): void
+    {
+        // LAW A per SEGMENT, not per ANY [review w13L8 round-5, R5-4 — the
+        // root card]. The R3 law state: zero libraries, favorites answer
+        // WITH one card. anyRailHasCards() published the FULL row over: ↑↓
+        // (a one-rail set clamps the cursor both ways), ←→ (Rail::moveCursor
+        // clamps on a single card), u (no up-next rail exists) and [ ]
+        // (paging belongs to the Most Watched rail alone) — while ⏎ and s
+        // ARE genuinely served by the focused card. RED at parent on the
+        // four containment flips and the four-token audit (exactly the
+        // reviewer's conviction set). cols 240 so the FULL row publishes
+        // intact for the audit to see the lies.
+        $transport = (new FakeTransport())->json(200, [
+            'items' => [['id' => 'f1', 'name' => 'F', 'type' => 'movie', 'poster_url' => null]],
+            'total' => 1,
+            'limit' => 18,
+            'offset' => 0,
+        ]);
+        $screen = $this->favoritesCycledWith($transport, cols: 240);
+
+        self::assertSame(['favorites'], $screen->railIds(), 'the populated rail stands (R3 law kept)');
+
+        $view = $screen->view();
+        self::assertStringContainsString(
+            '⏎  open',
+            $view,
+            'the focused card is real — open and shuffle stay published',
+        );
+        self::assertStringContainsString('s  shuffle', $view);
+        self::assertStringContainsString('Tab  menu', $view);
+        self::assertStringContainsString('a  filter(♥ Favorites)', $view);
+        self::assertStringContainsString('R  refresh', $view);
+        self::assertStringContainsString('q  quit', $view);
+        self::assertStringNotContainsString('↑↓  rails', $view, 'one rail: the arrows clamp both ways');
+        self::assertStringNotContainsString('←→  items', $view, 'one card: left/right clamp');
+        self::assertStringNotContainsString('u  up-next', $view, 'no up-next rail exists in this state');
+        self::assertStringNotContainsString('[ ]  page', $view, 'paging belongs to the Most Watched rail');
+
+        self::assertSame(
+            [],
+            $this->advertisedDeadTokens($screen),
+            'the single-rail populated hint lies about these keys',
+        );
+    }
+
+    public function testAPopulatedFavoritesPairStillAdvertisesAndServesItemMovement(): void
+    {
+        // The cure's other edge: per-segment truth may not eat a LIVE key.
+        // With TWO cards in the focused rail, '←→  items' is genuinely
+        // served and must stay published (the no-over-trim leg — the same
+        // containment was green at the parent and must survive the cure).
+        // The audit leg REDS at the parent too: the single-rail two-card
+        // state still published the FULL row, so ↑↓/u/[ ] convict there —
+        // R5-4's root card is about RAIL count, not card count. Audited
+        // from the fresh cursor-0 screen (the pair convention presses
+        // Right; cursor 1 would sit on the clamp edge).
+        $transport = (new FakeTransport())->json(200, [
+            'items' => [
+                ['id' => 'f1', 'name' => 'F', 'type' => 'movie', 'poster_url' => null],
+                ['id' => 'f2', 'name' => 'G', 'type' => 'movie', 'poster_url' => null],
+            ],
+            'total' => 2,
+            'limit' => 18,
+            'offset' => 0,
+        ]);
+        $screen = $this->favoritesCycledWith($transport, cols: 240);
+
+        $view = $screen->view();
+        self::assertStringContainsString('←→  items', $view, 'two cards — the pair is live and stays advertised');
+        self::assertStringContainsString('⏎  open', $view);
+
+        [$next, $cmd] = $screen->update(new KeyMsg(KeyType::Right));
+        self::assertNull($cmd, 'the movement is a pure state move');
+        self::assertNotSame($view, $next->view(), 'the advertised ←→ visibly moves the card focus');
+
+        self::assertSame([], $this->advertisedDeadTokens($screen), 'the two-card hint lies about these keys');
     }
 
     // ---- harness (offline FakeTransport kit, mirrors BrowseScreenTest) ----

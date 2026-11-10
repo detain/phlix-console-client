@@ -194,7 +194,7 @@ final class WidthManagedBodyTest extends TestCase
         $view = $this->browseWithLibraryMedia(120)->view();
 
         self::assertStringContainsString('░', $view, 'the rails paint where they fit');
-        self::assertStringContainsString('↑↓  rails', $view, 'the rails hint carries the rails keys');
+        self::assertStringContainsString('Tab  menu', $view, 'the rails-focused hint row still renders');
     }
 
     public function testTabIsInertWhileTheRailsAreCollapsed(): void

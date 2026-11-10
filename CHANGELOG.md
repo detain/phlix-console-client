@@ -5,6 +5,44 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — w13/L8 round-6 review cure (four minors, one law, four states deeper): stale-cursor favorites render, cycling off re-raises the shelves, and both hint rows publish per-key truth — 2026-11-09
+
+- **[review w13L8 round-5, minors 1-4]** Four residuals of the same hint-honesty family, cured together and
+  convicted red-first at parent 4a60f8ca — five executed failures in `BrowseScreenZeroCardFavoritesTest`
+  (T1 "3 is identical to 0"; T2 "null is not an instance of Closure"; T3/T4 publishing dead ↑↓ rows; T5's
+  audit leg `[↑↓ rails, u up-next, [ ] page]`). (1) The populated-favorites raise never clamped: 'a' to the
+  Favorites rail over a six-shelf account kept the stale screen cursor, so `array_slice(['favorites'],
+  $scroll)` rendered NO box plus five dead keys — the round-5 register's "self-clamps on read" was
+  empirically false, now proven by a permanent test. Cure: new single-source `clampedToRails()` (cursor and
+  scroll into `orderedRailIds()`) applied on both favorites branches, and `onLibraries`' reload clamp now
+  routes through the same helper (unified, same result). (2) Law B lied on the cycle-OFF leg: 'a'
+  Favorites→All cleared the rails, so an account WITH libraries landed "No libraries yet." — a sentence
+  about shelves the user has. Cure: cycle-off re-queries exactly the two legs the Favorites step hid
+  (`fetchContinueWatching` + `fetchLibraries`, batched) when `accountHasLibraries()` holds — measured
+  request law 3 (favorites, continue, libraries; the per-library media batch is dropped, the file idiom) —
+  while zero-lib keeps the null-cmd honest landing (CU-049 law, BrowseScreenTest pins untouched). (3) In
+  the round-5 cure state Tab published two dead sidebar keys: ↑↓ over a single-entry sidebar (down()
+  returns $this) and ⏎ whose stale entry `railById()` can no longer resolve (the R-refresh window shares
+  that arm). (4) The populated single-rail favorites hint published four keys a single rail cannot serve
+  (↑↓ rails — moveRail clamps at count 1; u — no up-next in the set; [ ] — not most-watched; and ←→/half
+  of the item pair per-count). Cure for both: `sidebarHint()` and `railsHint()` now compose from
+  per-segment predicates — ↑↓ library iff ≥2 entries, ⏎ open iff every entry opens (new
+  `sidebarEntriesOpenable()`), ↑↓ rails iff ≥2 rails, ←→ items iff ≥2 focused cards, ⏎/s iff a focused card
+  exists, u iff up-next sits elsewhere in the ordered set, [ ] only on most-watched; Tab/a/R/q always. The
+  all-live paths return the ORIGINAL literals byte-identically (`SIDEBAR_HINT` const and the full rails row
+  stay the body's first return — both doc gates parse them from source). `anyRailHasCards()` retired with
+  its sole consumer: the round-5 whole-row trim IS the composition's zero-card case (the trimmed row is
+  byte-identical, R5 tests green unmoved). WidthManagedBodyTest :197 rotated '↑↓  rails' → 'Tab  menu'
+  (measured-red 1/12 pre-rotation, disclosed): the wide one-shelf/two-card fixture's ↑↓ was dead while
+  advertised — trimmed truthfully now. The R-refresh arm's fetch set stays untouched by design: its
+  zero-lib libraries-leg self-heal is pinned at 4 requests by `testRefreshKeyReachesTheFetchFromTheEmptyState`,
+  and its transient copy window is the reviewer's own pre-existing C1b class — disclosed, not expanded.
+  Five new tests (11 in file, 77 assertions). Suite 3715/24976 (parent, executed) → 3720/25023 (post,
+  executed): +5 tests / +47 assertions exact, deprecations (15) and skips (16) unmoved; BrowseScreenTest
+  69/69 and the doc-gate pair 10/10 green unmoved. phpstan prod+tests [OK]; phpcs src-config 0E/15W (the
+  parent warning set, parity held), tests config and bare PSR-12 on both changed tests 0E/0W; zero lang
+  files touched (i18n pair N/A). Register: .reviews/2026-11-09/FIX-console-w13L8-round6.md.
+
 ### Refactored — CU-042 [review console__srphp #4]: the 11 derived-App copy sites route through one copyWith seam — 2026-11-09
 
 - `src/App.php` carried thirteen hand-spelled `new self(...)` constructions of its

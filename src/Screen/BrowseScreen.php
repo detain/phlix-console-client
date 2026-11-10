@@ -392,11 +392,9 @@ final class BrowseScreen implements Breadcrumbed, Themed
         $next->librariesLoaded = true;
         $next = $next->withSidebar($next->sidebar->withEntries($next->sidebarEntries()));
 
-        // Clamp the cursor in case a reload returned fewer rails than before.
-        $count = count($next->orderedRailIds());
-        if ($count > 0 && $next->railCursor >= $count) {
-            $next = $next->withCursor($count - 1, min($next->railScroll, $count - 1));
-        }
+        // Clamp the cursor in case a reload returned fewer rails than before
+        // (round 6 single-sources the law into clampedToRails()).
+        $next = $next->clampedToRails();
 
         return [$next, $cmds === [] ? null : Cmd::batch(...$cmds)];
     }
@@ -473,7 +471,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
             // own shelves (the review's executed tip-vs-parent contrast — a
             // NEW R4 regression) and hide the sidebar the box carried
             // visibly. The card-less favorites rail returns FOR THIS STATE
-            // ONLY — and railsHint()'s zero-cards trim keeps its hint
+            // ONLY — and railsHint()'s per-segment honesty keeps its hint
             // advertising only what the state serves: both laws, at once.
             if (!$this->accountHasLibraries()) {
                 return [$this, null];
@@ -484,15 +482,23 @@ final class BrowseScreen implements Breadcrumbed, Themed
             // box always lands inside the window.
             $next = $this->withFavoritesRail(new Rail('♥ Favorites', []));
 
-            return [$next->withCursor(0, 0), null];
+            return [$next->clampedToRails(), null];
         }
 
+        // The populated raise collapses the rail set the SAME way — the
+        // round-5 register claimed this leg "self-clamps on read" and the
+        // round-5 review EXECUTED the opposite: six shelves, Down x3, 'a' x3,
+        // an answer WITH cards rendered NO box (view() sliced past the single
+        // rail at the stale cursor) while the FULL hint published five keys
+        // the stale focus could not serve [review w13L8 round-5, R5-1]. The
+        // cure is the same single-source clamp the empty branch and
+        // onLibraries() use.
         $cards = [];
         foreach ($items as $item) {
             $cards[] = PosterCardFactory::fromMediaItem($item);
         }
         $rail = new Rail('♥ Favorites', $cards);
-        $next = $this->withFavoritesRail($rail);
+        $next = $this->withFavoritesRail($rail)->clampedToRails();
 
         return [$next, $next->loadPostersFor('favorites', $rail)];
     }
@@ -703,11 +709,25 @@ final class BrowseScreen implements Breadcrumbed, Themed
                 return [$next, $next->fetchFavorites()];
             }
 
-            // Switching away from Favorites: clear favorites rail
+            // Switching away from Favorites: clear favorites rail — and for
+            // an account WITH shelves, re-raise the rails the Favorites step
+            // hid [review w13L8 round-5, R5-2, Law B's surviving leg]. Left
+            // cleared, ids fall to [] while librariesLoaded stays true and
+            // the empty arm prints "No libraries yet." over shelves the user
+            // does have — the MAJOR-R4-1 lie re-arriving one keypress later.
+            // The re-query covers exactly the two legs the Favorites step
+            // cleared (continue + libraries; most-watched and up-next never
+            // left); onLibraries() rebuilds rails, sidebar and cursor. The
+            // zero-libraries half keeps the null command — there its
+            // emptiness IS the arm's honest state [CU-049, KEPT].
             if ($this->watchFilter === self::FILTER_FAVORITES) {
-                $next = $this->withWatchFilter($nextFilter);
+                $next = $this->withWatchFilter($nextFilter)->withFavoritesRail(null);
 
-                return [$next->withFavoritesRail(null), null];
+                if (!$this->accountHasLibraries()) {
+                    return [$next, null];
+                }
+
+                return [$next, Cmd::batch($next->fetchContinueWatching(), $next->fetchLibraries())];
             }
 
             return [$this->withWatchFilter($nextFilter), null];
@@ -906,6 +926,29 @@ final class BrowseScreen implements Breadcrumbed, Themed
     }
 
     /**
+     * Cursor and scroll clamped into the CURRENT ordered rail set — the
+     * single-source form of "a transition that shrinks the set moves the
+     * focus home". A collapsed set with a stale cursor renders NO box at
+     * all (view() slices past the end) while every cursor-relative key
+     * presses into the clamp [review w13L8 round-5, R5-1, executed: the
+     * populated favorites raise over a six-shelf cursor]. Three raise sites
+     * share this law: the two onFavorites branches and the onLibraries
+     * reload.
+     */
+    private function clampedToRails(): self
+    {
+        $count = count($this->orderedRailIds());
+        if ($count > 0 && ($this->railCursor >= $count || $this->railScroll >= $count)) {
+            return $this->withCursor(
+                min($this->railCursor, $count - 1),
+                min($this->railScroll, $count - 1),
+            );
+        }
+
+        return $this;
+    }
+
+    /**
      * Whether the last ANSWERED libraries request carried entries. The 'a'
      * Favorites step and the 'R' refresh clear libraryRails; this signal —
      * written only by onLibraries() from the server's answer — tells "the
@@ -919,22 +962,27 @@ final class BrowseScreen implements Breadcrumbed, Themed
     }
 
     /**
-     * Whether ANY rail in the ordered set carries a card — the railsHint()
-     * trim's honesty gate: a fully card-less rail set serves no
-     * card-dependent key, and the hint may never advertise what cannot be
-     * delivered (575b338's law; the under-advertising direction is the one
-     * round-3 documents as safe).
+     * Whether the sidebar's ⏎ genuinely opens: the list holds at least one
+     * entry and EVERY entry resolves to a live rail — the exact arms
+     * openLibrary() acts on (unknown id, the reserved continue key and a
+     * cleared libraryRails entry all null-cmd) [review w13L8 round-5, R5-3:
+     * the Favorites step and the 'R' refresh hide the rails the sidebar
+     * entries still name]. Under-advertising is the safe direction — a
+     * partially-stale sidebar trims the token until the shelves return.
      */
-    private function anyRailHasCards(): bool
+    private function sidebarEntriesOpenable(): bool
     {
-        foreach ($this->orderedRailIds() as $railId) {
-            $rail = $this->railById($railId);
-            if ($rail !== null && $rail->cards !== []) {
-                return true;
+        if ($this->sidebar->isEmpty()) {
+            return false;
+        }
+        foreach ($this->sidebar->entries as $entry) {
+            $id = $entry['id'];
+            if ($id === self::CONTINUE_ID || $this->railById($id) === null) {
+                return false;
             }
         }
 
-        return false;
+        return true;
     }
 
     /** @return list<array{id: string, label: string}> library rails as sidebar entries */
@@ -1032,52 +1080,110 @@ final class BrowseScreen implements Breadcrumbed, Themed
     }
 
     /**
-     * The sidebar-focus hint row, minus every key the CURRENT state silences
-     * [review w13 L8 round-3, the no-dead-keys law]. Two honest trims:
-     * 'Tab rails' when the rails collapse below the join threshold
-     * (M-CONSOLE-71 — the original str_replace site, now single-sourced), and
-     * the 'library'/'open' pair when the sidebar holds nothing to move over.
-     * 'H'/'P' stay advertised unconditionally because their arms live
-     * pre-routing now; 'a'/'R' likewise never appear in THIS hint.
+     * The sidebar-focus hint row, COMPOSED from the segments the current
+     * state actually serves [review w13 L8 round-3, the no-dead-keys law;
+     * per-segment form per round-5, R5-3]. '↑↓ library' needs at least TWO
+     * entries — Sidebar::up()/down() clamp at a one-entry list, the general
+     * form of the empty-sidebar pair the str_replace era trimmed. '⏎ open'
+     * needs every entry to resolve to a live rail — the Favorites step and
+     * the 'R' refresh hide the shelves the stale entries still name.
+     * 'H'/'P' stay advertised because their arms live pre-routing; 'Tab
+     * rails' keeps the M-CONSOLE-71 collapse trim; 'q' is the escape. With
+     * every segment live the join is byte-identical to self::SIDEBAR_HINT;
+     * 'a'/'R' likewise never appear in THIS hint.
      */
     private function sidebarHint(): string
     {
-        $hint = self::SIDEBAR_HINT;
+        $segments = [
+            ['↑↓  library', count($this->sidebar->entries) >= 2],
+            ['⏎  open', $this->sidebarEntriesOpenable()],
+            ['H  history', true],
+            ['P  playlists', true],
+            ['Tab  rails', $this->railsFit()],
+            ['q  quit', true],
+        ];
 
-        if (!$this->railsFit()) {
-            $hint = str_replace('      Tab  rails', '', $hint);
+        [$allLive, $live] = self::hintSegments($segments);
+        if ($allLive) {
+            return self::SIDEBAR_HINT;
         }
 
-        if ($this->sidebar->isEmpty()) {
-            $hint = str_replace('↑↓  library      ⏎  open      ', '', $hint);
-        }
-
-        return $hint;
+        return $live;
     }
 
-    /** Build the rails-region hint, including the current watch-filter label. */
+    /**
+     * Build the rails-region hint, including the current watch-filter label.
+     * Round 5 [R5-4 — the root card] took the trim from binary to
+     * per-segment: ANY-cards published EVERY key, so a populated single-rail
+     * favorites box advertised ↑↓ (a one-rail set clamps the cursor), ←→ (a
+     * one-card rail clamps the focus), u (no up-next rail in the set) and
+     * [ ] (paging belongs to the Most Watched rail alone) — four keys the
+     * reviewer's audit pressed into null-cmds. Each token now states the
+     * condition its own arm in handleRailsKey() needs; the always-live arms
+     * (Tab focus toggle, hoisted 'a' cycle, pre-routing R, the q escape)
+     * carry every state. The '[ ]' pair follows the house pair-token
+     * convention — published while the focused rail IS the paging rail: '['
+     * clamps at page zero, ']' always pages — the zero-card audits press one
+     * direction per pair. With no card-dependent segment live the join
+     * reproduces the round-4/5 trim row byte-identically.
+     */
     private function railsHint(): string
     {
         $filter = self::FILTER_LABELS[$this->watchFilter] ?? 'All';
 
+        $ids = $this->orderedRailIds();
+        $focusedId = $ids[$this->railCursor] ?? null;
+        $focusedRail = $focusedId !== null ? $this->railById($focusedId) : null;
+        $focusedCards = $focusedRail !== null ? count($focusedRail->cards) : 0;
+        $upNextIndex = array_search(self::NEXT_UP_ID, $ids, true);
+
+        $segments = [
+            ['↑↓  rails', count($ids) >= 2],
+            ['←→  items', $focusedCards >= 2],
+            ['⏎  open', $focusedCards >= 1],
+            ['Tab  menu', true],
+            ["a  filter({$filter})", true],
+            ['R  refresh', true],
+            ['s  shuffle', $focusedCards >= 1],
+            ['u  up-next', $upNextIndex !== false && $upNextIndex !== $this->railCursor],
+            ['[ ]  page', $focusedId === self::MOST_WATCHED_ID],
+            ['q  quit', true],
+        ];
+
+        [$allLive, $live] = self::hintSegments($segments);
+
         // The FULL row is the first literal return of this body BY PIN: the
         // docs census (GridKeysDocsTest / WatchStateLoopDocsTest) parses it
-        // by anchor and non-greedy regex — the zero-cards trim below must
-        // never reorder past it.
-        if ($this->anyRailHasCards()) {
+        // by anchor and non-greedy regex — nothing may reorder past it. The
+        // composition is byte-identical to it when every segment is live.
+        if ($allLive) {
             return "↑↓  rails      ←→  items      ⏎  open      Tab  menu      a  filter({$filter})      R  refresh      s  shuffle      u  up-next      [ ]  page      q  quit";
         }
 
-        // Zero cards anywhere in the rail set — the honest favorites-empty
-        // box [review w13L8 round-4, MAJOR-R4-1, Law A] and the media-not-
-        // yet-landed bootstrap, where under-advertising is the direction the
-        // round-3 doctrine sanctions. ↑↓ moves nothing over a one-rail set,
-        // ←→ / ⏎ / s need a focused card, u needs an up-next rail, [ ]
-        // belongs to the Most Watched rail alone; Tab, 'a', R and q are the
-        // four arms this state genuinely delivers (focus toggle, filter
-        // cycle, pre-routing refresh, quit — the same single-source trim
-        // doctrine as sidebarHint()'s empty-sidebar pair).
-        return "Tab  menu      a  filter({$filter})      R  refresh      q  quit";
+        return $live;
+    }
+
+    /**
+     * Shared hint-composition footer [w13L8-R6]: whether every segment is
+     * live, and the live segments joined with the house six-space gap.
+     *
+     * @param list<array{0: string, 1: bool}> $segments
+     *
+     * @return array{0: bool, 1: string}
+     */
+    private static function hintSegments(array $segments): array
+    {
+        $allLive = true;
+        $live = [];
+        foreach ($segments as [$label, $isLive]) {
+            if ($isLive) {
+                $live[] = $label;
+            } else {
+                $allLive = false;
+            }
+        }
+
+        return [$allLive, implode('      ', $live)];
     }
 
     /**
