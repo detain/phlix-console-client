@@ -459,15 +459,21 @@ final class BrowseScreen implements Breadcrumbed, Themed
     private function onFavorites(array $items): array
     {
         if ($items === []) {
-            $rail = new Rail('♥ Favorites', []);
-        } else {
-            $cards = [];
-            foreach ($items as $item) {
-                $cards[] = PosterCardFactory::fromMediaItem($item);
-            }
-            $rail = new Rail('♥ Favorites', $cards);
+            // Empty: render nothing (not an empty box) — the sibling doctrine
+            // (onContinueWatching / onMostWatched / onNextUp). [review console
+            // chain ed4423b, MAJOR-1] The old card-less rail here bypassed
+            // CU-049's honest empty arm: focus defaulted to RAILS and
+            // railsHint() published ⏎ open / ←→ items / s shuffle / u up-next /
+            // [ ] page over cards that never existed — six advertised-dead
+            // keys (reviewer-executed probe; w13L8-R4 conviction tests).
+            return [$this, null];
         }
 
+        $cards = [];
+        foreach ($items as $item) {
+            $cards[] = PosterCardFactory::fromMediaItem($item);
+        }
+        $rail = new Rail('♥ Favorites', $cards);
         $next = $this->withFavoritesRail($rail);
 
         return [$next, $next->loadPostersFor('favorites', $rail)];

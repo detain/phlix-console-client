@@ -5,6 +5,33 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — w13/L8 round-4 review cure (CU-049 dead-key class, deepest leg): the zero-card favorites state no longer advertises six keys it can never serve — 2026-11-09
+
+- **[review console chain ed4423b MAJOR-1 / CU-049 round-4]** Round-3's cure stopped one card deeper
+  than its own law: `onFavorites()` kept raising `new Rail('♥ Favorites', [])` over an EMPTY favorites
+  answer while all three sibling handlers null out on empty (onContinueWatching / onMostWatched /
+  onNextUp — in-file doctrine "Empty: render nothing (not an empty box)"). The card-less rail made
+  `railIds()===["favorites"]` bypass CU-049's honest empty arm: focus defaulted to RAILS, `railsFit()`
+  held, and `railsHint()` published ↑↓ rails / ←→ items / ⏎ open / s shuffle / u up-next / [ ] page
+  over cards that do not exist. Reviewer-executed probe (cols 120 rows 40, "same shape holds @168"):
+  Enter / Right / s / u / [ / ] each returned a null cmd with a byte-identical view — 6/6 inert, the
+  exact class 575b338's own commit words forbid ("a hint that lies about a key is worse than no
+  hint"). Provenance: the empty-rail arm is byte-identical at aa770830 — a cure-COVERAGE gap, not a
+  chain regression (every R3 fixture carried ≥1 favorite; zero-item favorites was untested). Cure:
+  `onFavorites` mirrors the sibling doctrine (`$items === [] → [$this, null]`), so the state falls
+  into the honest empty arm, whose published keys (R/q) are live by the round-2/round-3 pre-routing
+  folds — a shape the estate already ratified when cycling OFF a populated Favorites rail lands the
+  same arm. New tests/Screen/BrowseScreenZeroCardFavoritesTest.php (4 tests, 17 assertions, offline
+  FakeTransport harness over the REAL 'a'-cycle key path): shape-agnostic hint-lie law — every token
+  the published view advertises among the probe's six must be served (null-cmd ∧ byte-identical view
+  convicts; all six convicted verbatim at parent ed4423b), the sibling-doctrine mirror
+  (`BrowseFavoritesLoadedMsg([])` → no rail, mirroring testEmptyMostWatchedAddsNoRail), the honest-
+  empty-arm landing pin, and a populated-rail preservation pin (green at parent — the cure must not
+  cost the real Favorites path). Suite 3698/24841 (parent, executed) → 3702/24858 (post, executed):
+  +4 tests / +17 assertions, exactly the new file, deprecations (15) and skips (16) unmoved. phpstan
+  prod L9 + tests L2 [OK]; phpcs src-config 0 errors (15 long-line warnings = the parent set,
+  bijective through the +9-line shift), tests-config + bare PSR12 on the new file 0/0.
+
 ### Fixed — w14/L2 completion (CU-009 docs-pin adjudication): the two doc gates the palette i18n left behind now read the shipped label-key law — 2026-11-09
 
 - **[CU-009 follow-up]** The palette i18n rotated all 23 labels to `Lang::t('palette.<name>')`
