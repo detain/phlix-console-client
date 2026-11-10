@@ -5,6 +5,19 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — CP-023 [w35/L2] device-class token-custody truth lines: the file-backed bearer store and the client docs now say the custody shape is by design, not a deferred step — 2026-11-10
+
+- **Why:** the estate cookie-auth design (`COOKIE-DESIGN.md`) settled the permanent split —
+  same-origin browser clients ride session cookies, device-class clients (the console among
+  them) ride bearer custody forever. Its §4.6 assigned this repo final landing debt: the docs
+  described the custody faithfully (`token.json`, the `Authorization` header, the two-entry
+  bearer subprotocol) but never stated the shape is by design, leaving it readable as a
+  stopgap. It is not: a headless terminal client has no cookie jar.
+- **What:** a custody-class paragraph in the `TokenStore` class docblock and a custody
+  paragraph under the config-file table in `docs/clients/console.md`, both naming the law
+  (COOKIE-DESIGN §2.1/§4.6, owner ruling D6c, 2026-11-05). Zero behavior change; the token
+  filename and every existing custody law are untouched.
+
 ### Added — LW-090-b [w21/L2] console error-code registry gate: the SyncPlay wire-code map is now byte-anchored to the shipped contracts registry — the cascade trio's unpinned half — 2026-11-09
 
 - **The missing pin.** The route-manifest half of the contracts trio has been gated since S405

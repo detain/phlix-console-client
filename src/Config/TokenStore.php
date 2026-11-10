@@ -28,6 +28,14 @@ namespace Phlix\Console\Config;
  *
  * For backward compatibility, the legacy {@see save(TokenBundle)} and
  * {@see load()} methods operate on the "legacy" server id.
+ *
+ * Custody class: holding bearer tokens here is device-class by design, not a
+ * deferred step (estate cookie-auth design, COOKIE-DESIGN §2.1/§4.6, owner
+ * ruling D6c, 2026-11-05): the console is a headless device-class client and
+ * never a cookie-credentialed browser session - it has no cookie jar. Tokens
+ * stored here travel on the {@see \Phlix\Console\Api\ApiClient} Authorization
+ * header and on the two-entry bearer WebSocket subprotocol: that is their
+ * permanent carrier shape, not a stopgap.
  */
 final class TokenStore
 {

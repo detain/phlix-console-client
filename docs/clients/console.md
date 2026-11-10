@@ -154,6 +154,14 @@ Within that directory:
 | `token.json` | Auth tokens (access + refresh, keyed by server id) |
 | `posters/` | Poster image cache (tiled per render mode) |
 
+Token custody is **device-class by design, not a deferred step** (estate
+cookie-auth design, COOKIE-DESIGN §2.1/§4.6, owner ruling D6c, 2026-11-05): the
+console is a headless device-class client and never a cookie-credentialed
+browser session - it has no cookie jar. The tokens in `token.json` travel on
+the HTTP API as an `Authorization` header and on the SyncPlay socket as the
+two-entry `bearer` subprotocol (see `ws_port` below): that carrier shape is
+permanent for device-class clients, not a stopgap awaiting cookie custody.
+
 #### Server entries (`config.json` → `servers[]`)
 
 | Key | Default | Description |
