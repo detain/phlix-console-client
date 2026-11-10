@@ -5,6 +5,30 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — CU-013 [review console__copywriter #6-#9, console__writer #12]: locale hint format drift — 2026-11-09
+
+- `recommendations.hint` rendered the same logical string in two conventions: the en reference
+  (space-format, lowercase `q`/`x`) versus all six non-en catalogs in a colon form with capitalized
+  glyphs (`Q: Zurück  ↑↓: …`). The glyph case is cosmetic (the bindings accept `q||Q` / `x||X`), but the
+  format split contradicted the en.php doctrine comment ("spaces separate tokens, the key glyph stays
+  untranslated, only the word moves"). All six catalogs now carry the house space format with each file's
+  own sibling `detail.*` word forms, lowercase bound glyphs, two intra-token spaces, six inter-token spaces.
+- `detail.actions_hint` joined its two tokens with 2/3/4/8 spaces per locale while every sibling multi-key
+  hint uses the house 6 (en itself deviated at 8); normalized in all seven catalogs.
+- The ja catalog mixed ASCII `: ` fragments with the full-width `：` the `監督：` precedent established;
+  `detail.rating_save_failed` and the four `filter.*_label` prefixes now end in full-width colons (trailing
+  space dropped with the ASCII colon, matching the precedent's concatenation shape). The ASCII colon in
+  `browse.no_libraries_admin` deliberately stays: there the character IS a key glyph, not punctuation, and
+  the hint-honesty rails pin it.
+- Format law made permanent in `LocaleCatalogsTest` (three new tests, 117-key parity / placeholder /
+  leading-whitespace gates unchanged): recommendations hints parse to four six-space-joined glyph tokens
+  with no colons, actions hint to exactly two tokens at the house gap, ja fragments end full-width.
+  Red-first executed at the parent catalogs (colon/gap/ASCII convictions verbatim in the lane register);
+  after the edits the i18n file cluster runs 131 tests / 5844 assertions green (+3T/+73A over the 128/5771
+  parent cluster), `scripts/check-i18n-catalogs.php` + `scripts/check-i18n-hardcoded.php` both rc=0,
+  `TranslatorTest`'s verbatim en `recommendations.hint` pin untouched (en only moved `detail.actions_hint`),
+  `BrowseScreenZeroCardFavoritesTest` six-token law green.
+
 ### Fixed — w13/L8 round-5 review cure (MAJOR-R4-1): the libraries account's empty favorites stops saying "No libraries yet." — 2026-11-09
 
 - **[review w13L8 round-4, MAJOR-R4-1]** Round-4's `onFavorites([] → [$this, null]` mirror satisfied its

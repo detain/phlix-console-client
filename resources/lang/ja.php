@@ -33,7 +33,7 @@ return [
 
     // ---- RecommendationsScreen ----------------------------------------
     'recommendations.title' => 'おすすめ',
-    'recommendations.hint' => 'Q: 戻る  ↑↓: 移動  ⏎: 開く  X: 非表示',
+    'recommendations.hint' => 'q  戻る      ↑↓  移動      ⏎  開く      x  非表示',
     'recommendations.load_failed' => 'おすすめを読み込めませんでした。',
     'recommendations.loading' => 'おすすめを読み込み中…',
     'recommendations.empty' => "まだおすすめはありません。\n  視聴を始めると、あなた向けの提案が表示されます！",
@@ -45,9 +45,9 @@ return [
     'detail.similar_load_failed' => '関連作品を読み込めませんでした。',
     'detail.missing_episodes_load_failed' => '欠落エピソードを読み込めませんでした。',
     'detail.children_load_failed' => 'このコンテンツを読み込めませんでした。',
-    'detail.rating_save_failed' => '評価を保存できませんでした: ',
+    'detail.rating_save_failed' => '評価を保存できませんでした：',
     'detail.play_notice' => '▶  このタイトルには再生可能なソースがありません。',
-    'detail.actions_hint' => '▶  p  再生        Esc  戻る',
+    'detail.actions_hint' => '▶  p  再生      Esc  戻る',
     'detail.hint' => '↑↓  あらすじをスクロール      p  再生      s  シャッフル      C  キャスト      r  評価      F  お気に入り      w  視聴済み      l  高評価      j  低評価      d  ダウンロード      u  字幕      Esc  戻る',
     'detail.container_hint' => '↑↓←→  移動      ⏎  開く      s  シャッフル      Esc  戻る',
     'detail.error_hint' => 'r  再試行      Esc  戻る',
@@ -80,8 +80,8 @@ return [
 
     // ---- FilterBar ----------------------------------------------------
     'filter.search_placeholder' => '(入力して絞り込み)',
-    'filter.search_label' => '検索: ',
-    'filter.sort_label' => '並び替え: ',
+    'filter.search_label' => '検索：',
+    'filter.sort_label' => '並び替え：',
     'filter.sort_name' => '名前',
     'filter.sort_year' => '年',
     'filter.sort_rating' => '評価',
@@ -89,10 +89,10 @@ return [
     'filter.sort_runtime' => '上映時間',
     'filter.sort_genre' => 'ジャンル',
     'filter.sort_artist' => 'アーティスト',
-    'filter.order_label' => '順序: ',
+    'filter.order_label' => '順序：',
     'filter.order_asc' => '昇順',
     'filter.order_desc' => '降順',
-    'filter.genre_label' => 'ジャンル: ',
+    'filter.genre_label' => 'ジャンル：',
 
     // ---- SearchScreen ----------------------------------------------
     'search.no_results_for' => '{query} の結果はありません',

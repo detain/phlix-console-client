@@ -33,7 +33,7 @@ return [
 
     // ---- RecommendationsScreen ----------------------------------------
     'recommendations.title' => 'Per te',
-    'recommendations.hint' => 'Q: Indietro  ↑↓: Sfoglia  ⏎: Apri  X: Ignora',
+    'recommendations.hint' => 'q  indietro      ↑↓  sfoglia      ⏎  apri      x  ignora',
     'recommendations.load_failed' => 'Impossibile caricare i consigli.',
     'recommendations.loading' => 'Caricamento consigli…',
     'recommendations.empty' => "Ancora nessun consiglio.\n  Inizia a guardare per ricevere suggerimenti personalizzati!",
@@ -47,7 +47,7 @@ return [
     'detail.children_load_failed' => 'Impossibile caricare questo contenuto.',
     'detail.rating_save_failed' => 'Impossibile salvare la valutazione: ',
     'detail.play_notice' => '▶  Questo titolo non ha una sorgente riproducibile.',
-    'detail.actions_hint' => '▶  p  Riproduci   Esc  Indietro',
+    'detail.actions_hint' => '▶  p  Riproduci      Esc  Indietro',
     'detail.hint' => '↑↓  scorri sinossi      p  riproduci      s  casuale      C  cast      r  valuta      F  preferito      w  visto      l  mi piace      j  non mi piace      d  scarica      u  sottotitoli      Esc  indietro',
     'detail.container_hint' => '↑↓←→  sposta      ⏎  apri      s  casuale      Esc  indietro',
     'detail.error_hint' => 'r  riprova      Esc  indietro',

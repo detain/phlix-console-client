@@ -508,6 +508,119 @@ final class LocaleCatalogsTest extends TestCase
         self::assertSame('For You', Lang::t('recommendations.title'));
     }
 
+    // ---- hint format doctrine [CU-013: review console__copywriter #6-#9, console__writer #12] ----
+
+    /**
+     * All seven catalogs, English first (en.php is the format SSOT whose
+     * doctrine comment reads "spaces separate tokens, the key glyph stays
+     * untranslated, only the word moves").
+     *
+     * @return list<string>
+     */
+    private function hintLocales(): array
+    {
+        return ['en', ...self::LOCALES];
+    }
+
+    /**
+     * recommendations.hint drifted into a per-locale colon form ('Q: Zurück …')
+     * while every other hint line kept the house space format, and the glyphs
+     * were restated uppercase (Q/X) although the en reference — and the bound
+     * lowercase keys — print q/x. Pin the house shape across all seven.
+     */
+    public function testRecommendationsHintKeepsTheHouseSpaceFormatInEveryLocale(): void
+    {
+        foreach ($this->hintLocales() as $locale) {
+            $value = $this->catalog($locale)['recommendations.hint'];
+
+            $tokens = explode('      ', $value);
+            self::assertCount(
+                4,
+                $tokens,
+                $locale . ': recommendations.hint must join exactly four tokens with the house six-space gap'
+                    . ' (a colon form or a drifted gap reopens CU-013 — review console__copywriter #6/#8).'
+            );
+
+            foreach (['q', '↑↓', '⏎', 'x'] as $index => $glyph) {
+                self::assertStringStartsWith(
+                    $glyph . '  ',
+                    $tokens[$index],
+                    $locale . ": recommendations.hint token " . ($index + 1) . " must open with the bound"
+                        . " glyph '" . $glyph . "' + two spaces — lowercase, untranslated (review #7)."
+                );
+            }
+
+            self::assertStringNotContainsString(
+                ':',
+                $value,
+                $locale . ': recommendations.hint carries a colon again — the space format is the house doctrine.'
+            );
+        }
+    }
+
+    /**
+     * detail.actions_hint joined its two tokens with 2/3/4/8 spaces per locale;
+     * every sibling multi-key hint line uses the house 6. Pin it.
+     */
+    public function testDetailActionsHintCarriesTheHouseSixSpaceGapInEveryLocale(): void
+    {
+        foreach ($this->hintLocales() as $locale) {
+            $value = $this->catalog($locale)['detail.actions_hint'];
+
+            $tokens = explode('      ', $value);
+            self::assertCount(
+                2,
+                $tokens,
+                $locale . ': detail.actions_hint must join its two tokens with exactly six spaces'
+                    . ' (2/3/4/8-space gaps drifted per locale — review console__copywriter #8).'
+            );
+
+            self::assertStringStartsWith(
+                '▶  p  ',
+                $tokens[0],
+                $locale . ': detail.actions_hint opens with the ▶/p glyph pair.'
+            );
+            self::assertStringStartsWith(
+                'Esc  ',
+                $tokens[1],
+                $locale . ': detail.actions_hint second token opens with the Esc glyph.'
+            );
+        }
+    }
+
+    /**
+     * The ja catalog mixed ASCII ': ' fragments with the full-width '：' the
+     * '監督：' precedent established (review console__copywriter #9): Japanese
+     * labels and punctuated fragments now carry full-width colons. The colon
+     * in browse.no_libraries_admin stays ASCII on purpose — there the character
+     * IS a key glyph, not punctuation, and its hint-honesty rails pin it.
+     */
+    public function testJapanesePunctuationUsesFullWidthColons(): void
+    {
+        $ja = $this->catalog('ja');
+
+        foreach (
+            [
+                'detail.rating_save_failed',
+                'filter.search_label',
+                'filter.sort_label',
+                'filter.order_label',
+                'filter.genre_label',
+            ] as $key
+        ) {
+            self::assertStringEndsWith(
+                '：',
+                $ja[$key],
+                "ja: '{$key}' must end with the full-width colon — the '監督：' precedent (review #9)."
+            );
+            self::assertStringNotContainsString(
+                ': ',
+                $ja[$key],
+                "ja: '{$key}' mixes an ASCII colon+space fragment into a full-width catalog (review #9)."
+            );
+        }
+    }
+
     // ---- helpers --------------------------------------------------------
 
     /**

@@ -33,7 +33,7 @@ return [
 
     // ---- RecommendationsScreen ----------------------------------------
     'recommendations.title' => 'Pour vous',
-    'recommendations.hint' => 'Q : Retour  ↑↓ : Naviguer  ⏎ : Ouvrir  X : Ignorer',
+    'recommendations.hint' => 'q  retour      ↑↓  naviguer      ⏎  ouvrir      x  ignorer',
     'recommendations.load_failed' => 'Impossible de charger les recommandations.',
     'recommendations.loading' => 'Chargement des recommandations…',
     'recommendations.empty' => "Pas encore de recommandations.\n  Regardez des titres pour recevoir des suggestions personnalisées !",
@@ -47,7 +47,7 @@ return [
     'detail.children_load_failed' => 'Impossible de charger ce contenu.',
     'detail.rating_save_failed' => "Impossible d’enregistrer la note : ",
     'detail.play_notice' => "▶  Ce titre n’a aucune source lisible.",
-    'detail.actions_hint' => '▶  p  Lire    Esc  Retour',
+    'detail.actions_hint' => '▶  p  Lire      Esc  Retour',
     'detail.hint' => "↑↓  défilez le résumé      p  lire      s  aléatoire      C  distribution      r  noter      F  favori      w  vu      l  j’aime      j  je n’aime pas      d  télécharger      u  sous-titres      Esc  retour",
     'detail.container_hint' => '↑↓←→  déplacer      ⏎  ouvrir      s  aléatoire      Esc  retour',
     'detail.error_hint' => 'r  réessayer      Esc  retour',

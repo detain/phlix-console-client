@@ -33,7 +33,7 @@ return [
 
     // ---- RecommendationsScreen ----------------------------------------
     'recommendations.title' => 'Para ti',
-    'recommendations.hint' => 'Q: Atrás  ↑↓: Navegar  ⏎: Abrir  X: Descartar',
+    'recommendations.hint' => 'q  atrás      ↑↓  navegar      ⏎  abrir      x  descartar',
     'recommendations.load_failed' => 'No se pudieron cargar las recomendaciones.',
     'recommendations.loading' => 'Cargando recomendaciones…',
     'recommendations.empty' => "Aún no hay recomendaciones.\n  ¡Empieza a ver para recibir sugerencias personalizadas!",
@@ -47,7 +47,7 @@ return [
     'detail.children_load_failed' => 'No se pudo cargar este contenido.',
     'detail.rating_save_failed' => 'No se pudo guardar la valoración: ',
     'detail.play_notice' => '▶  Este título no tiene una fuente reproducible.',
-    'detail.actions_hint' => '▶  p  Reproducir  Esc  Atrás',
+    'detail.actions_hint' => '▶  p  Reproducir      Esc  Atrás',
     'detail.hint' => '↑↓  mover sinopsis      p  reproducir      s  aleatorio      C  reparto      r  valorar      F  favorito      w  visto      l  me gusta      j  no me gusta      d  descargar      u  subtítulos      Esc  atrás',
     'detail.container_hint' => '↑↓←→  mover      ⏎  abrir      s  aleatorio      Esc  atrás',
     'detail.error_hint' => 'r  reintentar      Esc  atrás',

@@ -33,7 +33,7 @@ return [
 
     // ---- RecommendationsScreen ----------------------------------------
     'recommendations.title' => 'Für dich',
-    'recommendations.hint' => 'Q: Zurück  ↑↓: Navigieren  ⏎: Öffnen  X: Verwerfen',
+    'recommendations.hint' => 'q  zurück      ↑↓  navigieren      ⏎  öffnen      x  verwerfen',
     'recommendations.load_failed' => 'Empfehlungen konnten nicht geladen werden.',
     'recommendations.loading' => 'Empfehlungen werden geladen…',
     'recommendations.empty' => "Noch keine Empfehlungen.\n  Fange an zu schauen, um personalisierte Vorschläge zu erhalten!",
@@ -47,7 +47,7 @@ return [
     'detail.children_load_failed' => 'Dieser Inhalt konnte nicht geladen werden.',
     'detail.rating_save_failed' => 'Bewertung konnte nicht gespeichert werden: ',
     'detail.play_notice' => '▶  Dieser Titel hat keine abspielbare Quelle.',
-    'detail.actions_hint' => '▶  p  Abspielen   Esc  Zurück',
+    'detail.actions_hint' => '▶  p  Abspielen      Esc  Zurück',
     'detail.hint' => '↑↓  Handlung scrollen      p  abspielen      s  Zufall      C  Besetzung      r  bewerten      F  Favorit      w  gesehen      l  Daumen hoch      j  Daumen runter      d  herunterladen      u  Untertitel      Esc  zurück',
     'detail.container_hint' => '↑↓←→  bewegen      ⏎  öffnen      s  Zufall      Esc  zurück',
     'detail.error_hint' => 'r  erneut versuchen      Esc  zurück',
