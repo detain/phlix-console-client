@@ -42,12 +42,18 @@ final class Lang extends BaseLang
      * @param array<string,mixed> $params Interpolation parameters for {name} placeholders
      * @return string Translated string
      */
-    /**
-     * @param array<string, mixed> $params
-     */
     public static function t(string $key, array $params = []): string
     {
-        // T::register() is idempotent, so calling it on every t() call is safe.
+        // [CU-046: review console__srphp #8] This arm looks like hot-path waste but is
+        // load-bearing. Measured against the vendored T::register(): a str_contains
+        // throw-guard plus `self::$namespaces[$ns] ??= $dir` — an O(1) static-array
+        // write, zero filesystem reads, zero syscalls per call. The per-call form is
+        // the documented recovery contract (BaseLang: "safe to put inline at the top
+        // of every lookup helper"): T::reset() wipes namespaces, cache and locale
+        // together, and suites re-arm via reset in setUp, so a register-once-at-boot
+        // memo would strand every later lookup on an empty table and silently degrade
+        // the whole UI to raw keys. TranslatorTest pins the self-heal; converting this
+        // line into a bool-memo reddens it.
         T::register(static::NAMESPACE, static::DIR);
 
         /** @var array<string, float|int|string> $typedParams */

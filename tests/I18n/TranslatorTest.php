@@ -85,6 +85,30 @@ final class TranslatorTest extends TestCase
         self::assertSame('For You', $result);
     }
 
+    /**
+     * [CU-046: review console__srphp #8] The hot-path question in one test:
+     * Lang::t() re-arms T::register() on every call. That LOOKS like waste but is
+     * the recovery contract — T::reset() (what this suite's setUp runs, and what
+     * any translator-recovery path uses) wipes the namespace table, cache and
+     * locale together. A bool-memo or boot-registered fast path would skip the
+     * re-arm after a reset and every later lookup would silently degrade to raw
+     * keys. This pins the self-heal: translate, reset, translate AGAIN — still
+     * translated. Mutating the per-call arm into a memo reddens exactly here.
+     */
+    public function testRegistrationSurvivesAResetOfTheTranslatorState(): void
+    {
+        self::assertSame('For You', Lang::t('recommendations.title'));
+
+        T::reset();
+
+        self::assertSame(
+            'For You',
+            Lang::t('recommendations.title'),
+            'after a full translator reset the next Lang::t() must re-register and translate,'
+                . ' not fall back to the raw key — the per-call arm is load-bearing'
+        );
+    }
+
     public function testRecommendationsScreenKeysExist(): void
     {
         // Verify all RecommendationsScreen translation keys are accessible.

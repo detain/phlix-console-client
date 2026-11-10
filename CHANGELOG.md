@@ -5,6 +5,26 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Refactored — CU-046 [review console__srphp #8]: Lang::t() registration cost measured, documented, and pinned — 2026-11-09
+
+- The review read the per-call `T::register()` inside `Lang::t()` as a render-hot-path
+  re-registration. Measured against the vendored translator it is not: `register()` is a
+  `str_contains` throw-guard and one `??=` write into a static array — O(1), zero I/O.
+  The per-call form is also the documented recovery contract, because `T::reset()` (which
+  this repo's suite `setUp` calls) clears the namespace table together with the cache and
+  locale; a register-once-at-boot memo would strand every lookup after a reset on an empty
+  table and render raw keys estate-wide. The "hoist it to boot" premise is therefore
+  REFUTED on record and the arm stays.
+- What was fixed: `Lang::t()` carried two stacked docblocks, the upper one orphaned off
+  the function by the lower — collapsed to the full one, and the one-line "idempotent so
+  safe" comment replaced with the measured truth above. `TranslatorTest` gains
+  `testRegistrationSurvivesAResetOfTheTranslatorState`: translate, `T::reset()`, translate
+  again — still translated. A planted bool-memo at the register arm reddens the suite
+  (measured: 8 failures across the post-reset cohort), so the contract is mutation-toothed.
+  No behavior changed; `TranslatorTest` moves 10 → 11 tests (37 assertions). `src/App.php`
+  was NOT touched — the card's boot-registration idea was rejected with evidence, not
+  silently implemented.
+
 ### Fixed — CU-021 [review console__enduser #3, console__uxdesign #9, console__tui-arch #5]: Stats is gated to admins and renders like every other screen — 2026-11-09
 
 - The palette offered **Stats** to every signed-in user although its data comes from
