@@ -52,6 +52,24 @@ jobs:
           done
           PHLIX_SERVER_URL=http://127.0.0.1:8099 php build/phlix.phar run --selftest
 
+      - name: Assert reproducible phar build
+        # [stable-PHAR] The phar must be a pure function of the tree: compile a
+        # second time and require the same sha256. The historical wobble was
+        # box's random stub alias (pinned away by box.json's "alias" key); a
+        # rebuild that changes bytes is a supply-chain regression — convict.
+        run: |
+          set -euo pipefail
+          BEFORE=$(sha256sum build/phlix.phar | awk '{print $1}')
+          box compile
+          AFTER=$(sha256sum build/phlix.phar | awk '{print $1}')
+          echo "build #1 sha256: $BEFORE"
+          echo "build #2 sha256: $AFTER"
+          if [ "$BEFORE" != "$AFTER" ]; then
+            echo "::error::phar build is not reproducible — consecutive box compile runs disagree"
+            exit 1
+          fi
+          echo "Reproducible: the phar passed the x2 byte-identity rebuild gate."
+
       - name: Generate SHA256SUMS
         run: |
           cd build

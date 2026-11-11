@@ -27,9 +27,12 @@ echo ""
 PHP_VERSION=$(php -r 'echo PHP_MAJOR_VERSION . "." . PHP_MINOR_VERSION . "." . PHP_RELEASE_VERSION;')
 echo "PHP version: $PHP_VERSION"
 
-# Check required extensions
+# Check required extensions. The probe is CASE-INSENSITIVE [stable-PHAR]:
+# php -m lists builtins in engine display case ("Phar", not "phar"), so the
+# old case-sensitive grep failed on its own required extension and the script
+# died before box ever ran. -i matches extension_loaded() semantics.
 for ext in gd phar zlib; do
-	if ! php -m | grep -q "^${ext}$"; then
+	if ! php -m | grep -qi "^${ext}$"; then
 		echo "ERROR: Required PHP extension '$ext' is not loaded."
 		exit 1
 	fi
@@ -84,7 +87,10 @@ fi
 echo ""
 echo "Building PHAR..."
 cd "$PROJECT_DIR"
-"$BOX_BIN" compile --no-progress 2>&1 || {
+# No --no-progress: humbug/box ^4 has no such option (it is a box 3 relic and
+# made this script die with "The --no-progress option does not exist" on the
+# declared dev dependency). CI invokes the same bare `box compile`.
+"$BOX_BIN" compile 2>&1 || {
 	echo "ERROR: PHAR build failed"
 	exit 1
 }
@@ -110,6 +116,35 @@ else
 	echo "ERROR: PHAR --version failed"
 	exit 1
 fi
+
+# Assert reproducible build [stable-PHAR]: the phar must be a pure function of
+# the tree. Compile a second time and require the same sha256. Box's random
+# stub alias used to break exactly this (fixed by the pinned "alias" key in
+# box.json). Fail loud — a drifted rebuild is a supply-chain defect.
+echo ""
+echo "Asserting reproducible build (second compile, sha256 equality)..."
+phar_sha() {
+	if command -v sha256sum >/dev/null 2>&1; then
+		sha256sum "$1" | cut -d' ' -f1
+	else
+		shasum -a 256 "$1" | cut -d' ' -f1
+	fi
+}
+
+SHA_FIRST=$(phar_sha "$PHAR_PATH")
+rm -f "$PHAR_PATH"
+"$BOX_BIN" compile 2>&1 || {
+	echo "ERROR: second PHAR build failed"
+	exit 1
+}
+SHA_SECOND=$(phar_sha "$PHAR_PATH")
+echo "build #1 sha256: $SHA_FIRST"
+echo "build #2 sha256: $SHA_SECOND"
+if [ "$SHA_FIRST" != "$SHA_SECOND" ]; then
+	echo "ERROR: phar build is not reproducible — consecutive builds disagree"
+	exit 1
+fi
+echo "Reproducible: $SHA_SECOND"
 
 echo ""
 echo "Build successful: $PHAR_PATH"

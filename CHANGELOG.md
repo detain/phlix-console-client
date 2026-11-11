@@ -5,6 +5,30 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — stable-PHAR [off-kit v2] the phar build is now reproducible: box's random stub alias is pinned via a `box.json` `alias`, both build paths gained an x2-compile sha256 assert, and `scripts/build-phar.sh` no longer passes a flag Box 4 does not have — 2026-11-11
+
+- **Why:** the estate reel item 'stable-PHAR' named server `bin/phar*`/`phar-dev.yml` tooling, but a full
+  server census found no phar build tooling there at all — the estate's only phar product is this repo's
+  `build/phlix.phar` (the release channel), so the work landed here (cross-repo re-anchor, disclosed).
+  Measured on base `f7a7e1f2` with a stable source fingerprint: two consecutive compiles differed —
+  sha256 `a900277e…986060` vs `c59b09d6…5641dc`, 112 bytes in five runs, identical sizes. Four runs were
+  Box 4.7.1's random `box-auto-generated-alias-<hex>.phar` stub alias embedded in `Phar::mapPhar(...)`
+  and the `phar://` self-references; the final 64-byte run was just the phar signature over that drift.
+  Entry mtimes and ordering were already normalized by Box (all epoch) — mtime was not the class.
+  Separately, `scripts/build-phar.sh` invoked `box compile --no-progress`, a flag that does not exist in
+  Box ^4.7, so the local build path was broken as written.
+- **What:** `"alias": "phlix.phar"` in `box.json` — a deterministic, alias-rule-valid name; the
+  `PharTest` version/help/locale-catalog legs and the release tag-vs-version check are untouched.
+  The bogus flag is gone and the script now recompiles after its `--version` verification, aborting
+  (`phar build is not reproducible`, exit 1) on any sha256 mismatch. The CI phar job gained an
+  'Assert reproducible phar build' step (`build.yml:55-71`): second compile, BEFORE/AFTER sha256
+  compare, `exit 1` on difference — the workflow carries zero `continue-on-error`. New
+  `tests/BuildReproducibilityGuardTest.php` pins all three (alias present and shaped, CI-step teeth,
+  script teeth). `docs/steps/ci-baseline-C9.md` coordinates rotated (+18 below the inserted step) to
+  keep the doc-currency contract's live-line pins green. Post-fix measured: two compiles sha256
+  `fafab6a56c285d9a8a0cee92c55350ffb782b57b8d1a46a17d5319bbac3df958` both, `cmp` byte-identical;
+  `--version` exits 0 and an unknown command exits 2 exactly as before.
+
 ### Changed — CP-023 [w35/L2] device-class token-custody truth lines: the file-backed bearer store and the client docs now say the custody shape is by design, not a deferred step — 2026-11-10
 
 - **Why:** the estate cookie-auth design (`COOKIE-DESIGN.md`) settled the permanent split —

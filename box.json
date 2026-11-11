@@ -1,5 +1,6 @@
 {
     "chmod": "0755",
+    "alias": "phlix.phar",
     "compactors": [],
     "main": "bin/phlix",
     "finder": [

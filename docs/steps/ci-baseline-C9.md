@@ -134,7 +134,7 @@ neutering wrap (`ci.yml:207-212`).
 
 ## Build Gates (`.github/workflows/build.yml`)
 
-### phar job (`build.yml:16-74`)
+### phar job (`build.yml:16-92`)
 
 1. `composer install --no-dev` (`build.yml:34`), then `box compile` →
    `build/phlix.phar` (`build.yml:37`)
@@ -144,23 +144,28 @@ neutering wrap (`ci.yml:207-212`).
    must exit 2 (`:42`); and the stub-server selftest,
    `PHLIX_SERVER_URL=http://127.0.0.1:8099 php build/phlix.phar run --selftest`
    (`:46-53`), same in-step server pattern as the CI smoke job.
-3. Generates `SHA256SUMS` (`sha256sum phlix.phar > SHA256SUMS` in `build/`,
-   `build.yml:55-60`)
-4. Uploads `phlix.phar` and `SHA256SUMS` as artifacts (`build.yml:62-74`)
+3. Asserts the build is reproducible (`build.yml:55-71`) — [stable-PHAR] the
+   phar is compiled a second time and both artifacts must share one sha256;
+   a mismatch exits 1 with no `continue-on-error` anywhere in this workflow.
+   The historical nondeterminism was box's random stub alias, pinned away by
+   `box.json`'s `"alias"` key; a byte-drifting rebuild convicts here.
+4. Generates `SHA256SUMS` (`sha256sum phlix.phar > SHA256SUMS` in `build/`,
+   `build.yml:73-78`)
+5. Uploads `phlix.phar` and `SHA256SUMS` as artifacts (`build.yml:80-92`)
 
-### release-latest job (`build.yml:76-138`, on master push only)
+### release-latest job (`build.yml:94-156`, on master push only)
 
 Overwrites the rolling `latest` **prerelease** with the raw, directly
 downloadable `phlix.phar` + `SHA256SUMS` (GitHub artifacts are always served
 zipped; a Release is the only way to ship a bare runnable phar). Deletes and
 recreates the tag so it points at this commit. Skipped on PRs and tag pushes.
 
-### release-tag job (`build.yml:140-223`, on tag push `v*.*.*`)
+### release-tag job (`build.yml:158-241`, on tag push `v*.*.*`)
 
-1. Verifies `SHA256SUMS` integrity (`build.yml:173-177`)
+1. Verifies `SHA256SUMS` integrity (`build.yml:191-195`)
 2. Extracts version from tag and compares against `PHLIX_VERSION` in the PHAR
-   (`build.yml:179-202`)
-3. Publishes release with `phlix.phar` + `SHA256SUMS` (`build.yml:204-221`)
+   (`build.yml:197-220`)
+3. Publishes release with `phlix.phar` + `SHA256SUMS` (`build.yml:222-239`)
 
 **Failure means:** Version number mismatch between tag and built artifact.
 
