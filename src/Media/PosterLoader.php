@@ -11,12 +11,12 @@ namespace Phlix\Console\Media;
 
 use Phlix\Console\Api\ServerAuthority;
 use React\Promise\PromiseInterface;
-
-use function React\Promise\reject;
 use SugarCraft\Core\Util\Semaphore;
 use SugarCraft\Image\DiskCache;
 use SugarCraft\Image\ImageLayer;
 use SugarCraft\Image\Mosaic;
+
+use function React\Promise\reject;
 
 /**
  * Fetches a poster URL and renders it to ANSI at a target cell size, using a
