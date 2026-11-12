@@ -41,6 +41,21 @@ final class TrickplayCacheTest extends TestCase
         self::assertSame(1, $transport->requestCount(), 'the second load must not re-fetch');
     }
 
+    public function testConcurrentMissesForOneMediaIdFetchOnce(): void
+    {
+        $transport = (new FakeTransport())->json(200, ['sprite_url' => '/sp.jpg', 'timeline_url' => '/tl.json']);
+        $cache = $this->cache($transport);
+
+        $a = $cache->load('m1');
+        $b = $cache->load('m1');
+
+        $first = $this->await($a);
+        $second = $this->await($b);
+
+        self::assertSame($first, $second);
+        self::assertSame(1, $transport->requestCount(), 'concurrent misses coalesce into one fetch');
+    }
+
     public function testMemoryTierEvictsLeastRecentlyUsedBeyondCapacity(): void
     {
         $capacity = $this->memoryCapacity();

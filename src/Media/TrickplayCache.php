@@ -11,6 +11,7 @@ namespace Phlix\Console\Media;
 
 use Phlix\Console\Api\ApiClient;
 use Phlix\Console\Api\Dto\Trickplay;
+use React\Promise\Deferred;
 use React\Promise\PromiseInterface;
 use SugarCraft\Core\Util\LruMap;
 use SugarCraft\Core\Util\Semaphore;
@@ -33,6 +34,9 @@ final class TrickplayCache
     /** In-memory cache of already-resolved trickplay data, keyed by media ID. */
     /** @var LruMap<mixed> — Trickplay values (phpstan cannot bind V on a static new()). */
     private LruMap $memory;
+
+    /** @var array<string, PromiseInterface<Trickplay>>  media id → in-flight fetch */
+    private array $inFlight = [];
 
     public function __construct(
         private readonly ApiClient $api,
@@ -62,7 +66,11 @@ final class TrickplayCache
         if ($this->cache !== null) {
             $blob = $this->cache->get($key);
             if ($blob !== null) {
-                $data = json_decode($blob, true);
+                try {
+                    $data = json_decode($blob, true, 8, JSON_THROW_ON_ERROR);
+                } catch (\JsonException) {
+                    $data = null;
+                }
                 if (
                     is_array($data)
                     && array_key_exists('sprite_url', $data)
@@ -81,6 +89,15 @@ final class TrickplayCache
             }
         }
 
+        // Coalesce concurrent misses for the same media ID (MediaStore idiom).
+        if (isset($this->inFlight[$mediaId])) {
+            return $this->inFlight[$mediaId];
+        }
+
+        /** @var Deferred<Trickplay> $deferred */
+        $deferred = new Deferred();
+        $this->inFlight[$mediaId] = $deferred->promise();
+
         // Cache miss — fetch via API (optionally through semaphore for concurrency control).
         $api = $this->api;
         $task = static fn (): PromiseInterface => $api->trickplay($mediaId);
@@ -89,23 +106,30 @@ final class TrickplayCache
             ? $this->semaphore->run($task)
             : $task();
 
-        /** @return PromiseInterface<Trickplay> */
-        return $promise->then(function (Trickplay $tp) use ($mediaId, $key): Trickplay {
-            // Store in memory cache.
-            $this->memory->put($mediaId, $tp);
+        $promise->then(
+            function (Trickplay $tp) use ($mediaId, $key, $deferred): void {
+                $this->memory->put($mediaId, $tp);
 
-            // Persist to disk cache if available.
-            if ($this->cache !== null) {
-                $encoded = json_encode([
-                    'sprite_url' => $tp->spriteUrl,
-                    'timeline_url' => $tp->timelineUrl,
-                ]);
-                if (is_string($encoded)) {
-                    $this->cache->put($key, $encoded);
+                if ($this->cache !== null) {
+                    try {
+                        $this->cache->put($key, json_encode([
+                            'sprite_url' => $tp->spriteUrl,
+                            'timeline_url' => $tp->timelineUrl,
+                        ], JSON_THROW_ON_ERROR));
+                    } catch (\JsonException) {
+                        // Unencodable value: skip the disk tier.
+                    }
                 }
-            }
 
-            return $tp;
-        });
+                unset($this->inFlight[$mediaId]);
+                $deferred->resolve($tp);
+            },
+            function (\Throwable $error) use ($mediaId, $deferred): void {
+                unset($this->inFlight[$mediaId]);
+                $deferred->reject($error);
+            },
+        );
+
+        return $deferred->promise();
     }
 }
