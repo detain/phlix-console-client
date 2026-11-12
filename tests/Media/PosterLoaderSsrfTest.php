@@ -71,14 +71,17 @@ final class PosterLoaderSsrfTest extends \PHPUnit\Framework\TestCase
         parent::tearDown();
     }
 
-    public function testNonHttpSchemesThrowSynchronously(): void
+    public function testNonHttpSchemesRejectPromise(): void
     {
         $loader = $this->loader('http://phlix.example:8096');
 
         foreach (['file:///etc/passwd', 'gopher://internal.example:11211/_stats'] as $url) {
-            $this->expectException(\InvalidArgumentException::class);
-            $this->expectExceptionMessage('Invalid or missing URL scheme');
-            $loader->load($url, 8, 12);
+            $error = null;
+            $loader->load($url, 8, 12)->then(null, static function (\Throwable $e) use (&$error): void {
+                $error = $e;
+            });
+            self::assertInstanceOf(\InvalidArgumentException::class, $error);
+            self::assertSame('Invalid or missing URL scheme', $error->getMessage());
         }
     }
 

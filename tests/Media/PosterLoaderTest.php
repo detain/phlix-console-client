@@ -140,6 +140,20 @@ final class PosterLoaderTest extends \PHPUnit\Framework\TestCase
         $this->await($loader->load('', 8, 12));
     }
 
+    public function testInvalidUrlRejectsPromiseWithoutSyncThrow(): void
+    {
+        $loader = new PosterLoader(Mosaic::halfBlock());
+
+        $promise = $loader->load('gopher://x.example/p.png', 8, 12);
+        $error = null;
+        $promise->then(null, static function (\Throwable $e) use (&$error): void {
+            $error = $e;
+        });
+
+        self::assertInstanceOf(\InvalidArgumentException::class, $error);
+        self::assertSame('Invalid or missing URL scheme', $error->getMessage());
+    }
+
     public function testLoadRejectsRelativeUrls(): void
     {
         $loader = new PosterLoader(Mosaic::halfBlock());

@@ -11,6 +11,8 @@ namespace Phlix\Console\Media;
 
 use Phlix\Console\Api\ServerAuthority;
 use React\Promise\PromiseInterface;
+
+use function React\Promise\reject;
 use SugarCraft\Core\Util\Semaphore;
 use SugarCraft\Image\DiskCache;
 use SugarCraft\Image\ImageLayer;
@@ -68,12 +70,16 @@ final class PosterLoader
      * Concurrency is capped by the semaphore (controlled by PHLIX_POSTER_CONCURRENCY,
      * defaults to 6).
      *
+     * An invalid/missing URL scheme yields a rejected promise, never a synchronous throw.
+     *
      * @return PromiseInterface<PosterLoadResult>
      */
     public function load(string $url, int $width, int $height): PromiseInterface
     {
         if (!$this->isValidImageUrl($url)) {
-            throw new \InvalidArgumentException('Invalid or missing URL scheme');
+            // Reject rather than throw: every caller sits inside Cmd::promise(),
+            // so a synchronous throw would bypass the promise error arm.
+            return reject(new \InvalidArgumentException('Invalid or missing URL scheme'));
         }
 
         // Fetch, render and disk-cache in one upstream call: Mosaic::posterAsync()

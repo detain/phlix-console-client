@@ -311,7 +311,8 @@ mints its short-lived relay token against `POST /api/v1/me/servers/{id}/relay-to
 For the two token values prefer the
 environment or `--hub-token-stdin` / `--relay-token-stdin`: literal argv secrets are
 world-readable via `ps(1)`, so the literal `--hub-token` / `--relay-token` flags were
-removed and now exit 2 with a migration hint. `--once` waits for a single play command and exits, giving up after `--timeout`
+removed and now exit 2 with a migration hint. `--once` waits for a single play command
+and exits, giving up after `--timeout`
 seconds (default 30). Exit codes: 0 = a command was dispatched, 1 = the run ended
 without one (the connection failed, or a `--once` wait timed out), 2 = usage
 error (bad flag or value).

@@ -382,7 +382,11 @@ function parseWatchArgs(array $argv): array
                     $args['serverId'] = $value;
                     break;
                 case 'hub-token':
-                    throw new \InvalidArgumentException(argvSecretRefusal('hub-token', 'PHLIX_HUB_TOKEN', '--hub-token-stdin'));
+                    throw new \InvalidArgumentException(argvSecretRefusal(
+                        'hub-token',
+                        'PHLIX_HUB_TOKEN',
+                        '--hub-token-stdin',
+                    ));
                 case 'hub-token-stdin':
                     if ($value !== null) {
                         throw new \InvalidArgumentException('Option --hub-token-stdin does not take a value');
@@ -390,7 +394,11 @@ function parseWatchArgs(array $argv): array
                     $args['hubTokenStdin'] = true;
                     break;
                 case 'relay-token':
-                    throw new \InvalidArgumentException(argvSecretRefusal('relay-token', 'PHLIX_RELAY_TOKEN', '--relay-token-stdin'));
+                    throw new \InvalidArgumentException(argvSecretRefusal(
+                        'relay-token',
+                        'PHLIX_RELAY_TOKEN',
+                        '--relay-token-stdin',
+                    ));
                 case 'relay-token-stdin':
                     if ($value !== null) {
                         throw new \InvalidArgumentException('Option --relay-token-stdin does not take a value');
@@ -476,7 +484,7 @@ function mintRelayToken(string $hubUrl, string $serverId, string $hubToken): ?st
         static $warned = false;
         if (!$warned) {
             $warned = true;
-            fwrite(STDERR, "hub relay: ext-curl is not loaded — cannot mint a relay token (install php-curl, or pass --relay-token)\n");
+            fwrite(STDERR, "hub relay: ext-curl is not loaded — cannot mint a relay token (install php-curl, or use env PHLIX_RELAY_TOKEN / --relay-token-stdin)\n");
         }
 
         return null;
