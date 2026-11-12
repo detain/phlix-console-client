@@ -11,6 +11,11 @@ text carries the user-visible effect first; ids stay in the bullets or the headi
 
 ## [Unreleased]
 
+### Removed
+- `phlix watch --hub-token` and `--relay-token` no longer work: they now exit 2 with a hint to use
+  env `PHLIX_HUB_TOKEN` / `PHLIX_RELAY_TOKEN` or `--hub-token-stdin` / `--relay-token-stdin`.
+  Env and stdin carriers are unchanged. (CON-S36 [CON-69])
+
 ### Changed — `phlix version` and `doctor` now print the build's commit (CON-S34 [CON-58, CON-59]) — 2026-11-12
 
 `phlix version` prints `phlix 1.0.0 (commit <sha>)` and `doctor` gains a `phlix commit:` line, so a

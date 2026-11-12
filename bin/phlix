@@ -61,12 +61,11 @@ watch options:
   --hub-token-stdin    read the hub user access token from STDIN (no argv
                        exposure; pipes / process substitution work)
   --relay-token-stdin  read a ready-made relay token from STDIN (ditto)
-  --hub-token JWT      DEPRECATED (prefer env PHLIX_HUB_TOKEN or
-                       --hub-token-stdin): argv is world-readable for the
-                       process lifetime (ps(1), /proc, shell history).
-                       Still accepted, warns on every use.
-  --relay-token T      DEPRECATED (prefer env PHLIX_RELAY_TOKEN or
-                       --relay-token-stdin): ditto
+  --hub-token JWT      REMOVED (exit 2): argv is world-readable (ps(1),
+                       /proc, shell history). Use env PHLIX_HUB_TOKEN or
+                       --hub-token-stdin.
+  --relay-token T      REMOVED (exit 2): ditto; use env PHLIX_RELAY_TOKEN
+                       or --relay-token-stdin
   --once               connect, wait for ONE play_media command, then exit
   --timeout SECS       with --once: give up after SECS (default 30)
 
@@ -340,7 +339,6 @@ $cmd = $argv[1] ?? 'help';
  * @param list<string> $argv Full argv (index 0 = script, 1 = "watch").
  *
  * @return array{hub: ?string, serverId: ?string, hubToken: ?string, relayToken: ?string,
- *               hubTokenFromArgv: bool, relayTokenFromArgv: bool,
  *               hubTokenStdin: bool, relayTokenStdin: bool, once: bool, timeout: int}
  */
 function parseWatchArgs(array $argv): array
@@ -350,8 +348,6 @@ function parseWatchArgs(array $argv): array
         'serverId' => getenv('PHLIX_HUB_SERVER_ID') ?: null,
         'hubToken' => getenv('PHLIX_HUB_TOKEN') ?: null,
         'relayToken' => getenv('PHLIX_RELAY_TOKEN') ?: null,
-        'hubTokenFromArgv' => false,
-        'relayTokenFromArgv' => false,
         'hubTokenStdin' => false,
         'relayTokenStdin' => false,
         'once' => false,
@@ -386,18 +382,7 @@ function parseWatchArgs(array $argv): array
                     $args['serverId'] = $value;
                     break;
                 case 'hub-token':
-                    $args['hubToken'] = $value;
-                    $args['hubTokenFromArgv'] = $value !== null && $value !== '';
-                    // Warn at capture, not after parsing (R-CONSOLE-11):
-                    // the secret is already in ps(1) from exec time, and a
-                    // later flag's throw must not silence the warning.
-                    warnArgvSecretCarrier(
-                        $args['hubTokenFromArgv'],
-                        'hub-token',
-                        'PHLIX_HUB_TOKEN',
-                        '--hub-token-stdin',
-                    );
-                    break;
+                    throw new \InvalidArgumentException(argvSecretRefusal('hub-token', 'PHLIX_HUB_TOKEN', '--hub-token-stdin'));
                 case 'hub-token-stdin':
                     if ($value !== null) {
                         throw new \InvalidArgumentException('Option --hub-token-stdin does not take a value');
@@ -405,16 +390,7 @@ function parseWatchArgs(array $argv): array
                     $args['hubTokenStdin'] = true;
                     break;
                 case 'relay-token':
-                    $args['relayToken'] = $value;
-                    $args['relayTokenFromArgv'] = $value !== null && $value !== '';
-                    // Same warn-at-capture law as --hub-token (R-CONSOLE-11).
-                    warnArgvSecretCarrier(
-                        $args['relayTokenFromArgv'],
-                        'relay-token',
-                        'PHLIX_RELAY_TOKEN',
-                        '--relay-token-stdin',
-                    );
-                    break;
+                    throw new \InvalidArgumentException(argvSecretRefusal('relay-token', 'PHLIX_RELAY_TOKEN', '--relay-token-stdin'));
                 case 'relay-token-stdin':
                     if ($value !== null) {
                         throw new \InvalidArgumentException('Option --relay-token-stdin does not take a value');
@@ -449,33 +425,20 @@ function parseWatchArgs(array $argv): array
 }
 
 /**
- * Name the CWE-214 exposure of a literal secret that arrived in argv —
- * emitted by `parseWatchArgs` the moment the literal is accepted, before
- * any connection or further validation, so even a run that dies on a
- * LATER malformed flag names the exposure (R-CONSOLE-11: this used to run
- * after parsing, where an earlier flag's throw silenced it — see the
- * `--hub-token SEC --timeout abc` pins).
- * The process still proceeds: silently breaking existing scripts is its
- * own honesty violation (the `phlix run` non-TTY refusal, 1b7dd9e, sets
- * the bar for how deprecations exit in this CLI — this one is a warning,
- * not a refusal, because a safe replacement carrier exists and is printed
- * in the very line). The secret value itself is never echoed.
+ * Refusal text for the removed literal-argv secret carriers (CON-69).
+ * `--hub-token` / `--relay-token` were deprecated (warn-on-use); they now
+ * hard-fail with a usage error (exit 2) naming the safe carriers. The
+ * secret value is never echoed. Env and the --*-token-stdin flags are
+ * unaffected.
  */
-function warnArgvSecretCarrier(bool $fromArgv, string $flag, string $envName, string $stdinFlag): void
+function argvSecretRefusal(string $flag, string $envName, string $stdinFlag): string
 {
-    if (!$fromArgv) {
-        return;
-    }
-    fwrite(
-        STDERR,
-        sprintf(
-            "warning: --%s puts a live secret in process argv — readable via ps(1), "
-            . "/proc/<pid>/cmdline and shell history for the process lifetime (CWE-214)."
-            . " Prefer env %s or %s.\n",
-            $flag,
-            $envName,
-            $stdinFlag,
-        ),
+    return sprintf(
+        "--%s was removed: a literal secret in argv is readable via ps(1), "
+        . "/proc/<pid>/cmdline and shell history (CWE-214). Use env %s or %s instead.",
+        $flag,
+        $envName,
+        $stdinFlag,
     );
 }
 
@@ -611,7 +574,7 @@ function runWatch(array $argv): int
         $relayToken = $read;
     }
     if (($relayToken === null || $relayToken === '') && ($hubToken === null || $hubToken === '')) {
-        fwrite(STDERR, "Error: watch needs --relay-token or --hub-token"
+        fwrite(STDERR, "Error: watch needs a token"
             . " (env PHLIX_RELAY_TOKEN / PHLIX_HUB_TOKEN; or --relay-token-stdin / --hub-token-stdin)\n");
         return 2;
     }

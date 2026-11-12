@@ -117,7 +117,7 @@ sha256sum -c SHA256SUMS
   on you). `ext-ffi` is a hard runtime dependency: sugar-pty drives the
   terminal through it, so without it the client dies at boot. ext-curl additionally powers the `doctor` / `run --selftest`
   reachability probes and `watch`'s hub relay-token mint (without it `watch`
-  needs an explicit `--relay-token`). `ext-pcntl` is composer-enforced (soft
+  needs an explicit relay token via env or `--relay-token-stdin`). `ext-pcntl` is composer-enforced (soft
   only in PHAR): every pcntl call is `function_exists()`-guarded, so a PHAR
   on a PHP without it still runs but loses the exit-signal teardown (ffplay/
   ffmpeg children can outlive a `kill` or a closed terminal) and Ctrl-Z
@@ -201,8 +201,8 @@ diagnostics commands probe over HTTP with fixed timeouts (10 s in `doctor`,
 | `PHLIX_DOWNLOAD_DIR` | `~/Downloads` | Where downloads are saved (`~`, `$VAR` and `${VAR}` are expanded) |
 | `PHLIX_HUB_URL` | — | `watch`: hub base URL (preferred over `--hub`) |
 | `PHLIX_HUB_SERVER_ID` | — | `watch`: hub-side server id — the id the hub assigns your server when it pairs (list yours with `GET /api/v1/me/servers` on the hub; preferred over `--server-id`) |
-| `PHLIX_HUB_TOKEN` | — | `watch`: hub user access token used to mint relay tokens (preferred over `--hub-token`) |
-| `PHLIX_RELAY_TOKEN` | — | `watch`: ready-made relay token, skips minting (preferred over `--relay-token`) |
+| `PHLIX_HUB_TOKEN` | — | `watch`: hub user access token used to mint relay tokens (the `--hub-token` flag was removed) |
+| `PHLIX_RELAY_TOKEN` | — | `watch`: ready-made relay token, skips minting (the `--relay-token` flag was removed) |
 
 ## Languages
 
@@ -291,8 +291,8 @@ PHLIX_HUB_TOKEN="$TOKEN" bin/phlix watch
 bin/phlix watch --hub https://hub.example --server-id srv-7 \
     --relay-token-stdin < /run/secrets/relay_token
 
-# 3. Literal argv — DEPRECATED, works but warns on every use
-bin/phlix watch --hub ... --server-id ... --hub-token "$TOKEN"
+# 3. Literal argv (--hub-token / --relay-token) — REMOVED: exits 2 with a
+#    migration hint. Use 1 or 2.
 ```
 
 Why the ladder exists (CWE-214): a secret passed as a command-line

@@ -166,7 +166,7 @@ final class BinPhlixTest extends TestCase
     {
         $output = $this->runPhlix(['watch', '--hub', 'http://hub.example.com', '--server-id', 'srv-123']);
         $this->assertSame(2, $output['exitCode'], 'watch without a token source should exit with code 2');
-        $this->assertStringContainsString('watch needs --relay-token or --hub-token', $output['stderr']);
+        $this->assertStringContainsString('watch needs a token', $output['stderr']);
     }
 
     public function testWatchUnknownOptionExitsTwo(): void
@@ -337,9 +337,10 @@ final class BinPhlixTest extends TestCase
     {
         $insecure = $this->runPhlixWithDeadline(
             ['watch', '--hub', self::WATCH_UNREACHABLE_HUB, '--server-id', 'srv-1',
-                '--relay-token', 'RELAY-SECRET-m42', '--once', '--timeout', '1'],
+                '--once', '--timeout', '1'],
             8.0,
             $this->scratchHome(),
+            ['PHLIX_RELAY_TOKEN' => 'RELAY-SECRET-m42'],
         );
         $this->assertStringContainsString(
             'insecure http hub',
@@ -349,9 +350,10 @@ final class BinPhlixTest extends TestCase
 
         $secure = $this->runPhlixWithDeadline(
             ['watch', '--hub', 'https://127.0.0.1:9', '--server-id', 'srv-1',
-                '--relay-token', 'RELAY-SECRET-m42', '--once', '--timeout', '1'],
+                '--once', '--timeout', '1'],
             8.0,
             $this->scratchHome(),
+            ['PHLIX_RELAY_TOKEN' => 'RELAY-SECRET-m42'],
         );
         $this->assertStringNotContainsString(
             'insecure http hub',
@@ -575,80 +577,47 @@ final class BinPhlixTest extends TestCase
         return $dir;
     }
 
-    public function testWatchArgvSecretFlagsStillWorkButWarnLoudly(): void
+    /**
+     * CON-69: the deprecated literal-argv carriers are removed — exit 2 with
+     * a migration hint naming env + --*-token-stdin; the secret is never
+     * echoed, and the run never dials.
+     *
+     * @return array<string, array{list<string>, string, string, string}>
+     */
+    public static function removedArgvCarrierProvider(): array
     {
-        // The relay literal shadows the hub token in the provider, so the run
-        // dials without ever minting (venue curl law above).
+        return [
+            'hub-token split' => [['--hub-token', 'LEAKED-JWT-77aa'], 'LEAKED-JWT-77aa', 'PHLIX_HUB_TOKEN', '--hub-token-stdin'],
+            'relay-token split' => [['--relay-token', 'RELAY-SECRET-4b7a'], 'RELAY-SECRET-4b7a', 'PHLIX_RELAY_TOKEN', '--relay-token-stdin'],
+            'hub-token inline' => [['--hub-token=LEAKED-JWT-88bb'], 'LEAKED-JWT-88bb', 'PHLIX_HUB_TOKEN', '--hub-token-stdin'],
+            'relay-token inline' => [['--relay-token=RELAY-SECRET-99cc'], 'RELAY-SECRET-99cc', 'PHLIX_RELAY_TOKEN', '--relay-token-stdin'],
+        ];
+    }
+
+    /**
+     * @dataProvider removedArgvCarrierProvider
+     *
+     * @param list<string> $flags
+     */
+    public function testWatchArgvSecretFlagsAreRefusedWithMigrationHint(
+        array $flags,
+        string $secret,
+        string $env,
+        string $stdinFlag,
+    ): void {
         $result = $this->runPhlixWithDeadline(
-            ['watch', '--hub', self::WATCH_UNREACHABLE_HUB, '--server-id', 'srv-1',
-                '--hub-token', 'SECRENT-IN-ARGV-9c1f', '--relay-token', 'RELAY-SECRET-4b7a',
-                '--once', '--timeout', '1'],
+            array_merge(['watch', '--hub', self::WATCH_UNREACHABLE_HUB, '--server-id', 'srv-1'], $flags, ['--once', '--timeout', '1']),
             8.0,
             $this->scratchHome(),
         );
 
         $this->assertFalse($result['timedOut']);
-        // Exit 1 = "carriers accepted, no frame within timeout" — NOT 2: the
-        // deprecated carrier keeps working (no silent hard-break of scripts).
-        $this->assertSame(1, $result['exitCode']);
-        $this->assertMatchesRegularExpression('/^warning: --hub-token/m', $result['stderr']);
-        $this->assertMatchesRegularExpression('/^warning: --relay-token/m', $result['stderr']);
-        // The warnings name the carriers, never echo the secrets themselves.
-        $this->assertStringNotContainsString('SECRENT-IN-ARGV-9c1f', $result['stderr']);
-        $this->assertStringNotContainsString('SECRENT-IN-ARGV-9c1f', $result['stdout']);
-        $this->assertStringNotContainsString('RELAY-SECRET-4b7a', $result['stderr']);
-        $this->assertStringNotContainsString('RELAY-SECRET-4b7a', $result['stdout']);
-    }
-
-    public function testWatchArgvSecretWarningIsNotSilentEvenOnUsageError(): void
-    {
-        $result = $this->runPhlix([
-            'watch', '--hub-token', 'LEAKED-JWT-77aa',
-        ]);
-
         $this->assertSame(2, $result['exitCode']);
-        $this->assertMatchesRegularExpression('/^warning: --hub-token/m', $result['stderr']);
-        $this->assertStringContainsString('PHLIX_HUB_TOKEN', $result['stderr']);
-        $this->assertStringContainsString('--hub-token-stdin', $result['stderr']);
-        $this->assertStringNotContainsString('LEAKED-JWT-77aa', $result['stderr']);
-    }
-
-    /**
-     * R-CONSOLE-11 (cures the M-CONSOLE-35__r1 minor #1 prose overclaim by
-     * making it true): a LATER malformed flag must not silence the warning
-     * for an EARLIER accepted literal. At parent the warn call lived in
-     * runWatch AFTER parsing, so `--hub-token SEC --timeout abc` threw in
-     * parseWatchArgs and exited 2 with zero `warning:` lines — the secret
-     * had already been in ps(1) since exec time. Red-on-parent by
-     * construction (the warning emission moved to parse-capture).
-     */
-    public function testWatchArgvSecretWarningSurvivesLaterParseError(): void
-    {
-        $result = $this->runPhlix([
-            'watch', '--hub-token', 'LEAKED-JWT-88bb', '--timeout', 'abc',
-        ]);
-
-        $this->assertSame(2, $result['exitCode']);
-        $this->assertMatchesRegularExpression('/^warning: --hub-token/m', $result['stderr']);
-        $this->assertStringContainsString('Error:', $result['stderr']);
-        $this->assertStringNotContainsString('LEAKED-JWT-88bb', $result['stderr']);
-        $this->assertStringNotContainsString('LEAKED-JWT-88bb', $result['stdout']);
-    }
-
-    /**
-     * Same parse-error leg for the inline `--flag=value` carrier form:
-     * the literal is accepted (and warned) at the same capture point.
-     */
-    public function testWatchArgvSecretInlineWarningSurvivesLaterParseError(): void
-    {
-        $result = $this->runPhlix([
-            'watch', '--relay-token=RELAY-SECRET-99cc', '--timeout', 'abc',
-        ]);
-
-        $this->assertSame(2, $result['exitCode']);
-        $this->assertMatchesRegularExpression('/^warning: --relay-token/m', $result['stderr']);
-        $this->assertStringNotContainsString('RELAY-SECRET-99cc', $result['stderr']);
-        $this->assertStringNotContainsString('RELAY-SECRET-99cc', $result['stdout']);
+        $this->assertStringContainsString('was removed', $result['stderr']);
+        $this->assertStringContainsString($env, $result['stderr']);
+        $this->assertStringContainsString($stdinFlag, $result['stderr']);
+        $this->assertStringNotContainsString($secret, $result['stderr']);
+        $this->assertStringNotContainsString($secret, $result['stdout']);
     }
 
     public function testWatchEnvTokenCarrierProducesNoWarning(): void
@@ -753,7 +722,7 @@ final class BinPhlixTest extends TestCase
 
         $this->assertStringContainsString('--hub-token-stdin', $result['stdout']);
         $this->assertStringContainsString('--relay-token-stdin', $result['stdout']);
-        $this->assertStringContainsString('DEPRECATED', $result['stdout']);
+        $this->assertStringContainsString('REMOVED', $result['stdout']);
     }
 
     // ------------------------------------------------------------------

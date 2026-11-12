@@ -303,15 +303,15 @@ and dispatches every delivered `play_media` command to the player. Four environm
 variables drive it — `PHLIX_HUB_URL`, `PHLIX_HUB_SERVER_ID`, `PHLIX_HUB_TOKEN` (a hub
 user access token, exchanged for a relay token on each connect) and `PHLIX_RELAY_TOKEN`
 (a ready-made relay token; skips minting) — each overridden by its flag (`--hub`,
-`--server-id`, `--hub-token`, `--relay-token`). The `--server-id` value is the
+`--server-id`). The `--server-id` value is the
 hub's own identifier for your server — assigned when the server pairs with the
 hub; `GET /api/v1/me/servers` on the hub lists the ids of the servers on your
 account (the hub web portal's My Servers view shows the same), and `watch`
 mints its short-lived relay token against `POST /api/v1/me/servers/{id}/relay-token`.
 For the two token values prefer the
 environment or `--hub-token-stdin` / `--relay-token-stdin`: literal argv secrets are
-world-readable via `ps(1)`, so the plain-token flags are deprecated and warn on every
-use. `--once` waits for a single play command and exits, giving up after `--timeout`
+world-readable via `ps(1)`, so the literal `--hub-token` / `--relay-token` flags were
+removed and now exit 2 with a migration hint. `--once` waits for a single play command and exits, giving up after `--timeout`
 seconds (default 30). Exit codes: 0 = a command was dispatched, 1 = the run ended
 without one (the connection failed, or a `--once` wait timed out), 2 = usage
 error (bad flag or value).
