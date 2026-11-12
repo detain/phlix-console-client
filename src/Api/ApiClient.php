@@ -237,8 +237,9 @@ final class ApiClient
      * is already dead, and refreshing-and-retrying would churn a freshly
      * rotated credential against a host that just rejected the old one.
      * Ack shapes on the server leg: React's Browser DOES follow the 302 to
-     * /login, and decode() maps that HTML 200 (no JSON error envelope) to a
-     * resolved [] — following the redirect is harmless because the logout
+     * /login, and decode(ackOnly: true) maps that HTML 200 (no JSON error
+     * envelope) to a resolved [] — everywhere else an unparseable 2xx fails
+     * closed [review CON-6] — following the redirect is harmless because the logout
      * handler has already run. A raw 3xx (no followable Location) is also
      * accepted by revokeOnce for the same reason.
      *
@@ -271,7 +272,7 @@ final class ApiClient
             'Accept' => 'application/json',
             'Authorization' => $bundle->authorizationHeader(),
         ], '')->then(
-            static fn (ResponseInterface $response): array => self::decode($response),
+            static fn (ResponseInterface $response): array => self::decode($response, ackOnly: true),
             static fn (\Throwable $error): never => throw $error instanceof ApiError
                 ? $error
                 : new NetworkError(ExceptionSentences::network(), 0, null, $error),
@@ -1495,15 +1496,50 @@ final class ApiClient
      * For 4xx/5xx responses: throws ApiError (or AuthError on 401) using the "error"
      * key as message, or a generic fallback.
      *
+     * Fail closed on an unparseable 2xx body [review CON-6]: a genuinely empty
+     * (or whitespace-only) body is an empty success payload and resolves [],
+     * but a non-empty body that is not valid JSON (a captive portal, a proxy
+     * error page, a truncated stream) is NOT a success — it rejects with a
+     * {@see NetworkError} carrying the curated {@see ExceptionSentences::network()}
+     * sentence, and the "invalid JSON" diagnostic rides the previous chain to
+     * the log only (the ExceptionSentences doctrine; precedent: the bin/phlix
+     * selftest decode-ok check, which FAILs the same body). The single exempt
+     * caller is the logout ack ladder ($ackOnly), where an HTML 200 is the
+     * followed 302 to /login and is a documented success (see logoutAt()).
+     *
+     * @param bool $ackOnly the caller only needs the acknowledgement, so an
+     *                      unparseable 2xx resolves [] instead of rejecting
+     *
      * @return array<array-key,mixed>
      * @throws ApiError
      * @throws AuthError
+     * @throws NetworkError on a non-empty 2xx body that is not valid JSON
      */
-    private static function decode(ResponseInterface $response): array
+    private static function decode(ResponseInterface $response, bool $ackOnly = false): array
     {
         $status = $response->getStatusCode();
         $raw = (string) $response->getBody();
-        $decoded = $raw === '' ? [] : json_decode($raw, true);
+        $decoded = [];
+        if (trim($raw) !== '') {
+            try {
+                $decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+            } catch (\JsonException $e) {
+                if ($status >= 200 && $status < 300 && !$ackOnly) {
+                    throw new NetworkError(
+                        ExceptionSentences::network(),
+                        0,
+                        null,
+                        new \UnexpectedValueException(
+                            "invalid JSON in HTTP {$status} response body: {$e->getMessage()}",
+                            0,
+                            $e,
+                        ),
+                    );
+                }
+                // Non-2xx: the status already fails the call; the generic
+                // "Request failed (HTTP n)" fallback below names it.
+            }
+        }
         $data = is_array($decoded) ? $decoded : [];
 
         if ($status >= 200 && $status < 300) {

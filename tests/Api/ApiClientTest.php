@@ -32,6 +32,7 @@ use Phlix\Console\Api\Dto\TranscodeJob;
 use Phlix\Console\Api\Dto\Trickplay;
 use Phlix\Console\Config\TokenBundle;
 use Phlix\Console\I18n\ExceptionSentences;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use React\EventLoop\Loop;
 use React\Promise\PromiseInterface;
@@ -1615,6 +1616,98 @@ final class ApiClientTest extends TestCase
         self::assertStringNotContainsString('Connection refused', $error->getMessage());
         self::assertInstanceOf(\RuntimeException::class, $error->getPrevious());
         self::assertSame('Connection refused', $error->getPrevious()?->getMessage());
+    }
+
+    /**
+     * @return array<string,array{string}>
+     */
+    public static function unparseableSuccessBodies(): array
+    {
+        return [
+            'html captive portal' => ['<!doctype html><title>Sign in to Wi-Fi</title>'],
+            'plain garbage' => ['garbage'],
+            'truncated object' => ['{"libraries":[{"id":"l1"'],
+        ];
+    }
+
+    /**
+     * CON-6: a 2xx whose non-empty body is not JSON must fail closed — it is
+     * NOT an empty success payload. Mutation teeth: reverting decode() to the
+     * old `is_array($decoded) ? $decoded : []` coercion resolves [] here and
+     * awaitError() fails.
+     */
+    #[DataProvider('unparseableSuccessBodies')]
+    public function testUnparseableSuccessBodyFailsClosedAsNetworkError(string $body): void
+    {
+        $t = (new FakeTransport())->raw(200, $body);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $error = $this->awaitError($client->send('GET', '/api/v1/libraries'));
+
+        self::assertInstanceOf(NetworkError::class, $error);
+        // ExceptionSentences idiom: the minted message is the curated sentence
+        // EXACTLY; the diagnostic rides the previous chain to the log only.
+        self::assertSame(ExceptionSentences::network(), $error->getMessage());
+        self::assertSame(0, $error->statusCode);
+        self::assertNull($error->body);
+        $previous = $error->getPrevious();
+        self::assertInstanceOf(\UnexpectedValueException::class, $previous);
+        self::assertStringContainsString('invalid JSON', $previous->getMessage());
+        self::assertStringContainsString('HTTP 200', $previous->getMessage());
+        self::assertInstanceOf(\JsonException::class, $previous->getPrevious());
+        self::assertSame(1, $t->requestCount(), 'a bad 2xx body is not retried');
+    }
+
+    public function testUnparseableSuccessBodyFailsClosedThroughATypedEndpoint(): void
+    {
+        // The typed wrappers must not launder the failure into an empty list.
+        $t = (new FakeTransport())->raw(200, '<html>proxy error</html>');
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $error = $this->awaitError($client->libraries());
+
+        self::assertInstanceOf(NetworkError::class, $error);
+        self::assertSame(ExceptionSentences::network(), $error->getMessage());
+    }
+
+    /**
+     * @return array<string,array{int,string}>
+     */
+    public static function genuinelyEmptySuccessBodies(): array
+    {
+        return [
+            '200 empty' => [200, ''],
+            '204 empty' => [204, ''],
+            '200 whitespace only' => [200, " \n\t"],
+        ];
+    }
+
+    #[DataProvider('genuinelyEmptySuccessBodies')]
+    public function testGenuinelyEmptySuccessBodyStaysEmptyArray(int $status, string $body): void
+    {
+        $t = (new FakeTransport())->raw($status, $body);
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        self::assertSame([], $this->await($client->send('POST', '/api/v1/noop')));
+    }
+
+    public function testUnparseableErrorBodyStaysApiErrorWithItsStatus(): void
+    {
+        // Non-2xx already fails closed on its status: a garbage 502 body is
+        // still the status-bearing ApiError, not a NetworkError.
+        $t = (new FakeTransport())->raw(502, '<html>Bad Gateway</html>');
+        $client = new ApiClient(self::BASE, $t);
+        $client->setToken(new TokenBundle('t', 'r'));
+
+        $error = $this->awaitError($client->send('GET', '/api/v1/libraries'));
+
+        self::assertInstanceOf(ApiError::class, $error);
+        self::assertNotInstanceOf(NetworkError::class, $error);
+        self::assertSame(502, $error->statusCode);
+        self::assertSame('Request failed (HTTP 502)', $error->getMessage());
     }
 
     public function testServerErrorBecomesApiError(): void

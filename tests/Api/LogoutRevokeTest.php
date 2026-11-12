@@ -60,8 +60,9 @@ final class LogoutRevokeTest extends TestCase
         self::assertSame([], $this->await($api->logoutAt('https://srv', $this->bundle())));
 
         // The React Browser follows the 302 to /login in production: the
-        // terminal HTML 200 must resolve too (decode() treats a JSON-less 2xx
-        // as an empty success payload).
+        // terminal HTML 200 must resolve too (the revoke leg decodes with
+        // ackOnly, so a JSON-less 2xx is an empty success payload there —
+        // everywhere else it fails closed [review CON-6]).
         $followed = (new FakeTransport())->raw(200, '<!doctype html><title>Sign in</title>');
         $api2 = new ApiClient('https://srv', $followed);
         self::assertSame([], $this->await($api2->logoutAt('https://srv', $this->bundle())));
