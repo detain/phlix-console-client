@@ -176,7 +176,9 @@ final class PlayerScreenSyncPlayTest extends TestCase
         $pendingProperty = $screenReflection->getProperty('pendingSyncPlayEvents');
         $pendingProperty->setAccessible(true);
         $user = new SyncPlayUser('member-xyz', 'Bob', false);
-        $pendingProperty->setValue($screen, [new SyncPlayMemberJoinedMsg($user)]);
+        /** @var \ArrayObject<int, Msg> $queue */
+        $queue = $pendingProperty->getValue($screen);
+        $queue->append(new SyncPlayMemberJoinedMsg($user));
 
         // Call update with WindowSizeMsg to trigger event processing
         $msg = new WindowSizeMsg(80, 24);
@@ -185,7 +187,7 @@ final class PlayerScreenSyncPlayTest extends TestCase
         // Verify pending events were processed and queue is now empty
         $pendingProperty = $screenReflection->getProperty('pendingSyncPlayEvents');
         $pendingProperty->setAccessible(true);
-        $this->assertEmpty($pendingProperty->getValue($nextScreen));
+        $this->assertCount(0, $pendingProperty->getValue($nextScreen));
 
         // Verify the syncPlayStatus was updated (it calls getSyncStatus on the service)
         $statusProperty = $screenReflection->getProperty('syncPlayStatus');
@@ -193,6 +195,56 @@ final class PlayerScreenSyncPlayTest extends TestCase
         $status = $statusProperty->getValue($nextScreen);
         // Since we haven't joined a room, status should be 'Not in room'
         $this->assertIsString($status);
+    }
+
+    /**
+     * CON-1/CON-13 regression: the service callbacks close over the ORIGINAL
+     * screen, but the Elm loop only holds the latest clone. An event fired after
+     * the screen was cloned must still reach the model returned by update().
+     */
+    public function testEventFiredAfterCloneReachesReturnedModel(): void
+    {
+        $screen = $this->createScreen();
+        [$cloned] = $screen->update(new WindowSizeMsg(100, 30));
+        $this->assertNotSame($screen, $cloned);
+
+        $ref = new \ReflectionClass($screen);
+        $svc = $ref->getProperty('syncPlayService');
+        $svc->setAccessible(true);
+        $service = $svc->getValue($screen);
+        $onMemberJoined = (new \ReflectionClass($service))->getProperty('onMemberJoined');
+        $onMemberJoined->setAccessible(true);
+        /** @var \Closure $callback */
+        $callback = $onMemberJoined->getValue($service);
+        $callback(new SyncPlayUser('late', 'Late', false));
+
+        // Same shared queue is visible from the clone...
+        $q = $ref->getProperty('pendingSyncPlayEvents');
+        $q->setAccessible(true);
+        $this->assertCount(1, $q->getValue($cloned));
+
+        // ...and one update() cycle drains it into the returned model.
+        [$next] = $cloned->update(new WindowSizeMsg(100, 30));
+        $this->assertCount(0, $q->getValue($next));
+    }
+
+    public function testPendingQueueIsBounded(): void
+    {
+        $screen = $this->createScreen();
+        $ref = new \ReflectionClass($screen);
+        $svc = $ref->getProperty('syncPlayService');
+        $svc->setAccessible(true);
+        $service = $svc->getValue($screen);
+        $p = (new \ReflectionClass($service))->getProperty('onGroupState');
+        $p->setAccessible(true);
+        /** @var \Closure $cb */
+        $cb = $p->getValue($service);
+        for ($i = 0; $i < 1000; $i++) {
+            $cb();
+        }
+        $q = $ref->getProperty('pendingSyncPlayEvents');
+        $q->setAccessible(true);
+        $this->assertLessThanOrEqual(256, count($q->getValue($screen)));
     }
 
     /**

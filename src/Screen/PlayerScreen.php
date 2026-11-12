@@ -253,9 +253,19 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
     private int $syncPlayMemberCount = 0;
     /** The current SyncPlay sync status for overlay display. */
     private string $syncPlayStatus = 'Not in room';
-    /** Pending SyncPlay events to process on next update cycle. */
-    /** @var list<Msg> */
-    private array $pendingSyncPlayEvents = [];
+    /**
+     * Pending SyncPlay events to process on the next update cycle. A single
+     * \ArrayObject handle SHARED by reference across every clone of this screen:
+     * the service callbacks close over the construction-time instance, while the
+     * Elm loop keeps only the latest `clone $this` — a per-instance array would
+     * strand events on a dead original. Bounded by SYNCPLAY_EVENT_CAP (oldest
+     * dropped) so an undrained queue cannot leak.
+     *
+     * @var \ArrayObject<int, Msg>
+     */
+    private \ArrayObject $pendingSyncPlayEvents;
+    /** Upper bound on queued, not-yet-drained SyncPlay events. */
+    private const SYNCPLAY_EVENT_CAP = 256;
     /** The sleep timer (countdown to pause). */
     private SleepTimer $sleepTimer;
     /** The open sleep timer picker overlay, or null when closed. */
@@ -289,6 +299,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
         private readonly ?TrickplayCache $trickplayCache = null,
     ) {
         $this->syncPlayService = $syncPlayService;
+        $this->pendingSyncPlayEvents = new \ArrayObject();
         $this->sleepTimer = new SleepTimer();
         $this->initSyncPlay();
     }
@@ -335,45 +346,45 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
     {
         $this->syncPlayService->onPlaybackCommand(
             function (SyncPlayPlaybackCommand $cmd): void {
-                $this->pendingSyncPlayEvents[] = new SyncPlayPlaybackCommandMsg($cmd);
+                $this->queueSyncPlayEvent(new SyncPlayPlaybackCommandMsg($cmd));
             },
         );
 
         $this->syncPlayService->onMemberJoined(
             function (SyncPlayUser $member): void {
-                $this->pendingSyncPlayEvents[] = new SyncPlayMemberJoinedMsg($member);
+                $this->queueSyncPlayEvent(new SyncPlayMemberJoinedMsg($member));
             },
         );
 
         $this->syncPlayService->onMemberLeft(
             function (string $memberId): void {
-                $this->pendingSyncPlayEvents[] = new SyncPlayMemberLeftMsg($memberId);
+                $this->queueSyncPlayEvent(new SyncPlayMemberLeftMsg($memberId));
             },
         );
 
         $this->syncPlayService->onHostChanged(
             function (string $newHostId): void {
-                $this->pendingSyncPlayEvents[] = new SyncPlayHostChangedMsg($newHostId);
+                $this->queueSyncPlayEvent(new SyncPlayHostChangedMsg($newHostId));
             },
         );
 
         $this->syncPlayService->onDisconnect(
             function (bool $wasIntentional): void {
-                $this->pendingSyncPlayEvents[] = new SyncPlayDisconnectedMsg($wasIntentional);
+                $this->queueSyncPlayEvent(new SyncPlayDisconnectedMsg($wasIntentional));
             },
         );
 
         $this->syncPlayService->onError(
             function (string $code, string $message): void {
-                $this->pendingSyncPlayEvents[] = ShowToastMsg::error(
+                $this->queueSyncPlayEvent(ShowToastMsg::error(
                     'SyncPlay: ' . SyncPlayErrors::localize($code, $message),
-                );
+                ));
             },
         );
 
         $this->syncPlayService->onGroupState(
             function (): void {
-                $this->pendingSyncPlayEvents[] = new \Phlix\Console\Msg\SyncPlayGroupStateMsg();
+                $this->queueSyncPlayEvent(new \Phlix\Console\Msg\SyncPlayGroupStateMsg());
             },
         );
     }
@@ -395,19 +406,48 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
         return Cmd::batch(...$cmds);
     }
 
+    /**
+     * Queue a SyncPlay event on the shared queue, dropping the oldest when full.
+     */
+    private function queueSyncPlayEvent(Msg $event): void
+    {
+        $this->pendingSyncPlayEvents[] = $event;
+        while (count($this->pendingSyncPlayEvents) > self::SYNCPLAY_EVENT_CAP) {
+            $items = $this->pendingSyncPlayEvents->getArrayCopy();
+            array_shift($items);
+            $this->pendingSyncPlayEvents->exchangeArray($items);
+        }
+    }
+
     /** @return array{self, ?\Closure} */
     public function update(Msg $msg): array
     {
-        // Process any pending SyncPlay events first
+        // Drain SyncPlay events queued by service callbacks first, threading the
+        // resulting model (and any Cmds) into the handling of $msg itself.
         $screen = $this;
-        while (!empty($screen->pendingSyncPlayEvents)) {
-            $pending = $screen->pendingSyncPlayEvents;
-            $screen->pendingSyncPlayEvents = [];
+        $cmds = [];
+        while (count($screen->pendingSyncPlayEvents) > 0) {
+            $pending = $screen->pendingSyncPlayEvents->getArrayCopy();
+            $screen->pendingSyncPlayEvents->exchangeArray([]);
             foreach ($pending as $event) {
-                [$screen] = $screen->update($event);
+                [$screen, $cmd] = $screen->handleMsg($event);
+                if ($cmd !== null) {
+                    $cmds[] = $cmd;
+                }
             }
         }
 
+        [$next, $cmd] = $screen->handleMsg($msg);
+        if ($cmd !== null) {
+            $cmds[] = $cmd;
+        }
+
+        return [$next, $cmds === [] ? null : (count($cmds) === 1 ? $cmds[0] : Cmd::batch(...$cmds))];
+    }
+
+    /** @return array{self, ?\Closure} */
+    private function handleMsg(Msg $msg): array
+    {
         if ($msg instanceof WindowSizeMsg) {
             return $this->onResize($msg->cols, $msg->rows);
         }
@@ -2161,7 +2201,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
             return [$next, null];
         }
 
-        // ← → in creation state: toggle public/private
+        // p / P in creation state: toggle public/private
         if (
             ($msg->type === KeyType::Char && ($msg->rune === 'p' || $msg->rune === 'P'))
             && $menu->state() === 1
