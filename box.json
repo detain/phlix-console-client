@@ -2,6 +2,7 @@
     "chmod": "0755",
     "alias": "phlix.phar",
     "compactors": [],
+    "git-commit": "git_commit",
     "main": "bin/phlix",
     "finder": [
         {
@@ -21,7 +22,6 @@
     ],
     "metadata": {
         "name": "phlix/console-client",
-        "version": "1.0.0",
         "description": "Terminal TUI client for Phlix"
     },
     "output": "build/phlix.phar",

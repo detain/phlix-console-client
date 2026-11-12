@@ -858,6 +858,26 @@ final class BinPhlixTest extends TestCase
     }
 
     /**
+     * CON-58/CON-59: build provenance. `doctor` and `version` print the commit
+     * ("dev" from source), box.json bakes it via git-commit, and the third
+     * version string (metadata.version) stays deleted.
+     */
+    public function testVersionAndDoctorReportCommitAndBoxBakesIt(): void
+    {
+        $version = $this->runPhlix(['version']);
+        $this->assertSame(0, $version['exitCode']);
+        $this->assertMatchesRegularExpression('/^phlix \S+ \(commit dev\)$/m', $version['stdout']);
+
+        $doctor = $this->runPhlixWithDeadline(['doctor'], 15.0, $this->scratchHome());
+        $this->assertStringContainsString('phlix commit: dev', $doctor['stdout']);
+
+        $box = json_decode((string) file_get_contents(dirname($this->binPath, 2) . '/box.json'), true);
+        $this->assertSame('git_commit', $box['git-commit'] ?? null);
+        $this->assertArrayNotHasKey('version', $box['metadata'] ?? []);
+        $this->assertStringContainsString("const PHLIX_COMMIT = '@git_commit@';", (string) file_get_contents($this->binPath));
+    }
+
+    /**
      * Structural pin (tests/Docs doctrine: parse the code side, never
      * restate prose): the bare-mode absorption is gated by the
      * mode-consuming command allow-list AND final argv position, and the

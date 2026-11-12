@@ -11,7 +11,17 @@ text carries the user-visible effect first; ids stay in the bullets or the headi
 
 ## [Unreleased]
 
-### Changed — CON-S32 [CON-53] the changelog now declares its heading convention (docs only) — 2026-11-12
+### Changed — `phlix version` and `doctor` now print the build's commit (CON-S34 [CON-58, CON-59]) — 2026-11-12
+
+`phlix version` prints `phlix 1.0.0 (commit <sha>)` and `doctor` gains a `phlix commit:` line, so a
+PHAR can be traced to the exact commit it was built from (`dev` when run from source).
+
+- **What:** box.json's `git-commit-placeholder` bakes the compiled commit over `PHLIX_COMMIT` in
+  bin/phlix; constant within a run, so the build-twice sha256 gate is unaffected. The third version
+  string (`metadata.version` in box.json) is deleted, leaving `PHLIX_VERSION` as the only one, which
+  the existing tag-vs-version release gate already covers.
+
+### Changed — the changelog now declares its heading convention (CON-S32 [CON-53]) — 2026-11-12
 
 Changelog entries from here on lead with what changed for the user; the intro records the rule.
 Earlier entries keep their historical engineering-style headings untouched.

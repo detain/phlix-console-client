@@ -14,6 +14,17 @@ declare(strict_types=1);
 
 const PHLIX_VERSION = '1.0.0';
 
+// Build provenance [CON-58/CON-59]: box.json's "git-commit-placeholder" bakes the
+// compiled commit sha over this literal at `box compile` time (constant within one
+// run, so the build-twice sha256 gate holds). Unstamped source runs print "dev".
+const PHLIX_COMMIT = '@git_commit@';
+
+/** Commit stamp for display: the baked sha, or "dev" when running from source. */
+function phlixCommit(): string
+{
+    return str_starts_with(PHLIX_COMMIT, '@git_') ? 'dev' : PHLIX_COMMIT;
+}
+
 const HELP_TEXT = <<<TXT
 phlix — Phlix console client
 
@@ -777,6 +788,7 @@ try {
             // own stamp. The constant is a rolling master stamp, not a
             // release tag (review M8 truth); the output says so.
             echo "phlix version: " . PHLIX_VERSION . " (rolling master stamp, not a release)\n";
+            echo "phlix commit: " . phlixCommit() . "\n";
             echo "PHP version: " . PHP_VERSION . "\n";
             echo "Config path: " . Config::path() . "\n";
             if ($config->loadError !== null) {
@@ -944,7 +956,7 @@ try {
         case '--version':
         case '-V':
         case 'version':
-            echo "phlix " . PHLIX_VERSION . "\n";
+            echo "phlix " . PHLIX_VERSION . " (commit " . phlixCommit() . ")\n";
             exit(0);
 
         case 'help':
