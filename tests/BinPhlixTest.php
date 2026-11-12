@@ -450,6 +450,100 @@ final class BinPhlixTest extends TestCase
         $this->assertStringContainsString('stdout is not a terminal', $src);
     }
 
+    /**
+     * [review CON-16] boot matrix on a REAL terminal: stdin and stdout are a
+     * pty (stream_isatty() true on both), so the TTY guards pass and only the
+     * TERM value decides. Every basic-TERM signal — the same four
+     * Theme::basicTerminal() names for colour suppression — must refuse with
+     * exit 2, the repo-standard `Error:` prefix on STDERR, the --selftest
+     * guidance idiom, and NOTHING painted onto the terminal (the cured
+     * vector: the full-window renderer's cursor/alternate-screen stream
+     * landing as raw garbage on a line-mode terminal).
+     *
+     * @return array<string, array{0: string|null, 1: string}>
+     */
+    public static function basicTermMatrix(): array
+    {
+        return [
+            'TERM=dumb' => ['dumb', '(TERM=dumb)'],
+            'TERM=unknown' => ['unknown', '(TERM=unknown)'],
+            'TERM empty' => ['', '(TERM is empty)'],
+            'TERM unset' => [null, '(TERM is not set)'],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('basicTermMatrix')]
+    public function testRunOnARealTtyRefusesABasicTerm(?string $term, string $label): void
+    {
+        $result = $this->runPhlixOnPty(['run'], 10.0, $term);
+
+        $this->assertFalse($result['timedOut'], 'the basic-TERM refusal must exit on its own');
+        $this->assertSame(2, $result['exitCode'], 'a basic TERM is a usage error (exit 2 doctrine)');
+        $this->assertStringStartsWith('Error: phlix run needs a full-screen terminal ' . $label, $result['stderr']);
+        $this->assertStringContainsString(
+            'TERM=xterm-256color phlix run',
+            $result['stderr'],
+            'the refusal names the fix',
+        );
+        $this->assertStringContainsString(
+            'headless check? use: phlix run --selftest',
+            $result['stderr'],
+            'the refusal reuses the TTY guards\' --selftest guidance idiom',
+        );
+        $this->assertSame('', $result['tty'], 'nothing may be painted onto the basic terminal');
+    }
+
+    /**
+     * Control legs of the CON-16 matrix: a capable TERM on the same real
+     * terminal passes the guard (NO_COLOR is a colour preference, never a
+     * terminal-capability signal, so it must not refuse either), and the
+     * headless `--selftest` short-circuit stays ahead of the TERM refusal
+     * exactly as it stays ahead of the TTY guards.
+     */
+    public function testRunOnARealTtyWithACapableTermPassesTheGuardEvenUnderNoColor(): void
+    {
+        $result = $this->runPhlixOnPty(['run'], 3.0, 'xterm-256color', ['NO_COLOR' => '1']);
+
+        $this->assertStringNotContainsString('needs a full-screen terminal', $result['stderr']);
+        $this->assertStringNotContainsString('needs a TTY', $result['stderr'], 'the pty must satisfy both TTY guards');
+        if (!$result['timedOut']) {
+            $this->assertNotSame(2, $result['exitCode'], 'a capable TERM is not a usage error');
+        }
+    }
+
+    public function testRunSelftestOnARealTtyIsNotGatedByABasicTerm(): void
+    {
+        $result = $this->runPhlixOnPty(['run', '--selftest'], 15.0, 'dumb');
+
+        $this->assertFalse($result['timedOut'], 'run --selftest must stay terminating');
+        $this->assertStringNotContainsString('needs a full-screen terminal', $result['stderr']);
+        $this->assertNotSame(2, $result['exitCode'], '--selftest is not a usage error under a basic TERM');
+        $this->assertStringContainsString('config-loaded', $result['tty'], '--selftest still prints its ladder');
+    }
+
+    /**
+     * Structural pin: the basic-TERM refusal sits AFTER both TTY guards (a
+     * pipe keeps its historical "needs a TTY" message whatever TERM says)
+     * and consults Theme's single predicate, so the refusal and the colour
+     * arm can never disagree on what "basic" means.
+     */
+    public function testBasicTermRefusalFollowsTheTtyGuardsAndSharesThemesPredicate(): void
+    {
+        $src = file_get_contents('bin/phlix');
+        $this->assertIsString($src);
+
+        $stdoutAt = strpos($src, 'stream_isatty(STDOUT)');
+        $termAt = strpos($src, 'Theme::basicTerminal()');
+        $this->assertNotFalse($stdoutAt);
+        $this->assertNotFalse($termAt, 'the run case must refuse via Theme::basicTerminal() (CON-16)');
+        $this->assertLessThan($termAt, $stdoutAt, 'the TERM refusal must follow both TTY guards');
+        $this->assertStringContainsString(
+            'return self::basicTerminal();',
+            (string) file_get_contents('src/Ui/Theme.php'),
+            'colorSuppressed() must delegate its TERM arm to the shared predicate',
+        );
+    }
+
     private function scratchHome(): string
     {
         $dir = sys_get_temp_dir() . '/opencode/fix-M-CONSOLE-35/phpunit-home-' . bin2hex(random_bytes(4));
@@ -854,6 +948,89 @@ final class BinPhlixTest extends TestCase
             'stdout' => $stdout,
             'stderr' => $stderr,
         ];
+    }
+
+    /**
+     * Spawn bin/phlix with stdin AND stdout on a real pty (so both
+     * stream_isatty() guards pass) and stderr on a pipe, under a pinned
+     * environment: a throwaway HOME, PATH, and TERM set to $term (null =
+     * unset). Skips when this PHP build cannot allocate a pty. A child still
+     * running at the deadline is SIGKILLed and reported `timedOut: true`.
+     *
+     * @param list<string>          $args
+     * @param array<string, string> $extraEnv
+     *
+     * @return array{exitCode: int, tty: string, stderr: string, timedOut: bool}
+     */
+    private function runPhlixOnPty(array $args, float $deadline, ?string $term, array $extraEnv = []): array
+    {
+        $home = sys_get_temp_dir() . '/phlix-con16-' . bin2hex(random_bytes(4));
+        if (!mkdir($home, 0o700, true) && !is_dir($home)) {
+            throw new \RuntimeException("scratch HOME {$home} could not be created");
+        }
+        $env = [
+            'HOME' => $home,
+            'XDG_CONFIG_HOME' => $home . '/.config',
+            'PATH' => (string) (getenv('PATH') ?: '/usr/bin:/bin'),
+        ] + $extraEnv;
+        // proc_open() drops empty-string env values, so TERM travels through
+        // env(1): the only way to hand the child a set-but-empty TERM.
+        $command = array_merge([PHP_BINARY, $this->binPath], $args);
+        if ($term !== null) {
+            $command = array_merge(['env', 'TERM=' . $term], $command);
+        }
+
+        try {
+            $process = @proc_open(
+                $command,
+                [0 => ['pty'], 1 => ['pty'], 2 => ['pipe', 'w']],
+                $pipes,
+                null,
+                $env,
+            );
+            if (!is_resource($process)) {
+                $this->markTestSkipped('this PHP build cannot allocate a pty');
+            }
+            stream_set_blocking($pipes[1], false);
+            stream_set_blocking($pipes[2], false);
+
+            $tty = '';
+            $stderr = '';
+            $exitCode = -1;
+            $timedOut = true;
+            $deadlineAt = microtime(true) + $deadline;
+            while (microtime(true) < $deadlineAt) {
+                // A pty master reads EIO once the child side closes — that
+                // is end-of-stream here, not a failure, hence the silence.
+                $tty .= (string) @fread($pipes[1], 65536);
+                $stderr .= (string) @fread($pipes[2], 65536);
+                $status = proc_get_status($process);
+                if (!$status['running']) {
+                    $exitCode = $status['exitcode'];
+                    $timedOut = false;
+                    break;
+                }
+                usleep(20000);
+            }
+            if ($timedOut) {
+                proc_terminate($process, SIGKILL);
+            }
+            $tty .= (string) @stream_get_contents($pipes[1]);
+            $stderr .= (string) @stream_get_contents($pipes[2]);
+            foreach ($pipes as $pipe) {
+                if (is_resource($pipe)) {
+                    @fclose($pipe);
+                }
+            }
+            $closed = proc_close($process);
+            if ($timedOut) {
+                $exitCode = $closed;
+            }
+
+            return ['exitCode' => $exitCode, 'tty' => $tty, 'stderr' => $stderr, 'timedOut' => $timedOut];
+        } finally {
+            exec('rm -rf ' . escapeshellarg($home));
+        }
     }
 
     /**

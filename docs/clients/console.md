@@ -377,18 +377,22 @@ hints, rating stars, badges, danger marks, cast-avatar fields):
 | Signal | Effect |
 | --- | --- |
 | `NO_COLOR` set to **any non-empty value** | Colour drops out entirely — text and layout unchanged. A literal `NO_COLOR=0` still disables (the convention is presence-based; an empty value does **not** disable). |
-| `TERM` unset, empty, `dumb`, or `unknown` | Same suppression — for line-mode terminals (`ed`-style linters, some screen sessions), shells that never advertise a terminal type (minimal containers, tmux/screen misconfigs — the ncurses convention treats an unset `TERM` as the most basic terminal), and ncurses' own `unknown` fallback. |
+| `TERM` unset, empty, `dumb`, or `unknown` | **`phlix run` refuses to start** (exit 2, `Error: phlix run needs a full-screen terminal (TERM=dumb)`, with the fix and the `phlix run --selftest` headless hint) — a basic terminal cannot interpret the full-window renderer's cursor-positioning and alternate-screen stream, so dropping colour alone would still leave escape garbage on screen. This covers line-mode terminals (Emacs `M-x shell`, `ed`-style linters, some screen sessions), shells that never advertise a terminal type (minimal containers, tmux/screen misconfigs — the ncurses convention treats an unset `TERM` as the most basic terminal), and ncurses' own `unknown` fallback. Set `TERM` to your terminal's real type (e.g. `TERM=xterm-256color phlix run`). The same signal also suppresses colour wherever the styling layer is reached outside the full-window app. |
 
-Suppression is colour-only by design: the structural attributes — **bold**
-emphasis, faint avatar initials, reverse-video selection cursor — survive, so
-what is selected and what is emphasized stays visible without any palette.
-The default theme (Nocturne) keeps all **chrome** colourless — the header
-brand and status hints emit plain text — while **content widgets** (rating
-stars, recommendation badges, card titles, the clear-rating mark, cast-avatar
-backgrounds) carry the historical palette. Under `NO_COLOR` or a basic `TERM`
-those widget colours drop to attribute-only output too (the bold emphasis on
-stars, badges and the danger mark survives), so a screen reader or a
-line-mode terminal still sees the same text and structure as everywhere else.
+`NO_COLOR` suppression is colour-only by design: the structural attributes —
+**bold** emphasis, faint avatar initials, reverse-video selection cursor —
+survive, so what is selected and what is emphasized stays visible without any
+palette. The default theme (Nocturne) keeps all **chrome** colourless — the
+header brand and status hints emit plain text — while **content widgets**
+(rating stars, recommendation badges, card titles, the clear-rating mark,
+cast-avatar backgrounds) carry the historical palette. Under `NO_COLOR` those
+widget colours drop to attribute-only output too (the bold emphasis on stars,
+badges and the danger mark survives), so a screen reader still sees the same
+text and structure as everywhere else. A basic `TERM` is different: the
+full-window app is never colour-only-safe on a line-mode terminal, which is why
+`phlix run` refuses it outright rather than painting a degraded screen.
+`NO_COLOR` never triggers that refusal — it is a colour preference, not a
+statement about what the terminal can draw.
 
 - Live window resizing is handled: the terminal's size-change signal re-flows
   every screen in the stack — including the ones you have navigated away
@@ -668,6 +672,16 @@ Run `composer install` in the project directory.
 
 `bin/phlix run` requires an interactive terminal. If you're running over SSH,
 use `ssh -t user@host 'bin/phlix run'` or a terminal multiplexer (tmux, screen).
+
+### "needs a full-screen terminal" on `phlix run`
+
+Your terminal is interactive, but `TERM` is unset, empty, `dumb`, or `unknown`
+— a basic terminal that cannot draw the full-window app (see
+[Accessibility and basic terminals](#accessibility-and-basic-terminals)).
+Typical sources: Emacs `M-x shell`, a container or service shell that never
+exported `TERM`, or a broken tmux/screen `default-terminal`. Set your
+terminal's real type, e.g. `TERM=xterm-256color bin/phlix run`; for a headless
+wiring check use `bin/phlix run --selftest`, which never needs a terminal.
 
 ### Running inside a container
 

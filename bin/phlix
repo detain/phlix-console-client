@@ -74,6 +74,7 @@ use Phlix\Console\Screen\PlayerScreen;
 use Phlix\Console\Store\AuthStore;
 use Phlix\Console\Store\LibrariesStore;
 use Phlix\Console\Store\MediaStore;
+use Phlix\Console\Ui\Theme;
 use SugarCraft\Core\Program;
 use SugarCraft\Core\ProgramOptions;
 use SugarCraft\Image\DiskCache;
@@ -878,6 +879,28 @@ try {
             // `run --selftest` above stays the headless path.
             if (!stream_isatty(STDOUT)) {
                 fwrite(STDERR, "Error: phlix run needs a TTY (stdout is not a terminal)\n");
+                fwrite(STDERR, "headless check? use: phlix run --selftest\n");
+                exit(2);
+            }
+            // [review CON-16] a real terminal is not enough: TERM must also
+            // advertise one that can draw the full-window app. Under a basic
+            // TERM — unset, empty, `dumb` (Emacs shell-mode, line-mode
+            // terminals) or ncurses' `unknown` fallback — colour suppression
+            // (Theme::colorSuppressed) still leaves the renderer's
+            // alternate-screen and cursor-positioning stream as raw escape
+            // garbage, so refuse at the boundary with the same exit-2 /
+            // --selftest guidance idiom as the TTY guards above. Theme owns
+            // the one basic-TERM predicate so the refusal and the colour arm
+            // can never disagree on what "basic" means.
+            if (Theme::basicTerminal()) {
+                $termValue = getenv('TERM');
+                $termLabel = match (true) {
+                    $termValue === false => 'TERM is not set',
+                    $termValue === '' => 'TERM is empty',
+                    default => 'TERM=' . $termValue,
+                };
+                fwrite(STDERR, "Error: phlix run needs a full-screen terminal ({$termLabel})\n");
+                fwrite(STDERR, "set TERM to your terminal's type, e.g.: TERM=xterm-256color phlix run\n");
                 fwrite(STDERR, "headless check? use: phlix run --selftest\n");
                 exit(2);
             }

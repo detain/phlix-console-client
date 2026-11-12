@@ -112,6 +112,24 @@ final readonly class Theme
             return true;
         }
 
+        return self::basicTerminal();
+    }
+
+    /**
+     * Whether `TERM` signals a basic terminal: unset or empty (no terminal
+     * type was ever advertised — the ncurses convention treats this as the
+     * most basic terminal), the literal `dumb` (the classic line-mode
+     * terminal), or ncurses' own fallback name `unknown`.
+     *
+     * One predicate, two consumers: {@see colorSuppressed()} drops colour on
+     * it, and `bin/phlix run` refuses to start the full-window app on it — a
+     * terminal that advertises no cursor addressing cannot interpret the
+     * renderer's alternate-screen / cursor-positioning stream, so colour
+     * suppression alone would still leave escape garbage on screen
+     * [review CON-16]. Same fresh getenv() read as colorSuppressed().
+     */
+    public static function basicTerminal(): bool
+    {
         $term = getenv('TERM');
 
         return $term === false || $term === '' || $term === 'dumb' || $term === 'unknown';

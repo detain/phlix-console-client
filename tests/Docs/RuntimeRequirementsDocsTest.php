@@ -148,7 +148,7 @@ final class RuntimeRequirementsDocsTest extends TestCase
                 $token,
                 $section,
                 'README.md "## Requirements" no longer names ' . $token
-                . ' (composer.lock enforcement / diagnostics reality moved; move the prose with it).'
+                . ' (composer enforcement (lock + root require) / diagnostics reality moved; move the prose with it).'
             );
         }
     }

@@ -5,6 +5,26 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — CON-S15 [CON-16] `phlix run` refuses a basic TERM on a real terminal instead of painting escape garbage — 2026-11-12
+
+- **Why:** the TTY guards only asked "is stdin/stdout a terminal?". Under `TERM=dumb` (Emacs
+  `M-x shell`, line-mode terminals), `unknown`, or an unset/empty `TERM`, both guards passed and the
+  full-window renderer streamed cursor-positioning / alternate-screen sequences into a terminal that
+  cannot interpret them. `Theme::colorSuppressed()` dropped the colour, and the manual claimed that
+  made a line-mode terminal "see the same text and structure" — it did not; only the SGR went away.
+- **What:** `Theme::basicTerminal()` is now the one basic-TERM predicate (`colorSuppressed()`
+  delegates to it), and `bin/phlix run` refuses on it after both TTY guards: exit 2,
+  `Error: phlix run needs a full-screen terminal (TERM=dumb)` (or `TERM is not set` / `TERM is empty`),
+  the fix (`TERM=xterm-256color phlix run`), and the existing `headless check? use: phlix run
+  --selftest` idiom. `--selftest` stays ahead of the refusal; `NO_COLOR` never refuses. New
+  `BinPhlixTest` boot matrix runs on a real pty (dumb / unknown / empty / unset refuse with nothing
+  painted; capable TERM + `NO_COLOR` passes; `--selftest` under `TERM=dumb` still runs) plus a
+  structural ordering pin. Manual "Accessibility and basic terminals" row and the colour-only
+  paragraph corrected, a "needs a full-screen terminal" troubleshooting entry added, README feature
+  note rotated.
+- **Also (CON-S13 review minor):** `RuntimeRequirementsDocsTest`'s README message now says "composer
+  enforcement (lock + root require)" — the census reads root `composer.json` too.
+
 ### Fixed — CON-S13 [CON-14] pcntl truth: one requirement story across composer, docs and guards — 2026-11-12
 
 - **Why:** `composer.json` hard-requires `ext-pcntl` (a source install without it fails at the
