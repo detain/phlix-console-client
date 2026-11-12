@@ -214,6 +214,8 @@ final class DownloadService
                             "Download refused: it declared {$totalBytes} bytes, above the {$this->maxBytes} byte limit.",
                             0,
                         ));
+                        // Stop the refused body streaming in behind the reject.
+                        $response->getBody()->close();
                         return;
                     }
 
@@ -241,6 +243,8 @@ final class DownloadService
                             "Cannot open temporary file: {$finalTmpFilepath}",
                             0,
                         ));
+                        // Nowhere to write: stop pulling the body too.
+                        $body->close();
                         return;
                     }
 

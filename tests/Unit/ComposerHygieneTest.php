@@ -23,8 +23,14 @@ use PHPUnit\Framework\TestCase;
  *    "became a disable-able package in 8.4" rationale first shipped with
  *    CU-044 — see the dated CHANGELOG correction entry], while the
  *    SIGINT/TERM teardown that promises "don't orphan ffplay/ffmpeg
- *    children" is the pcntl_signal family (App.php). ext-curl stays
- *    deliberately undeclared — its doctor probe is loud by design.
+ *    children" is the pcntl_signal family (App.php). ext-pcntl is
+ *    composer-enforced (soft only in PHAR) [CON-S13 / CON-14]: the hard
+ *    require stays, every requirements doc site says exactly that, and the
+ *    function_exists() guards only exist so a PHAR — which skips composer's
+ *    platform check — degrades instead of fataling (pinned in
+ *    RuntimeRequirementsDocsTest, whose census now reads this file's
+ *    require block too). ext-curl stays deliberately undeclared — its
+ *    doctor probe is loud by design.
  *  - the polyfill `provide` stays EXPLICIT and paired with the ceiling:
  *    humbug/box (dev-only) declares `replace: symfony/polyfill-php8x *`, so
  *    dropping the root provide lets box satisfy league/commonmark's prod
@@ -52,7 +58,9 @@ final class ComposerHygieneTest extends TestCase
             self::assertArrayHasKey(
                 $extension,
                 $require,
-                "{$extension} is on a runtime path and must be declared, not ambient"
+                "{$extension} is on a runtime path and must be declared, not ambient "
+                . '(ext-pcntl: composer-enforced, soft only in PHAR — dropping it means rotating '
+                . 'RuntimeRequirementsDocsTest and all five requirements sites, never silently)'
             );
             self::assertSame('*', $require[$extension]);
         }
@@ -116,7 +124,8 @@ final class ComposerHygieneTest extends TestCase
                     'pcntl',
                     $declared,
                     basename($path) . ':' . ($number + 1) . ' sets up PHP for a job that runs composer install; '
-                    . 'composer.json requires ext-pcntl, so an install here without it fails'
+                    . 'composer.json requires ext-pcntl (composer-enforced; soft only in PHAR), '
+                    . 'so an install here without it fails'
                 );
             }
         }

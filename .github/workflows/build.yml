@@ -143,7 +143,7 @@ jobs:
             - **`phlix.phar`** — run with `php phlix.phar` (needs PHP 8.3+ with the
               `ext-gd`, `ext-mbstring`, `ext-intl`, `ext-ffi` and `ext-json`
               extensions, plus `ext-curl` for `doctor`, `run --selftest` and
-              `watch`'s relay-token mint;
+              `watch`'s relay-token mint; `ext-pcntl` is composer-enforced (soft only in PHAR): without it no exit-signal teardown or Ctrl-Z suspend;
               `ffmpeg` on PATH for video frames).
             Verify with SHA256SUMS.
           prerelease: true
@@ -231,7 +231,7 @@ jobs:
             - **`phlix.phar`** — run with `php phlix.phar` (needs PHP 8.3+ with
               the `ext-gd`, `ext-mbstring`, `ext-intl`, `ext-ffi` and
               `ext-json` extensions, plus `ext-curl` for `doctor`,
-              `run --selftest` and `watch`'s relay-token mint; `ffmpeg` on PATH for video frames).
+              `run --selftest` and `watch`'s relay-token mint; `ext-pcntl` is composer-enforced (soft only in PHAR): without it no exit-signal teardown or Ctrl-Z suspend; `ffmpeg` on PATH for video frames).
 
             Verify integrity with `sha256sum -c SHA256SUMS`.
           files: |

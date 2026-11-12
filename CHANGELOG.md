@@ -5,6 +5,26 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — CON-S13 [CON-14] pcntl truth: one requirement story across composer, docs and guards — 2026-11-12
+
+- **Why:** `composer.json` hard-requires `ext-pcntl` (a source install without it fails at the
+  platform check), yet README "## Requirements", both PHAR lists and the manual's Ctrl-Z row all
+  called pcntl **optional**. The docs guard could not see the contradiction: its extension census
+  read only `composer.lock` package requires, never the root require block, so the root `ext-pcntl`
+  was invisible (red-first: extending the census to root `composer.json` against the old pin failed
+  with `+ 'pcntl'`).
+- **What:** owner-visible choice — keep the hard require and say so: every requirements site (README
+  source + PHAR lists, `docs/clients/console.md` PHAR list, both `build.yml` release-note bodies) now
+  names `ext-pcntl` and carries the exact qualifier "`ext-pcntl` is composer-enforced (soft only in
+  PHAR)"; `posix` stays genuinely optional. No guard was widened. `RuntimeRequirementsDocsTest`'s
+  census (`COMPOSER_ENFORCED_EXTENSIONS`, now six) reads lock + root requires; new pins require the
+  qualifier at all five sites, forbid any sentence calling pcntl optional, keep posix lines saying
+  optional, and pin every pcntl call in `src/` + `bin/` behind a `function_exists()` guard (the code
+  truth behind "soft only in PHAR"). `ComposerHygieneTest` messages and the `App::armExitSignals()`
+  guard comment rotate with the prose.
+- **Also (CON-S9 review minor):** `DownloadService`'s two early-reject legs (declared size over the
+  cap; tmp `fopen` failure) now close the response body instead of leaving it streaming.
+
 ### Changed — stable-PHAR [off-kit v2] the phar build is now reproducible: box's random stub alias is pinned via a `box.json` `alias`, both build paths gained an x2-compile sha256 assert, and `scripts/build-phar.sh` no longer passes a flag Box 4 does not have — 2026-11-11
 
 - **Why:** the estate reel item 'stable-PHAR' named server `bin/phar*`/`phar-dev.yml` tooling, but a full

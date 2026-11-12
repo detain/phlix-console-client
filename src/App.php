@@ -474,6 +474,11 @@ final class App implements Model
     private function armExitSignals(): void
     {
         $program = $this->exitSignalProgram;
+        // ext-pcntl is composer-enforced (soft only in PHAR) [CON-S13]: a
+        // source install cannot lack it, but a PHAR skips composer's platform
+        // check, so this guard is what lets a pcntl-less PHAR boot (minus the
+        // teardown). It is not a licence to drop the composer require —
+        // RuntimeRequirementsDocsTest pins every pcntl call guarded.
         if ($program === null || !function_exists('pcntl_signal')) {
             return;
         }

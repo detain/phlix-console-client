@@ -117,8 +117,11 @@ sha256sum -c SHA256SUMS
   on you). `ext-ffi` is a hard runtime dependency: sugar-pty drives the
   terminal through it, so without it the client dies at boot. ext-curl additionally powers the `doctor` / `run --selftest`
   reachability probes and `watch`'s hub relay-token mint (without it `watch`
-  needs an explicit `--relay-token`); pcntl/posix are optional (Ctrl-Z
-  suspend, test harness).
+  needs an explicit `--relay-token`). `ext-pcntl` is composer-enforced (soft
+  only in PHAR): every pcntl call is `function_exists()`-guarded, so a PHAR
+  on a PHP without it still runs but loses the exit-signal teardown (ffplay/
+  ffmpeg children can outlive a `kill` or a closed terminal) and Ctrl-Z
+  suspend. `posix` is optional (Ctrl-Z suspend, fork-based test harness).
 - ffmpeg + ffprobe (video frame extraction)
 - ffplay or mpv (for audio playback)
 - A terminal with sixel/kitty/iTerm2 support (or `--mode=halfblock` fallback)
@@ -537,7 +540,7 @@ keys each individual screen adds, consolidated from the handlers (the
 
 | Screen | Keys |
 | --- | --- |
-| All screens | `Ctrl-Z` suspends the client to the background; resume it with `fg` — needs the optional `pcntl`/`posix` extensions (see **PHAR requirements** above; a lean PHP build without them has no suspend) |
+| All screens | `Ctrl-Z` suspends the client to the background; resume it with `fg` — needs `ext-pcntl` (composer-enforced, soft only in PHAR) plus the optional `posix` extension (see **PHAR requirements** above; a PHAR on a PHP build missing either has no suspend) |
 | Photos → viewer | `←`/`→` previous/next photo (no wrap; manual paging resets the slideshow countdown), `i` EXIF panel on/off, `s` start/stop the slideshow, `Esc` back |
 | Cast — device list | `↑`/`↓` select, `Enter` start casting, `r` rescan for devices, `q`/`Esc` leave |
 | Cast — transport (session live) | `Space` play/pause, `r` refresh status, `x` stop the session (when the device allows stopping), `←`/`→` seek ∓10 s (`Shift`+arrow: ∓60 s, when the device allows seeking), `Esc` back to the device list |

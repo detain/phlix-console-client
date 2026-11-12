@@ -75,16 +75,21 @@ Issues and questions:
   [`phlix-server`](https://github.com/detain/phlix-server).
 - **PHP ≥ 8.3** with `ext-gd` (image decode), `ext-mbstring` (multibyte text
   width — src/ and sugar-image), `ext-intl` (sugar-core), `ext-ffi` (PTY
-  control via sugar-pty) and `ext-json` (required by workerman; bundled in
-  PHP ≥ 8.0). Composer enforces all five at install. `ext-ffi` is not
+  control via sugar-pty), `ext-json` (required by workerman; bundled in
+  PHP ≥ 8.0) and `ext-pcntl` (the exit-signal teardown that stops
+  ffplay/ffmpeg children on `kill` or a closed terminal, plus Ctrl-Z
+  suspend). Composer enforces all six at install. `ext-ffi` is not
   peripheral: sugar-pty drives the terminal through it, so a lean PHP build
   without it hard-fails `composer install` at the platform check — and inside
   a PHAR (which skips that check) the client dies at boot.
 - `ext-curl` — the `doctor` / `run --selftest` server-reachability probes and
   `watch`'s hub relay-token mint call it; the TUI itself needs no curl.
-- `pcntl` + `posix` are **optional**: SugarCraft enables Ctrl-Z suspend with
-  them where present and two fork-based tests self-skip without them — raw
-  mode itself is plain `stty`, no extension needed.
+- `ext-pcntl` is composer-enforced (soft only in PHAR): every pcntl call is
+  `function_exists()`-guarded, so a PHAR on a PHP without it still runs but
+  loses the exit-signal teardown and Ctrl-Z suspend. Raw mode itself is plain
+  `stty`, no extension needed.
+- `posix` is **optional**: Ctrl-Z suspend needs it too, and two fork-based
+  tests self-skip without it.
 - **ffmpeg** + **ffprobe** (video decode + frame grabs).
 - **ffplay** or **mpv** (audio playback — video, music, audiobooks).
 - A terminal with **sixel** or the **kitty**/**iTerm2** graphics protocol is
@@ -146,7 +151,10 @@ sha256sum -c SHA256SUMS
 - PHP ≥ 8.3 with `ext-gd`, `ext-mbstring`, `ext-intl`, `ext-ffi`, `ext-json`
   (a PHAR runs without composer's platform check, so these are on you; add
   `ext-curl` for the `doctor` / `run --selftest` reachability probes and
-  `watch`'s hub relay-token mint)
+  `watch`'s hub relay-token mint). `ext-pcntl` is composer-enforced (soft
+  only in PHAR): without it the PHAR still runs, minus the exit-signal
+  teardown and Ctrl-Z suspend. `posix` is optional (Ctrl-Z suspend wants it
+  too)
 - A terminal with sixel/kitty/iTerm2 support (or use `--mode=halfblock` as fallback)
 - ffmpeg + ffprobe (for video frame grabs)
 - ffplay or mpv (audio playback — video, music, audiobooks)
