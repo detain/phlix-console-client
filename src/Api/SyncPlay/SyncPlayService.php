@@ -650,9 +650,7 @@ final class SyncPlayService
     }
 
     /**
-     * Tear the socket down on purpose: cancel the ladder, silence the
-     * handlers, close. Intentional exits must never re-arm a reconnect
-     * loop nor surface a 'disconnected' event for our own goodbyes.
+     * Silence every handler on the given socket, then close it.
      */
     private function detachSocket(?AsyncTcpConnection $conn): void
     {
@@ -672,6 +670,11 @@ final class SyncPlayService
         }
     }
 
+    /**
+     * Tear the socket down on purpose: cancel the ladder, silence the
+     * handlers, close. Intentional exits must never re-arm a reconnect
+     * loop nor surface a 'disconnected' event for our own goodbyes.
+     */
     private function disconnectWebSocket(): void
     {
         $this->reconnecting = false;
@@ -1055,7 +1058,7 @@ final class SyncPlayService
             $replaced = false;
             foreach ($this->members as $i => $existing) {
                 if ($existing->sessionId === $user->sessionId) {
-                    $this->members[$i] = $user;
+                    $this->members[$i] = new SyncPlayUser($user->sessionId, $user->displayName, $existing->isHost);
                     $replaced = true;
                     break;
                 }

@@ -167,6 +167,12 @@ final class HubRelayConsumer
         // duplicate connection. Detach the old socket's onClose first so its
         // (async) close event cannot arm the ladder against the new socket.
         if ($this->socket !== null) {
+            // Null every handler (not just onClose): a late frame or error
+            // from the superseded socket must not reach the consumer.
+            $this->socket->onConnect = null;
+            $this->socket->onWebSocketConnect = null;
+            $this->socket->onMessage = null;
+            $this->socket->onError = null;
             $this->socket->onClose = null;
             $this->socket->close();
             $this->socket = null;
@@ -194,6 +200,12 @@ final class HubRelayConsumer
         if ($this->socket !== null) {
             // Detach the callback first, mirroring open(): a replaced socket's
             // deferred onClose must not clobber the new connection's state.
+            // Null every handler (not just onClose): a late frame or error
+            // from the superseded socket must not reach the consumer.
+            $this->socket->onConnect = null;
+            $this->socket->onWebSocketConnect = null;
+            $this->socket->onMessage = null;
+            $this->socket->onError = null;
             $this->socket->onClose = null;
             $this->socket->close();
             $this->socket = null;
@@ -371,7 +383,7 @@ final class HubRelayConsumer
             $this->handleFrame($data);
         };
 
-        $socket->onError = function (AsyncTcpConnection $connection, int $code, string $msg): void {
+        $socket->onError = function (AsyncTcpConnection $connection, int $code, mixed $msg): void {
             // `onClose` follows `onError` for a failed socket; the ladder lives there.
         };
 

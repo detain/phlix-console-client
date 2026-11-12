@@ -327,6 +327,53 @@ final class HubRelayConsumerTest extends TestCase
         );
     }
 
+    public function testSupersededSocketDoesNotDispatchLateFrames(): void
+    {
+        $received = [];
+        $connections = [new RecordingConnection(), new RecordingConnection()];
+        $consumer = new HubRelayConsumer(
+            hubBaseUrl: 'http://hub.example.com',
+            serverId: 'srv-123',
+            tokenProvider: static fn (): string => 'relay-token',
+            onPendingCommand: static function (PendingPlayMediaCommand $command) use (&$received): void {
+                $received[] = $command;
+            },
+            connectionFactory: static function (string $url) use (&$connections): AsyncTcpConnection {
+                return array_shift($connections);
+            },
+        );
+
+        $consumer->open();
+        $reflection = new \ReflectionProperty($consumer, 'socket');
+        $old = $reflection->getValue($consumer);
+        self::assertInstanceOf(AsyncTcpConnection::class, $old);
+        $consumer->open();
+
+        self::assertNull($old->onMessage, 'superseded socket must have no message handler');
+        self::assertNull($old->onError);
+        self::assertNull($old->onClose);
+        self::assertSame([], $received);
+    }
+
+    public function testOnErrorAcceptsMixedMessageLikeVendor(): void
+    {
+        $connection = new RecordingConnection();
+        $consumer = new HubRelayConsumer(
+            hubBaseUrl: 'http://hub.example.com',
+            serverId: 'srv-123',
+            tokenProvider: static fn (): string => 'relay-token',
+            onPendingCommand: static function (PendingPlayMediaCommand $command): void {
+            },
+            connectionFactory: static fn (string $url): AsyncTcpConnection => $connection,
+        );
+        $consumer->open();
+
+        self::assertIsCallable($connection->onError);
+        ($connection->onError)($connection, 1, null);
+        ($connection->onError)($connection, 2, ['x']);
+        $this->addToAssertionCount(1);
+    }
+
     /**
      * Invoke the private handleFrame() handler (same convention as
      * SyncPlayServiceTest's reflection access).
