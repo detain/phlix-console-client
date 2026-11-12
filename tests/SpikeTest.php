@@ -147,6 +147,57 @@ final class SpikeTest extends TestCase
         self::assertNotSame('', $frames[0]);
     }
 
+    /**
+     * Review CON-37: a source ffmpeg cannot decode used to come back as an
+     * empty frame list (and `phlix frame` exited 0). A request for >= 1
+     * frame that yields none must throw, naming ffmpeg's exit status.
+     */
+    public function testVideoFrameThrowsNamingFfmpegExitWhenNothingDecodes(): void
+    {
+        if (!$this->haveFfmpeg()) {
+            self::markTestSkipped('ffmpeg not available');
+        }
+
+        $this->mp4 = tempnam(sys_get_temp_dir(), 'phlix_video_') . '.mp4';
+        file_put_contents($this->mp4, 'this is not a video container');
+
+        try {
+            (new VideoSpike())->frames($this->mp4, 1, 20, 6, 'ascii');
+            self::fail('a zero-frame decode of a non-empty request must throw');
+        } catch (\RuntimeException $e) {
+            self::assertStringContainsString('no frames decoded', $e->getMessage());
+            self::assertMatchesRegularExpression('/ffmpeg exited with code -?\d+/', $e->getMessage());
+        }
+    }
+
+    public function testVideoFrameZeroCountIsAnEmptySuccess(): void
+    {
+        if (!$this->haveFfmpeg()) {
+            self::markTestSkipped('ffmpeg not available');
+        }
+
+        $this->mp4 = tempnam(sys_get_temp_dir(), 'phlix_video_') . '.mp4';
+        file_put_contents($this->mp4, 'this is not a video container');
+
+        self::assertSame([], (new VideoSpike())->frames($this->mp4, 0, 20, 6, 'ascii'));
+    }
+
+    /**
+     * Review CON-37: VideoSource::probe() fails soft to a zeroed default;
+     * the report must not print that as measured `0x0 0.00fps` metadata.
+     */
+    public function testProbeReportForUnreadableFileDoesNotFabricateMetadata(): void
+    {
+        $this->mp4 = tempnam(sys_get_temp_dir(), 'phlix_video_') . '.mp4';
+        file_put_contents($this->mp4, 'this is not a video container');
+
+        $report = (new VideoSpike())->probeReport($this->mp4);
+
+        self::assertStringContainsString('no video metadata', $report);
+        self::assertStringNotContainsString('0x0', $report);
+        self::assertStringNotContainsString('fps', $report);
+    }
+
     private function haveFfmpeg(): bool
     {
         exec('command -v ffmpeg', $_, $rc);

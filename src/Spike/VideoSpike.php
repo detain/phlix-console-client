@@ -9,7 +9,9 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Spike;
 
+use SugarCraft\Video\Decode\Decoder;
 use SugarCraft\Video\Decode\DecoderFactory;
+use SugarCraft\Video\Decode\FfmpegDecoder;
 use SugarCraft\Video\Render\Mode;
 use SugarCraft\Video\Render\RendererFactory;
 use SugarCraft\Video\Source\VideoSource;
@@ -30,6 +32,16 @@ final class VideoSpike
             return "source: {$src} (not a local file — passed straight to ffmpeg)";
         }
         $v = VideoSource::probe($src);
+        // [review CON-37] VideoSource::probe() fails soft: an absent, hung or
+        // erroring ffprobe (or a file with no video stream) comes back as a
+        // zeroed default. Printing that as `0x0  0.00fps  0.0s` fabricated
+        // metadata for a source nobody measured — say what actually happened.
+        if ($v->width <= 0 || $v->height <= 0) {
+            return sprintf(
+                'source: %s (no video metadata — ffprobe unavailable or found no video stream)',
+                basename($src),
+            );
+        }
 
         return sprintf(
             'source: %s  %dx%d  %.2ffps  %.1fs  audio=%s',
@@ -45,7 +57,14 @@ final class VideoSpike
     /**
      * Decode up to $count frames and render each to ANSI.
      *
+     * A request for at least one frame that yields none is a failure, not an
+     * empty success [review CON-37]: the decoder's end-of-stream is the only
+     * signal a dead ffmpeg (unreadable/corrupt source, unsupported codec)
+     * gives, so it throws naming ffmpeg's exit status — the same rc=1 path
+     * PosterSpike's missing-file throw takes through bin/phlix.
+     *
      * @return list<string>
+     * @throws \RuntimeException when $count > 0 and the decoder yields no frame
      */
     public function frames(string $src, int $count = 1, int $cols = 60, int $rows = 20, ?string $mode = null): array
     {
@@ -66,7 +85,30 @@ final class VideoSpike
             $decoder->close();
         }
 
+        if ($count > 0 && $out === []) {
+            throw new \RuntimeException(sprintf(
+                'no frames decoded from %s (%s)',
+                $src,
+                self::decoderOutcome($decoder),
+            ));
+        }
+
         return $out;
+    }
+
+    /**
+     * Name how the (closed) decoder ended, for the zero-frame error.
+     */
+    private static function decoderOutcome(Decoder $decoder): string
+    {
+        if (!$decoder instanceof FfmpegDecoder) {
+            return 'gif decoder yielded no frames';
+        }
+        $code = $decoder->exitCode();
+
+        return $code === null
+            ? 'ffmpeg exit status unknown'
+            : "ffmpeg exited with code {$code}";
     }
 
     private function mode(?string $mode): Mode

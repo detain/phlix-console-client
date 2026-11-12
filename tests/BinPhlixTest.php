@@ -915,6 +915,32 @@ final class BinPhlixTest extends TestCase
         }
     }
 
+    /**
+     * Review CON-37: `phlix frame` on a source ffmpeg cannot decode printed a
+     * fabricated `0x0 0.00fps` probe line, zero frames, and exited 0. It now
+     * takes the poster rc=1 path: the spike throws naming ffmpeg's exit.
+     */
+    public function testFrameExitsOneWhenTheDecoderYieldsNothing(): void
+    {
+        exec('command -v ffmpeg', $_, $rc);
+        if ($rc !== 0) {
+            $this->markTestSkipped('ffmpeg not available');
+        }
+        $bad = tempnam(sys_get_temp_dir(), 'phlix_con37_') . '.mp4';
+        file_put_contents($bad, 'this is not a video container');
+        try {
+            $output = $this->runPhlix(['frame', $bad, '1', '20', '6', 'ascii']);
+        } finally {
+            @unlink($bad);
+        }
+
+        $this->assertSame(1, $output['exitCode'], 'a zero-frame decode must not exit 0');
+        $this->assertStringContainsString('no frames decoded', $output['stderr']);
+        $this->assertStringContainsString('ffmpeg exited with code', $output['stderr']);
+        $this->assertStringNotContainsString('--- frame', $output['stdout']);
+        $this->assertStringNotContainsString('0x0', $output['stdout']);
+    }
+
     public function testPosterStillResolvesSugarImageAliasesTheGateUsedToShare(): void
     {
         // The m3 split must not shrink poster/run: the aliases and chafa

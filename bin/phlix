@@ -7,7 +7,9 @@ declare(strict_types=1);
  * phlix-console-client CLI entrypoint.
  *
  * Handles: doctor, poster, frame, watch, run, version, and help commands.
- * Exits 2 on unknown commands or usage errors; 1 on caught exceptions.
+ * Exits 2 on unknown commands or usage errors; 1 on caught exceptions —
+ * including `frame` asked for N >= 1 frames when the decoder yields none
+ * (VideoSpike::frames() throws naming ffmpeg's exit code [review CON-37]).
  */
 
 const PHLIX_VERSION = '1.0.0';
