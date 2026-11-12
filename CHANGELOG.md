@@ -5,6 +5,26 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — CON-S18 [CON-19, CON-28] one canonical group noun per language: the SyncPlay modal and the syncplay.* catalog agree — 2026-11-12
+
+- **Why:** the SyncPlay modal called the thing a "room" (`Public Rooms:`, `+ Create new room`,
+  `Create Room`, `Joining room…`, hardcoded English in every locale) while every `syncplay.*` catalog
+  line the same flow surfaces calls it a "watch group" (and each locale its own glossary term). Two
+  catalog lines had also drifted to the bare noun where English names the watch group in full: de
+  `join_failed` / `leave_failed` ("Gruppe") and ja `not_in_group` ("グループ").
+- **What:** the four noun-bearing modal lines route through new `syncplay.modal_public_groups` /
+  `modal_create_new` / `modal_create_title` / `modal_joining` keys in all seven catalogs, each using
+  that catalog's established term (en "watch group", de "synchronisierte Gruppe", fr "groupe
+  synchronisé", es "grupo de visionado", it "gruppo di visione", pt-br "grupo de exibição", ja
+  "ウォッチグループ"); the de/ja drift lines now carry the full term. `LocaleCatalogsTest` enforces
+  the glossary across every `syncplay.*` key whose English says "watch group" (and that no en
+  `syncplay.*` line says "room"); `SyncPlayModalGlossaryTest` renders the list / create / joining
+  states in every locale and pins the term present and "room" absent. The owner IA ruling (room vs
+  watch group) is still open — this pins the current en.php term; flip catalogs and pins together
+  when it lands.
+- **Also (CON-S15 review minor):** `phlix help` now says `run` needs "a TTY and a full-screen TERM",
+  matching both refusals; the `BinPhlixTest` help-text pin follows.
+
 ### Fixed — CON-S15 [CON-16] `phlix run` refuses a basic TERM on a real terminal instead of painting escape garbage — 2026-11-12
 
 - **Why:** the TTY guards only asked "is stdin/stdout a terminal?". Under `TERM=dumb` (Emacs

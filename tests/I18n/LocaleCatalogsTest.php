@@ -396,9 +396,9 @@ final class LocaleCatalogsTest extends TestCase
      * to this one key rather than derived en-wide because several
      * sibling keys use legitimate anaphoric shortening (ja
      * not_in_group 'グループ', de join_failed 'Der Gruppe', fr not_host
-     * 'du groupe') — broadening the family to every mention would be a
-     * rename of established terms, which is the owner-gated room-vs-
-     * watch-group ruling (CON-07), not this cure.
+     * 'du groupe') — the en-wide present-side lives in
+     * testSyncplayWatchGroupLinesCarryTheCatalogsGroupTerm below, scoped
+     * to the keys whose English itself says "watch group".
      */
     #[DataProvider('localeRows')]
     public function testGroupLimitReachedUsesTheCatalogsOwnGroupTerm(string $locale): void
@@ -410,6 +410,50 @@ final class LocaleCatalogsTest extends TestCase
             $value,
             "$locale: syncplay.group_limit_reached does not carry the catalog's established group term"
         );
+    }
+
+    /**
+     * Glossary law across the whole syncplay.* cluster (CON-19 / CON-28):
+     * wherever the English value names the watch group in full, the
+     * locale value must carry that catalog's established group term —
+     * the error lines and the SyncPlay modal's syncplay.modal_* lines
+     * alike. Bare anaphoric "group" in English (the group host, in the
+     * group) stays free to shorten (fr 'du groupe', de 'Gruppenhost').
+     * Before this law de join_failed/leave_failed said bare 'Gruppe' and
+     * ja not_in_group bare 'グループ' where en says "watch group".
+     */
+    #[DataProvider('localeRows')]
+    public function testSyncplayWatchGroupLinesCarryTheCatalogsGroupTerm(string $locale): void
+    {
+        $checked = 0;
+        foreach ($this->catalog('en') as $key => $enValue) {
+            if (!str_starts_with($key, 'syncplay.') || preg_match('/\bwatch groups?\b/i', $enValue) !== 1) {
+                continue;
+            }
+            ++$checked;
+            self::assertMatchesRegularExpression(
+                self::GROUP_FAMILY_TERMS[$locale],
+                $this->catalog($locale)[$key],
+                "$locale: $key names the watch group without the catalog's established group term"
+            );
+        }
+
+        self::assertGreaterThanOrEqual(13, $checked, 'the en syncplay.* watch-group census shrank — law went vacuous');
+    }
+
+    /**
+     * en side of the same law: the current en.php term is "watch group"
+     * (owner IA ruling room-vs-watch-group is estate-open; flip both the
+     * catalogs and this pin together when it lands) — no syncplay.* line
+     * may call it a room.
+     */
+    public function testEnglishSyncplayCopyNeverCallsTheGroupARoom(): void
+    {
+        foreach ($this->catalog('en') as $key => $enValue) {
+            if (str_starts_with($key, 'syncplay.')) {
+                self::assertDoesNotMatchRegularExpression('/\brooms?\b/i', $enValue, "en: $key says room");
+            }
+        }
     }
 
     /**

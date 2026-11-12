@@ -125,6 +125,13 @@ return [
     'syncplay.group_full' => 'Ce groupe synchronisé est complet.',
     'syncplay.queue_limit_exceeded' => 'La file de lecture de ce groupe synchronisé est pleine.',
     'syncplay.unknown_error' => 'Une erreur de synchronisation est survenue.',
+
+    // ---- SyncPlay modal (group noun = this catalog's glossary term) --
+    'syncplay.modal_public_groups' => 'Groupes synchronisés publics :',
+    'syncplay.modal_create_new' => '+ Créer un groupe synchronisé',
+    'syncplay.modal_create_title' => 'Créer un groupe synchronisé',
+    'syncplay.modal_joining' => 'Connexion au groupe synchronisé…',
+
     'browse.loading' => 'Chargement de vos bibliothèques…',
     'browse.no_libraries' => 'Aucune bibliothèque pour le moment.',
     'browse.no_libraries_admin' => 'Appuyez sur : pour ouvrir la palette de commandes, puis Admin → Libraries pour en ajouter une.',

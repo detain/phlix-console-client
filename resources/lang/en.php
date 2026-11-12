@@ -125,6 +125,13 @@ return [
     'syncplay.group_full' => 'That watch group is full.',
     'syncplay.queue_limit_exceeded' => 'The playback queue for that watch group is full.',
     'syncplay.unknown_error' => 'A sync error occurred.',
+
+    // ---- SyncPlay modal (group noun = this catalog's glossary term) --
+    'syncplay.modal_public_groups' => 'Public watch groups:',
+    'syncplay.modal_create_new' => '+ Create new watch group',
+    'syncplay.modal_create_title' => 'Create watch group',
+    'syncplay.modal_joining' => 'Joining watch group…',
+
     'browse.loading' => 'Loading your libraries…',
     'browse.no_libraries' => 'No libraries yet.',
     'browse.no_libraries_admin' => 'Press : for the command palette, then Admin → Libraries to add one.',

@@ -117,14 +117,21 @@ return [
     'syncplay.member_not_found' => 'Dieses Mitglied wurde in der Gruppe nicht gefunden.',
     'syncplay.same_host' => 'Dieses Mitglied ist bereits der Gruppenhost.',
     'syncplay.create_failed' => 'Die synchronisierte Gruppe konnte nicht erstellt werden.',
-    'syncplay.join_failed' => 'Der Gruppe konnte nicht beigetreten werden.',
-    'syncplay.leave_failed' => 'Die Gruppe konnte nicht verlassen werden.',
+    'syncplay.join_failed' => 'Der synchronisierten Gruppe konnte nicht beigetreten werden.',
+    'syncplay.leave_failed' => 'Die synchronisierte Gruppe konnte nicht verlassen werden.',
     'syncplay.group_limit_reached' => 'Der Host hat die maximale Anzahl an synchronisierten Gruppen erreicht.',
     'syncplay.group_not_found' => 'Diese synchronisierte Gruppe existiert nicht mehr.',
     'syncplay.invalid_password' => 'Das Passwort ist nicht korrekt.',
     'syncplay.group_full' => 'Diese synchronisierte Gruppe ist voll.',
     'syncplay.queue_limit_exceeded' => 'Die Wiedergabeliste dieser synchronisierten Gruppe ist voll.',
     'syncplay.unknown_error' => 'Ein Synchronisierungsfehler ist aufgetreten.',
+
+    // ---- SyncPlay modal (group noun = this catalog's glossary term) --
+    'syncplay.modal_public_groups' => 'Öffentliche synchronisierte Gruppen:',
+    'syncplay.modal_create_new' => '+ Neue synchronisierte Gruppe erstellen',
+    'syncplay.modal_create_title' => 'Synchronisierte Gruppe erstellen',
+    'syncplay.modal_joining' => 'Beitritt zur synchronisierten Gruppe…',
+
     'browse.loading' => 'Ihre Bibliotheken werden geladen…',
     'browse.no_libraries' => 'Noch keine Bibliotheken.',
     'browse.no_libraries_admin' => 'Drücken Sie : für die Befehlspalette, dann Admin → Libraries, um eine hinzuzufügen.',

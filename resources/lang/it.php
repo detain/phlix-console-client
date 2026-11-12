@@ -125,6 +125,13 @@ return [
     'syncplay.group_full' => 'Quel gruppo di visione è pieno.',
     'syncplay.queue_limit_exceeded' => 'La coda di riproduzione di quel gruppo di visione è piena.',
     'syncplay.unknown_error' => 'Si è verificato un errore di sincronizzazione.',
+
+    // ---- SyncPlay modal (group noun = this catalog's glossary term) --
+    'syncplay.modal_public_groups' => 'Gruppi di visione pubblici:',
+    'syncplay.modal_create_new' => '+ Crea un gruppo di visione',
+    'syncplay.modal_create_title' => 'Crea gruppo di visione',
+    'syncplay.modal_joining' => 'Accesso al gruppo di visione…',
+
     'browse.loading' => 'Caricamento delle librerie…',
     'browse.no_libraries' => 'Ancora nessuna libreria.',
     'browse.no_libraries_admin' => 'Premi : per aprire la palette dei comandi, poi Admin → Libraries per aggiungerne una.',

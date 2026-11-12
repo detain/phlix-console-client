@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace Phlix\Console\Ui;
 
 use Phlix\Console\Api\Dto\SyncPlayGroup;
+use Phlix\Console\I18n\Lang;
 use SugarCraft\Panels\SugarPanels;
 use SugarCraft\Style\Style;
 use SugarCraft\Overlay\Position;
@@ -298,9 +299,11 @@ final class SyncPlayModal
         // Header
         $lines[] = Style::new()->bold()->render('  SyncPlay');
 
-        // Public rooms section
+        // Public groups section. Every group-noun line routes through the
+        // syncplay.modal_* catalog keys so the modal speaks the same glossary
+        // term as the syncplay.* error lines (en 'watch group'; CON-19/CON-28).
         $lines[] = '';
-        $lines[] = '  Public Rooms:';
+        $lines[] = '  ' . Lang::t('syncplay.modal_public_groups');
 
         $roomCount = count($this->rooms);
         $maxItems = min($roomCount, self::MAX_ROOMS_SHOWN);
@@ -331,7 +334,7 @@ final class SyncPlayModal
         // Create new room option
         $listIndex = 0;
         $isSelected = $this->cursor === $listIndex;
-        $label = '  + Create new room';
+        $label = '  ' . Lang::t('syncplay.modal_create_new');
         $lines[] = $isSelected
             ? Style::new()->reverse()->render($label)
             : $label;
@@ -352,7 +355,8 @@ final class SyncPlayModal
     {
         $lines = [];
 
-        $lines[] = Style::new()->bold()->render('  Create Room');
+        $createTitle = Lang::t('syncplay.modal_create_title');
+        $lines[] = Style::new()->bold()->render('  ' . $createTitle);
         $lines[] = '';
 
         // Room name input — display head gets the panel-fit budget (the
@@ -378,7 +382,7 @@ final class SyncPlayModal
         $body = implode("\n", $lines);
 
         return SugarPanels::new()->render(
-            SugarPanels::new()->leaf($body)->withBorder(true)->withPadding(0)->withTitle(' Create Room '),
+            SugarPanels::new()->leaf($body)->withBorder(true)->withPadding(0)->withTitle(' ' . $createTitle . ' '),
             $this->winWidth,
             $this->winHeight,
         );
@@ -388,7 +392,7 @@ final class SyncPlayModal
     {
         $lines = [];
         $lines[] = '';
-        $lines[] = '  Joining room…';
+        $lines[] = '  ' . Lang::t('syncplay.modal_joining');
         $lines[] = '';
 
         $body = implode("\n", $lines);

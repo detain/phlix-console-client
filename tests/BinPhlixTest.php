@@ -265,15 +265,16 @@ final class BinPhlixTest extends TestCase
 
     /**
      * Code and help must agree verbatim: the published help line for `run`
-     * promises "(needs a TTY)" — that promise is what the refusal now
-     * enforces. If either side drifts, this goes red and the finding is
+     * promises "(needs a TTY and a full-screen TERM)" — both halves are what
+     * the refusals now enforce (the stdin/stdout TTY guard and the dumb-TERM
+     * guard). If either side drifts, this goes red and the finding is
      * reopened.
      */
     public function testHelpTextPromisesTheTtyRequirementTheRefusalEnforces(): void
     {
         $result = $this->runPhlix(['help']);
 
-        $this->assertMatchesRegularExpression('/phlix run.*\(needs a TTY\)/', $result['stdout']);
+        $this->assertMatchesRegularExpression('/phlix run.*\(needs a TTY and a full-screen TERM\)/', $result['stdout']);
     }
 
     // ------------------------------------------------------------------

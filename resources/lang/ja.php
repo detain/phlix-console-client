@@ -108,7 +108,7 @@ return [
 
     // ---- SyncPlay errors ----------------------------------------------
     'syncplay.not_authenticated' => 'ウォッチグループを使う前にサインインしてください。',
-    'syncplay.not_in_group' => '現在グループに参加していません。',
+    'syncplay.not_in_group' => '現在ウォッチグループに参加していません。',
     'syncplay.not_host' => 'この操作はグループのホストだけが行えます。',
     'syncplay.unknown_message' => 'サーバーがそのリクエストを認識できませんでした。',
     'syncplay.handler_error' => 'サーバーで問題が発生しました。',
@@ -125,6 +125,13 @@ return [
     'syncplay.group_full' => 'そのウォッチグループは満員です。',
     'syncplay.queue_limit_exceeded' => 'そのウォッチグループの再生キューが満杯です。',
     'syncplay.unknown_error' => '同期エラーが発生しました。',
+
+    // ---- SyncPlay modal (group noun = this catalog's glossary term) --
+    'syncplay.modal_public_groups' => '公開ウォッチグループ：',
+    'syncplay.modal_create_new' => '+ 新しいウォッチグループを作成',
+    'syncplay.modal_create_title' => 'ウォッチグループを作成',
+    'syncplay.modal_joining' => 'ウォッチグループに参加中…',
+
     'browse.loading' => 'ライブラリを読み込んでいます…',
     'browse.no_libraries' => 'まだライブラリがありません。',
     'browse.no_libraries_admin' => ': を押してコマンドパレットを開き、Admin → Libraries から追加してください。',
