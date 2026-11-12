@@ -414,9 +414,11 @@ statement about what the terminal can draw.
   unknown stored value falls back to Nocturne rather than failing. The two
   non-default themes exist for terminals the default palette cannot serve:
   **Daylight** remaps every role that is illegible on a light background
-  (Nocturne's pale text and badges vanish there), and **Midnight** lifts the
-  recommendation badge onto its accent because the blue `#0066cc` disappears
-  on a dark field.
+  (Nocturne's pale text and badges vanish there), and **Midnight** adds a
+  bright-blue accent and a muted status grey tuned for dark terminals. Both
+  dark themes draw the recommendation badge in the same light blue `#5fafff`,
+  which clears the WCAG AA 4.5:1 contrast floor on black and near-black
+  backgrounds (the older `#0066cc` did not).
 - Loading grids animate: a shimmer band sweeps the skeleton at about 8
   frames per second. The heartbeat is armed only while the top screen is
   actually loading and stops the moment it is not, so an idle screen is

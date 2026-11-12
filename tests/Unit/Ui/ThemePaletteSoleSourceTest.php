@@ -33,7 +33,10 @@ use RecursiveIteratorIterator;
  *  2. NOCTURNE GOLDENS: routing must not restyle the default theme. Every
  *     escape below was captured VERBATIM off the pre-fix tree (php -r against
  *     65a31fa) — bold-before-colour emission order, SGR `1;7` cursor merge,
- *     faint-before-bg avatar chip, byte for byte.
+ *     faint-before-bg avatar chip, byte for byte. ONE disclosed golden move
+ *     (CON-23): the badge colour rotated `38;2;0;102;204` (#0066cc, 3.77:1 on
+ *     #000000) → `38;2;95;175;255` (#5fafff, 9.06:1) for dark-field AA; the
+ *     bold-before-colour shape around it is unchanged.
  *  3. DAYLIGHT LEGIBILITY: none of the five illegible-on-light emissions
  *     (white title, gold star, dark-blue badge, salmon danger, saturated
  *     avatar field) may appear under the light-terminal theme.
@@ -95,7 +98,8 @@ final class ThemePaletteSoleSourceTest extends TestCase
             "\e[1;7m\e[38;2;255;204;0mQ\e[0m",
             $nocturne->widgetStyle(Theme::ROLE_STAR, reversed: true)->render('Q')
         );
-        self::assertSame("\e[1m\e[38;2;0;102;204mQ\e[0m", $nocturne->widgetStyle(Theme::ROLE_BADGE)->render('Q'));
+        // CON-23 disclosed move: was 38;2;0;102;204 (#0066cc).
+        self::assertSame("\e[1m\e[38;2;95;175;255mQ\e[0m", $nocturne->widgetStyle(Theme::ROLE_BADGE)->render('Q'));
         self::assertSame("\e[38;2;255;255;255mQ\e[0m", $nocturne->widgetStyle(Theme::ROLE_TITLE)->render('Q'));
         self::assertSame("\e[1m\e[38;2;255;102;102mQ\e[0m", $nocturne->widgetStyle(Theme::ROLE_DANGER)->render('Q'));
         self::assertSame(
@@ -137,7 +141,8 @@ final class ThemePaletteSoleSourceTest extends TestCase
             "\e[1m\e[38;2;255;204;0m★ \e[0m"
             . "\e[38;2;255;255;255mThe Matrix                                        \e[0m\n"
             . "  \e[2m1999\e[0m"
-            . "  \e[1m\e[38;2;0;102;204mBecause You Watched\e[0m"
+            // CON-23 disclosed move: badge was 38;2;0;102;204 (#0066cc).
+            . "  \e[1m\e[38;2;95;175;255mBecause You Watched\e[0m"
             . "  \e[1m\e[38;2;255;204;0m87% match\e[0m",
             $card->render(Theme::nocturne())
         );

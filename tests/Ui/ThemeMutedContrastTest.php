@@ -114,6 +114,38 @@ final class ThemeMutedContrastTest extends TestCase
         }
     }
 
+    /**
+     * CON-23 — the recommendation badge must clear AA on the dark fields both
+     * dark-posture themes run on. Nocturne is the default, so it is what most
+     * dark terminals see; its historical `#0066cc` measured 3.77:1 on #000000
+     * and 2.99:1 on #1e1e1e before the lift. The hex is read live off the
+     * palette ({@see Theme::widgetHex()}), never restated here.
+     */
+    public function testDarkThemeBadgeClearsAaOnCommonDarkBackdrops(): void
+    {
+        foreach ([Theme::nocturne(), Theme::midnight()] as $theme) {
+            $badge = $theme->widgetHex(Theme::ROLE_BADGE);
+            self::assertNotNull($badge, "theme '{$theme->id}' badge must carry a colour");
+            self::assertMatchesRegularExpression('/^#[0-9a-f]{6}$/', $badge);
+
+            foreach (self::DARK_BACKDROPS as $backdrop) {
+                self::assertGreaterThanOrEqual(
+                    self::MIN_RATIO,
+                    self::ratio($badge, $backdrop),
+                    "{$theme->name} badge on {$backdrop} must clear 4.5:1"
+                );
+            }
+        }
+    }
+
+    public function testRatioMathsRejectsTheHistoricalNocturneBadge(): void
+    {
+        // Red-on-parent proof the pin bites: the pre-lift hex fails both
+        // backdrops the CON-23 finding names.
+        self::assertLessThan(self::MIN_RATIO, self::ratio('#0066cc', '#000000'));
+        self::assertLessThan(self::MIN_RATIO, self::ratio('#0066cc', '#1e1e1e'));
+    }
+
     public function testNocturneCarriesNoTokensToContrastCheck(): void
     {
         $nocturne = Theme::nocturne();

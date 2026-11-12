@@ -54,7 +54,10 @@ use SugarCraft\Style\Style;
  * pin (ThemePaletteSoleSourceTest) censuses src/ for hex literals outside
  * this file and keeps that bypass class permanently red. Nocturne carries
  * the historical hexes verbatim so the default theme stays byte-identical
- * to the pre-palette emission; Daylight remaps every role that was
+ * to the pre-palette emission — with ONE disclosed exception: the badge is
+ * lifted from `#0066cc` to `#5fafff` (CON-23), because the default theme
+ * is what dark terminals run and the old blue failed AA there (3.77:1 on
+ * #000000, 2.99:1 on #1e1e1e); Daylight remaps every role that was
  * illegible on a light field (dark gold, its own accent, terminal-default
  * title, dark red) and swaps the avatar ramp for pastel backgrounds.
  *
@@ -183,16 +186,21 @@ final readonly class Theme
      * was contrast, honestly degraded rather than recolored).
      *
      * Nocturne carries the four widgets' historical hexes verbatim (M48 zero-
-     * golden law: default-theme emission stays byte-identical); Daylight maps
-     * every role illegible on light terminals; Midnight lifts the badge onto its
-     * accent because `#0066cc` vanishes on a dark field.
+     * golden law: default-theme emission stays byte-identical) EXCEPT the
+     * badge — a disclosed golden move (CON-23): the historical `#0066cc`
+     * measured 3.77:1 on #000000 and 2.99:1 on #1e1e1e, below the 4.5:1 AA
+     * body-text floor on the dark fields the default theme actually runs on,
+     * so it takes Midnight's lift `#5fafff` (9.06:1 on #000000, 7.19:1 on
+     * #1e1e1e; ThemeMutedContrastTest re-measures and pins both dark themes).
+     * Daylight maps every role illegible on light terminals; Midnight lifts the
+     * badge onto its accent because `#0066cc` vanishes on a dark field.
      *
      * @var array<string, array<string, array{?string, bool}>>
      */
     private const ROLE_COLORS = [
         'nocturne' => [
             self::ROLE_STAR => ['#ffcc00', true],
-            self::ROLE_BADGE => ['#0066cc', true],
+            self::ROLE_BADGE => ['#5fafff', true],
             self::ROLE_TITLE => ['#ffffff', false],
             self::ROLE_DANGER => ['#ff6666', true],
         ],
@@ -238,10 +246,7 @@ final readonly class Theme
      */
     public function widgetStyle(string $role, bool $reversed = false): Style
     {
-        $palette = self::ROLE_COLORS[$this->id]
-            ?? throw new InvalidArgumentException("Theme '{$this->id}' has no widget palette");
-        [$hex, $bold] = $palette[$role]
-            ?? throw new InvalidArgumentException("Unknown widget color role '{$role}'");
+        [$hex, $bold] = $this->widgetRole($role);
 
         $style = Style::new();
         if ($bold) {
@@ -255,6 +260,28 @@ final readonly class Theme
         }
 
         return $style->resolveProfile();
+    }
+
+    /**
+     * The raw palette hex for a content-widget role (null = terminal default),
+     * before any profile resolution or color suppression — the token the
+     * contrast pins measure. Same fail-loud boundary as {@see widgetStyle()}.
+     */
+    public function widgetHex(string $role): ?string
+    {
+        return $this->widgetRole($role)[0];
+    }
+
+    /**
+     * @return array{?string, bool}
+     */
+    private function widgetRole(string $role): array
+    {
+        $palette = self::ROLE_COLORS[$this->id]
+            ?? throw new InvalidArgumentException("Theme '{$this->id}' has no widget palette");
+
+        return $palette[$role]
+            ?? throw new InvalidArgumentException("Unknown widget color role '{$role}'");
     }
 
     /**
@@ -282,8 +309,9 @@ final readonly class Theme
     }
 
     /**
-     * The identity / default theme: no colors, so the app renders exactly as it
-     * did before the theme system existed.
+     * The identity / default theme: no chrome colors, so the app renders exactly
+     * as it did before the theme system existed — except the recommendation
+     * badge, lifted to `#5fafff` for dark-field AA (CON-23; see ROLE_COLORS).
      */
     public static function nocturne(): self
     {

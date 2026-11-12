@@ -394,10 +394,9 @@ final class LocaleCatalogsTest extends TestCase
      * established group term, and the invented synonym family must
      * appear nowhere in that catalog at all. The present-side is pinned
      * to this one key rather than derived en-wide because several
-     * sibling keys use legitimate anaphoric shortening (ja
-     * not_in_group 'グループ', de join_failed 'Der Gruppe', fr not_host
-     * 'du groupe') — the en-wide present-side lives in
-     * testSyncplayWatchGroupLinesCarryTheCatalogsGroupTerm below, scoped
+     * sibling keys use legitimate anaphoric shortening (fr not_host
+     * 'du groupe', de same_host 'Gruppenhost') — the en-wide present-side
+     * lives in testSyncplayWatchGroupLinesCarryTheCatalogsGroupTerm below, scoped
      * to the keys whose English itself says "watch group".
      */
     #[DataProvider('localeRows')]

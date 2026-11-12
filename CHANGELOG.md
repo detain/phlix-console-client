@@ -5,6 +5,24 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — CON-S21 [CON-23] Nocturne's recommendation badge clears AA on dark terminals (disclosed golden move) — 2026-11-12
+
+- **Why:** Nocturne is the default theme, so it is what most dark terminals render, yet its
+  "Because You Watched" badge kept the historical `#0066cc`: 3.77:1 on `#000000` and 2.99:1 on
+  `#1e1e1e`, under the WCAG AA 4.5:1 body-text floor. Midnight already lifted that same badge for
+  exactly this reason; the default theme had not.
+- **What:** the Nocturne `ROLE_BADGE` hex is now `#5fafff` (Midnight's lift: 9.06:1 on `#000000`,
+  7.19:1 on `#1e1e1e`). This is a **disclosed golden move** against the M48 zero-golden law: the
+  Nocturne badge emission rotates `38;2;0;102;204` → `38;2;95;175;255` in
+  `ThemePaletteSoleSourceTest` (badge byte-golden + RecommendationCard card golden), with the bold-
+  before-colour shape unchanged and every other Nocturne byte identical. New `Theme::widgetHex()`
+  exposes the raw role token, and `ThemeMutedContrastTest` re-measures the badge of both dark
+  themes against the dark backdrops (≥ 4.5:1 on `#000000`, `#1e1e1e`, `#1e1e2e`, `#11111b`), plus a
+  negative control proving the pre-lift hex fails. The manual's theme paragraph follows.
+- **Also (CON-S18 review minor):** the `LocaleCatalogsTest` anaphoric-shortening example list drops
+  ja `not_in_group` / de `join_failed` (both fixed to the full term in CON-S18) and cites de
+  `same_host` 'Gruppenhost' alongside fr `not_host`.
+
 ### Fixed — CON-S18 [CON-19, CON-28] one canonical group noun per language: the SyncPlay modal and the syncplay.* catalog agree — 2026-11-12
 
 - **Why:** the SyncPlay modal called the thing a "room" (`Public Rooms:`, `+ Create new room`,
