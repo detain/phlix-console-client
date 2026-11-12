@@ -1456,7 +1456,8 @@ final class ApiClient
 
     /**
      * Perform one request and decode the JSON body, mapping a non-2xx status to
-     * a typed error and a transport failure to a {@see NetworkError}.
+     * a typed error, and a transport failure or an unparseable 2xx body
+     * [review CON-6] to a {@see NetworkError}.
      *
      * @param array<string,scalar|list<string>> $query
      * @param array<string,mixed>|null          $body

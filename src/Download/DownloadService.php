@@ -10,6 +10,9 @@ declare(strict_types=1);
 namespace Phlix\Console\Download;
 
 use Phlix\Console\Api\ServerAuthority;
+use React\EventLoop\Loop;
+use React\EventLoop\LoopInterface;
+use React\EventLoop\TimerInterface;
 use React\Http\Browser;
 use React\Promise\PromiseInterface;
 use React\Promise\Deferred;
@@ -20,7 +23,10 @@ use function React\Promise\reject;
  * Service for downloading media files from signed URLs.
  *
  * Honours the PHLIX_DOWNLOAD_DIR environment variable, defaulting to ~/Downloads.
- * Cleans up partial downloads on failure.
+ * Fails closed [CON-9]: a failed or short write, a body that ends off its
+ * declared Content-Length, a stream that errors, closes early or stalls past
+ * the idle timeout all reject the download and unlink the partial file — only
+ * a complete, fully written body is renamed into place.
  */
 final class DownloadService
 {
@@ -49,6 +55,20 @@ final class DownloadService
 
     /** Per-download byte ceiling enforced on the declared and streamed size. */
     private readonly int $maxBytes;
+
+    /**
+     * Seconds a streaming body may stay silent before the download is failed
+     * [CON-9]. The Browser's own timeout only covers the response headers; a
+     * server that stalls mid-body would otherwise hold the download open
+     * forever. Callers with a different budget pass {@see $idleTimeout}.
+     */
+    public const STREAM_IDLE_TIMEOUT_SECONDS = 60.0;
+
+    /** Inactivity budget for the streaming body, in seconds. */
+    private readonly float $idleTimeout;
+
+    /** Loop the idle timer arms on; null = the global {@see Loop::get()} (resolved lazily). */
+    private readonly ?LoopInterface $loop;
 
     /**
      * The mode the service gives the download directory WHEN IT CREATES IT, and
@@ -91,13 +111,22 @@ final class DownloadService
      * @param Browser|null    $browser     injected HTTP client (tests)
      * @param string|null     $serverBase  host authority media URLs may come from
      * @param int             $maxBytes    per-download ceiling, see {@see MAX_DOWNLOAD_BYTES}
+     * @param LoopInterface|null $loop     loop for the stream idle timer (tests); null = global loop
+     * @param float           $idleTimeout body inactivity budget, see {@see STREAM_IDLE_TIMEOUT_SECONDS}
      */
-    public function __construct(?Browser $browser = null, ?string $serverBase = null, int $maxBytes = self::MAX_DOWNLOAD_BYTES)
-    {
+    public function __construct(
+        ?Browser $browser = null,
+        ?string $serverBase = null,
+        int $maxBytes = self::MAX_DOWNLOAD_BYTES,
+        ?LoopInterface $loop = null,
+        float $idleTimeout = self::STREAM_IDLE_TIMEOUT_SECONDS,
+    ) {
         $this->browser = $browser ?? new Browser();
         $this->downloadDir = $this->resolveDownloadDir();
         $this->serverBase = $serverBase;
         $this->maxBytes = max(1, $maxBytes);
+        $this->loop = $loop;
+        $this->idleTimeout = $idleTimeout > 0 ? $idleTimeout : self::STREAM_IDLE_TIMEOUT_SECONDS;
     }
 
     /**
@@ -152,10 +181,12 @@ final class DownloadService
             }
         }
 
-        // Extract filename from URL and determine final path
+        // Extract filename from URL and determine final path. (No temp path is
+        // minted here: the only temp file is named after the Content-Type
+        // adjusted final path, below — a request that fails before headers
+        // never touched disk, so there is nothing to clean up [CON-38].)
         $filename = $this->extractFilename($signedUrl, $mediaId);
         $filepath = $this->downloadDir . '/' . $filename;
-        $tmpFilepath = $filepath . '.tmp.' . bin2hex(random_bytes(8));
 
         /** @var Deferred<DownloadResult> $deferred */
         $deferred = new Deferred();
@@ -164,11 +195,15 @@ final class DownloadService
         $this->browser->requestStreaming('GET', $signedUrl)
             ->then(
                 function ($response) use ($filepath, $filename, $deferred): void {
-                    // Get content length if available
+                    // Get content length if available. A declared length is a
+                    // promise the body must keep [CON-9]: $declared records
+                    // whether one was made at all (0 is a valid declaration).
                     $totalBytes = 0;
+                    $declared = false;
                     $contentLength = $response->getHeaderLine('Content-Length');
                     if (is_numeric($contentLength)) {
                         $totalBytes = (int) $contentLength;
+                        $declared = true;
                     }
 
                     // Declared-size guard [review console__secaudit m5, M-CONSOLE-54]:
@@ -187,9 +222,18 @@ final class DownloadService
                     $finalFilepath = $this->ensureExtension($filepath, $contentType);
                     $finalTmpFilepath = $finalFilepath . '.tmp.' . bin2hex(random_bytes(8));
 
-                    $maxBytes = $this->maxBytes;
-                    $receivedBytes = 0;
-                    $overflowed = false;
+                    // The body from requestStreaming is a ReadableStreamInterface
+                    $body = $response->getBody();
+
+                    if (!method_exists($body, 'on')) {
+                        // Not a React stream: refused before a file is opened.
+                        $deferred->reject(new DownloadException(
+                            'The server response cannot be streamed.',
+                            0,
+                        ));
+                        return;
+                    }
+
                     $handle = @fopen($finalTmpFilepath, 'wb');
 
                     if ($handle === false) {
@@ -205,80 +249,159 @@ final class DownloadService
                     // build has no fchmod — measured function_exists false.)
                     @chmod($finalTmpFilepath, self::PRIVATE_FILE_MODE);
 
-                    // The body from requestStreaming is a ReadableStreamInterface
-                    $body = $response->getBody();
+                    $maxBytes = $this->maxBytes;
+                    $idleTimeout = $this->idleTimeout;
+                    $loop = $this->loop ?? Loop::get();
+                    $receivedBytes = 0;
+                    $settled = false;
+                    /** @var TimerInterface|null $idleTimer */
+                    $idleTimer = null;
 
-                    // Check if it's a React stream with 'data' event
-                    if (method_exists($body, 'on')) {
-                        // React stream - use 'data' event for streaming
-                        $body->on('data', static function ($chunk) use ($handle, $finalTmpFilepath, $deferred, &$receivedBytes, &$overflowed, $maxBytes): void {
-                            if ($overflowed) {
-                                return; // Already past the cap: discard, settled once.
-                            }
-                            $written = fwrite($handle, (string) $chunk);
-                            if ($written !== false) {
-                                $receivedBytes += $written;
-                            }
-                            // Streamed-size guard [m5]: the cap is enforced on
-                            // bytes actually written, so an absent or lying
-                            // Content-Length cannot smuggle an unbounded body.
-                            if ($receivedBytes > $maxBytes) {
-                                $overflowed = true;
-                                fclose($handle);
-                                @unlink($finalTmpFilepath);
-                                $deferred->reject(new DownloadException(
-                                    "Download refused: it streamed past the {$maxBytes} byte limit.",
-                                    0,
-                                ));
-                            }
-                        });
-
-                        $body->on('end', static function () use ($handle, $finalTmpFilepath, $finalFilepath, $filename, $deferred, &$receivedBytes, &$overflowed, $totalBytes): void {
-                            if ($overflowed) {
-                                return; // The data handler already cleaned up and rejected.
-                            }
-                            fclose($handle);
-                            if (@rename($finalTmpFilepath, $finalFilepath)) {
-                                $deferred->resolve(new DownloadResult(
-                                    url: $finalFilepath,
-                                    filename: $filename,
-                                    size: $receivedBytes,
-                                    totalBytes: $totalBytes,
-                                ));
-                            } else {
-                                @unlink($finalTmpFilepath);
-                                $deferred->reject(new DownloadException(
-                                    "Failed to move downloaded file to: {$finalFilepath}",
-                                    0,
-                                ));
-                            }
-                        });
-
-                        $body->on('error', static function (\Throwable $error) use ($handle, $finalTmpFilepath, $deferred, &$overflowed): void {
-                            if ($overflowed) {
-                                return; // Cap breach already settled this download.
-                            }
-                            fclose($handle);
-                            @unlink($finalTmpFilepath);
-                            $deferred->reject(new DownloadException(
-                                "Download stream error: " . $error->getMessage(),
-                                0,
-                                $error,
-                            ));
-                        });
-                    } else {
-                        // Not a React stream - close handle and fall back to synchronous download
-                        fclose($handle);
+                    // Fail-closed settle [CON-9]: every failure leg — cap
+                    // breach, failed or short write, size mismatch, stream
+                    // error, dead stream, stall — funnels through here, so the
+                    // download settles exactly once, the tmp file is always
+                    // unlinked, and the body is closed so no further byte is
+                    // pulled off the wire.
+                    $fail = static function (
+                        string $message,
+                        ?\Throwable $previous = null,
+                    ) use (
+                        &$settled,
+                        &$handle,
+                        &$idleTimer,
+                        $loop,
+                        $body,
+                        $finalTmpFilepath,
+                        $deferred,
+                    ): void {
+                        if ($settled) {
+                            return;
+                        }
+                        $settled = true;
+                        if ($idleTimer !== null) {
+                            $loop->cancelTimer($idleTimer);
+                            $idleTimer = null;
+                        }
+                        if (is_resource($handle)) {
+                            @fclose($handle);
+                        }
                         @unlink($finalTmpFilepath);
-                        // Note: for non-streaming responses, we'd need a different approach
-                        $deferred->reject(new DownloadException(
-                            'The server response cannot be streamed.',
-                            0,
+                        $deferred->reject(new DownloadException($message, 0, $previous));
+                        $body->close();
+                    };
+
+                    // Streaming (idle) timeout [CON-9]: the Browser's own
+                    // timeout stops at the response headers, so a server that
+                    // goes silent mid-body would otherwise hold the Deferred
+                    // open forever. Every chunk re-arms the timer.
+                    $armIdleTimer = static function () use (&$idleTimer, &$settled, $loop, $idleTimeout, $fail): void {
+                        if ($idleTimer !== null) {
+                            $loop->cancelTimer($idleTimer);
+                        }
+                        $idleTimer = null;
+                        if ($settled) {
+                            return;
+                        }
+                        $onStall = static function () use (&$idleTimer, $fail, $idleTimeout): void {
+                            $idleTimer = null;
+                            $fail("Download stalled: no data arrived for {$idleTimeout} seconds.");
+                        };
+                        $idleTimer = $loop->addTimer($idleTimeout, $onStall);
+                    };
+
+                    $body->on('data', static function ($chunk) use (
+                        &$handle,
+                        &$receivedBytes,
+                        &$settled,
+                        $maxBytes,
+                        $fail,
+                        $armIdleTimer,
+                    ): void {
+                        if ($settled) {
+                            return; // Already settled: discard.
+                        }
+                        $chunk = (string) $chunk;
+                        $length = strlen($chunk);
+                        // Streamed-size guard [m5]: checked BEFORE the write,
+                        // so an absent or lying Content-Length cannot smuggle
+                        // an unbounded body and the disk never holds a byte
+                        // past the ceiling.
+                        if ($receivedBytes + $length > $maxBytes) {
+                            $fail("Download refused: it streamed past the {$maxBytes} byte limit.");
+                            return;
+                        }
+                        // Write guard [CON-9]: a failed (false) or short write —
+                        // disk full, quota, I/O error — is a failed download,
+                        // never a silently truncated file that later resolves.
+                        $written = @fwrite($handle, $chunk);
+                        if ($written === false || $written !== $length) {
+                            $fail('Download could not be written to disk (is the disk full?).');
+                            return;
+                        }
+                        $receivedBytes += $written;
+                        $armIdleTimer();
+                    });
+
+                    $body->on('end', static function () use (
+                        &$handle,
+                        &$receivedBytes,
+                        &$settled,
+                        &$idleTimer,
+                        $loop,
+                        $fail,
+                        $finalTmpFilepath,
+                        $finalFilepath,
+                        $filename,
+                        $deferred,
+                        $totalBytes,
+                        $declared,
+                    ): void {
+                        if ($settled) {
+                            return;
+                        }
+                        // Size law [CON-9]: a body that ends short of (or past)
+                        // its declared Content-Length is truncated or corrupt.
+                        if ($declared && $receivedBytes !== $totalBytes) {
+                            $fail("Download incomplete: received {$receivedBytes} of {$totalBytes} bytes.");
+                            return;
+                        }
+                        if (!@fclose($handle)) {
+                            $fail('Download could not be written to disk (is the disk full?).');
+                            return;
+                        }
+                        if (!@rename($finalTmpFilepath, $finalFilepath)) {
+                            $fail("Failed to move downloaded file to: {$finalFilepath}");
+                            return;
+                        }
+                        $settled = true;
+                        if ($idleTimer !== null) {
+                            $loop->cancelTimer($idleTimer);
+                            $idleTimer = null;
+                        }
+                        $deferred->resolve(new DownloadResult(
+                            url: $finalFilepath,
+                            filename: $filename,
+                            size: $receivedBytes,
+                            totalBytes: $totalBytes,
                         ));
-                    }
+                    });
+
+                    $body->on('error', static function (\Throwable $error) use ($fail): void {
+                        $fail('Download stream error: ' . $error->getMessage(), $error);
+                    });
+
+                    // Dead-stream settle [CON-9]: a stream that closes without
+                    // 'end' (connection dropped, upstream cancelled) must still
+                    // settle the Deferred — never leave the caller hanging. A
+                    // close after end/error/failure is a no-op.
+                    $body->on('close', static function () use ($fail): void {
+                        $fail('Download interrupted: the connection closed before the file finished.');
+                    });
+
+                    $armIdleTimer();
                 },
-                function (\Throwable $error) use ($deferred, $tmpFilepath): void {
-                    @unlink($tmpFilepath);
+                function (\Throwable $error) use ($deferred): void {
                     $deferred->reject(new DownloadException(
                         "Download request failed: " . $error->getMessage(),
                         0,
