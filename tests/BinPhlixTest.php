@@ -62,6 +62,26 @@ final class BinPhlixTest extends TestCase
         $this->assertStringContainsString('Protocol source : live DA1/XTWINOPS query', $probing['stdout']);
     }
 
+    /**
+     * [CON-36] a corrupted token.json used to leave doctor at rc=0 in total
+     * silence: the store swallowed the decode failure. Doctor now WARNs it,
+     * exactly as it WARNs a broken config file — and still exits 0 (a
+     * diagnostic, not a failure).
+     */
+    public function testDoctorWarnsOnACorruptedTokenFile(): void
+    {
+        $home = $this->scratchHome();
+        mkdir($home . '/.config/phlix', 0o700, true);
+        file_put_contents($home . '/.config/phlix/token.json', '{"by_server": ');
+
+        $result = $this->runPhlixWithDeadline(['doctor'], 15.0, $home);
+        $this->assertSame(0, $result['exitCode'], 'doctor stderr: ' . $result['stderr']);
+        $this->assertStringContainsString(
+            'Token WARN: Token file at ' . $home . '/.config/phlix/token.json is not valid JSON',
+            $result['stdout'],
+        );
+    }
+
     public function testDoctorHelpAdvertisesTheProbeOptIn(): void
     {
         $output = $this->runPhlix(['help']);

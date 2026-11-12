@@ -761,7 +761,8 @@ try {
         case 'doctor':
             $config = Config::load();
             $serverUrl = getenv('PHLIX_SERVER_URL') ?: $config->activeServer()?->url;
-            $tokenPath = TokenStore::default()->path();
+            $tokenStore = TokenStore::default();
+            $tokenPath = $tokenStore->path();
             $cacheDir = Config::preparePosterCacheDir();
             $cacheEntries = (int) getenv('PHLIX_POSTER_CACHE_ENTRIES');
             if ($cacheEntries < 1) {
@@ -781,6 +782,12 @@ try {
                 echo "Config WARN: " . $config->loadError . "\n";
             }
             echo "Token path: " . $tokenPath . "\n";
+            $tokenLoadError = $tokenStore->loadError();
+            if ($tokenLoadError !== null) {
+                // A corrupted token file signs the user out; doctor says why
+                // instead of exiting 0 in silence [CON-36].
+                echo "Token WARN: " . $tokenLoadError . "\n";
+            }
             echo "Server URL: " . ($serverUrl ?? '(none)') . "\n";
             echo "\n";
             // [CU-053] the default survey is env-only: doctor must never write

@@ -79,6 +79,11 @@ final readonly class TokenBundle
     /**
      * Whether the access token is expired (or within $skew seconds of expiry).
      * Tokens with no known expiry are treated as not-expired.
+     *
+     * Advisory only: neither {@see TokenStore} nor the ApiClient gates on it.
+     * Expiry is handled reactively - an expired bearer earns a 401, and the
+     * client refreshes-and-retries once with the stored refresh token - so an
+     * expired bundle is still stored, loaded and sent on purpose [CON-41].
      */
     public function isExpired(?int $now = null, int $skew = 30): bool
     {
@@ -94,7 +99,11 @@ final readonly class TokenBundle
         return $this->refreshToken !== '';
     }
 
-    /** A bundle is usable only if it carries an access token. */
+    /**
+     * Well-formed: the bundle carries an access token. Says nothing about
+     * expiry - an expired bundle is still "valid" here by design, because its
+     * refresh token can heal it ({@see isExpired()}) [CON-41].
+     */
     public function isValid(): bool
     {
         return $this->accessToken !== '';

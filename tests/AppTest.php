@@ -304,6 +304,38 @@ final class AppTest extends TestCase
         self::assertStringContainsString('not valid JSON', (string) $toast->message);
     }
 
+    // [CON-36] A token file that exists but cannot be honoured signs the user
+    // out — and says so at boot, instead of a silent drop to Login.
+
+    public function testBootWarnsWhenTheTokenFileCouldNotBeHonoured(): void
+    {
+        @mkdir($this->dir . '/phlix', 0o700, true);
+        file_put_contents(TokenStore::default()->path(), '{"by_server": {"s1": ');
+        [$app] = $this->makeApp('https://srv', new FakeTransport());
+
+        $resolved = $this->runCmd($app->init());
+        self::assertInstanceOf(BootResolvedMsg::class, $resolved);
+        self::assertNull($resolved->user);
+
+        [$next, $cmd] = $app->update($resolved);
+        self::assertSame(Route::Login, $next->route());
+
+        $result = $cmd !== null ? $cmd() : null;
+        self::assertInstanceOf(BatchMsg::class, $result, 'route command and the warning travel together');
+
+        $toast = null;
+        foreach ($result->cmds as $c) {
+            $child = $c();
+            if ($child instanceof ShowToastMsg) {
+                $toast = $child;
+            }
+        }
+
+        self::assertNotNull($toast, 'a corrupted token file must reach the user as a boot toast');
+        self::assertStringContainsString('Token file', (string) $toast->message);
+        self::assertStringContainsString('not valid JSON', (string) $toast->message);
+    }
+
     public function testBootWithValidTokenGoesToBrowse(): void
     {
         TokenStore::default()->save(new TokenBundle('stored', 'refresh', 'Bearer', null));

@@ -136,4 +136,109 @@ final class TokenStoreTest extends TestCase
             $prev === false ? putenv('XDG_CONFIG_HOME') : putenv('XDG_CONFIG_HOME=' . $prev);
         }
     }
+
+    // [CON-36] A token file that exists but cannot be honoured is LOUD, the
+    // Config::$loadError idiom: the caller is still signed out (null bundles),
+    // but loadError() names why so boot toasts it and doctor WARNs it.
+
+    public function testAbsentTokenFileIsSilence(): void
+    {
+        self::assertNull(
+            (new TokenStore($this->path))->loadError(),
+            'a missing token file is a fresh install, not an error',
+        );
+    }
+
+    public function testValidTokenFileLoadsWithoutALoadError(): void
+    {
+        (new TokenStore($this->path))->setForServer('s1', new TokenBundle('a', 'r'));
+
+        self::assertNull((new TokenStore($this->path))->loadError());
+    }
+
+    public function testInvalidJsonTokenFileCarriesALoadErrorAndIsLeftUntouched(): void
+    {
+        @mkdir($this->dir, 0o700, true);
+        file_put_contents($this->path, '{"by_server": {"s1": {"access_token": "a"');
+
+        $store = new TokenStore($this->path);
+        self::assertNull($store->getForServer('s1'));
+        self::assertNull($store->load());
+        $error = $store->loadError();
+        self::assertNotNull($error, 'a corrupted token file must surface a reason, never silence');
+        self::assertStringContainsString('not valid JSON', $error);
+        self::assertStringContainsString($this->path, $error);
+        self::assertSame(
+            '{"by_server": {"s1": {"access_token": "a"',
+            file_get_contents($this->path),
+            'loading must never rewrite the broken file',
+        );
+    }
+
+    public function testEmptyTokenFileCarriesALoadError(): void
+    {
+        @mkdir($this->dir, 0o700, true);
+        file_put_contents($this->path, '');
+
+        self::assertStringContainsString('empty', (string) (new TokenStore($this->path))->loadError());
+    }
+
+    public function testNonObjectTokenFileCarriesALoadError(): void
+    {
+        @mkdir($this->dir, 0o700, true);
+        file_put_contents($this->path, '42');
+
+        self::assertStringContainsString('not a JSON object', (string) (new TokenStore($this->path))->loadError());
+    }
+
+    public function testMalformedByServerMapCarriesALoadError(): void
+    {
+        @mkdir($this->dir, 0o700, true);
+        file_put_contents($this->path, json_encode(['by_server' => 'junk']));
+
+        self::assertStringContainsString('by_server', (string) (new TokenStore($this->path))->loadError());
+    }
+
+    public function testUnreadableTokenFileCarriesALoadError(): void
+    {
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+            self::markTestSkipped('root reads a 0000 file; the unreadable arm cannot be staged');
+        }
+        @mkdir($this->dir, 0o700, true);
+        file_put_contents($this->path, '{}');
+        chmod($this->path, 0o000);
+        try {
+            self::assertStringContainsString('could not be read', (string) (new TokenStore($this->path))->loadError());
+        } finally {
+            chmod($this->path, 0o600);
+        }
+    }
+
+    public function testASuccessfulPersistClearsTheLoadError(): void
+    {
+        @mkdir($this->dir, 0o700, true);
+        file_put_contents($this->path, 'not json');
+
+        $store = new TokenStore($this->path);
+        self::assertNotNull($store->loadError());
+        $store->setForServer('s1', new TokenBundle('a', 'r'));
+
+        self::assertNull($store->loadError(), 'the next sign-in replaced the broken file; nothing left to warn about');
+        self::assertNull((new TokenStore($this->path))->loadError());
+    }
+
+    // [CON-41] getForServer() returns expired bundles ON PURPOSE: expiry is
+    // healed reactively by the ApiClient 401 refresh-and-retry, which needs
+    // the stored refresh token. Filtering on expiry would force a re-login.
+
+    public function testGetForServerReturnsAnExpiredBundleSoTheRefreshPathCanHealIt(): void
+    {
+        $expired = new TokenBundle('a', 'r', 'Bearer', expiresAt: 1);
+        (new TokenStore($this->path))->setForServer('s1', $expired);
+
+        $bundle = (new TokenStore($this->path))->getForServer('s1');
+        self::assertNotNull($bundle);
+        self::assertTrue($bundle->isExpired());
+        self::assertSame('r', $bundle->refreshToken);
+    }
 }

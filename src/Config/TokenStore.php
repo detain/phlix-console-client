@@ -29,6 +29,13 @@ namespace Phlix\Console\Config;
  * For backward compatibility, the legacy {@see save(TokenBundle)} and
  * {@see load()} methods operate on the "legacy" server id.
  *
+ * Absence is silence (fresh install); a token file that exists but cannot be
+ * honoured is LOUD - the {@see Config::$loadError} idiom: the store still
+ * reads as empty (the user is signed out), but {@see loadError()} names why
+ * so boot toasts it and `phlix doctor` WARNs it [CON-36]. Loading never
+ * rewrites the broken file; the next successful persist (a sign-in) replaces
+ * it and clears the error.
+ *
  * Custody class: holding bearer tokens here is device-class by design, not a
  * deferred step (estate cookie-auth design, COOKIE-DESIGN §2.1/§4.6, owner
  * ruling D6c, 2026-11-05): the console is a headless device-class client and
@@ -45,6 +52,7 @@ final class TokenStore
     /** @var array<string, array{token: TokenBundle, migrated: bool}> */
     private array $cache = [];
     private bool $loaded = false;
+    private ?string $loadError = null;
 
     public function __construct(
         private readonly string $path,
@@ -60,6 +68,18 @@ final class TokenStore
     public function path(): string
     {
         return $this->path;
+    }
+
+    /**
+     * Diagnostic sentence when a token file on disk exists but could not be
+     * honoured (unreadable, empty, not JSON, wrong shape); null when the file
+     * is absent or loaded cleanly [CON-36].
+     */
+    public function loadError(): ?string
+    {
+        $this->ensureLoaded();
+
+        return $this->loadError;
     }
 
     public function exists(): bool
@@ -112,10 +132,15 @@ final class TokenStore
 
     /**
      * Load the full token bundle for a specific server, or null if absent or
-     * expired. Carrying the complete bundle (not just the two secrets) keeps
-     * the per-server path lossless: token type and absolute expiry survive a
-     * restart exactly as they do in the legacy slot [review console__secaudit
-     * #1 / CU-004].
+     * invalid (no access token). Carrying the complete bundle (not just the
+     * two secrets) keeps the per-server path lossless: token type and
+     * absolute expiry survive a restart exactly as they do in the legacy slot
+     * [review console__secaudit #1 / CU-004].
+     *
+     * An EXPIRED bundle is returned on purpose: expiry is healed reactively by
+     * the {@see \Phlix\Console\Api\ApiClient} 401 refresh-and-retry, which
+     * needs the stored refresh token - filtering on expiry here would throw
+     * that token away and force a needless re-login [CON-41].
      */
     public function getForServer(string $serverId): ?TokenBundle
     {
@@ -192,11 +217,28 @@ final class TokenStore
     {
         $raw = @file_get_contents($this->path);
         if ($raw === false) {
+            if (file_exists($this->path)) {
+                // The file is there but we cannot read it - never silent.
+                $this->loadError = "Token file at {$this->path} exists but could not be read; "
+                    . 'signed out (the file was left untouched).';
+            }
+
             return;
         }
 
         $data = json_decode($raw, true);
         if (!is_array($data)) {
+            if (trim($raw) === '') {
+                $this->loadError = "Token file at {$this->path} is empty; signed out "
+                    . '(the file was left untouched - it may be the tail of a truncated write).';
+
+                return;
+            }
+
+            $reason = json_last_error() === JSON_ERROR_NONE ? 'not a JSON object' : json_last_error_msg();
+            $this->loadError = "Token file at {$this->path} is not valid JSON ({$reason}); "
+                . 'signed out (the file was left untouched).';
+
             return;
         }
 
@@ -211,6 +253,12 @@ final class TokenStore
         }
 
         // New per-server format
+        if (array_key_exists('by_server', $data) && !is_array($data['by_server'])) {
+            $this->loadError = "Token file at {$this->path} has a malformed by_server map; "
+                . 'signed out (the file was left untouched).';
+
+            return;
+        }
         foreach (self::array($data['by_server'] ?? null) as $serverId => $entry) {
             if (!is_array($entry)) {
                 continue;
@@ -265,6 +313,8 @@ final class TokenStore
             throw new \RuntimeException("Cannot write token file: {$this->path}");
         }
         @chmod($this->path, 0o600);
+        // The broken file (if any) has just been replaced by a good one.
+        $this->loadError = null;
     }
 
     /** @return array<mixed> */

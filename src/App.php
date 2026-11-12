@@ -604,10 +604,19 @@ final class App implements Model
                 return [$next[0], Cmd::batch($next[1], Cmd::send($msg->toast))];
             }
 
-            // A local config file that exists but could not be honoured warns at
-            // boot — once, and without ever clobbering it [review console__qa m-3].
+            // A local config file — or token file — that exists but could not
+            // be honoured warns at boot: once, and without ever clobbering it
+            // [review console__qa m-3; CON-36 for the token file].
+            $warnings = [];
             if ($this->config->loadError !== null) {
-                return [$next[0], Cmd::batch($next[1], Cmd::send(ShowToastMsg::warning($this->config->loadError)))];
+                $warnings[] = Cmd::send(ShowToastMsg::warning($this->config->loadError));
+            }
+            $tokenLoadError = $this->auth->tokenLoadError();
+            if ($tokenLoadError !== null) {
+                $warnings[] = Cmd::send(ShowToastMsg::warning($tokenLoadError));
+            }
+            if ($warnings !== []) {
+                return [$next[0], Cmd::batch($next[1], ...$warnings)];
             }
 
             return $next;

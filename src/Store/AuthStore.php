@@ -75,6 +75,15 @@ final class AuthStore
         $this->serverId = $serverId;
     }
 
+    /**
+     * Why the token file could not be honoured, or null when it is absent or
+     * loaded cleanly - surfaced once at boot as a toast [CON-36].
+     */
+    public function tokenLoadError(): ?string
+    {
+        return $this->tokens->loadError();
+    }
+
     public function currentUser(): ?AuthUser
     {
         return $this->user;

@@ -192,8 +192,8 @@ final readonly class Theme
      * body-text floor on the dark fields the default theme actually runs on,
      * so it takes Midnight's lift `#5fafff` (9.06:1 on #000000, 7.19:1 on
      * #1e1e1e; ThemeMutedContrastTest re-measures and pins both dark themes).
-     * Daylight maps every role illegible on light terminals; Midnight lifts the
-     * badge onto its accent because `#0066cc` vanishes on a dark field.
+     * Daylight maps every role illegible on light terminals; Midnight's badge
+     * sits on its accent `#5fafff`, the same lift Nocturne now carries.
      *
      * @var array<string, array<string, array{?string, bool}>>
      */

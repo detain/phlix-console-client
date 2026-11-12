@@ -37,9 +37,11 @@ use RecursiveIteratorIterator;
  *     (CON-23): the badge colour rotated `38;2;0;102;204` (#0066cc, 3.77:1 on
  *     #000000) → `38;2;95;175;255` (#5fafff, 9.06:1) for dark-field AA; the
  *     bold-before-colour shape around it is unchanged.
- *  3. DAYLIGHT LEGIBILITY: none of the five illegible-on-light emissions
- *     (white title, gold star, dark-blue badge, salmon danger, saturated
- *     avatar field) may appear under the light-terminal theme.
+ *  3. DAYLIGHT LEGIBILITY: none of the six illegible-on-light emissions
+ *     (white title, gold star, dark-blue badge, light-blue badge, salmon
+ *     danger, saturated avatar field) may appear under the light-terminal
+ *     theme. The light-blue `#5fafff` is the Nocturne/Midnight badge lift
+ *     (CON-23) and measures 2.32:1 on white.
  *  4. TOTAL COVERAGE + FAIL-LOUD: every preset resolves every role (both
  *     attribute modes) and the whole avatar ramp; an unknown role, a
  *     palette-less theme id, or a negative slot throws at the boundary.
@@ -161,7 +163,10 @@ final class ThemePaletteSoleSourceTest extends TestCase
     public function testDaylightEmitsNoneOfTheHexesThatAreIllegibleOnLightTerminals(): void
     {
         $daylight = Theme::daylight();
-        $forbidden = ['38;2;255;255;255', '38;2;255;204;0', '38;2;0;102;204', '38;2;255;102;102', '48;2;255;255;0'];
+        $forbidden = [
+            '38;2;255;255;255', '38;2;255;204;0', '38;2;0;102;204',
+            '38;2;95;175;255', '38;2;255;102;102', '48;2;255;255;0',
+        ];
 
         foreach ([Theme::ROLE_STAR, Theme::ROLE_BADGE, Theme::ROLE_TITLE, Theme::ROLE_DANGER] as $role) {
             foreach ([false, true] as $reversed) {
