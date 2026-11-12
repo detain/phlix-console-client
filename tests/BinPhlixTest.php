@@ -926,12 +926,14 @@ final class BinPhlixTest extends TestCase
         if ($rc !== 0) {
             $this->markTestSkipped('ffmpeg not available');
         }
-        $bad = tempnam(sys_get_temp_dir(), 'phlix_con37_') . '.mp4';
+        $base = tempnam(sys_get_temp_dir(), 'phlix_con37_');
+        $bad = $base . '.mp4';
         file_put_contents($bad, 'this is not a video container');
         try {
             $output = $this->runPhlix(['frame', $bad, '1', '20', '6', 'ascii']);
         } finally {
             @unlink($bad);
+            @unlink($base);
         }
 
         $this->assertSame(1, $output['exitCode'], 'a zero-frame decode must not exit 0');

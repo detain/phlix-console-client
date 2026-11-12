@@ -40,6 +40,9 @@ music or audiobook session is live), **Sign out** and **Quit** — plus a
 
 ![The console rendering the same screen in every mode](docs/images/modes.gif)
 
+*The same screen rendered with each `--mode`, cycling every few seconds —
+the modes are compared side by side under [Render modes](#render-modes).*
+
 ## Documentation
 
 This page is the front door. The full user manual — config-file layout, every
@@ -63,6 +66,7 @@ configuration), [i18n](docs/i18n.md) (the env locale chain),
 [terminal graphics](docs/terminal-graphics.md) (protocol capabilities),
 [upgrade notes](docs/upgrade/v1.md),
 [development guide](docs/dev/client-console.md) (architecture and gates),
+[CI gates](docs/steps/ci-baseline-C9.md) (what must stay green),
 [vendor-patch policy](docs/vendor-patches.md),
 [dependency policy](docs/dev/dependencies.md).
 Issues and questions:
@@ -314,11 +318,10 @@ error (bad flag or value).
 
 ## Render modes
 
-The same screen rendered with each `--mode`, cycling every few seconds
-(the animated tour above).
 **Graphics** protocols emit a real image (highest fidelity, terminal-dependent);
 **cell** modes tile coloured text and work in any terminal, trading detail for
-compatibility.
+compatibility. The animated tour at the top of this page cycles the same
+screen through every `--mode`; the stills below compare them side by side.
 
 <details>
 <summary>Side-by-side stills</summary>
@@ -341,6 +344,8 @@ compatibility.
 > `chafa` is accepted by `run` and `poster` as well — the external chafa
 > renderer, resolved through sugar-image — and `frame` rejects it as a usage
 > error, taking the nine canonical names only.
+
+## Status
 
 > **Status: every screen and subsystem below is shipped.** Working today: sign
 > in, browse your libraries as poster rails beside a sidebar, open a library into
