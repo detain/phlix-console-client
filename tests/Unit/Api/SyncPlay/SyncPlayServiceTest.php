@@ -87,13 +87,15 @@ final class SyncPlayServiceTest extends TestCase
             $receivedMemberId = $memberId;
         });
 
-        // Access the private onMemberLeft property and invoke it
-        $reflection = new \ReflectionClass($service);
-        $property = $reflection->getProperty('onMemberLeft');
-        $property->setAccessible(true);
-        /** @var \Closure $callback */
-        $callback = $property->getValue($service);
-        $callback('member-456');
+        $handle = new \ReflectionMethod($service, 'handleMessage');
+        $handle->setAccessible(true);
+        $frame = static fn (array $ids): string => json_encode([
+            'type' => 'syncplay_group_state',
+            'group' => ['members' => array_map(static fn (string $id): array => ['id' => $id, 'name' => $id], $ids)],
+        ], JSON_THROW_ON_ERROR);
+        $handle->invoke($service, $frame(['member-123', 'member-456']));
+        $this->assertNull($receivedMemberId);
+        $handle->invoke($service, $frame(['member-123']));
 
         $this->assertSame('member-456', $receivedMemberId);
     }

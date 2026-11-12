@@ -110,8 +110,6 @@ final class SyncPlayService
     private \Closure $onMemberJoined;
 
     /** @var \Closure(string): void */
-    /** @internal */
-    /** @phpstan-ignore-next-line property.onlyWritten */
     private \Closure $onMemberLeft;
 
     /** @var \Closure(string): void */
@@ -881,9 +879,16 @@ final class SyncPlayService
         // Update members
         $membersData = $group['members'] ?? [];
         if (is_array($membersData)) {
+            $previousIds = array_map(static fn (SyncPlayUser $u): string => $u->sessionId, $this->members);
             $this->members = [];
             foreach ($membersData as $m) {
                 $this->members[] = SyncPlayUser::fromArray(is_array($m) ? $m : []);
+            }
+            // Roster diff: any previously-known member absent from the new
+            // roster has left (the wire has no explicit member-left frame).
+            $currentIds = array_map(static fn (SyncPlayUser $u): string => $u->sessionId, $this->members);
+            foreach (array_diff($previousIds, $currentIds) as $leftId) {
+                ($this->onMemberLeft ?? fn () => null)($leftId);
             }
         }
 
