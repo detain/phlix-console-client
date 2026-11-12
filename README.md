@@ -493,7 +493,7 @@ map against.
 CI — any new type error fails the build. Config lives in `phpstan.neon`;
 `tests/` is analysed separately at level 2 via `phpstan-tests.neon`. There is
 **no baseline file and no `ignoreErrors`** in either config; the honest
-qualifier is that `src/` carries **3 inline suppressions**, all
+qualifier is that `src/` carries **2 inline suppressions**, all
 `@phpstan-ignore-next-line property.onlyWritten`, each on a deliberately
 write-only field (`tests/Docs/StaticAnalysisClaimsDocsTest.php` re-derives
 this count from the tree — plant or remove a suppression and the table must
@@ -504,7 +504,6 @@ opaque-frame graft made those fields read):
 | --- | --- |
 | `SyncPlayService::$playbackPosition` | room-reported position ingested from group state; the player drives its own clock and never reads it back |
 | `SyncPlayService::$currentMediaId` | sanitized group-state mirror — the ingest boundary stores every hostile wire string uniformly, display reader or not |
-| `SyncPlayService::$onMemberLeft` | callback registered by the player screen but never dispatched yet — member-left frames have no routing in the service (live gap, owed a code fix) |
 
 ```sh
 composer phpstan                                    # or: vendor/bin/phpstan analyse

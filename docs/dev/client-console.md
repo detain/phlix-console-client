@@ -529,7 +529,7 @@ composer phpstan      # or: vendor/bin/phpstan analyse
 ```
 
 PHPStan level 9 of 10 is enforced in CI for `src/`. There is no baseline
-file and no `ignoreErrors` in either config; `src/` carries 3 inline
+file and no `ignoreErrors` in either config; `src/` carries 2 inline
 `property.onlyWritten` suppressions, catalogued with per-site reasons in
 README.md ("Static analysis") and pinned against the tree by
 `tests/Docs/StaticAnalysisClaimsDocsTest.php`. `tests/` is analysed separately
