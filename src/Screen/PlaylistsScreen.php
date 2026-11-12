@@ -43,6 +43,7 @@ final class PlaylistsScreen implements Model, Teardownable, Breadcrumbed, Themed
     use ResizesTo;
     use SelectsNext;
     use SelectsPrevious;
+    use WindowedList;
 
     private const HINT = 'q  back      ↑↓  navigate      ⏎  open      a/r  web only      d  delete';
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
@@ -280,9 +281,11 @@ final class PlaylistsScreen implements Model, Teardownable, Breadcrumbed, Themed
 
         // Show delete confirmation prompt if pending
         if ($this->pendingDelete !== null) {
+            [$visible, $offset] = $this->listWindow($this->items, hiddenRows: 4);
+
             $lines = [];
-            foreach ($this->items as $i => $item) {
-                $prefix = $i === $this->selectedIndex ? '▶ ' : '  ';
+            foreach ($visible as $relative => $item) {
+                $prefix = $offset + $relative === $this->selectedIndex ? '▶ ' : '  ';
                 $lines[] = $prefix . $this->renderItem($item);
             }
 
@@ -292,9 +295,11 @@ final class PlaylistsScreen implements Model, Teardownable, Breadcrumbed, Themed
             return $prompt . implode("\n", $lines) . $cancelHint;
         }
 
+        [$visible, $offset] = $this->listWindow($this->items);
+
         $lines = [];
-        foreach ($this->items as $i => $item) {
-            $prefix = $i === $this->selectedIndex ? '▶ ' : '  ';
+        foreach ($visible as $relative => $item) {
+            $prefix = $offset + $relative === $this->selectedIndex ? '▶ ' : '  ';
             $lines[] = $prefix . $this->renderItem($item);
         }
 

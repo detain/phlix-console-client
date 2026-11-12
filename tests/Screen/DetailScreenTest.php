@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Phlix\Console\Tests\Screen;
 
 use Phlix\Console\Api\ApiClient;
+use Phlix\Console\Api\Dto\MediaItem;
 use Phlix\Console\Api\Dto\MediaRatings;
 use Phlix\Console\Api\Dto\Rating;
 use Phlix\Console\Media\PosterLoader;
@@ -20,6 +21,7 @@ use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\PlayRequestedMsg;
 use Phlix\Console\Msg\RatingsLoadedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
+use Phlix\Console\Msg\SimilarLoadedMsg;
 use Phlix\Console\Screen\DetailScreen;
 use Phlix\Console\Store\FavoritesStore;
 use Phlix\Console\Store\MediaRange;
@@ -1240,5 +1242,51 @@ final class DetailScreenTest extends TestCase
         $server->listen($this->socket);
 
         return (int) parse_url((string) $this->socket->getAddress(), PHP_URL_PORT);
+    }
+
+    /**
+     * CU-047 [review console__uxdesign Major]: the "More Like This" section
+     * rendered its FULL list — 30 similar items pushed the navigate hint and
+     * the actions line off the panel bottom, and the wrapping ←/→ cursor
+     * walked into clipped rows (invisible selection, unreachable tail). The
+     * section must window itself around the cursor instead.
+     */
+    public function testSimilarSectionNeverWalksTheCursorIntoClippedRows(): void
+    {
+        $screen = $this->loaded();
+
+        $items = [];
+        for ($i = 0; $i < 30; $i++) {
+            $items[] = MediaItem::fromArray([
+                'id' => 's' . $i,
+                'name' => sprintf('Similar %02d', $i + 1),
+                'type' => 'movie',
+                'year' => 2000,
+            ]);
+        }
+        [$screen] = $screen->update(new SimilarLoadedMsg('m1', $items));
+
+        $view = $screen->view();
+        self::assertStringContainsString('More Like This', $view);
+        self::assertStringContainsString(
+            '←→  navigate      ⏎  open',
+            $view,
+            'the navigate hint must not be pushed off the panel by an over-long similar list'
+        );
+        self::assertMatchesRegularExpression('/▶[^\n]*Similar 01/', $view, 'the cursor starts on the first similar item');
+
+        for ($i = 2; $i <= 30; $i++) {
+            [$screen] = $screen->update(new KeyMsg(KeyType::Right));
+            self::assertMatchesRegularExpression(
+                '/▶[^\n]*' . preg_quote(sprintf('Similar %02d', $i), '/') . '/',
+                $screen->view(),
+                "stepping right onto item {$i} must keep it visible"
+            );
+        }
+
+        [$screen] = $screen->update(new KeyMsg(KeyType::Right));
+        self::assertMatchesRegularExpression('/▶[^\n]*Similar 01/', $screen->view(), 'the wrap-around cursor stays visible');
+        [$screen] = $screen->update(new KeyMsg(KeyType::Left));
+        self::assertMatchesRegularExpression('/▶[^\n]*Similar 30/', $screen->view(), 'wrapping back to the tail stays visible');
     }
 }

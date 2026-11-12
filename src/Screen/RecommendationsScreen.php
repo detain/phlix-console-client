@@ -41,6 +41,7 @@ final class RecommendationsScreen implements Model, Teardownable, CapturesSlash,
     use ResizesTo;
     use SelectsNext;
     use SelectsPrevious;
+    use WindowedList;
 
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED_KEY = 'recommendations.load_failed';
@@ -209,10 +210,12 @@ final class RecommendationsScreen implements Model, Teardownable, CapturesSlash,
             return "\n\n  " . Lang::t('recommendations.empty');
         }
 
+        [$visible, $offset] = $this->listWindow($this->items, rowsPerItem: 2);
+
         $cards = [];
         $titleWidth = min(50, max(1, $this->cols - 4));
-        foreach ($this->items as $i => $item) {
-            $prefix = $i === $this->selectedIndex ? '▶ ' : '  ';
+        foreach ($visible as $relative => $item) {
+            $prefix = $offset + $relative === $this->selectedIndex ? '▶ ' : '  ';
             $cards[] = $prefix . $item->render($this->theme(), $titleWidth);
         }
 

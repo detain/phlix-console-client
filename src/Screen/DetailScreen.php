@@ -60,6 +60,7 @@ use Phlix\Console\Store\FavoritesStore;
 use Phlix\Console\Store\MediaRange;
 use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Ui\Chrome;
+use Phlix\Console\Ui\ListWindow;
 use Phlix\Console\Ui\RatingBadge;
 use Phlix\Console\Ui\Truncate;
 use Phlix\Console\Ui\UserRatingPicker;
@@ -1303,7 +1304,11 @@ final class DetailScreen implements Breadcrumbed, Themed
 
         // Check if similar items should be rendered (non-empty).
         $hasSimilar = $this->similar !== null && $this->similar !== [];
-        $similarSection = $hasSimilar ? $this->renderSimilarSection($width) : [];
+        // CU-047: the section may spend only what the panel still has once the
+        // header, the one-line synopsis floor and the section's own title/hint
+        // and blanks are paid for (H + 1 + 1 + 1 + (S+2) + 1 + 1 <= BH).
+        $maxSimilarItems = max(1, $this->bodyHeight() - count($header) - 7);
+        $similarSection = $hasSimilar ? $this->renderSimilarSection($width, $maxSimilarItems) : [];
         $similarLines = count($similarSection);
 
         // The synopsis fills whatever room remains, scrollable with ↑/↓.
@@ -1327,9 +1332,15 @@ final class DetailScreen implements Breadcrumbed, Themed
     /**
      * Render the "More Like This" section for leaf items.
      *
+     * The item run is windowed around the ←/→ cursor (CU-047): an unwindows
+     * section pushed the navigate hint off the panel bottom and the wrapping
+     * cursor walked into clipped rows.
+     *
+     * @param int $maxItems item rows the section may show
+     *
      * @return list<string>
      */
-    private function renderSimilarSection(int $width): array
+    private function renderSimilarSection(int $width, int $maxItems): array
     {
         if ($this->similar === null || $this->similar === []) {
             return [];
@@ -1342,8 +1353,10 @@ final class DetailScreen implements Breadcrumbed, Themed
         $lines = [];
         $lines[] = $accent->render(Lang::t('detail.more_like_this'));
 
-        foreach ($this->similar as $index => $item) {
-            $isSelected = $index === $this->similarSelectedIndex;
+        $offset = ListWindow::offset(count($this->similar), $this->similarSelectedIndex, $maxItems);
+
+        foreach (array_slice($this->similar, $offset, $maxItems) as $relative => $item) {
+            $isSelected = $offset + $relative === $this->similarSelectedIndex;
             $prefix = $isSelected ? '▶ ' : '  ';
             $yearStr = $item->year !== null ? (string) $item->year : '';
             $title = Width::truncate($item->name, max(1, $width - 20));

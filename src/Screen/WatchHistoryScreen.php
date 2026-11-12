@@ -41,6 +41,7 @@ final class WatchHistoryScreen implements Model, Teardownable, Breadcrumbed, The
     use ResizesTo;
     use SelectsNext;
     use SelectsPrevious;
+    use WindowedList;
 
     private const HINT = 'q  back      ↑↓  navigate      ⏎  open';
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
@@ -173,9 +174,11 @@ final class WatchHistoryScreen implements Model, Teardownable, Breadcrumbed, The
             return "\n\n  No watch history yet.\n  Start watching to build your history!";
         }
 
+        [$visible, $offset] = $this->listWindow($this->items);
+
         $lines = [];
-        foreach ($this->items as $i => $item) {
-            $prefix = $i === $this->selectedIndex ? '▶ ' : '  ';
+        foreach ($visible as $relative => $item) {
+            $prefix = $offset + $relative === $this->selectedIndex ? '▶ ' : '  ';
             $lines[] = $prefix . $this->renderItem($item);
         }
 

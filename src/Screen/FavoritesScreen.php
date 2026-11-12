@@ -41,6 +41,7 @@ final class FavoritesScreen implements Model, Teardownable, Breadcrumbed, Themed
     use ResizesTo;
     use SelectsNext;
     use SelectsPrevious;
+    use WindowedList;
 
     private const HINT = 'q  back      ↑↓  navigate      ⏎  open';
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
@@ -171,9 +172,11 @@ final class FavoritesScreen implements Model, Teardownable, Breadcrumbed, Themed
             return "\n\n  No favorites yet.\n  Press F on any item to add it here!";
         }
 
+        [$visible, $offset] = $this->listWindow($this->items);
+
         $lines = [];
-        foreach ($this->items as $i => $item) {
-            $prefix = $i === $this->selectedIndex ? '▶ ' : '  ';
+        foreach ($visible as $relative => $item) {
+            $prefix = $offset + $relative === $this->selectedIndex ? '▶ ' : '  ';
             $lines[] = $prefix . $this->renderItem($item);
         }
 

@@ -232,14 +232,12 @@ final class Table
 
     /**
      * First visible row so the selected row stays on screen, centring it when the
-     * data overflows the viewport (mirrors the prior windowing behaviour).
+     * data overflows the viewport (mirrors the prior windowing behaviour). The
+     * math is the app-wide law — {@see ListWindow::offset()}, single-sourced when
+     * the ▶-cursor lists joined it (CU-047).
      */
     private static function scrollY(int $count, int $selected, int $viewport): int
     {
-        if ($count <= $viewport) {
-            return 0;
-        }
-
-        return max(0, min($selected - intdiv($viewport - 1, 2), $count - $viewport));
+        return ListWindow::offset($count, $selected, $viewport);
     }
 }
