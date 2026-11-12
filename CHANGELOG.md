@@ -3,7 +3,22 @@
 All notable changes to **phlix-console-client** are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+**Entry convention (forward-only).** Published entries below are verbatim history and are never
+rewritten. From this point, every new entry opens with a plain-language, user-facing sentence
+saying what changed for someone running the client; the step id, finding ids and review detail
+(`CON-Sxx [CON-yy]`, Why / What / Also) follow underneath as the engineering record. Heading
+text carries the user-visible effect first; ids stay in the bullets or the heading's bracket.
+
 ## [Unreleased]
+
+### Changed — CON-S32 [CON-53] the changelog now declares its heading convention (docs only) — 2026-11-12
+
+Changelog entries from here on lead with what changed for the user; the intro records the rule.
+Earlier entries keep their historical engineering-style headings untouched.
+
+- **Also:** the four open reviewer minors from CON-S18, S21 and S24 (stale anaphora examples,
+  Daylight `#5fafff` forbidden hex, Midnight badge comment, `tempnam` base-file leak) were already
+  landed at the dispatch tip; verified in place, no further edit needed.
 
 ### Fixed — CON-S21 [CON-23] Nocturne's recommendation badge clears AA on dark terminals (disclosed golden move) — 2026-11-12
 
