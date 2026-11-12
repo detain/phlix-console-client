@@ -491,6 +491,11 @@ final class SyncPlayService
     {
         $deferred = new Deferred();
 
+        // Close + detach any prior socket before dialing: its late callbacks
+        // must never mutate state owned by the new connection.
+        $this->detachSocket($this->wsConnection);
+        $this->wsConnection = null;
+
         // Build WebSocket URL
         $wsUrl = $this->buildWebSocketUrl($session);
 
@@ -540,7 +545,11 @@ final class SyncPlayService
         // A handler from a socket the service has already replaced (or torn
         // down on purpose) is a stale echo and is ignored via the identity
         // guard, so old sockets can never resurrect the ladder for a newer one.
-        $conn->onConnect = function () use ($deferred, $session): void {
+        $conn->onConnect = function () use ($deferred, $session, $conn): void {
+            if ($conn !== $this->wsConnection) {
+                return;
+            }
+
             $this->connected = true;
             $this->reconnecting = false;
             $this->reconnectAttempts = 0;
@@ -560,7 +569,11 @@ final class SyncPlayService
             $deferred->resolve($session);
         };
 
-        $conn->onMessage = function (AsyncTcpConnection $_connection, string $data): void {
+        $conn->onMessage = function (AsyncTcpConnection $_connection, string $data) use ($conn): void {
+            if ($conn !== $this->wsConnection) {
+                return;
+            }
+
             $this->handleMessage($data);
         };
 
@@ -641,6 +654,24 @@ final class SyncPlayService
      * handlers, close. Intentional exits must never re-arm a reconnect
      * loop nor surface a 'disconnected' event for our own goodbyes.
      */
+    private function detachSocket(?AsyncTcpConnection $conn): void
+    {
+        if ($conn === null) {
+            return;
+        }
+
+        $conn->onConnect = null;
+        $conn->onMessage = null;
+        $conn->onError = null;
+        $conn->onClose = null;
+
+        try {
+            $conn->close();
+        } catch (\Throwable) {
+            // Ignore close errors
+        }
+    }
+
     private function disconnectWebSocket(): void
     {
         $this->reconnecting = false;
@@ -650,17 +681,7 @@ final class SyncPlayService
         $conn = $this->wsConnection;
         $this->wsConnection = null;
 
-        if ($conn !== null) {
-            $conn->onMessage = null;
-            $conn->onError = null;
-            $conn->onClose = null;
-
-            try {
-                $conn->close();
-            } catch (\Throwable) {
-                // Ignore close errors
-            }
-        }
+        $this->detachSocket($conn);
 
         $this->connected = false;
     }
@@ -1029,7 +1050,19 @@ final class SyncPlayService
 
         if ($memberId !== null && $memberName !== null) {
             $user = SyncPlayUser::fromArray(['id' => $memberId, 'name' => $memberName]);
-            $this->members[] = $user;
+            // Upsert by id: a re-sent INFO for a known member must not
+            // duplicate the roster entry.
+            $replaced = false;
+            foreach ($this->members as $i => $existing) {
+                if ($existing->sessionId === $user->sessionId) {
+                    $this->members[$i] = $user;
+                    $replaced = true;
+                    break;
+                }
+            }
+            if (!$replaced) {
+                $this->members[] = $user;
+            }
             ($this->onMemberJoined ?? fn () => null)($user);
         }
     }

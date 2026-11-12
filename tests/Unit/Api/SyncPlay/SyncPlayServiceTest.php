@@ -354,6 +354,25 @@ final class SyncPlayServiceTest extends TestCase
         self::assertSame([false, true], $harness['disconnects'], 'the live drop echoes with reconnecting=true');
     }
 
+    public function testReplacedLiveSocketIsDetachedAndCannotFlipConnectedState(): void
+    {
+        $harness = $this->createLadderHarness();
+        $harness['join']();
+        $first = $harness['connections'][0];
+        $onConnect = $first->onConnect;
+        self::assertIsCallable($onConnect);
+        $onConnect($first);
+
+        // A second dial while the first is still live replaces it.
+        $harness['join']();
+        self::assertSame(2, count($harness['connections']));
+
+        self::assertNull($first->onConnect, 'replaced socket handlers are detached');
+        self::assertNull($first->onMessage);
+        self::assertNull($first->onClose);
+        self::assertNull($first->onError);
+    }
+
     public function testTimeSyncPingTimerIsArmedOnceAndSurvivesReconnects(): void
     {
         $harness = $this->createLadderHarness();
