@@ -102,9 +102,19 @@ final class TrickplayCache
         $api = $this->api;
         $task = static fn (): PromiseInterface => $api->trickplay($mediaId);
 
-        $promise = $this->semaphore !== null
-            ? $this->semaphore->run($task)
-            : $task();
+        try {
+            $promise = $this->semaphore !== null
+                ? $this->semaphore->run($task)
+                : $task();
+        } catch (\Throwable $e) {
+            // A synchronous throw must not leave a stuck inFlight entry and an
+            // unsettled deferred behind [CON-S38]: settle the coalesced promise
+            // as rejected (callers already handle rejection) and drop the entry.
+            unset($this->inFlight[$mediaId]);
+            $deferred->reject($e);
+
+            return $deferred->promise();
+        }
 
         $promise->then(
             function (Trickplay $tp) use ($mediaId, $key, $deferred): void {

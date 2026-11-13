@@ -81,6 +81,47 @@ final class TrickplayCacheTest extends TestCase
         );
     }
 
+    public function testSynchronousThrowClearsInFlightAndRejectsTheDeferred(): void
+    {
+        $transport = new class implements \Phlix\Console\Api\Transport {
+            public int $calls = 0;
+            public bool $boom = true;
+
+            public function send(string $method, string $url, array $headers, string $body): PromiseInterface
+            {
+                $this->calls++;
+                if ($this->boom) {
+                    throw new \RuntimeException('sync boom');
+                }
+
+                return \React\Promise\resolve(new \React\Http\Message\Response(
+                    200,
+                    ['Content-Type' => 'application/json'],
+                    '{"sprite_url":"/sp.jpg","timeline_url":"/tl.json"}',
+                ));
+            }
+        };
+        $api = new ApiClient(self::BASE, $transport);
+        $api->setToken(new TokenBundle('t', 'r'));
+        $cache = new TrickplayCache($api);
+
+        $rejected = null;
+        try {
+            $this->await($cache->load('m1'));
+        } catch (\RuntimeException $e) {
+            $rejected = $e;
+        }
+        self::assertNotNull($rejected, 'the synchronous throw surfaces as a rejection, not a hang');
+        self::assertSame('sync boom', $rejected->getMessage());
+
+        // The entry is not stuck: a retry reaches the transport again and succeeds.
+        $transport->boom = false;
+        $callsBefore = $transport->calls;
+        $tp = $this->await($cache->load('m1'));
+        self::assertInstanceOf(Trickplay::class, $tp);
+        self::assertGreaterThan($callsBefore, $transport->calls, 'no stuck inFlight entry short-circuits the retry');
+    }
+
     /**
      * Read the eviction bound from the class under test rather than mirroring
      * a literal, so the pin survives a future capacity change.

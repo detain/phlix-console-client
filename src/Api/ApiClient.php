@@ -1431,24 +1431,43 @@ final class ApiClient
      */
     private function authed(string $method, string $path, array $query = [], ?array $body = null): PromiseInterface
     {
+        $generation = $this->generation;
+
         return $this->exchange($method, $path, $query, $body, auth: true)->then(
             null,
-            function (\Throwable $error) use ($method, $path, $query, $body): PromiseInterface {
+            function (\Throwable $error) use ($method, $path, $query, $body, $generation): PromiseInterface {
+                self::rejectIfServerChanged($error, $generation, $this->generation);
+
                 if ($error instanceof AuthError && ($this->token?->hasRefreshToken() ?? false)) {
                     return $this->refresh()->then(
                         fn (): PromiseInterface => $this->exchange($method, $path, $query, $body, auth: true),
-                        static fn (\Throwable $refreshError): never => throw new AuthError(
-                            Lang::t('auth.session_expired'),
-                            401,
-                            null,
-                            $refreshError,
-                        ),
+                        function (\Throwable $refreshError) use ($generation): never {
+                            // The server switched while the refresh was in
+                            // flight: this is the OLD server's failure, not
+                            // an expiry of the NEW server's session [CON-S7].
+                            self::rejectIfServerChanged($refreshError, $generation, $this->generation);
+
+                            throw new AuthError(Lang::t('auth.session_expired'), 401, null, $refreshError);
+                        },
                     );
                 }
 
                 throw $error;
             },
         );
+    }
+
+    /**
+     * A failure that settles after setBaseUrl() switched servers belongs to
+     * the OLD connection. An AuthError from it must not reach the App as a
+     * "session expired" for the NEW server (it would bounce the user to
+     * login), so it is re-typed as a non-auth ApiError [CON-S7].
+     */
+    private static function rejectIfServerChanged(\Throwable $error, int $startedOn, int $now): void
+    {
+        if ($startedOn !== $now && $error instanceof AuthError) {
+            throw new ApiError('The server changed while the request was in flight.', 0, null, $error);
+        }
     }
 
     /**
@@ -1460,18 +1479,24 @@ final class ApiClient
      */
     private function retryOnAuthError(\Closure $produce): PromiseInterface
     {
+        $generation = $this->generation;
+
         return $produce()->then(
             null,
-            function (\Throwable $error) use ($produce): PromiseInterface {
+            function (\Throwable $error) use ($produce, $generation): PromiseInterface {
+                self::rejectIfServerChanged($error, $generation, $this->generation);
+
                 if ($error instanceof AuthError && ($this->token?->hasRefreshToken() ?? false)) {
                     return $this->refresh()->then(
                         fn (): PromiseInterface => $produce(),
-                        static fn (\Throwable $refreshError): never => throw new AuthError(
-                            Lang::t('auth.session_expired'),
-                            401,
-                            null,
-                            $refreshError,
-                        ),
+                        function (\Throwable $refreshError) use ($generation): never {
+                            // The server switched while the refresh was in
+                            // flight: this is the OLD server's failure, not
+                            // an expiry of the NEW server's session [CON-S7].
+                            self::rejectIfServerChanged($refreshError, $generation, $this->generation);
+
+                            throw new AuthError(Lang::t('auth.session_expired'), 401, null, $refreshError);
+                        },
                     );
                 }
 

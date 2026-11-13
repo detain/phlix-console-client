@@ -370,7 +370,12 @@ final class HubRelayConsumer
         // design.
         $socket->headers = ['Authorization' => 'Bearer ' . $token];
 
-        $socket->onWebSocketConnect = function (): void {
+        // Every handler ignores a stale echo from a socket this consumer has
+        // already replaced or torn down (identity guard, as SyncPlayService).
+        $socket->onWebSocketConnect = function () use ($socket): void {
+            if ($this->socket !== $socket) {
+                return;
+            }
             // Measured OPEN: Workerman's client Ws protocol fired this only
             // after the 101 response arrived AND its Sec-WebSocket-Accept
             // hash matched the key we sent.
@@ -379,7 +384,10 @@ final class HubRelayConsumer
             $this->setStatus('open');
         };
 
-        $socket->onMessage = function (AsyncTcpConnection $connection, string $data): void {
+        $socket->onMessage = function (AsyncTcpConnection $connection, string $data) use ($socket): void {
+            if ($this->socket !== $socket) {
+                return;
+            }
             $this->handleFrame($data);
         };
 
@@ -388,9 +396,10 @@ final class HubRelayConsumer
         };
 
         $socket->onClose = function () use ($socket): void {
-            if ($this->socket === $socket) {
-                $this->socket = null;
+            if ($this->socket !== $socket) {
+                return;
             }
+            $this->socket = null;
             $this->wsOpen = false;
             $this->setStatus('closed');
             $this->scheduleReconnect();

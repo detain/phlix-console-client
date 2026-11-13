@@ -330,6 +330,7 @@ final class HubRelayConsumerTest extends TestCase
     public function testSupersededSocketDoesNotDispatchLateFrames(): void
     {
         $received = [];
+        $statuses = [];
         $connections = [new RecordingConnection(), new RecordingConnection()];
         $consumer = new HubRelayConsumer(
             hubBaseUrl: 'http://hub.example.com',
@@ -341,17 +342,41 @@ final class HubRelayConsumerTest extends TestCase
             connectionFactory: static function (string $url) use (&$connections): AsyncTcpConnection {
                 return array_shift($connections);
             },
+            onStatusChange: static function (string $status) use (&$statuses): void {
+                $statuses[] = $status;
+            },
         );
 
         $consumer->open();
         $reflection = new \ReflectionProperty($consumer, 'socket');
         $old = $reflection->getValue($consumer);
         self::assertInstanceOf(AsyncTcpConnection::class, $old);
+        // A late echo can still hold the closures captured before the swap.
+        $lateMessage = $old->onMessage;
+        $lateConnect = $old->onWebSocketConnect;
+        $lateClose = $old->onClose;
+        self::assertIsCallable($lateMessage);
+        self::assertIsCallable($lateConnect);
+        self::assertIsCallable($lateClose);
         $consumer->open();
 
+        self::assertNull($old->onConnect, 'superseded socket must have no connect handler');
+        self::assertNull($old->onWebSocketConnect, 'superseded socket must have no websocket-connect handler');
         self::assertNull($old->onMessage, 'superseded socket must have no message handler');
         self::assertNull($old->onError);
         self::assertNull($old->onClose);
+
+        $statusesBefore = $statuses;
+        $lateConnect($old);
+        $lateMessage($old, (string) json_encode([
+            'type' => 'pending_command',
+            'command' => 'play_media',
+            'payload' => ['media_id' => 'late'],
+        ]));
+        $lateClose($old);
+
+        self::assertFalse($consumer->isOpen(), 'a stale websocket-connect must not mark the new socket open');
+        self::assertSame($statusesBefore, $statuses, 'a stale echo emits no status change');
         self::assertSame([], $received);
     }
 

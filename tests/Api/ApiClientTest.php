@@ -385,6 +385,53 @@ final class ApiClientTest extends TestCase
         self::assertInstanceOf(AuthError::class, $outcome);
     }
 
+    public function testOldServerAuthFailureAfterSwitchIsNotASessionExpiredForTheNewServer(): void
+    {
+        $transport = new class () implements \Phlix\Console\Api\Transport {
+            /** @var \React\Promise\Deferred<\Psr\Http\Message\ResponseInterface> */
+            public \React\Promise\Deferred $pending;
+
+            public function send(string $method, string $url, array $headers, string $body): PromiseInterface
+            {
+                $this->pending = new \React\Promise\Deferred();
+
+                return $this->pending->promise();
+            }
+        };
+        $client = new ApiClient(self::BASE, $transport);
+        $client->setToken(new TokenBundle('stale', 'ref-A', 'Bearer', null));
+
+        $outcome = null;
+        $client->libraries()->then(
+            static function () use (&$outcome): void {
+                $outcome = 'resolved';
+            },
+            static function (\Throwable $e) use (&$outcome): void {
+                $outcome = $e;
+            },
+        );
+
+        // Server A answers 401 -> the client starts a refresh against A.
+        $transport->pending->resolve(new \React\Http\Message\Response(401, [], ''));
+
+        // The user switches to server B while A's refresh is in flight.
+        $client->setBaseUrl('https://other.example');
+        $client->setToken(null);
+
+        $transport->pending->resolve(new \React\Http\Message\Response(
+            200,
+            ['Content-Type' => 'application/json'],
+            (string) json_encode($this->authResponse('access-A', 'refresh-A')),
+        ));
+
+        self::assertInstanceOf(\Phlix\Console\Api\ApiError::class, $outcome);
+        self::assertNotInstanceOf(
+            AuthError::class,
+            $outcome,
+            "A's stale failure must not surface as a session-expired AuthError (the App would bounce B to login)",
+        );
+    }
+
     public function testLibrariesMapsList(): void
     {
         $t = (new FakeTransport())->json(200, ['libraries' => [

@@ -373,6 +373,77 @@ final class SyncPlayServiceTest extends TestCase
         self::assertNull($first->onError);
     }
 
+    public function testStaleOnConnectAndOnMessageOnAReplacedSocketAreInert(): void
+    {
+        $harness = $this->createLadderHarness();
+        $harness['join']();
+        $first = $harness['connections'][0];
+        // Capture the handlers BEFORE the replacement detaches them: a late
+        // echo from the old socket can still hold these closures [CON-S25].
+        $staleConnect = $first->onConnect;
+        $staleMessage = $first->onMessage;
+        self::assertIsCallable($staleConnect);
+        self::assertIsCallable($staleMessage);
+
+        $harness['join']();
+        $second = $harness['connections'][1];
+        $membersBefore = $harness['service']->getMembers();
+        $statusBefore = $harness['service']->getSyncStatus();
+
+        $staleConnect($first);
+        $staleMessage($first, \Phlix\Console\Api\SyncPlay\Framing::frame(Messages::TYPE_INFO, [
+            'member_id' => 'ghost',
+            'member_name' => 'Ghost',
+        ]));
+
+        self::assertSame($statusBefore, $harness['service']->getSyncStatus(), 'connected state is not flipped');
+        self::assertSame([], $second->sent, 'a stale connect sends no group_join on the live socket');
+        self::assertEquals($membersBefore, $harness['service']->getMembers(), 'a stale frame does not touch the roster');
+    }
+
+    public function testInfoFrameUpsertsByIdWithoutDuplicatingAndKeepsTheHostFlag(): void
+    {
+        $harness = $this->createLadderHarness();
+        $harness['join']();
+        /** @var RecordingConnection $conn */
+        $conn = $harness['connections'][0];
+        $onConnect = $conn->onConnect;
+        $onMessage = $conn->onMessage;
+        self::assertIsCallable($onConnect);
+        self::assertIsCallable($onMessage);
+        $onConnect($conn);
+
+        $info = static fn (string $id, string $name): string => \Phlix\Console\Api\SyncPlay\Framing::frame(
+            Messages::TYPE_INFO,
+            ['member_id' => $id, 'member_name' => $name],
+        );
+
+        // Seed the roster through the real GROUP_STATE path so the host is in it.
+        $onMessage($conn, \Phlix\Console\Api\SyncPlay\Framing::frame(Messages::TYPE_GROUP_STATE, [
+            'group' => [
+                'host_id' => 'member_host',
+                'members' => [['id' => 'member_host', 'name' => 'Host One', 'is_host' => true]],
+            ],
+        ]));
+        $before = count($harness['service']->getMembers());
+        self::assertSame(1, $before, 'the host is on the roster');
+
+        // A brand-new member is appended once, however often INFO repeats.
+        $onMessage($conn, $info('member_new', 'Newcomer'));
+        $onMessage($conn, $info('member_new', 'Newcomer'));
+        self::assertCount($before + 1, $harness['service']->getMembers(), 'a duplicate id is not appended');
+
+        // A re-sent INFO for the HOST renames but preserves isHost (CON-S26).
+        $onMessage($conn, $info('member_host', 'Host Renamed'));
+        $byId = [];
+        foreach ($harness['service']->getMembers() as $member) {
+            $byId[$member->sessionId] = $member;
+        }
+        self::assertCount($before + 1, $byId, 'the upsert replaced in place');
+        self::assertSame('Host Renamed', $byId['member_host']->displayName);
+        self::assertTrue($byId['member_host']->isHost, 'the host flag survives the upsert');
+    }
+
     public function testTimeSyncPingTimerIsArmedOnceAndSurvivesReconnects(): void
     {
         $harness = $this->createLadderHarness();

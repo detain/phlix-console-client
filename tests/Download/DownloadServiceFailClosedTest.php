@@ -365,6 +365,34 @@ final class DownloadServiceFailClosedTest extends TestCase
         self::assertSame([], DiskFullStreamWrapper::$files);
         self::assertFalse($body->isReadable(), 'the body is closed at the breach');
     }
+    public function testAnOversizeDeclaredLengthClosesTheBody(): void
+    {
+        $body = new ThroughStream();
+        $service = new DownloadService(
+            browser: $this->stubBrowser(resolve($this->response(
+                ['Content-Type' => 'video/mp4', 'Content-Length' => '9999'],
+                $body,
+            ))),
+            maxBytes: 8,
+            loop: new FakeClockLoop(),
+        );
+        [, $rejected] = $this->start($service);
+
+        $this->assertSingleRejection($rejected, 'declared 9999 bytes');
+        self::assertFalse($body->isReadable(), 'the refused body is closed, not left streaming');
+    }
+
+    public function testATmpFopenFailureClosesTheBody(): void
+    {
+        $this->useDiskFullRoot();
+        DiskFullStreamWrapper::$openFails = true;
+        $body = new ThroughStream();
+        $service = $this->service($body, ['Content-Type' => 'video/mp4']);
+        [, $rejected] = $this->start($service);
+
+        $this->assertSingleRejection($rejected, 'Cannot open temporary file');
+        self::assertFalse($body->isReadable(), 'nowhere to write: the body is closed');
+    }
 }
 
 /**
@@ -382,6 +410,9 @@ final class DiskFullStreamWrapper
 
     public static bool $writeReturnsFalse = false;
 
+    /** Make fopen() of any path through the wrapper fail (unwritable root). */
+    public static bool $openFails = false;
+
     public static ?int $byteBudget = null;
 
     public static int $bytesWritten = 0;
@@ -395,12 +426,16 @@ final class DiskFullStreamWrapper
     {
         self::$files = [];
         self::$writeReturnsFalse = false;
+        self::$openFails = false;
         self::$byteBudget = null;
         self::$bytesWritten = 0;
     }
 
     public function stream_open(string $path, string $mode, int $options, ?string &$openedPath): bool // phpcs:ignore
     {
+        if (self::$openFails) {
+            return false;
+        }
         $this->path = $path;
         self::$files[$path] = '';
 

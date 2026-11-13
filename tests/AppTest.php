@@ -2140,6 +2140,55 @@ final class AppTest extends TestCase
         self::assertInstanceOf(\Phlix\Console\Msg\ShowToastMsg::class, $msg);
     }
 
+    /**
+     * CON-S6: drive SettingsSavedMsg through a REAL Program (scheduleCmd ->
+     * AsyncCmd -> promise -> dispatch), not by calling the Cmd by hand: the
+     * PUT must go out and a failed PUT must surface as the warning toast.
+     */
+    public function testSettingsSavedRunsThroughARealProgramAndSyncsToTheServer(): void
+    {
+        foreach ([false, true] as $failPut) {
+            $transport = (new FakeTransport())->json(200, [
+                'access_token' => 'a', 'refresh_token' => 'r', 'token_type' => 'Bearer', 'expires_in' => 3600,
+                'user' => ['id' => 'u1', 'username' => 'joe', 'is_admin' => 0, 'status' => 'active'],
+            ]);
+            $failPut ? $transport->fail(new \RuntimeException('boom')) : $transport->json(200, ['settings' => (object) []]);
+            [$app, $auth] = $this->makeApp('https://srv', $transport);
+            $this->await($auth->login('joe', 'secret'));
+            [$browse] = $app->update(new LoginSucceededMsg($auth->currentUser() ?? AuthUser::fromArray([])));
+            [$settings] = $browse->update(new OpenSettingsMsg());
+
+            $loop = new StreamSelectLoop();
+            // select()able input (a memory stream is not): one end of a socket pair.
+            $pair = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP)
+                ?: throw new \RuntimeException('socket pair unavailable');
+            $program = new Program($settings, new ProgramOptions(
+                input: $pair[0],
+                output: fopen('php://memory', 'r+') ?: throw new \RuntimeException('memory stream unavailable'),
+                loop: $loop,
+                windowSize: ['cols' => 100, 'rows' => 30],
+            ));
+            $program->send(new SettingsSavedMsg('Midnight', 10));
+            $loop->addTimer(0.3, static fn () => $program->quit());
+
+            $final = $program->run();
+            fclose($pair[0]);
+            fclose($pair[1]);
+
+            $label = $failPut ? 'failing PUT' : 'ok PUT';
+            self::assertCount(2, $transport->requests, "$label: login + the settings PUT went out through the Program");
+            self::assertSame('PUT', $transport->requests[1]['method']);
+            if ($failPut) {
+                // The toast wraps inside its box: look for the clause, not the line.
+                self::assertStringContainsString(
+                    'Settings saved locally',
+                    \SugarCraft\Core\Util\Ansi::strip($final->view()),
+                    'the failed PUT surfaced as the warning toast through the Program',
+                );
+            }
+        }
+    }
+
     public function testSettingsSavedKeepsTheServerUrlInThePersistedConfig(): void
     {
         [$settings] = $this->browsing()->update(new OpenSettingsMsg());
