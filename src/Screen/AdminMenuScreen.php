@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Screen;
 
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenAdminSectionMsg;
 use Phlix\Console\Route;
@@ -45,33 +46,33 @@ final class AdminMenuScreen implements Breadcrumbed, Themed
 
     /**
      * The full admin section set, in display order. Each entry is the section's
-     * label, the {@see Route} to push when selected, and whether it is available
+     * label catalog key, the {@see Route} to push when selected, and whether it is available
      * (every surface is now wired, so all are available — the keys are kept for a
      * stable section schema and the App's routing).
      *
-     * @var list<array{label: string, route: ?Route, available: bool}>
+     * @var list<array{key: string, route: ?Route, available: bool}>
      */
     private const SECTIONS = [
-        ['label' => 'Dashboard', 'route' => Route::AdminDashboard, 'available' => true],
-        ['label' => 'Users', 'route' => Route::AdminUsers, 'available' => true],
-        ['label' => 'Server Settings', 'route' => Route::AdminSettings, 'available' => true],
-        ['label' => 'Transcoding', 'route' => Route::AdminTranscoding, 'available' => true],
-        ['label' => 'Plugins', 'route' => Route::AdminPlugins, 'available' => true],
-        ['label' => 'Plugin Updates', 'route' => Route::AdminPluginUpdate, 'available' => true],
-        ['label' => 'Libraries', 'route' => Route::AdminLibraries, 'available' => true],
-        ['label' => 'Logs', 'route' => Route::AdminLogs, 'available' => true],
-        ['label' => 'Backup', 'route' => Route::AdminBackup, 'available' => true],
-        ['label' => 'DLNA', 'route' => Route::AdminDlna, 'available' => true],
-        ['label' => 'Remote Access', 'route' => Route::AdminRemote, 'available' => true],
-        ['label' => 'Live TV', 'route' => Route::AdminLiveTv, 'available' => true],
-        ['label' => 'Parental Controls', 'route' => Route::AdminParentalControls, 'available' => true],
-        ['label' => 'Metrics', 'route' => Route::AdminMetrics, 'available' => true],
-        ['label' => 'Watch History', 'route' => Route::AdminWatchHistory, 'available' => true],
-        ['label' => 'Duplicates', 'route' => Route::AdminDuplicates, 'available' => true],
-        ['label' => 'Webhooks', 'route' => Route::AdminWebhooks, 'available' => true],
-        ['label' => 'Auth Providers', 'route' => Route::AdminAuthProviders, 'available' => true],
-        ['label' => 'Server Restart', 'route' => Route::AdminServerRestart, 'available' => true],
-        ['label' => 'Filesystem', 'route' => Route::AdminFilesystem, 'available' => true],
+        ['key' => 'adminmenu.dashboard', 'route' => Route::AdminDashboard, 'available' => true],
+        ['key' => 'adminmenu.users', 'route' => Route::AdminUsers, 'available' => true],
+        ['key' => 'adminmenu.settings', 'route' => Route::AdminSettings, 'available' => true],
+        ['key' => 'adminmenu.transcoding', 'route' => Route::AdminTranscoding, 'available' => true],
+        ['key' => 'adminmenu.plugins', 'route' => Route::AdminPlugins, 'available' => true],
+        ['key' => 'adminmenu.plugin_updates', 'route' => Route::AdminPluginUpdate, 'available' => true],
+        ['key' => 'adminmenu.libraries', 'route' => Route::AdminLibraries, 'available' => true],
+        ['key' => 'adminmenu.logs', 'route' => Route::AdminLogs, 'available' => true],
+        ['key' => 'adminmenu.backup', 'route' => Route::AdminBackup, 'available' => true],
+        ['key' => 'adminmenu.dlna', 'route' => Route::AdminDlna, 'available' => true],
+        ['key' => 'adminmenu.remote', 'route' => Route::AdminRemote, 'available' => true],
+        ['key' => 'adminmenu.live_tv', 'route' => Route::AdminLiveTv, 'available' => true],
+        ['key' => 'adminmenu.parental', 'route' => Route::AdminParentalControls, 'available' => true],
+        ['key' => 'adminmenu.metrics', 'route' => Route::AdminMetrics, 'available' => true],
+        ['key' => 'adminmenu.watch_history', 'route' => Route::AdminWatchHistory, 'available' => true],
+        ['key' => 'adminmenu.duplicates', 'route' => Route::AdminDuplicates, 'available' => true],
+        ['key' => 'adminmenu.webhooks', 'route' => Route::AdminWebhooks, 'available' => true],
+        ['key' => 'adminmenu.auth_providers', 'route' => Route::AdminAuthProviders, 'available' => true],
+        ['key' => 'adminmenu.restart', 'route' => Route::AdminServerRestart, 'available' => true],
+        ['key' => 'adminmenu.filesystem', 'route' => Route::AdminFilesystem, 'available' => true],
     ];
 
     private int $selected = 0;
@@ -157,7 +158,7 @@ final class AdminMenuScreen implements Breadcrumbed, Themed
     {
         $rows = [];
         foreach (self::SECTIONS as $section) {
-            $rows[] = [$section['label'], 'Available'];
+            $rows[] = [Lang::t($section['key']), 'Available'];
         }
 
         return Table::render([
@@ -199,7 +200,7 @@ final class AdminMenuScreen implements Breadcrumbed, Themed
     /** The selected section's label (e.g. "Dashboard"). */
     public function selectedLabel(): string
     {
-        return self::SECTIONS[$this->selected]['label'];
+        return Lang::t(self::SECTIONS[$this->selected]['key']);
     }
 
     /**
@@ -209,6 +210,13 @@ final class AdminMenuScreen implements Breadcrumbed, Themed
      */
     public function sections(): array
     {
-        return self::SECTIONS;
+        return array_map(
+            static fn (array $s): array => [
+                'label' => Lang::t($s['key']),
+                'route' => $s['route'],
+                'available' => $s['available'],
+            ],
+            self::SECTIONS,
+        );
     }
 }

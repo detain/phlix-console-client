@@ -55,22 +55,33 @@ final class LocaleCatalogsTest extends TestCase
         // 'player.hint_sleep' is the glyph-only countdown token ('  z ⏰ ') —
         // there is no word to translate, so every locale mirrors en byte-for-
         // byte (review M-CONSOLE-64; same class as the asc/desc order labels).
+        // CON-S19 admin-menu section names that are product/protocol terms identical
+        // across languages (DLNA, Webhooks, Plugins, Logs, Backup, Dashboard).
         // CON-S17 cognates identical to en by nature: es 'Error', fr 'Public',
         // de/it 'Server: {url}', de 'Name:'.
-        'es' => ['filter.order_asc', 'filter.order_desc', 'player.hint_sleep', 'syncplay.modal_error_title'],
+        'es' => [
+            'adminmenu.dlna', 'adminmenu.webhooks', 'filter.order_asc', 'filter.order_desc',
+            'player.hint_sleep', 'syncplay.modal_error_title',
+        ],
         'fr' => [
+            'adminmenu.dlna', 'adminmenu.webhooks',
             'filter.order_asc', 'filter.order_desc', 'filter.sort_genre',
             'palette.collections', 'palette.photos', 'player.hint_sleep', 'syncplay.modal_public',
         ],
         'de' => [
+            'adminmenu.dashboard', 'adminmenu.plugins', 'adminmenu.dlna', 'adminmenu.webhooks',
             'filter.order_asc', 'filter.order_desc', 'player.hint_sleep',
             'settings.server_line', 'syncplay.modal_name_label',
         ],
         'it' => [
+            'adminmenu.dashboard', 'adminmenu.backup', 'adminmenu.dlna',
             'detail.cast_label', 'filter.order_asc', 'filter.order_desc', 'player.hint_sleep',
             'settings.server_line',
         ],
-        'pt-br' => ['detail.item', 'filter.order_asc', 'filter.order_desc', 'library.items_one', 'player.hint_sleep'],
+        'pt-br' => [
+            'adminmenu.plugins', 'adminmenu.logs', 'adminmenu.backup', 'adminmenu.dlna', 'adminmenu.webhooks',
+            'detail.item', 'filter.order_asc', 'filter.order_desc', 'library.items_one', 'player.hint_sleep',
+        ],
         'ja' => ['player.hint_sleep'],
     ];
 
@@ -669,6 +680,26 @@ final class LocaleCatalogsTest extends TestCase
                 $ja[$key],
                 "ja: '{$key}' mixes an ASCII colon+space fragment into a full-width catalog (review #9)."
             );
+        }
+    }
+
+    /**
+     * CON-20: the empty-library admin hint names the palette entry and the
+     * Libraries section by placeholder, so it always matches the on-screen
+     * menu wording in every locale.
+     */
+    public function testNoLibrariesAdminSentenceMatchesOnScreenMenuInEveryLocale(): void
+    {
+        foreach (['en', 'de', 'es', 'fr', 'it', 'pt-br', 'ja'] as $locale) {
+            $cat = $this->catalog($locale);
+            self::assertStringContainsString('{admin}', $cat['browse.no_libraries_admin'], $locale);
+            self::assertStringContainsString('{libraries}', $cat['browse.no_libraries_admin'], $locale);
+            $sentence = strtr($cat['browse.no_libraries_admin'], [
+                '{admin}' => $cat['palette.admin'],
+                '{libraries}' => $cat['adminmenu.libraries'],
+            ]);
+            self::assertStringContainsString($cat['palette.admin'] . ' → ' . $cat['adminmenu.libraries'], $sentence, $locale);
+            self::assertStringNotContainsString('{', $sentence, $locale);
         }
     }
 

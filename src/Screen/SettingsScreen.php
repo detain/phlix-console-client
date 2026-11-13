@@ -9,8 +9,8 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Screen;
 
-use Phlix\Console\I18n\Lang;
 use Phlix\Console\Config\Config;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\LogoutMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\OpenServersMsg;

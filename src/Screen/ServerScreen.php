@@ -9,8 +9,8 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Screen;
 
-use Phlix\Console\I18n\Lang;
 use Phlix\Console\Config\Config;
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\RequestQuitMsg;
 use Phlix\Console\Msg\SubmitServerMsg;
 use Phlix\Console\Ui\Chrome;

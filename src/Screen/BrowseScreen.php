@@ -225,7 +225,10 @@ final class BrowseScreen implements Breadcrumbed, Themed
                 $body = "\n  " . Truncate::withEllipsis("Welcome, {$name}.", $this->cols - 6)
                     . "\n\n  " . Truncate::withEllipsis(Lang::t('browse.no_libraries'), $this->cols - 6)
                     . "\n  " . Truncate::withEllipsis(
-                        $this->user->isAdmin ? Lang::t('browse.no_libraries_admin') : Lang::t('browse.no_libraries_member'),
+                        $this->user->isAdmin ? Lang::t('browse.no_libraries_admin', [
+                            'admin' => Lang::t('palette.admin'),
+                            'libraries' => Lang::t('adminmenu.libraries'),
+                        ]) : Lang::t('browse.no_libraries_member'),
                         $this->cols - 6,
                     );
                 $hint = Lang::t('browse.hint_refresh_quit');

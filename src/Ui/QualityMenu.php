@@ -9,8 +9,8 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Ui;
 
-use Phlix\Console\I18n\Lang;
 use Phlix\Console\Api\Dto\Rendition;
+use Phlix\Console\I18n\Lang;
 use SugarCraft\Panels\SugarPanels;
 use SugarCraft\Style\Style;
 use SugarCraft\Overlay\Position;
