@@ -782,6 +782,27 @@ try {
             }
             echo "Server URL: " . ($serverUrl ?? '(none)') . "\n";
             echo "\n";
+            echo "PHP extensions:\n";
+            foreach (['gd', 'intl', 'mbstring', 'ffi', 'json', 'curl', 'pcntl'] as $extName) {
+                echo sprintf("  %-9s: %s\n", $extName, extension_loaded($extName) ? 'loaded' : 'MISSING');
+            }
+            echo "External tools (PATH):\n";
+            $pathDirs = array_filter(explode(PATH_SEPARATOR, (string) getenv('PATH')));
+            foreach (['ffmpeg', 'ffplay', 'mpv'] as $tool) {
+                $found = null;
+                foreach ($pathDirs as $pathDir) {
+                    $candidate = $pathDir . DIRECTORY_SEPARATOR . $tool;
+                    if (is_file($candidate) && is_executable($candidate)) {
+                        $found = $candidate;
+                        break;
+                    }
+                }
+                echo sprintf("  %-9s: %s\n", $tool, $found ?? 'not found');
+            }
+            echo "Colour output: " . (Theme::colorSuppressed()
+                ? 'suppressed (NO_COLOR set or basic/unset TERM)'
+                : 'enabled') . "\n";
+            echo "\n";
             // [CU-053] the default survey is env-only: doctor must never write
             // probe queries into the user's terminal. The live DA1/XTWINOPS
             // probe (retired from default paths, CONSOLIDATED M17) rides behind
@@ -789,6 +810,9 @@ try {
             echo (new Capabilities())->report(in_array('--probe', $argv, true)), "\n";
             echo "\n";
             echo "Poster cache directory: {$cacheDir}\n";
+            if (!is_dir($cacheDir) || !is_writable($cacheDir)) {
+                echo "Poster cache WARN: directory is missing or not writable — posters will not be cached\n";
+            }
             echo "Poster cache entry limit: {$cacheEntries}\n";
             echo "Poster cache current entries: " . $posterCache->count() . "\n";
 

@@ -127,7 +127,7 @@ final class Capabilities
             'Phlix console — terminal capabilities',
             str_repeat('-', 38),
             sprintf('  Render protocol : %s', $d['protocol']),
-            sprintf('  Protocol source : %s', $liveProbe ? 'live DA1/XTWINOPS query' : 'environment (no terminal was queried)'),
+            sprintf('  Protocol source : %s', $liveProbe ? 'live DA1/XTWINOPS query' : 'environment (+terminfo database)'),
             sprintf('  Color profile   : %s', $d['colorProfile']),
             sprintf('  TERM            : %s', $d['term'] !== '' ? $d['term'] : '(unset)'),
             sprintf('  Inside tmux     : %s', $yn($d['tmux'])),

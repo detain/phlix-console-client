@@ -263,7 +263,7 @@ account as pending, and one with signups disabled says so.
 | --- | --- |
 | `run [--mode=NAME] [--selftest]` | Launch the full-window app (needs a TTY). `--selftest` walks the wiring ladder headless and exits — config loaded, object graph wired (container build, boot, player factory), server reachable over HTTP, response JSON decoded. There is no renderer rung. |
 | `watch [--hub URL] [--server-id ID] [--once] [--timeout SECS]` | Consume hub-relay `play_media` deliveries, headless (see below). |
-| `doctor` | Print terminal, extension, config and server diagnostics; also names the token and poster-cache paths to remove. |
+| `doctor [--probe]` | Print terminal, extension (gd/intl/mbstring/ffi/json/curl/pcntl), ffmpeg/ffplay/mpv PATH, colour, config and server diagnostics; `--probe` opts into the live DA1/XTWINOPS terminal query (writes escape sequences to the terminal); also names the token and poster-cache paths to remove. |
 | `poster <image> [w] [h]` | Render one image at a cell size and exit — graphics-protocol probe. |
 | `frame <video\|gif> [n] [cols] [rows]` | Decode N video frames to ANSI and exit. |
 | `version` (`-V` / `--version`) | Print the client version stamp. |
@@ -360,6 +360,9 @@ follow the terminal's character set.
 ```sh
 # List what your terminal supports
 bin/phlix doctor
+
+# Same, but actively query the terminal (writes escape sequences to it)
+bin/phlix doctor --probe
 
 # Force halfblock mode explicitly
 bin/phlix run --mode=halfblock

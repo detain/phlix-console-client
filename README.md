@@ -270,7 +270,8 @@ back). **Books** — a cover grid → a detail screen with a copyable download U
 
 ```sh
 # What can this terminal render?
-bin/phlix doctor
+bin/phlix doctor            # env snapshot + extensions + PATH probes
+bin/phlix doctor --probe    # also run the live terminal query
 
 # Render an image at 40 cells wide (safe cell renderer by default)
 bin/phlix poster /path/to/poster.jpg 40
