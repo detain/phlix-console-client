@@ -76,7 +76,7 @@ src/
 │   ├── Dto/                # Typed Data Transfer Objects
 │   │   ├── MediaItem.php, Library.php, Album.php, Book.php, Coerce.php, etc.
 │   └── SyncPlay/           # SyncPlay (group watch) client
-├── Screen/                 # All TUI screens (85 files) + their contracts
+├── Screen/                 # All TUI screens (86 files) + their contracts
 │   ├── Loadable.php        # Interface: screen is loading its first data
 │   ├── Themed.php          # Interface: App may hand the theme to the screen
 │   ├── ThemedScreen.php    # Trait: implements Themed (clone-mutate)
@@ -135,9 +135,11 @@ src/
 ├── Msg/                    # Message classes (internal events, ~280 files)
 │   ├── LoginSucceededMsg.php, LoginFailedMsg.php
 │   ├── OpenDetailMsg.php, PlayRequestedMsg.php, etc.
-└── SugarCraft/
-    └── Screen/             # Local patches/wrappers for SugarCraft libs
 ```
+
+There is no `src/SugarCraft/` tree: SugarCraft is consumed as vendored
+libraries, and local patches to them are catalogued in
+`docs/vendor-patches.md`.
 
 ## Key Classes
 
@@ -599,10 +601,10 @@ Add `error_log()` in `App.php`'s `dispatch()` arms temporarily.
 bin/phlix doctor
 ```
 
-### Configure the server non-interactively
+### Environment variables
 
-There is no request-tracing env var; the shipped `PHLIX_*` variables are
-`PHLIX_SERVER_URL` (server override for `run`) and
+There is no request-tracing env var. The `PHLIX_*` variables the client reads
+are `PHLIX_SERVER_URL` (server override for `run`) and
 `PHLIX_POSTER_CACHE_ENTRIES` (disk-cache size). The `watch` relay entrypoint
 additionally reads `PHLIX_HUB_URL`, `PHLIX_HUB_SERVER_ID`, `PHLIX_HUB_TOKEN`,
 and `PHLIX_RELAY_TOKEN`. Inside `src/`, `PHLIX_POSTER_CONCURRENCY` caps
