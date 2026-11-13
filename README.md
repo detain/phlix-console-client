@@ -96,6 +96,8 @@ Issues and questions:
   tests self-skip without it.
 - **ffmpeg** + **ffprobe** (video decode + frame grabs).
 - **ffplay** or **mpv** (audio playback — video, music, audiobooks).
+- A terminal of at least **80×24** (designed size). Below the hard floor of
+  **20×9** the client shows a "Terminal too small" notice instead of the UI.
 - A terminal with **sixel** or the **kitty**/**iTerm2** graphics protocol is
   recommended; **half-block** is the universal colour fallback (any UTF-8
   locale renders it — the UI's glyphs assume UTF-8 throughout).

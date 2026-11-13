@@ -171,7 +171,7 @@ permanent for device-class clients, not a stopgap awaiting cookie custody.
 | --- | --- | --- |
 | `id` | uuid | Entry identifier |
 | `label` | `Server` | Name shown in the server switcher |
-| `url` | — | API base URL (e.g. `https://host:8096` — the HTTP worker) |
+| `url` | — | API base URL (e.g. `https://host:8096` or, on a LAN, `http://192.168.1.20:8096` — the HTTP worker) |
 | `hub_id` | unset | Hub this server belongs to (relay/remote features) |
 | `ws_port` | `8097` | Dedicated SyncPlay WebSocket port: the client dials `ws(s)://{host}:{ws_port}/syncplay/{room}` and carries the JWT in the `Sec-WebSocket-Protocol: bearer, <jwt>` handshake header (never in the URL). Keep the stock `8097` — the `:8096` HTTP worker never upgrades WebSockets. |
 
@@ -230,7 +230,7 @@ forms, the settings screens, server management, album and photo screens, the
 hub-sharing screens and the typed-confirm prompts render English
 hard-coded strings; on those screens only the shared expiry/error sentence
 localizes. The authoritative per-screen list lives in [the i18n
-guide](../i18n.md) under “Remaining Screens”.
+guide](../i18n.md) under "Remaining Screens".
 
 The contributor-side story (adding screens, adding locales)
 is in [the i18n guide](../i18n.md).
@@ -347,7 +347,7 @@ is simply not treated as a mode (it falls to the defaults silently). Forms:
 `--mode=NAME`, `--mode NAME`, or a bare `NAME` as the final argument to
 `run`/`poster`/`frame` — the bare form counts only names that command accepts.
 
-A note on the character set: “universal” above means colour and protocol
+A note on the character set: "universal" above means colour and protocol
 reach, not glyph reach. The block-drawing ramp (▀ ▘▝▖▗ ░) and the UI's
 punctuation glyphs (`⏎` for Enter, `›` in breadcrumbs, the middle-elision
 ` … `, rating/danger marks) are all non-ASCII and need a UTF-8 locale to
@@ -404,15 +404,17 @@ statement about what the terminal can draw.
   grid grows, the newly revealed cells are fetched immediately rather than
   sitting blank until the next keypress.
 - Small and basic setups:
-
-- The interface is designed for at least **80×24**. Below that nothing
-  crashes: the body area is `rows − 8` lines deep (floored at zero) and the
-  status hint line is fitted by whole-word middle elision (` … ` marks the
-  gap) while each hint's safety key — `q  quit`, `Esc  back` — stays anchored
-  at the end.
-- Posters never need colour or graphics protocols: `bin/phlix doctor` reports
-  what your terminal supports, and `bin/phlix run --mode=ascii` renders
-  posters as a monochrome character ramp on any terminal.
+  - The interface is designed for at least **80×24**. Below that it degrades:
+    the body area is `rows − 8` lines deep (floored at zero) and the status
+    hint line is fitted by whole-word middle elision (` … ` marks the gap)
+    while each hint's safety key — `q  quit`, `Esc  back` — stays anchored at
+    the end. Below the hard floor of **20×9** the frame is replaced by a plain
+    notice, `Terminal too small. Have W×H — Phlix needs at least 20×9.` plus
+    `Resize the window to continue.`; the app keeps running and redraws as
+    soon as the window grows back.
+  - Posters never need colour or graphics protocols: `bin/phlix doctor`
+    reports what your terminal supports, and `bin/phlix run --mode=ascii`
+    renders posters as a monochrome character ramp on any terminal.
 - Themes are chosen on the **Settings** screen and follow your account; an
   unknown stored value falls back to Nocturne rather than failing. The two
   non-default themes exist for terminals the default palette cannot serve:
