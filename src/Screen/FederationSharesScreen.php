@@ -69,6 +69,8 @@ final class FederationSharesScreen implements Model, Breadcrumbed, Themed, Loada
     use SelectsPrevious;
 
     private const HINT = 'q/Esc  back      ↑↓  navigate      r  revoke';
+    /** Failed-load hint: names only keys the error state arms [CON-44]. */
+    private const ERROR_HINT = 'r  retry      q/Esc  back';
 
     /** @var list<array<string, mixed>> */
     private array $items = [];
@@ -149,7 +151,7 @@ final class FederationSharesScreen implements Model, Breadcrumbed, Themed, Loada
         return Chrome::frame(
             'Federation Shares',
             $this->body(),
-            self::HINT,
+            $this->error !== null ? self::ERROR_HINT : self::HINT,
             $this->cols,
             $this->rows,
             $this->crumbs,
@@ -221,6 +223,11 @@ final class FederationSharesScreen implements Model, Breadcrumbed, Themed, Loada
 
         if ($msg->type === KeyType::Down || ($msg->type === KeyType::Char && $msg->rune === 'j')) {
             return $this->selectNext();
+        }
+
+        if ($this->error !== null && $msg->type === KeyType::Char && $msg->rune === 'r') {
+            // Failed load: 'r' is the retry the error hint publishes [CON-44].
+            return [$this->pending(), $this->fetchCmd()];
         }
 
         if ($msg->type === KeyType::Char && $msg->rune === 'r') {

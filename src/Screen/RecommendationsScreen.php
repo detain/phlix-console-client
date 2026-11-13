@@ -38,6 +38,7 @@ use SugarCraft\Core\SubscriptionCapable;
 final class RecommendationsScreen implements Model, Teardownable, CapturesSlash, Themed, TakesModifierChords, Loadable, Shimmering
 {
     use SubscriptionCapable;
+    use RetriesFailedLoad;
     use ThemedScreen;
     use ShimmeringScreen;
     use ResizesTo;
@@ -118,7 +119,7 @@ final class RecommendationsScreen implements Model, Teardownable, CapturesSlash,
         return Chrome::frame(
             Lang::t('recommendations.title'),
             $this->body(),
-            Lang::t('recommendations.hint'),
+            $this->error !== null ? Lang::t('recommendations.error_hint') : Lang::t('recommendations.hint'),
             $this->cols,
             $this->rows,
             $this->crumbs,
@@ -139,6 +140,12 @@ final class RecommendationsScreen implements Model, Teardownable, CapturesSlash,
             || ($msg->type === KeyType::Char && ($msg->rune === 'q' || $msg->rune === 'Q'))
         ) {
             return [$this, Cmd::send(new NavigateBackMsg())];
+        }
+
+        // 'r' retries a failed load [CON-44]: the error hint publishes it, so the
+        // arm must exist. Inert otherwise.
+        if ($this->error !== null && $msg->type === KeyType::Char && ($msg->rune === 'r' || $msg->rune === 'R')) {
+            return $this->retryLoad();
         }
 
         if ($msg->type === KeyType::Up || ($msg->type === KeyType::Char && $msg->rune === 'k')) {

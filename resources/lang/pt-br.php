@@ -39,6 +39,7 @@ return [
     // ---- RecommendationsScreen ----------------------------------------
     'recommendations.title' => 'Para você',
     'recommendations.hint' => 'q  voltar      ↑↓  navegar      ⏎  abrir      x  dispensar',
+    'recommendations.error_hint' => 'r  tentar de novo      q  voltar',
     'recommendations.load_failed' => 'Não foi possível carregar as recomendações.',
     'recommendations.loading' => 'Carregando recomendações…',
     'recommendations.empty' => "Ainda não há recomendações.\n  Comece a assistir para receber sugestões personalizadas!",

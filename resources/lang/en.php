@@ -31,6 +31,7 @@ return [
     // ---- RecommendationsScreen ----------------------------------------
     'recommendations.title' => 'For You',
     'recommendations.hint' => 'q  back      ↑↓  navigate      ⏎  open      x  dismiss',
+    'recommendations.error_hint' => 'r  retry      q  back',
     'recommendations.load_failed' => 'Could not load the recommendations.',
     'recommendations.loading' => 'Loading recommendations…',
     'recommendations.empty' => "No recommendations yet.\n  Start watching to get personalized suggestions!",

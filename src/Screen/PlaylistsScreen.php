@@ -48,6 +48,8 @@ final class PlaylistsScreen implements Model, Teardownable, Breadcrumbed, Themed
     use WindowedList;
 
     private const HINT = 'q  back      ↑↓  navigate      ⏎  open      a/r  web only      d  delete';
+    /** Failed-load hint: names only keys the error state arms [CON-44]. */
+    private const ERROR_HINT = 'r  retry      q/Esc  back';
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load the playlists.';
     private const ADD_ITEM_NOT_IMPLEMENTED = 'Item add/remove happens on the server web portal — not in the console.';
@@ -122,7 +124,7 @@ final class PlaylistsScreen implements Model, Teardownable, Breadcrumbed, Themed
         return Chrome::frame(
             'Playlists',
             $this->body(),
-            self::HINT,
+            $this->error !== null ? self::ERROR_HINT : self::HINT,
             $this->cols,
             $this->rows,
             $this->crumbs,
@@ -160,6 +162,15 @@ final class PlaylistsScreen implements Model, Teardownable, Breadcrumbed, Themed
         // 'a' - Add item to playlist (not available from list view)
         if ($msg->type === KeyType::Char && $msg->rune === 'a') {
             return [$this, Cmd::send(ShowToastMsg::info(self::ADD_ITEM_NOT_IMPLEMENTED))];
+        }
+
+        // Failed load: 'r' is the retry the error hint publishes [CON-44].
+        if ($this->error !== null && $msg->type === KeyType::Char && $msg->rune === 'r') {
+            $next = clone $this;
+            $next->error = null;
+            $next->loading = true;
+
+            return [$next, $this->init()];
         }
 
         // 'r' - Remove item from playlist (not available from list view)

@@ -34,6 +34,7 @@ return [
     // ---- RecommendationsScreen ----------------------------------------
     'recommendations.title' => 'Per te',
     'recommendations.hint' => 'q  indietro      ↑↓  sfoglia      ⏎  apri      x  ignora',
+    'recommendations.error_hint' => 'r  riprova      q  indietro',
     'recommendations.load_failed' => 'Impossibile caricare i consigli.',
     'recommendations.loading' => 'Caricamento consigli…',
     'recommendations.empty' => "Ancora nessun consiglio.\n  Inizia a guardare per ricevere suggerimenti personalizzati!",

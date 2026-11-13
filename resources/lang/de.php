@@ -34,6 +34,7 @@ return [
     // ---- RecommendationsScreen ----------------------------------------
     'recommendations.title' => 'Für dich',
     'recommendations.hint' => 'q  zurück      ↑↓  navigieren      ⏎  öffnen      x  verwerfen',
+    'recommendations.error_hint' => 'r  erneut versuchen      q  zurück',
     'recommendations.load_failed' => 'Empfehlungen konnten nicht geladen werden.',
     'recommendations.loading' => 'Empfehlungen werden geladen…',
     'recommendations.empty' => "Noch keine Empfehlungen.\n  Fange an zu schauen, um personalisierte Vorschläge zu erhalten!",

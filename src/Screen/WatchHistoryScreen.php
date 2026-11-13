@@ -38,6 +38,7 @@ use SugarCraft\Core\Util\Width;
 final class WatchHistoryScreen implements Model, Teardownable, Breadcrumbed, Themed, Loadable, Shimmering
 {
     use SubscriptionCapable;
+    use RetriesFailedLoad;
     use ThemedScreen;
     use ShimmeringScreen;
     use ResizesTo;
@@ -46,6 +47,8 @@ final class WatchHistoryScreen implements Model, Teardownable, Breadcrumbed, The
     use WindowedList;
 
     private const HINT = 'q  back      ↑↓  navigate      ⏎  open';
+    /** Failed-load hint: names only keys the error state arms [CON-44]. */
+    private const ERROR_HINT = 'r  retry      q  back';
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_FAILED = 'Could not load the watch history.';
 
@@ -109,7 +112,7 @@ final class WatchHistoryScreen implements Model, Teardownable, Breadcrumbed, The
         return Chrome::frame(
             'Recently Watched',
             $this->body(),
-            self::HINT,
+            $this->error !== null ? self::ERROR_HINT : self::HINT,
             $this->cols,
             $this->rows,
             $this->crumbs,
@@ -135,6 +138,12 @@ final class WatchHistoryScreen implements Model, Teardownable, Breadcrumbed, The
             || ($msg->type === KeyType::Char && ($msg->rune === 'q' || $msg->rune === 'Q'))
         ) {
             return [$this, Cmd::send(new NavigateBackMsg())];
+        }
+
+        // 'r' retries a failed load [CON-44]: the error hint publishes it, so the
+        // arm must exist. Inert otherwise.
+        if ($this->error !== null && $msg->type === KeyType::Char && ($msg->rune === 'r' || $msg->rune === 'R')) {
+            return $this->retryLoad();
         }
 
         if ($msg->type === KeyType::Up || ($msg->type === KeyType::Char && $msg->rune === 'k')) {

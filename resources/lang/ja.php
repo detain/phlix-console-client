@@ -34,6 +34,7 @@ return [
     // ---- RecommendationsScreen ----------------------------------------
     'recommendations.title' => 'おすすめ',
     'recommendations.hint' => 'q  戻る      ↑↓  移動      ⏎  開く      x  非表示',
+    'recommendations.error_hint' => 'r  再試行      q  戻る',
     'recommendations.load_failed' => 'おすすめを読み込めませんでした。',
     'recommendations.loading' => 'おすすめを読み込み中…',
     'recommendations.empty' => "まだおすすめはありません。\n  視聴を始めると、あなた向けの提案が表示されます！",

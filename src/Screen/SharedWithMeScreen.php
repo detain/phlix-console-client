@@ -65,6 +65,8 @@ final class SharedWithMeScreen implements Model, Breadcrumbed, Themed, Loadable,
     use SelectsPrevious;
 
     private const HINT = 'q/Esc  back      ↑↓  navigate      a  accept      r  reject';
+    /** Failed-load hint: names only keys the error state arms [CON-44]. */
+    private const ERROR_HINT = 'r  retry      q/Esc  back';
 
     /** @var list<array<string, mixed>> */
     private array $items = [];
@@ -145,7 +147,7 @@ final class SharedWithMeScreen implements Model, Breadcrumbed, Themed, Loadable,
         return Chrome::frame(
             'Shared With Me',
             $this->body(),
-            self::HINT,
+            $this->error !== null ? self::ERROR_HINT : self::HINT,
             $this->cols,
             $this->rows,
             $this->crumbs,
@@ -222,6 +224,11 @@ final class SharedWithMeScreen implements Model, Breadcrumbed, Themed, Loadable,
 
         if ($msg->type === KeyType::Char && $msg->rune === 'a') {
             return $this->answerSelected('accept');
+        }
+
+        if ($this->error !== null && $msg->type === KeyType::Char && $msg->rune === 'r') {
+            // Failed load: 'r' is the retry the error hint publishes [CON-44].
+            return [$this->pending(), $this->fetchCmd()];
         }
 
         if ($msg->type === KeyType::Char && $msg->rune === 'r') {

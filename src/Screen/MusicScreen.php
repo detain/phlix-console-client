@@ -50,6 +50,8 @@ final class MusicScreen implements Breadcrumbed, Themed, Loadable, Shimmering
 
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const HINT = '↑↓  select      ⏎  open      Esc  back';
+    /** Failed-load hint: names only keys the error state arms [CON-44]. */
+    private const ERROR_HINT = 'r  retry      Esc  back';
     // Fixed columns; the flex Album column fills whatever is left.
     private const ARTIST_WIDTH = 22;
     private const YEAR_WIDTH = 6;
@@ -118,6 +120,10 @@ final class MusicScreen implements Breadcrumbed, Themed, Loadable, Shimmering
      */
     private function hint(): string
     {
+        if ($this->error !== null) {
+            return self::ERROR_HINT;
+        }
+
         $count = $this->total > 0 ? $this->total : count($this->albums);
 
         return self::HINT . Table::positionIndicator($count, $this->selected);
@@ -130,6 +136,15 @@ final class MusicScreen implements Breadcrumbed, Themed, Loadable, Shimmering
     {
         if ($msg->type === KeyType::Escape || ($msg->type === KeyType::Char && $msg->rune === 'q')) {
             return [$this, Cmd::send(new NavigateBackMsg())];
+        }
+        if ($this->error !== null && $msg->type === KeyType::Char && ($msg->rune === 'r' || $msg->rune === 'R')) {
+            // Failed load: 'r' is the retry the error hint publishes [CON-44].
+            $next = clone $this;
+            $next->error = null;
+            $next->loaded = false;
+            $next->requestedRange = [0, $this->initialWindowEnd()];
+
+            return [$next, $this->init()];
         }
         if ($msg->type === KeyType::Enter) {
             $album = $this->albums[$this->selected] ?? null;

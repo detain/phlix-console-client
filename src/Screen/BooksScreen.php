@@ -72,6 +72,8 @@ final class BooksScreen implements Breadcrumbed, Loadable, Shimmering, Themed
     private const SESSION_EXPIRED_KEY = 'auth.session_expired';
     private const LOAD_MORE_FAILED = "Could not load more books.";
     private const HINT = '↑↓←→  move      ⏎  open      Esc  back';
+    /** Failed-load hint: names only keys the error state arms [CON-44]. */
+    private const ERROR_HINT = 'r  retry      Esc  back';
 
     private PosterGrid $grid;
     private bool $loaded = false;
@@ -137,7 +139,7 @@ final class BooksScreen implements Breadcrumbed, Loadable, Shimmering, Themed
     public function view(): string
     {
         if ($this->error !== null) {
-            return Chrome::frame($this->name, "\n  {$this->error}", self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
+            return Chrome::frame($this->name, "\n  {$this->error}", self::ERROR_HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
         }
 
         if (!$this->loaded) {
@@ -168,6 +170,14 @@ final class BooksScreen implements Breadcrumbed, Loadable, Shimmering, Themed
     {
         if ($msg->type === KeyType::Escape) {
             return [$this, Cmd::send(new NavigateBackMsg())];
+        }
+        if ($this->error !== null && $msg->type === KeyType::Char && ($msg->rune === 'r' || $msg->rune === 'R')) {
+            // Failed load: 'r' is the retry the error hint publishes [CON-44].
+            $next = clone $this;
+            $next->error = null;
+            $next->requestedRange = [0, $this->initialWindowEnd()];
+
+            return [$next, $this->init()];
         }
         if ($msg->type === KeyType::Enter) {
             $card = $this->grid->cursorCard();
