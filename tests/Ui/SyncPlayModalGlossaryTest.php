@@ -8,8 +8,10 @@ use Phlix\Console\Api\Dto\SyncPlayGroup;
 use Phlix\Console\Ui\SyncPlayModal;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Phlix\Console\I18n\Lang;
 use SugarCraft\Core\I18n\T;
 use SugarCraft\Core\Util\Ansi;
+use SugarCraft\Core\Util\Width;
 
 /**
  * One canonical group noun per language (CON-19 / CON-28).
@@ -76,6 +78,11 @@ final class SyncPlayModalGlossaryTest extends TestCase
             'list' => Ansi::strip($list->render('')),
             'create' => Ansi::strip($create->render('')),
             'joining' => Ansi::strip($list->joining()->render('')),
+            // The error state: the composed context the PlayerScreen hands the
+            // modal speaks the same glossary term [CON-S18].
+            'error' => Ansi::strip($list->withError(
+                Lang::t('syncplay.ctx_join_failed') . ': ' . Lang::t('syncplay.group_full'),
+            )->render('')),
         ];
     }
 
@@ -115,5 +122,52 @@ final class SyncPlayModalGlossaryTest extends TestCase
 
         self::assertStringContainsString(' Create watch group ', $screen, 'panel title');
         self::assertStringContainsString('  Create watch group', $screen, 'bold header');
+    }
+
+    #[DataProvider('locales')]
+    public function testEveryRoomFlowSentenceSpeaksTheGroupTermAndNeverSaysRoom(string $locale): void
+    {
+        T::setLocale($locale);
+
+        foreach (['ctx_load_failed', 'ctx_create_failed', 'ctx_join_failed', 'default_group_name', 'status_not_in_group'] as $key) {
+            $text = Lang::t('syncplay.' . $key);
+            self::assertMatchesRegularExpression(self::GROUP_TERMS[$locale], $text, "$locale: $key");
+            self::assertDoesNotMatchRegularExpression('/\brooms?\b/iu', $text, "$locale: $key says room");
+        }
+    }
+
+    /**
+     * At MIN_WIDTH (a ~38-column terminal) the longest localized strings used
+     * to wrap and the de panel title clipped mid-word [CON-S18]. Every row now
+     * fits the box and any cut is an ellipsis, never a mid-word clip.
+     */
+    #[DataProvider('locales')]
+    public function testMinWidthRenderFitsTheBoxInEveryState(string $locale): void
+    {
+        T::setLocale($locale);
+
+        $rooms = [new SyncPlayGroup('g1', 'A very long watch group name indeed', true, 3)];
+        $list = SyncPlayModal::open($rooms, 38, 24);
+        [$create] = $list->select();
+        $states = [
+            'list' => $list,
+            'create' => $create,
+            'joining' => $list->joining(),
+            'error' => $list->withError(Lang::t('syncplay.ctx_join_failed') . ': ' . Lang::t('syncplay.group_full')),
+        ];
+        $width = $list->dims()['width'];
+        self::assertSame(30, $width, 'MIN_WIDTH geometry');
+
+        foreach ($states as $state => $modal) {
+            foreach (explode("\n", Ansi::strip($modal->render(''))) as $line) {
+                self::assertLessThanOrEqual($width, Width::string(rtrim($line)), "$locale/$state row overflows: $line");
+            }
+        }
+
+        $title = explode("\n", Ansi::strip($create->render('')))[0];
+        if ($locale === 'de') {
+            self::assertStringNotContainsString('erst ', $title, 'de title is not clipped mid-word');
+            self::assertStringContainsString('…', $title, 'the long de title is ellipsised');
+        }
     }
 }

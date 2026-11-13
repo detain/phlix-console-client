@@ -15,6 +15,7 @@ use Phlix\Console\Api\Dto\SyncPlaySession;
 use Phlix\Console\Api\Dto\SyncPlayPlaybackCommand;
 use Phlix\Console\Api\Dto\SyncPlayUser;
 use Phlix\Console\I18n\ExceptionSentences;
+use Phlix\Console\I18n\Lang;
 use React\EventLoop\LoopInterface;
 use React\EventLoop\TimerInterface;
 use React\Promise\Deferred;
@@ -236,19 +237,19 @@ final class SyncPlayService
     public function getSyncStatus(): string
     {
         if (!$this->isInRoom()) {
-            return 'Not in room';
+            return Lang::t('syncplay.status_not_in_group');
         }
 
         if (!$this->connected) {
-            return 'Connecting…';
+            return Lang::t('syncplay.status_connecting');
         }
 
         if ($this->playbackState === 'playing') {
-            return 'Synced';
+            return Lang::t('syncplay.status_synced');
         }
 
         if ($this->playbackState === 'paused') {
-            return 'Paused';
+            return Lang::t('syncplay.status_paused');
         }
 
         return 'Ready';

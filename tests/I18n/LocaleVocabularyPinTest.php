@@ -45,6 +45,31 @@ final class LocaleVocabularyPinTest extends TestCase
         }
     }
 
+    /**
+     * Whole-catalog register pin [CON-S20 minor]: the three-key browse pin
+     * only caught leakage where it was looked for. de/es/it speak the
+     * informal register in EVERY value; fr speaks the formal one.
+     *
+     * @return array<string, array{string, string}>
+     */
+    public static function registers(): array
+    {
+        return [
+            'de informal' => ['de', '/\b(Sie|Ihre|Ihren|Ihrem|Ihrer|Ihres|Ihr|Ihnen)\b/u'],
+            'es informal' => ['es', '/\busted(?:es)?\b|\b(?:Pulse|Pida|Introduzca|Seleccione|Escriba|Elija|Verifique|Compruebe|Espere|Inicie|Intente|Utilice)\b/iu'],
+            'it informal' => ['it', '/\b(?:Lei|Suo|Sua|Suoi|Sue|Premere|Inserisca|Selezioni|Verifichi|Riprovi|Prema|Attenda|Scelga|Digiti)\b/u'],
+            'fr formal' => ['fr', '/\b(?:tu|ton|ta|tes|toi|Tu|Ton|Ta|Tes)\b/u'],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('registers')]
+    public function testWholeCatalogKeepsItsAddressRegister(string $locale, string $leak): void
+    {
+        foreach ($this->cat($locale) as $key => $value) {
+            self::assertDoesNotMatchRegularExpression($leak, $value, "$locale $key leaks the other register");
+        }
+    }
+
     public function testGermanPluralsDifferFromSingulars(): void
     {
         $c = $this->cat('de');

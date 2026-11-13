@@ -252,7 +252,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
     /** The current SyncPlay member count for overlay display. */
     private int $syncPlayMemberCount = 0;
     /** The current SyncPlay sync status for overlay display. */
-    private string $syncPlayStatus = 'Not in room';
+    private string $syncPlayStatus = '';
     /**
      * Pending SyncPlay events to process on the next update cycle. A single
      * \ArrayObject handle SHARED by reference across every clone of this screen:
@@ -301,6 +301,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
         $this->syncPlayService = $syncPlayService;
         $this->pendingSyncPlayEvents = new \ArrayObject();
         $this->sleepTimer = new SleepTimer();
+        $this->syncPlayStatus = Lang::t('syncplay.status_not_in_group');
         $this->initSyncPlay();
     }
 
@@ -413,9 +414,11 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
     {
         $this->pendingSyncPlayEvents[] = $event;
         while (count($this->pendingSyncPlayEvents) > self::SYNCPLAY_EVENT_CAP) {
-            $items = $this->pendingSyncPlayEvents->getArrayCopy();
-            array_shift($items);
-            $this->pendingSyncPlayEvents->exchangeArray($items);
+            // O(1) drop of the oldest entry (no whole-queue array copy).
+            foreach ($this->pendingSyncPlayEvents as $key => $_) {
+                unset($this->pendingSyncPlayEvents[$key]);
+                break;
+            }
         }
     }
 
@@ -2188,7 +2191,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
         $loadRooms = Cmd::promise(
             fn (): PromiseInterface => $this->api->listSyncPlayGroups()->then(
                 static fn (array $rooms): Msg => new SyncPlayGroupsLoadedMsg($rooms),
-                static fn (\Throwable $e): Msg => new SyncPlayFailedMsg(ExceptionSentences::composed('Could not load rooms', $e)),
+                static fn (\Throwable $e): Msg => new SyncPlayFailedMsg(ExceptionSentences::composed(Lang::t('syncplay.ctx_load_failed'), $e, 'Could not load rooms')),
             ),
         );
 
@@ -2275,7 +2278,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
                                 1,
                             ));
                         },
-                        static fn (\Throwable $e): Msg => new SyncPlayFailedMsg(ExceptionSentences::composed('Could not create room', $e)),
+                        static fn (\Throwable $e): Msg => new SyncPlayFailedMsg(ExceptionSentences::composed(Lang::t('syncplay.ctx_create_failed'), $e, 'Could not create room')),
                     ),
                 );
 
@@ -2288,12 +2291,12 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
                     static function ($session): Msg {
                         return new SyncPlayJoinedMsg(new SyncPlayGroup(
                             $session->roomId,
-                            'Room',
+                            Lang::t('syncplay.default_group_name'),
                             true,
                             1,
                         ));
                     },
-                    static fn (\Throwable $e): Msg => new SyncPlayFailedMsg(ExceptionSentences::composed('Could not join room', $e)),
+                    static fn (\Throwable $e): Msg => new SyncPlayFailedMsg(ExceptionSentences::composed(Lang::t('syncplay.ctx_join_failed'), $e, 'Could not join room')),
                 ),
             );
 
@@ -2360,7 +2363,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
         $next->syncPlayModal = null;
         $next->syncPlayRoomName = $room->name;
         $next->syncPlayMemberCount = $room->memberCount;
-        $next->syncPlayStatus = 'Connecting…';
+        $next->syncPlayStatus = Lang::t('syncplay.status_connecting');
 
         // The socket join is async and its rejection used to be discarded —
         // every failed join vanished silently. Route it through the Cmd
@@ -2385,7 +2388,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
         $next->syncPlayModal = null;
         $next->syncPlayRoomName = null;
         $next->syncPlayMemberCount = 0;
-        $next->syncPlayStatus = 'Not in room';
+        $next->syncPlayStatus = Lang::t('syncplay.status_not_in_group');
 
         $this->syncPlayService->leaveRoom();
 
@@ -2457,17 +2460,17 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
         switch ($command->type) {
             case 'pause':
                 $next->inner = $this->inner->pause();
-                $next->syncPlayStatus = 'Paused';
+                $next->syncPlayStatus = Lang::t('syncplay.status_paused');
                 break;
 
             case 'play':
                 $next->inner = $this->inner->play();
-                $next->syncPlayStatus = 'Synced';
+                $next->syncPlayStatus = Lang::t('syncplay.status_synced');
                 break;
 
             case 'seek':
                 $next->inner = $this->inner->seekToSeconds($positionSeconds);
-                $next->syncPlayStatus = 'Synced';
+                $next->syncPlayStatus = Lang::t('syncplay.status_synced');
                 break;
         }
 
@@ -2509,7 +2512,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
     private function onSyncPlayDisconnected(bool $wasIntentional): array
     {
         $next = clone $this;
-        $next->syncPlayStatus = $wasIntentional ? 'Not in room' : 'Reconnecting…';
+        $next->syncPlayStatus = $wasIntentional ? Lang::t('syncplay.status_not_in_group') : Lang::t('syncplay.status_reconnecting');
 
         return [$next, null];
     }

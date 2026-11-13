@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Screen;
 
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\KeyReference;
@@ -29,8 +30,6 @@ final class KeyHelpScreen implements Model, Breadcrumbed, Themed
     use SubscriptionCapable;
     use ThemedScreen;
     use ResizesTo;
-
-    private const HINT = 'Esc  back      ↑/↓  scroll';
 
     private int $offset = 0;
 
@@ -90,9 +89,9 @@ final class KeyHelpScreen implements Model, Breadcrumbed, Themed
         $slice = array_slice($lines, $this->clampOffset($this->offset), $height);
 
         return Chrome::frame(
-            'Keyboard shortcuts',
+            Lang::t('keys.title'),
             "\n" . implode("\n", $slice),
-            self::HINT,
+            Lang::t('keys.hint'),
             $this->cols,
             $this->rows,
             $this->crumbs,
@@ -102,7 +101,7 @@ final class KeyHelpScreen implements Model, Breadcrumbed, Themed
 
     public function crumbLabel(): string
     {
-        return 'Keyboard shortcuts';
+        return Lang::t('keys.title');
     }
 
     /** @param list<string> $trail */

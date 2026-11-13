@@ -39,4 +39,19 @@ final class KeyReferenceTest extends TestCase
         self::assertStringContainsString('Command palette', $lines);
         self::assertStringContainsString('?', $lines);
     }
+
+    /** The overlay's title and hint ride the catalog, not literals [CON-S16]. */
+    public function testKeyHelpTitleAndHintAreLocalized(): void
+    {
+        \SugarCraft\Core\I18n\T::reset();
+        \SugarCraft\Core\I18n\T::setLocale('de');
+        try {
+            $view = \SugarCraft\Core\Util\Ansi::strip((new \Phlix\Console\Screen\KeyHelpScreen(100, 30))->view());
+            self::assertStringContainsString('Tastenkürzel', $view);
+            self::assertStringContainsString('zurück', $view);
+            self::assertStringNotContainsString('Keyboard shortcuts', $view);
+        } finally {
+            \SugarCraft\Core\I18n\T::reset();
+        }
+    }
 }

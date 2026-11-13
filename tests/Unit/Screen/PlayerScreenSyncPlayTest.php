@@ -247,6 +247,32 @@ final class PlayerScreenSyncPlayTest extends TestCase
         $this->assertLessThanOrEqual(256, count($q->getValue($screen)));
     }
 
+    /** Overflow drops the OLDEST events and keeps the newest, in order [CON-S1]. */
+    public function testPendingQueueDropsTheOldestWhenFull(): void
+    {
+        $screen = $this->createScreen();
+        $ref = new \ReflectionClass($screen);
+        $svc = $ref->getProperty('syncPlayService');
+        $svc->setAccessible(true);
+        $service = $svc->getValue($screen);
+        $p = (new \ReflectionClass($service))->getProperty('onMemberLeft');
+        $p->setAccessible(true);
+        /** @var \Closure $cb */
+        $cb = $p->getValue($service);
+        for ($i = 0; $i < 300; $i++) {
+            $cb('m' . $i);
+        }
+        $q = $ref->getProperty('pendingSyncPlayEvents');
+        $q->setAccessible(true);
+        $ids = array_map(
+            static fn ($m) => $m->memberId,
+            array_values($q->getValue($screen)->getArrayCopy()),
+        );
+        $this->assertCount(256, $ids);
+        $this->assertSame('m44', $ids[0], 'the 44 oldest events were dropped');
+        $this->assertSame('m299', $ids[255], 'the newest event is retained');
+    }
+
     /**
      * Drive a server-shaped syncplay_error frame through the screen's real
      * wire path: service handleMessage -> onError closure -> queued toast.

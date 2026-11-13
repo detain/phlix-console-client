@@ -15,6 +15,7 @@ use SugarCraft\Panels\SugarPanels;
 use SugarCraft\Style\Style;
 use SugarCraft\Overlay\Position;
 use SugarCraft\Overlay\Veil;
+use SugarCraft\Core\Util\Width;
 
 /**
  * The SyncPlay room creation/join modal. A multi-section form that allows:
@@ -292,55 +293,72 @@ final class SyncPlayModal
         return $next;
     }
 
+    /**
+     * Indent $text and ellipsise it to the panel interior. At MIN_WIDTH the
+     * longest localized strings (de) are wider than the box: they used to
+     * wrap or clip mid-word, so every row is fitted to the cells it owns
+     * (border 2 + indent + 1 margin) instead [CON-S18].
+     */
+    private function fit(string $text, int $indent = 2): string
+    {
+        return str_repeat(' ', $indent) . Truncate::withEllipsis($text, $this->winWidth - 2 - $indent - 1);
+    }
+
+    /** Panel-title variant: the title sits between two spaces on the top border. */
+    private function fitTitle(string $title): string
+    {
+        return Truncate::withEllipsis($title, $this->winWidth - 6);
+    }
+
     private function renderRoomsList(): string
     {
         $lines = [];
 
         // Header
-        $lines[] = Style::new()->bold()->render('  SyncPlay');
+        $lines[] = Style::new()->bold()->render($this->fit('SyncPlay'));
 
         // Public groups section. Every group-noun line routes through the
         // syncplay.modal_* catalog keys so the modal speaks the same glossary
         // term as the syncplay.* error lines (en 'watch group'; CON-19/CON-28).
         $lines[] = '';
-        $lines[] = '  ' . Lang::t('syncplay.modal_public_groups');
+        $lines[] = $this->fit(Lang::t('syncplay.modal_public_groups'));
 
         $roomCount = count($this->rooms);
         $maxItems = min($roomCount, self::MAX_ROOMS_SHOWN);
 
         if ($roomCount === 0) {
-            $lines[] = '    ' . Lang::t('syncplay.modal_none');
+            $lines[] = $this->fit(Lang::t('syncplay.modal_none'), 4);
         } else {
             for ($i = 0; $i < $maxItems; $i++) {
                 $room = $this->rooms[$i];
                 $listIndex = $i + 1; // 0 is "Create new room"
                 $isSelected = $this->cursor === $listIndex;
-                $label = sprintf(
-                    '  %s  %s (%d)',
+                $label = $this->fit(sprintf(
+                    '%s  %s (%d)',
                     $isSelected ? '▶' : ' ',
                     $room->name,
                     $room->memberCount,
-                );
+                ));
                 $lines[] = $isSelected
                     ? Style::new()->reverse()->render($label)
                     : $label;
             }
 
             if ($roomCount > self::MAX_ROOMS_SHOWN) {
-                $lines[] = '    ' . Lang::t('syncplay.modal_more', ['count' => $roomCount - self::MAX_ROOMS_SHOWN]);
+                $lines[] = $this->fit(Lang::t('syncplay.modal_more', ['count' => $roomCount - self::MAX_ROOMS_SHOWN]), 4);
             }
         }
 
         // Create new room option
         $listIndex = 0;
         $isSelected = $this->cursor === $listIndex;
-        $label = '  ' . Lang::t('syncplay.modal_create_new');
+        $label = $this->fit(Lang::t('syncplay.modal_create_new'));
         $lines[] = $isSelected
             ? Style::new()->reverse()->render($label)
             : $label;
 
         $lines[] = '';
-        $lines[] = '  ' . Lang::t('syncplay.modal_hint_list');
+        $lines[] = $this->fit(Lang::t('syncplay.modal_hint_list'));
 
         $body = implode("\n", $lines);
 
@@ -356,7 +374,7 @@ final class SyncPlayModal
         $lines = [];
 
         $createTitle = Lang::t('syncplay.modal_create_title');
-        $lines[] = Style::new()->bold()->render('  ' . $createTitle);
+        $lines[] = Style::new()->bold()->render($this->fit($createTitle));
         $lines[] = '';
 
         // Room name input — display head gets the panel-fit budget (the
@@ -373,16 +391,16 @@ final class SyncPlayModal
 
         // Public/private toggle
         $pubLabel = $this->isPublic ? '◉ ' . Lang::t('syncplay.modal_public') : '○ ' . Lang::t('syncplay.modal_private');
-        $lines[] = '  [P] ' . $pubLabel;
+        $lines[] = $this->fit('[P] ' . $pubLabel);
 
         $lines[] = '';
-        $lines[] = '  ' . Lang::t('syncplay.modal_hint_create');
-        $lines[] = '  ' . Lang::t('syncplay.modal_hint_cancel');
+        $lines[] = $this->fit(Lang::t('syncplay.modal_hint_create'));
+        $lines[] = $this->fit(Lang::t('syncplay.modal_hint_cancel'));
 
         $body = implode("\n", $lines);
 
         return SugarPanels::new()->render(
-            SugarPanels::new()->leaf($body)->withBorder(true)->withPadding(0)->withTitle(' ' . $createTitle . ' '),
+            SugarPanels::new()->leaf($body)->withBorder(true)->withPadding(0)->withTitle(' ' . $this->fitTitle($createTitle) . ' '),
             $this->winWidth,
             $this->winHeight,
         );
@@ -392,7 +410,7 @@ final class SyncPlayModal
     {
         $lines = [];
         $lines[] = '';
-        $lines[] = '  ' . Lang::t('syncplay.modal_joining');
+        $lines[] = $this->fit(Lang::t('syncplay.modal_joining'));
         $lines[] = '';
 
         $body = implode("\n", $lines);
@@ -407,11 +425,15 @@ final class SyncPlayModal
     private function renderError(): string
     {
         $lines = [];
-        $lines[] = Style::new()->bold()->render('  ' . Lang::t('syncplay.modal_error_title'));
+        $lines[] = Style::new()->bold()->render($this->fit(Lang::t('syncplay.modal_error_title')));
         $lines[] = '';
-        $lines[] = '  ' . ($this->error ?? Lang::t('syncplay.modal_error_default'));
+        // The error is the one row that carries information, so it wraps
+        // (word boundaries) rather than ellipsising.
+        foreach (explode("\n", Width::wrap($this->error ?? Lang::t('syncplay.modal_error_default'), $this->winWidth - 5)) as $row) {
+            $lines[] = '  ' . $row;
+        }
         $lines[] = '';
-        $lines[] = '  ' . Lang::t('syncplay.modal_press_key');
+        $lines[] = $this->fit(Lang::t('syncplay.modal_press_key'));
 
         $body = implode("\n", $lines);
 
