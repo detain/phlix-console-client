@@ -197,7 +197,7 @@ terminal width itself (`Chrome::fitHint`): past the borderless status leaf's
 capacity (`cols - 2` cells) whole words from both ends are kept and the dropped
 middle is marked ` … `, so the trailing safety keys (`Esc  back`, `q  quit`)
 stay readable on narrow terminals — screens pass their full hint and never
-pre-truncate (M-CONSOLE-45).
+pre-truncate.
 
 ### `Config` (`src/Config/Config.php`)
 
@@ -567,7 +567,7 @@ reachability against the configured server.
 - User-facing account vocabulary is **sign in / sign out** everywhere: the
   catalogs (`auth.*`), the command-palette labels in `App::staticActions()`,
   and the docs all spell it the same way — do not mix in "log out"/"log in"
-  for surfaces the user reads (review M-CONSOLE-89)
+  for surfaces the user reads
 - Docblocks where the contract is not obvious from the signature —
   types and names carry the rest (measured coverage is nowhere near
   "all public methods", so the guide no longer claims it [m61])

@@ -118,8 +118,8 @@ the terminal's measured cell pixel size.
 ## Testing
 
 Graphics output is tested against the protocol bytes a terminal would
-actually receive. The earlier hand-made "decoder" doubles were removed as
-theater — they replayed canned frames and proved nothing about the wire
+actually receive. The earlier hand-made "decoder" doubles were removed because
+they replayed canned frames and proved nothing about the wire
 format:
 
 - `tests/Graphics/PosterGraphicsStreamTest.php` renders real poster mosaics

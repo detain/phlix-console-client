@@ -38,8 +38,8 @@ usage:
                     (tokens: env PHLIX_*_TOKEN or --hub-token-stdin / --relay-token-stdin)
   phlix run [--mode=…] [--selftest]         launch the full-window app (needs a TTY and a full-screen TERM);
                                             --selftest runs the wiring ladder headless
-  phlix version  (-V / --version)           print version information
-  phlix help     (-h / --help)              show this help message
+  phlix version  (-V|--version)            print version information
+  phlix help     (-h|--help)               show this help message
 
 render modes:
   halfblock | quarterblock | ascii | ansi256 | truecolor (cell modes)

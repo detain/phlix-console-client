@@ -38,7 +38,7 @@ ancestor checks against each repository's current `master`):
   counts and ancestor verdicts above remain as measured 2026-10-29.
 
 A tag pin is therefore not available: pinning one would freeze code upstream
-itself abandoned (off-mainline, 4–85 commits stale) and cannot coherently
+itself abandoned (off the main line, 4–85 commits stale) and cannot coherently
 interoperate with 25 siblings pinned to moving `dev-master` anyway. The estate
 has no push access to create proper tags (a coordinated upstream retag
 cascade is out of scope for this repository), so `dev-master` is the only
