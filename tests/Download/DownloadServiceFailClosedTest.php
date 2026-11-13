@@ -113,6 +113,11 @@ final class DownloadServiceFailClosedTest extends TestCase
             ) {
             }
 
+            public function getStatusCode(): int
+            {
+                return 200;
+            }
+
             public function getHeaderLine(string $name): string
             {
                 return $this->headers[$name] ?? '';

@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Download;
 
+use Phlix\Console\Api\BrowserTransport;
 use Phlix\Console\Api\ServerAuthority;
 use React\EventLoop\Loop;
 use React\EventLoop\LoopInterface;
@@ -96,6 +97,9 @@ final class DownloadService
      */
     private const FILENAME_PATTERN = '/^[\w. ()\[\]-]{1,120}$/';
 
+    /** Redirect hops followed before the download is refused. */
+    private const MAX_REDIRECTS = 5;
+
     /** The media-id shape the fallback name trusts. */
     private const MEDIA_ID_PATTERN = '/^[\w-]{1,64}$/';
 
@@ -121,12 +125,50 @@ final class DownloadService
         ?LoopInterface $loop = null,
         float $idleTimeout = self::STREAM_IDLE_TIMEOUT_SECONDS,
     ) {
-        $this->browser = $browser ?? new Browser();
+        // Redirects are followed by hand (see fetch()) so every hop re-runs the
+        // media-authority law [CON-4]; an injected Browser is the test seam.
+        $this->browser = $browser ?? (new Browser())->withFollowRedirects(false);
         $this->downloadDir = $this->resolveDownloadDir();
         $this->serverBase = $serverBase;
         $this->maxBytes = max(1, $maxBytes);
         $this->loop = $loop;
         $this->idleTimeout = $idleTimeout > 0 ? $idleTimeout : self::STREAM_IDLE_TIMEOUT_SECONDS;
+    }
+
+    /**
+     * Streaming GET that follows redirects per hop [review CON-4]: every
+     * Location is resolved and re-checked with {@see ServerAuthority::trusted()}
+     * before it is requested, so an authorised host cannot bounce the client to
+     * an arbitrary one. No Authorization header is ever sent (signed URLs).
+     *
+     * @return PromiseInterface<\Psr\Http\Message\ResponseInterface>
+     */
+    private function fetch(string $url, int $hop): PromiseInterface
+    {
+        return $this->browser->requestStreaming('GET', $url)->then(
+            function ($response) use ($url, $hop) {
+                $status = $response->getStatusCode();
+                $location = $response->getHeaderLine('Location');
+                if ($status < 300 || $status >= 400 || $location === '') {
+                    return $response;
+                }
+                $response->getBody()->close();
+                $next = BrowserTransport::resolveLocation($url, $location);
+                $untrusted = $next === null
+                    || ($this->serverBase !== null && !ServerAuthority::trusted($this->serverBase, $next));
+                if ($next === null || $untrusted) {
+                    throw new DownloadException(
+                        'Download refused: the server redirected outside the configured server.',
+                        0,
+                    );
+                }
+                if ($hop >= self::MAX_REDIRECTS) {
+                    throw new DownloadException('Download refused: too many redirects.', 0);
+                }
+
+                return $this->fetch($next, $hop + 1);
+            },
+        );
     }
 
     /**
@@ -192,7 +234,7 @@ final class DownloadService
         $deferred = new Deferred();
 
         // Use ReactPHP browser to make the streaming request
-        $this->browser->requestStreaming('GET', $signedUrl)
+        $this->fetch($signedUrl, 0)
             ->then(
                 function ($response) use ($filepath, $filename, $deferred): void {
                     // Get content length if available. A declared length is a

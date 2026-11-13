@@ -98,6 +98,11 @@ final class DownloadServiceHardeningTest extends TestCase
             ) {
             }
 
+            public function getStatusCode(): int
+            {
+                return 200;
+            }
+
             public function getHeaderLine(string $name): string
             {
                 return $this->headers[$name] ?? '';
@@ -330,6 +335,11 @@ final class DownloadServiceHardeningTest extends TestCase
         // Duck-typed response whose body is NOT a React stream (no `on()`) —
         // exactly the shape the service refuses.
         $response = new class {
+            public function getStatusCode(): int
+            {
+                return 200;
+            }
+
             public function getHeaderLine(string $name): string
             {
                 return '';
