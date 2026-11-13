@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Phlix\Console\Tests;
 
 use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * Tests for the bin/phlix CLI entry point.
@@ -636,10 +637,9 @@ final class BinPhlixTest extends TestCase
     }
 
     /**
-     * @dataProvider removedArgvCarrierProvider
-     *
      * @param list<string> $flags
      */
+    #[DataProvider('removedArgvCarrierProvider')]
     public function testWatchArgvSecretFlagsAreRefusedWithMigrationHint(
         array $flags,
         string $secret,

@@ -12,6 +12,7 @@ text carries the user-visible effect first; ids stay in the bullets or the headi
 ## [Unreleased]
 
 ### Changed
+- Development dependencies upgraded: PHPUnit 11 to 12 (test suite migrated from docblock annotations to attributes), plus the rest of the Composer tree (guzzle, symfony, sebastian and phpunit components) refreshed; the `sugarcraft/*` dev-master pins are left at their locked refs. GitHub Actions (checkout, setup-php, upload/download-artifact, action-gh-release) bumped to their latest pinned majors. PHPUnit 13 is not adopted because it needs PHP 8.4 and the declared floor is 8.3.
 - Favorites, Watch history, Playlists, Shared with me, Federation shares, Invite links, Recommendations and the admin Watch history, Webhooks, Duplicates and Auth providers screens now show the same animated loading skeleton as the library screens instead of a bare "Loading…" line. Set `NO_MOTION` or `PHLIX_NO_ANIMATION` to keep the skeleton still. (CON-S11 [CON-11, CON-24])
 - Press `?` for a keyboard-shortcut reference for the current screen; it is also available as "Keyboard shortcuts" in the command palette. (CON-S16 [CON-17])
 

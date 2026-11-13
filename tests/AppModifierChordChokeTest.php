@@ -27,6 +27,7 @@ use SugarCraft\Core\Model;
 use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Image\Mosaic;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * CON-3: a ctrl/alt-held Char key must never reach a screen's rune-only key
@@ -57,7 +58,7 @@ final class AppModifierChordChokeTest extends TestCase
         return [['y', true, false], ['y', false, true], ['q', true, false], ['q', false, true], ['n', true, true]];
     }
 
-    /** @dataProvider chords */
+    #[DataProvider('chords')]
     public function testChordNeverReachesAConfirmArm(string $rune, bool $ctrl, bool $alt): void
     {
         $screen = new ChordProbeScreen();

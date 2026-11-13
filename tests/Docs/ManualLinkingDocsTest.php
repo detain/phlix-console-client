@@ -29,6 +29,7 @@ namespace Phlix\Console\Tests\Docs;
 
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 final class ManualLinkingDocsTest extends TestCase
 {
@@ -88,9 +89,7 @@ final class ManualLinkingDocsTest extends TestCase
         );
     }
 
-    /**
-     * @dataProvider linkedDocProvider
-     */
+    #[DataProvider('linkedDocProvider')]
     public function testEveryRelativeLinkResolves(string $doc): void
     {
         $text = self::readRepoFile($doc);

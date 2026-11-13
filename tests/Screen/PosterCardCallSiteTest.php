@@ -29,6 +29,7 @@ use SugarCraft\Core\Msg;
 use SugarCraft\Core\Msg\KeyMsg;
 use SugarCraft\Image\ImageLayer;
 use SugarCraft\Image\Mosaic;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * Regression tests ensuring that {@see \SugarCraft\Gallery\PosterCard::withImage()}
@@ -98,9 +99,7 @@ final class PosterCardCallSiteTest extends TestCase
         );
     }
 
-    /**
-     * @dataProvider libraryScreenOverlayModesProvider
-     */
+    #[DataProvider('libraryScreenOverlayModesProvider')]
     public function testLibraryScreenPassesPixelBytesToWithImageNotMarkerBlock(Mosaic $mosaic): void
     {
         $transport = (new FakeTransport())->json(200, $this->pageResponse());
@@ -175,9 +174,7 @@ final class PosterCardCallSiteTest extends TestCase
         );
     }
 
-    /**
-     * @dataProvider searchScreenOverlayModesProvider
-     */
+    #[DataProvider('searchScreenOverlayModesProvider')]
     public function testSearchScreenPassesPixelBytesToWithImageNotMarkerBlock(Mosaic $mosaic): void
     {
         $transport = (new FakeTransport())->json(200, $this->pageResponse());

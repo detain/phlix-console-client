@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use React\Http\Message\Response;
 use ReflectionMethod;
+use PHPUnit\Framework\Attributes\Test;
 
 /**
  * Unit tests for the central API response envelope handling in ApiClient::decode().
@@ -44,9 +45,7 @@ final class EnvelopeTest extends TestCase
     // Envelope shapes
     // -------------------------------------------------------------------------
 
-    /**
-     * @test
-     */
+    #[Test]
     public function successFalseWithoutMessageYieldsRequestFailed(): void
     {
         $this->expectException(ApiError::class);
@@ -55,9 +54,7 @@ final class EnvelopeTest extends TestCase
         $this->decode(200, ['success' => false]);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function successFalseWithMessageYieldsThatMessage(): void
     {
         $this->expectException(ApiError::class);
@@ -66,9 +63,7 @@ final class EnvelopeTest extends TestCase
         $this->decode(200, ['success' => false, 'message' => 'Nope']);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function successFalseWithErrorKeyYieldsErrorValue(): void
     {
         $this->expectException(ApiError::class);
@@ -77,9 +72,7 @@ final class EnvelopeTest extends TestCase
         $this->decode(200, ['success' => false, 'error' => 'Epic fail']);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function successTrueWithDataUnwrapsData(): void
     {
         $result = $this->decode(200, ['success' => true, 'data' => ['id' => 42, 'name' => 'test']]);
@@ -87,9 +80,7 @@ final class EnvelopeTest extends TestCase
         self::assertSame(['id' => 42, 'name' => 'test'], $result);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function dataKeyWithoutSuccessKeyIsNotUnwrapped(): void
     {
         // {data: {...}} without a "success" key must NOT be unwrapped.
@@ -98,9 +89,7 @@ final class EnvelopeTest extends TestCase
         self::assertSame(['data' => ['id' => 42]], $result);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function bareObjectIsReturnedUnchanged(): void
     {
         // {"libraries": []} — a bare domain-keyed object passes through untouched.
@@ -113,9 +102,7 @@ final class EnvelopeTest extends TestCase
     // Edge cases
     // -------------------------------------------------------------------------
 
-    /**
-     * @test
-     */
+    #[Test]
     public function successTrueWithoutDataKeyReturnsFullEnvelope(): void
     {
         // {success: true} without a "data" key should NOT try to unwrap.
@@ -124,9 +111,7 @@ final class EnvelopeTest extends TestCase
         self::assertSame(['success' => true, 'extra' => 'field'], $result);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function nonArrayBodyYieldsEmptyArray(): void
     {
         $result = $this->decode(200, []);
@@ -134,9 +119,7 @@ final class EnvelopeTest extends TestCase
         self::assertSame([], $result);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function httpErrorIsNotAffectedByEnvelopeLogic(): void
     {
         $this->expectException(ApiError::class);

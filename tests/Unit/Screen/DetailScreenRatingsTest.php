@@ -16,12 +16,12 @@ use Phlix\Console\Store\MediaStore;
 use Phlix\Console\Tests\Api\FakeTransport;
 use PHPUnit\Framework\TestCase;
 use SugarCraft\Image\Mosaic;
+use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
  * Unit tests for DetailScreen ratings display.
- *
- * @covers \Phlix\Console\Screen\DetailScreen
  */
+#[CoversClass(\Phlix\Console\Screen\DetailScreen::class)]
 final class DetailScreenRatingsTest extends TestCase
 {
     /**

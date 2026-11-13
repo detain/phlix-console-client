@@ -13,6 +13,7 @@ use Phlix\Console\Screen\DetailScreen;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 use ReflectionMethod;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * Cast-avatar initials (review M-CONSOLE-69): the helper cut BYTES on UTF-8
@@ -44,7 +45,7 @@ final class DetailScreenInitialsTest extends TestCase
         yield 'cjk keeps whole characters' => ['佐藤 花子', '花佐'];
     }
 
-    /** @dataProvider provideInitials */
+    #[DataProvider('provideInitials')]
     public function testInitialsCutCodepointsNotBytes(string $name, string $expected): void
     {
         self::assertSame($expected, self::initials($name));

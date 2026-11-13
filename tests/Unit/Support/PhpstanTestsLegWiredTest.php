@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace Phlix\Console\Tests\Unit\Support;
 
 use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * S448 wiring gate — phpstan-tests.neon must be INVOKED by CI, not just committed.
@@ -62,9 +63,8 @@ final class PhpstanTestsLegWiredTest extends TestCase
     /**
      * @param non-empty-string $workflow
      * @param non-empty-string $job
-     *
-     * @dataProvider legProvider
      */
+    #[DataProvider('legProvider')]
     public function testWorkflowInvokesPhpstanTestsConfig(string $workflow, string $job): void
     {
         $path = $this->repoRoot() . '/' . $workflow;
