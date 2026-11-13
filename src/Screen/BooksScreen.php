@@ -139,7 +139,7 @@ final class BooksScreen implements Breadcrumbed, Loadable, Shimmering, Themed
     public function view(): string
     {
         if ($this->error !== null) {
-            return Chrome::frame($this->name, "\n  {$this->error}", self::ERROR_HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
+            return Chrome::frame($this->name, "\n  " . Chrome::errorLine($this->error, $this->cols, $this->theme()), self::ERROR_HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
         }
 
         if (!$this->loaded) {

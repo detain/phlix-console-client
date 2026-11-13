@@ -207,7 +207,7 @@ final class ArtistAlbumsScreen implements Breadcrumbed, Themed
             return "\n  Loading albums…";
         }
         if ($this->error !== null) {
-            return "\n  {$this->error}";
+            return "\n  " . Chrome::errorLine($this->error, $this->cols, $this->theme());
         }
         if ($this->albums === [] && $this->total === 0) {
             return "\n  No albums by {$this->artistName}.";

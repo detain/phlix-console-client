@@ -467,7 +467,7 @@ final class AdminPluginDetailScreen implements Breadcrumbed, Themed, HostsTextIn
             return "\n  Loading plugin…";
         }
         if ($this->error !== null) {
-            return "\n  {$this->error}\n\n  Press r to retry.";
+            return "\n  " . Chrome::errorLine($this->error, $this->cols, $this->theme()) . "\n\n  Press r to retry.";
         }
 
         $fields = $this->fields();

@@ -250,7 +250,7 @@ final class AdminDlnaScreen implements Breadcrumbed, Themed
     private function body(): string
     {
         if ($this->error !== null) {
-            return "\n  {$this->error}\n\n  Press r to retry.";
+            return "\n  " . Chrome::errorLine($this->error, $this->cols, $this->theme()) . "\n\n  Press r to retry.";
         }
 
         $status = $this->status;

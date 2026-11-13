@@ -155,7 +155,7 @@ final class AudiobooksScreen implements Breadcrumbed, Themed
             return "\n  Loading audiobooks…";
         }
         if ($this->error !== null) {
-            return "\n  {$this->error}";
+            return "\n  " . Chrome::errorLine($this->error, $this->cols, $this->theme());
         }
         if ($this->audiobooks === []) {
             return "\n  No audiobooks in this library.";

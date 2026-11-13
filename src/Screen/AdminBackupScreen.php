@@ -551,7 +551,7 @@ final class AdminBackupScreen implements Breadcrumbed, Themed, HostsTextInput
             return "\n" . $this->scheduleLine() . "\n\n  Loading backups…";
         }
         if ($this->error !== null) {
-            return "\n  {$this->error}\n\n  Press r to retry.";
+            return "\n  " . Chrome::errorLine($this->error, $this->cols, $this->theme()) . "\n\n  Press r to retry.";
         }
         if ($this->backups === []) {
             return "\n" . $this->scheduleLine() . "\n\n  No backups yet.\n\n" . $this->statusLine();

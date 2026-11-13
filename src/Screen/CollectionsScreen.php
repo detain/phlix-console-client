@@ -278,7 +278,7 @@ final class CollectionsScreen implements Model, Teardownable, Breadcrumbed, Them
             return "\n\n  Loading collections…\n\n" . Skeleton::bars($this->cols - 4, max(1, Chrome::bodyHeight($this->rows) - 4), $this->shimmerPhase(), $this->theme());
         }
         if ($this->error !== null) {
-            return "\n\n  {$this->error}";
+            return "\n\n  " . Chrome::errorLine($this->error, $this->cols, $this->theme());
         }
         if ($this->items === []) {
             return "\n\n  No collections yet.";

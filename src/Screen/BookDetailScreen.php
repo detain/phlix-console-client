@@ -115,7 +115,7 @@ final class BookDetailScreen implements Breadcrumbed, Themed
     public function view(): string
     {
         if ($this->error !== null) {
-            return Chrome::frame($this->headerTitle(), "\n  {$this->error}", self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
+            return Chrome::frame($this->headerTitle(), "\n  " . Chrome::errorLine($this->error, $this->cols, $this->theme()), self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
         }
         if (!$this->loaded || $this->book === null) {
             return Chrome::frame($this->headerTitle(), "\n  Loading…", self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());

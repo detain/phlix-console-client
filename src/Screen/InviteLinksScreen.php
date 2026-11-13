@@ -332,7 +332,7 @@ final class InviteLinksScreen implements Model, Breadcrumbed, Themed, Loadable, 
         }
 
         if ($this->error !== null) {
-            return "\n\n  {$this->error}";
+            return "\n\n  " . Chrome::errorLine($this->error, $this->cols, $this->theme());
         }
 
         if ($this->items === []) {

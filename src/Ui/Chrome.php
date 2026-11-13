@@ -127,6 +127,25 @@ final class Chrome
     private const CHROME_HEIGHT = 8;
 
     /**
+     * The one error-line renderer [CON-12/CON-45/CON-42]: wire-reason text is
+     * unbounded server data, so it is cut to the content panel's display-cell
+     * budget ($cols - 6) with a trailing ellipsis and voiced in the theme's
+     * danger role. Returns the text only (no indent or newline); callers own
+     * placement. Multi-line input is flattened to its first line so one error
+     * can never steal body rows.
+     */
+    public static function errorLine(string $message, int $cols, ?Theme $theme = null): string
+    {
+        $first = preg_split('/\R/u', trim($message), 2);
+        $line = Truncate::withEllipsis($first === false ? $message : (string) $first[0], $cols - 6);
+        if ($line === '') {
+            return '';
+        }
+
+        return ($theme ?? Theme::nocturne())->widgetStyle(Theme::ROLE_DANGER)->render($line);
+    }
+
+    /**
      * How many body lines the content panel shows at a given terminal height.
      *
      * The content panel now FILLS the frame (sugar-panels flex/grow), so the

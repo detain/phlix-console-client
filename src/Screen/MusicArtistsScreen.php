@@ -223,7 +223,7 @@ final class MusicArtistsScreen implements Breadcrumbed, Themed
             return "\n  Loading artists…";
         }
         if ($this->error !== null) {
-            return "\n  {$this->error}";
+            return "\n  " . Chrome::errorLine($this->error, $this->cols, $this->theme());
         }
         if ($this->artists === [] && $this->total === 0) {
             return "\n  No artists in this library.";

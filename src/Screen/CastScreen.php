@@ -506,7 +506,7 @@ final class CastScreen implements Breadcrumbed, Themed
             return "\n  Searching for devices…";
         }
         if ($this->error !== null) {
-            return "\n  {$this->error}\n\n  " . self::RESCAN_PROMPT;
+            return "\n  " . Chrome::errorLine($this->error, $this->cols, $this->theme()) . "\n\n  " . self::RESCAN_PROMPT;
         }
         if ($this->devices === []) {
             return "\n  No cast devices found on the network.\n\n  " . self::RESCAN_PROMPT;

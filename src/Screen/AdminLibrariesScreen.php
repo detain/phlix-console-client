@@ -964,7 +964,7 @@ final class AdminLibrariesScreen implements Breadcrumbed, Themed
             return "\n  Loading libraries…";
         }
         if ($this->error !== null) {
-            return "\n  {$this->error}\n\n  Press r to retry.";
+            return "\n  " . Chrome::errorLine($this->error, $this->cols, $this->theme()) . "\n\n  Press r to retry.";
         }
         if ($this->libraries === []) {
             return "\n  No libraries configured.";

@@ -123,7 +123,7 @@ final class AdminDashboardScreen implements Breadcrumbed, Themed
     private function body(): string
     {
         if ($this->error !== null) {
-            return "\n  {$this->error}\n\n  Press r to retry.";
+            return "\n  " . Chrome::errorLine($this->error, $this->cols, $this->theme()) . "\n\n  Press r to retry.";
         }
         // A loaded screen always carries a dashboard (the loaded flag and the DTO
         // are set together); the null check keeps the "still loading" copy and the

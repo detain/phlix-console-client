@@ -217,7 +217,7 @@ final class AdminFilesystemScreen implements Breadcrumbed, Themed
     private function body(): string
     {
         if ($this->error !== null && !$this->loaded) {
-            return "\n  {$this->error}\n\n  Press r to retry.";
+            return "\n  " . Chrome::errorLine($this->error, $this->cols, $this->theme()) . "\n\n  Press r to retry.";
         }
         if (!$this->loaded) {
             return "\n  Loading filesystem…";

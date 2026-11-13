@@ -679,7 +679,7 @@ final class AdminUserProfilesScreen implements Breadcrumbed, Themed, HostsTextIn
             return "\n  Loading profiles…";
         }
         if ($this->error !== null) {
-            return "\n  {$this->error}\n\n  Press r to retry.";
+            return "\n  " . Chrome::errorLine($this->error, $this->cols, $this->theme()) . "\n\n  Press r to retry.";
         }
         if ($this->profiles === []) {
             return "\n" . $this->headerLine() . "\n\n  No profiles yet.\n\n" . $this->statusLine();

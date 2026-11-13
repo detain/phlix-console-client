@@ -177,7 +177,7 @@ final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shim
             // Wire-reason text is server data [review console__uxdesign,
             // M-CONSOLE-70]: budget it to the content panel (2-space indent,
             // cols - 6) or it wraps and steals a body row.
-            return Chrome::frame($this->name, "\n  " . Truncate::withEllipsis($this->error, $this->cols - 6), self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
+            return Chrome::frame($this->name, "\n  " . Chrome::errorLine($this->error, $this->cols, $this->theme()), self::HINT, $this->cols, $this->rows, $this->crumbs, $this->theme());
         }
 
         if (!$this->loaded) {

@@ -31,6 +31,7 @@ use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\Table;
+use Phlix\Console\Ui\Truncate;
 use React\Promise\PromiseInterface;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
@@ -1093,7 +1094,7 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed, HostsTextInput
 
     private function shortId(string $id): string
     {
-        return strlen($id) <= 12 ? $id : substr($id, 0, 11) . '…';
+        return Truncate::withEllipsis($id, 12);
     }
 
     private function viewportRows(): int

@@ -502,7 +502,7 @@ final class AdminPluginCatalogScreen implements Breadcrumbed, Themed, HostsTextI
             return "\n  Loading catalog…";
         }
         if ($this->error !== null) {
-            return "\n  {$this->error}\n\n  Press r to retry.";
+            return "\n  " . Chrome::errorLine($this->error, $this->cols, $this->theme()) . "\n\n  Press r to retry.";
         }
 
         $plugins = $this->result->flatPlugins();

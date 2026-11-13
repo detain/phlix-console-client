@@ -375,7 +375,7 @@ final class AdminDuplicatesScreen implements Breadcrumbed, Themed, Loadable, Shi
             return "\n\n  Loading duplicate groups…\n\n" . Skeleton::bars($this->cols - 4, max(1, Chrome::bodyHeight($this->rows) - 4), $this->shimmerPhase(), $this->theme());
         }
         if ($this->error !== null) {
-            return "\n\n  {$this->error}\n  Press r to retry.";
+            return "\n\n  " . Chrome::errorLine($this->error, $this->cols, $this->theme()) . "\n  Press r to retry.";
         }
         if ($this->groups === []) {
             return "\n\n  No duplicate groups found.";

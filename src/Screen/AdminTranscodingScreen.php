@@ -381,7 +381,7 @@ final class AdminTranscodingScreen implements Breadcrumbed, Themed
             return "\n  Loading transcoding settings…";
         }
         if ($this->error !== null) {
-            return "\n  {$this->error}\n\n  Press r to retry.";
+            return "\n  " . Chrome::errorLine($this->error, $this->cols, $this->theme()) . "\n\n  Press r to retry.";
         }
 
         $sections = [];

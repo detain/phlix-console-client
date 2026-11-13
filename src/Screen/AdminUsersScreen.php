@@ -680,7 +680,7 @@ final class AdminUsersScreen implements Breadcrumbed, Themed, Loadable, Shimmeri
             return "\n  Loading users…\n\n" . Skeleton::bars($this->cols - 4, max(1, Chrome::bodyHeight($this->rows) - 3), $this->shimmerPhase(), $this->theme());
         }
         if ($this->error !== null) {
-            return "\n  {$this->error}\n\n  Press r to retry.";
+            return "\n  " . Chrome::errorLine($this->error, $this->cols, $this->theme()) . "\n\n  Press r to retry.";
         }
         if ($this->users === []) {
             return "\n  No " . strtolower(self::FILTER_LABELS[$this->filter]) . " users.\n\n" . $this->statusLine();

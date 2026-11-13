@@ -200,7 +200,7 @@ final class StatsScreen implements Model, Breadcrumbed, Themed
         }
 
         if ($this->error !== null) {
-            return "\n\n  {$this->error}\n\n  Press r to retry.";
+            return "\n\n  " . Chrome::errorLine($this->error, $this->cols, $this->theme()) . "\n\n  Press r to retry.";
         }
 
         $playback = is_array($this->stats['playback'] ?? null) ? $this->stats['playback'] : [];

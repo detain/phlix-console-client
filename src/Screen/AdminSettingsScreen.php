@@ -440,7 +440,7 @@ final class AdminSettingsScreen implements Breadcrumbed, Themed, HostsTextInput
             return "\n  Loading settings…";
         }
         if ($this->error !== null) {
-            return "\n  {$this->error}\n\n  Press r to retry.";
+            return "\n  " . Chrome::errorLine($this->error, $this->cols, $this->theme()) . "\n\n  Press r to retry.";
         }
         if ($this->settings === []) {
             return "\n  No settings.\n\n" . $this->statusLine();

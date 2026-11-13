@@ -416,7 +416,7 @@ final class DetailScreen implements Breadcrumbed, Themed
             // loading hint over a failed load promised an escape-only dead end.
             return Chrome::frame(
                 $this->headerTitle(),
-                "\n  " . Truncate::withEllipsis($this->error, $this->cols - 6),
+                "\n  " . Chrome::errorLine($this->error, $this->cols, $this->theme()),
                 Lang::t(self::ERROR_HINT_KEY),
                 $this->cols,
                 $this->rows,

@@ -250,7 +250,7 @@ final class MusicScreen implements Breadcrumbed, Themed, Loadable, Shimmering
             return "\n  Loading music…\n\n" . Skeleton::bars($this->cols - 4, max(1, Chrome::bodyHeight($this->rows) - 3), $this->shimmerPhase(), $this->theme());
         }
         if ($this->error !== null) {
-            return "\n  {$this->error}";
+            return "\n  " . Chrome::errorLine($this->error, $this->cols, $this->theme());
         }
         if ($this->albums === [] && $this->total === 0) {
             return "\n  No albums in this library.";

@@ -179,7 +179,7 @@ final class WatchHistoryScreen implements Model, Teardownable, Breadcrumbed, The
             return "\n\n  Loading watch history…\n\n" . Skeleton::bars($this->cols - 4, max(1, Chrome::bodyHeight($this->rows) - 4), $this->shimmerPhase(), $this->theme());
         }
         if ($this->error !== null) {
-            return "\n\n  {$this->error}";
+            return "\n\n  " . Chrome::errorLine($this->error, $this->cols, $this->theme());
         }
         if ($this->items === []) {
             return "\n\n  No watch history yet.\n  Start watching to build your history!";

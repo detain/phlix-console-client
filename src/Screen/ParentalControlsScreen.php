@@ -873,7 +873,7 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed, HostsTextInp
             return "  Loading schedules…";
         }
         if (isset($this->errors['schedules']) && $this->errors['schedules'] !== '') {
-            return "\n  {$this->errors['schedules']}\n\n  Press r to retry.";
+            return "\n  " . Chrome::errorLine($this->errors['schedules'], $this->cols, $this->theme()) . "\n\n  Press r to retry.";
         }
         if ($this->schedules === null || $this->schedules === []) {
             return "\n  No access schedules yet.\n";
@@ -905,7 +905,7 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed, HostsTextInp
             return "  Loading tags…";
         }
         if (isset($this->errors['tags']) && $this->errors['tags'] !== '') {
-            return "\n  {$this->errors['tags']}\n\n  Press r to retry.";
+            return "\n  " . Chrome::errorLine($this->errors['tags'], $this->cols, $this->theme()) . "\n\n  Press r to retry.";
         }
         if ($this->tags === null || $this->tags === []) {
             return "\n  No tags yet.\n";
@@ -933,7 +933,7 @@ final class ParentalControlsScreen implements Breadcrumbed, Themed, HostsTextInp
             return "  Loading stream limits…";
         }
         if (isset($this->errors['streamLimits']) && $this->errors['streamLimits'] !== '') {
-            return "\n  {$this->errors['streamLimits']}\n\n  Press r to retry.";
+            return "\n  " . Chrome::errorLine($this->errors['streamLimits'], $this->cols, $this->theme()) . "\n\n  Press r to retry.";
         }
 
         $limit = $this->streamLimits;

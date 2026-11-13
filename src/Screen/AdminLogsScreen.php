@@ -247,7 +247,7 @@ final class AdminLogsScreen implements Breadcrumbed, Themed
             return "\n  Loading logs…";
         }
         if ($this->error !== null && !$this->filesLoaded) {
-            return "\n  {$this->error}\n\n  Press r to retry.";
+            return "\n  " . Chrome::errorLine($this->error, $this->cols, $this->theme()) . "\n\n  Press r to retry.";
         }
 
         $listWidth = min(self::LIST_WIDTH, max(10, $this->cols - 20));

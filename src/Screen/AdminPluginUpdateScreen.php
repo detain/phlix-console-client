@@ -376,7 +376,7 @@ final class AdminPluginUpdateScreen implements Breadcrumbed, Themed
         $out = '';
 
         if ($this->error !== null) {
-            $out .= "  {$this->error}\n\n";
+            $out .= "  " . Chrome::errorLine($this->error, $this->cols, $this->theme()) . "\n\n";
         } elseif (!$this->loaded) {
             $out .= "  Loading plugin updates…\n\n";
         } elseif ($this->updates === []) {

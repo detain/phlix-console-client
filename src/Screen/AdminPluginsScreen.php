@@ -435,7 +435,7 @@ final class AdminPluginsScreen implements Breadcrumbed, Themed, HostsTextInput
             return "\n  Loading plugins…";
         }
         if ($this->error !== null) {
-            return "\n  {$this->error}\n\n  Press r to retry.";
+            return "\n  " . Chrome::errorLine($this->error, $this->cols, $this->theme()) . "\n\n  Press r to retry.";
         }
         if ($this->plugins === []) {
             return "\n  No plugins installed.\n\n" . $this->statusLine();

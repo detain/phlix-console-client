@@ -204,7 +204,7 @@ final class AdminServerRestartScreen implements Breadcrumbed, Themed
             return "\n  {$ack}\n\n  The server acknowledged the restart signal. Workers are cycling now; the master itself never stopped.\n\n  Press Esc to close this screen.";
         }
         if ($this->error !== null) {
-            return "\n  {$this->error}\n\n  Press r to retry.";
+            return "\n  " . Chrome::errorLine($this->error, $this->cols, $this->theme()) . "\n\n  Press r to retry.";
         }
 
         $accent = Style::new()->bold();

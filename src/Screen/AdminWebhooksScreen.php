@@ -189,7 +189,7 @@ final class AdminWebhooksScreen implements Breadcrumbed, Themed, Loadable, Shimm
             return "\n\n  Loading webhooks…\n\n" . Skeleton::bars($this->cols - 4, max(1, Chrome::bodyHeight($this->rows) - 4), $this->shimmerPhase(), $this->theme());
         }
         if ($this->error !== null) {
-            return "\n\n  {$this->error}\n  Press r to retry.";
+            return "\n\n  " . Chrome::errorLine($this->error, $this->cols, $this->theme()) . "\n  Press r to retry.";
         }
         if ($this->webhooks === []) {
             return "\n\n  No webhooks configured.";

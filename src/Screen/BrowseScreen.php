@@ -211,7 +211,7 @@ final class BrowseScreen implements Breadcrumbed, Themed
             // data [review console__uxdesign, M-CONSOLE-70]: both lines ride the
             // content panel at a 2-space indent, so each gets the cols - 6 budget.
             if ($this->error !== null) {
-                $body = "\n  " . Truncate::withEllipsis($this->error, $this->cols - 6);
+                $body = "\n  " . Chrome::errorLine($this->error, $this->cols, $this->theme());
                 $hint = Lang::t('browse.hint_refresh_quit');
             } elseif (!$this->librariesLoaded) {
                 $body = "\n  " . Truncate::withEllipsis("Welcome, {$name}.", $this->cols - 6)
