@@ -11,6 +11,10 @@ text carries the user-visible effect first; ids stay in the bullets or the headi
 
 ## [Unreleased]
 
+### Fixed
+- Ctrl/Alt+letter chords no longer trigger screen actions: a modifier chord is no longer treated as the plain letter key. (CON-S2 [CON-3])
+- The Space bar now pauses/resumes audio on the Album and Audiobook screens (it was bound to a key the terminal never sends). (CON-S10 [CON-10])
+
 ### Removed
 - `phlix watch --hub-token` and `--relay-token` no longer work: they now exit 2 with a hint to use
   env `PHLIX_HUB_TOKEN` / `PHLIX_RELAY_TOKEN` or `--hub-token-stdin` / `--relay-token-stdin`.

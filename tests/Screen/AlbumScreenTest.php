@@ -249,7 +249,7 @@ final class AlbumScreenTest extends TestCase
 
     public function testSpaceEmitsToggleAudio(): void
     {
-        [$same, $cmd] = $this->screen()->update(new KeyMsg(KeyType::Char, ' '));
+        [$same, $cmd] = $this->screen()->update(new KeyMsg(KeyType::Space));
 
         self::assertInstanceOf(AlbumScreen::class, $same);
         self::assertInstanceOf(ToggleAudioMsg::class, $this->msgOf($cmd));

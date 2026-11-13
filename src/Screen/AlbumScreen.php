@@ -99,7 +99,7 @@ final class AlbumScreen implements Breadcrumbed, Themed
             // now-playing bar carries it across navigation).
             return [$this, Cmd::send(new NavigateBackMsg())];
         }
-        if ($msg->type === KeyType::Char && $msg->rune === ' ') {
+        if ($msg->type === KeyType::Space) {
             return [$this, Cmd::send(new ToggleAudioMsg())];
         }
         if ($msg->type === KeyType::Char && $msg->rune === 'n') {

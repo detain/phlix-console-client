@@ -454,7 +454,7 @@ final class AudiobookDetailScreenTest extends TestCase
     {
         $loaded = $this->loaded();
 
-        [$same, $cmd] = $loaded->update(new KeyMsg(KeyType::Char, ' '));
+        [$same, $cmd] = $loaded->update(new KeyMsg(KeyType::Space));
 
         self::assertSame($loaded, $same);
         self::assertInstanceOf(ToggleAudioMsg::class, $cmd?->__invoke());

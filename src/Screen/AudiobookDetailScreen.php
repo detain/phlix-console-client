@@ -195,7 +195,7 @@ final class AudiobookDetailScreen implements Breadcrumbed, Themed
             // now-playing bar keeps it visible. Just go back.
             return [$this, Cmd::send(new NavigateBackMsg())];
         }
-        if ($msg->type === KeyType::Char && $msg->rune === ' ') {
+        if ($msg->type === KeyType::Space) {
             // Pause/resume the App-owned session.
             return [$this, Cmd::send(new ToggleAudioMsg())];
         }
