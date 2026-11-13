@@ -571,6 +571,7 @@ reachability against the configured server.
   "all public methods", so the guide no longer claims it [m61])
 - No `var_dump`, `print_r`, or debug output
 - Promises are React\Promise — never `yield` (no async/await syntax)
+- A Cmd returns `?Msg` or an `AsyncCmd` (`Cmd::promise`) — never a `\Generator`; the Program does not drive generators
 
 ## Debugging
 

@@ -2466,18 +2466,18 @@ final class App implements Model
         // saved — its theme is the canonical lowercase wire id (see above), the
         // only form the server's validateThemeId accepts.
         $api = $this->api;
-        $serverCmd = static function () use ($newConfig, $api): \Generator {
-            try {
-                yield $api->putUserSettings([
-                    'theme' => $newConfig->theme,
-                    'slideshow_interval' => $newConfig->slideshowInterval,
-                ]);
-            } catch (\Throwable $e) {
-                yield Cmd::send(ShowToastMsg::warning(
-                    ExceptionSentences::contextOnly('Settings saved locally, but server sync failed', $e)
-                ));
-            }
-        };
+        // A Cmd must return ?Msg or an AsyncCmd (Cmd::promise) — the Program never
+        // drives a Generator — so the PUT rides Cmd::promise and a failure
+        // resolves to the warning toast Msg.
+        $serverCmd = Cmd::promise(static fn () => $api->putUserSettings([
+            'theme' => $newConfig->theme,
+            'slideshow_interval' => $newConfig->slideshowInterval,
+        ])->then(
+            static fn (mixed $_): ?Msg => null,
+            static fn (\Throwable $e): Msg => ShowToastMsg::warning(
+                ExceptionSentences::contextOnly('Settings saved locally, but server sync failed', $e)
+            ),
+        ));
 
         // Pop the Settings frame, then apply the new config + theme to that copy.
         return [$this->popScreen()->withConfig($newConfig)->withTheme($newTheme), $serverCmd];

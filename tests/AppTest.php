@@ -2096,12 +2096,10 @@ final class AppTest extends TestCase
             [, $cmd] = $settings->update(new SettingsSavedMsg($theme->name, 10));
             self::assertInstanceOf(\Closure::class, $cmd, "{$theme->id}: server sync cmd is returned");
 
-            // Run the background-sync generator: it yields the PUT promise.
-            $generator = $cmd();
-            self::assertInstanceOf(\Generator::class, $generator);
-            $promise = $generator->current();
-            self::assertInstanceOf(PromiseInterface::class, $promise);
-            $this->await($promise);
+            // Run the background-sync Cmd: it yields an AsyncCmd wrapping the PUT.
+            $async = $cmd();
+            self::assertInstanceOf(\SugarCraft\Core\AsyncCmd::class, $async);
+            $this->await($async->promise);
 
             self::assertCount(2, $transport->requests, "{$theme->id}: exactly login + settings PUT");
             $put = $transport->requests[1];
@@ -2114,6 +2112,32 @@ final class AppTest extends TestCase
             self::assertSame($theme->id, $body['theme'], 'the wire carries the canonical lowercase id');
             self::assertSame(strtolower($theme->name), $body['theme'], 'never the capitalised display name');
         }
+    }
+
+    /**
+     * CON-2: the server-sync Cmd must be one the Program can drive (an
+     * AsyncCmd, never a Generator), and a failed PUT resolves to a warning
+     * toast Msg rather than escaping.
+     */
+    public function testSettingsSaveServerSyncFailureResolvesToAWarningToast(): void
+    {
+        $transport = (new FakeTransport())
+            ->json(200, [
+                'access_token' => 'a', 'refresh_token' => 'r', 'token_type' => 'Bearer', 'expires_in' => 3600,
+                'user' => ['id' => 'u1', 'username' => 'joe', 'is_admin' => 0, 'status' => 'active'],
+            ])
+            ->fail(new \RuntimeException('boom'));
+        [$app, $auth] = $this->makeApp('https://srv', $transport);
+        $this->await($auth->login('joe', 'secret'));
+        [$browse] = $app->update(new LoginSucceededMsg($auth->currentUser() ?? AuthUser::fromArray([])));
+        [$settings] = $browse->update(new OpenSettingsMsg());
+        [, $cmd] = $settings->update(new SettingsSavedMsg('Midnight', 10));
+
+        $async = $cmd();
+        self::assertNotInstanceOf(\Generator::class, $async);
+        self::assertInstanceOf(\SugarCraft\Core\AsyncCmd::class, $async);
+        $msg = $this->await($async->promise);
+        self::assertInstanceOf(\Phlix\Console\Msg\ShowToastMsg::class, $msg);
     }
 
     public function testSettingsSavedKeepsTheServerUrlInThePersistedConfig(): void
