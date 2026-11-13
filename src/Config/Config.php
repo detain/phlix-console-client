@@ -154,7 +154,7 @@ final class Config
 
         // Migrate legacy single-server format
         if (isset($data['server_url']) && is_string($data['server_url']) && $data['server_url'] !== '') {
-            $id = self::generateUuid();
+            $id = self::generateOpaqueId();
             $data['servers'] = [[
                 'id' => $id,
                 'label' => self::extractLabelFromUrl($data['server_url']),
@@ -170,7 +170,7 @@ final class Config
         foreach (self::array($data['servers'] ?? null) as $row) {
             if (is_array($row)) {
                 $servers[] = new ServerEntry(
-                    id: self::string($row['id'] ?? null) ?: self::generateUuid(),
+                    id: self::string($row['id'] ?? null) ?: self::generateOpaqueId(),
                     label: self::string($row['label'] ?? null) ?: 'Server',
                     url: self::normalizeUrl(self::string($row['url'] ?? null) ?: ''),
                     hubId: self::string($row['hub_id'] ?? null) ?: null,
@@ -354,7 +354,7 @@ final class Config
     /** Return a copy with the given (normalised) server URL added as a new entry. */
     public function withServerUrl(string $url, string $label = 'Server'): self
     {
-        $id = self::generateUuid();
+        $id = self::generateOpaqueId();
         $newServers = $this->servers;
         $newServers[] = new ServerEntry(
             id: $id,
@@ -499,7 +499,10 @@ final class Config
         return 'Server';
     }
 
-    private static function generateUuid(): string
+    /**
+     * Opaque 32-hex server-entry id. Not an RFC 4122 UUID: the wire never parses it, it is only a stable local key.
+     */
+    private static function generateOpaqueId(): string
     {
         return bin2hex(random_bytes(16));
     }

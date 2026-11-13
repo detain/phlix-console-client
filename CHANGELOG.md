@@ -16,6 +16,12 @@ text carries the user-visible effect first; ids stay in the bullets or the headi
   env `PHLIX_HUB_TOKEN` / `PHLIX_RELAY_TOKEN` or `--hub-token-stdin` / `--relay-token-stdin`.
   Env and stdin carriers are unchanged. (CON-S36 [CON-69])
 
+### Changed — saved-server URLs are now normalised consistently and hostless addresses are refused (CON-S4 [CON-5, CON-26, CON-27, CON-67]) — 2026-11-12
+
+Server and hub addresses you type are now cleaned up the same way everywhere, and an address with no host is rejected instead of being saved.
+
+- **What:** Config URL normalisation is idempotent and refuses hostless URLs (also for `--hub` and the setup wizard gate), with regression tests; no change to valid addresses.
+
 ### Changed — `phlix version` and `doctor` now print the build's commit (CON-S34 [CON-58, CON-59]) — 2026-11-12
 
 `phlix version` prints `phlix 1.0.0 (commit <sha>)` and `doctor` gains a `phlix commit:` line, so a
