@@ -176,6 +176,7 @@ use Phlix\Console\Store\MusicArtistsStore;
 use Phlix\Console\Store\ArtistAlbumsStore;
 use Phlix\Console\Store\PhotosStore;
 use Phlix\Console\Store\FavoritesStore;
+use Phlix\Console\Ui\Motion;
 use Phlix\Console\Ui\Chrome;
 use Phlix\Console\Ui\CommandPalette;
 use Phlix\Console\Ui\MetricsOverlay;
@@ -1210,7 +1211,7 @@ final class App implements Model
     private function maybeArmShimmer(array $result): array
     {
         [$app, $cmd] = $result;
-        if (!$app->topIsLoading() || $app->shimmerTicking) {
+        if (!$app->topIsLoading() || $app->shimmerTicking || !Motion::enabled()) {
             return $result;
         }
 

@@ -35,7 +35,8 @@ use SugarCraft\Core\Util\Width;
  * the left edge), and as the phase grows the band marches right and exits past
  * `$width`, then the modulo wraps it back. A cell at column `c` is "bright" iff
  * `$bandLeft <= c < $bandLeft + BAND` AND `0 <= c < $width`. The same (width,
- * lines, phase) always yields byte-identical output.
+ * lines, phase) always yields byte-identical output. When motion is opted out
+ * ({@see Motion::enabled()} false) the phase is frozen at 0 (a static skeleton).
  */
 final class Skeleton
 {
@@ -67,7 +68,7 @@ final class Skeleton
             return '';
         }
 
-        $row = self::row($width, $phase, $theme);
+        $row = self::row($width, Motion::enabled() ? $phase : 0, $theme);
 
         return implode("\n", array_fill(0, $lines, $row));
     }
@@ -79,7 +80,7 @@ final class Skeleton
      */
     public static function line(int $width, int $phase, ?Theme $theme = null): string
     {
-        return $width <= 0 ? '' : self::row($width, $phase, $theme);
+        return $width <= 0 ? '' : self::row($width, Motion::enabled() ? $phase : 0, $theme);
     }
 
     /**

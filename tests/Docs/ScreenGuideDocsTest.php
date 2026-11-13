@@ -421,6 +421,7 @@ final class ScreenGuideDocsTest extends TestCase
                 'PHLIX_HUB_SERVER_ID',
                 'PHLIX_HUB_TOKEN',
                 'PHLIX_HUB_URL',
+                'PHLIX_NO_ANIMATION',
                 'PHLIX_POSTER_CACHE_ENTRIES',
                 'PHLIX_POSTER_CONCURRENCY',
                 'PHLIX_RELAY_TOKEN',

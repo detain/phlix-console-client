@@ -607,7 +607,8 @@ There is no request-tracing env var. The `PHLIX_*` variables the client reads
 are `PHLIX_SERVER_URL` (server override for `run`) and
 `PHLIX_POSTER_CACHE_ENTRIES` (disk-cache size). The `watch` relay entrypoint
 additionally reads `PHLIX_HUB_URL`, `PHLIX_HUB_SERVER_ID`, `PHLIX_HUB_TOKEN`,
-and `PHLIX_RELAY_TOKEN`. Inside `src/`, `PHLIX_POSTER_CONCURRENCY` caps
+and `PHLIX_RELAY_TOKEN`. `NO_MOTION` or `PHLIX_NO_ANIMATION` (any value but `0`) freezes the
+loading-skeleton shimmer into a static placeholder (`Ui\Motion`). Inside `src/`, `PHLIX_POSTER_CONCURRENCY` caps
 concurrent poster fetches (`PosterLoader::concurrencyLimit()`, default 6)
 and `PHLIX_DOWNLOAD_DIR` sets the download target directory
 (`DownloadService::resolveDownloadDir()`, default `~/Downloads`). To see

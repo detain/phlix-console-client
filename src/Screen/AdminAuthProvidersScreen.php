@@ -17,6 +17,7 @@ use Phlix\Console\Msg\AdminAuthProvidersLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Ui\Chrome;
+use Phlix\Console\Ui\Skeleton;
 use Phlix\Console\Ui\Table;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
@@ -35,10 +36,11 @@ use SugarCraft\Core\SubscriptionCapable;
  * Secrets (client_secret, bind_pw) are masked at the API client level and
  * never logged — see AdminClient::maskOidcSecret() / maskLdapSecret().
  */
-final class AdminAuthProvidersScreen implements Breadcrumbed, Themed
+final class AdminAuthProvidersScreen implements Breadcrumbed, Themed, Loadable, Shimmering
 {
     use SubscriptionCapable;
     use ThemedScreen;
+    use ShimmeringScreen;
     use ResizesTo;
     use SelectsPrevious;
 
@@ -226,7 +228,7 @@ final class AdminAuthProvidersScreen implements Breadcrumbed, Themed
     private function body(): string
     {
         if ($this->loading) {
-            return "\n\n  Loading auth providers…";
+            return "\n\n  Loading auth providers…\n\n" . Skeleton::bars($this->cols - 4, max(1, Chrome::bodyHeight($this->rows) - 4), $this->shimmerPhase(), $this->theme());
         }
         if ($this->error !== null) {
             return "\n\n  {$this->error}\n  Press r to retry.";

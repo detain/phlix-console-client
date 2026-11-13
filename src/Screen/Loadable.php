@@ -16,7 +16,8 @@ use SugarCraft\Core\Model;
  * {@see \Phlix\Console\App} watches the top screen: while it {@see isLoading()},
  * the App runs a gated shimmer tick so the screen's skeleton placeholder animates
  * (and stops the tick the moment the screen stops loading — no free-running
- * heartbeat). A screen reports {@see isLoading()} true exactly while it renders
+ * heartbeat; skipped entirely when motion is opted out via NO_MOTION /
+ * PHLIX_NO_ANIMATION, leaving a static skeleton). A screen reports {@see isLoading()} true exactly while it renders
  * that loading body.
  */
 interface Loadable extends Model

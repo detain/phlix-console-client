@@ -19,6 +19,7 @@ use Phlix\Console\Msg\InitMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Ui\Chrome;
+use Phlix\Console\Ui\Skeleton;
 use React\Promise\PromiseInterface;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
@@ -58,10 +59,11 @@ use SugarCraft\Core\Util\Width;
  * hub-frame ctor cohorts it now shares with them stay a named follow-up debt
  * for a concern extraction (see ScreenConcernSingleSourceTest).
  */
-final class FederationSharesScreen implements Model, Breadcrumbed, Themed
+final class FederationSharesScreen implements Model, Breadcrumbed, Themed, Loadable, Shimmering
 {
     use SubscriptionCapable;
     use ThemedScreen;
+    use ShimmeringScreen;
     use ResizesTo;
     use SelectsNext;
     use SelectsPrevious;
@@ -263,7 +265,7 @@ final class FederationSharesScreen implements Model, Breadcrumbed, Themed
     private function body(): string
     {
         if ($this->loading) {
-            return "\n\n  Loading outgoing shares…";
+            return "\n\n  Loading outgoing shares…\n\n" . Skeleton::bars($this->cols - 4, max(1, Chrome::bodyHeight($this->rows) - 4), $this->shimmerPhase(), $this->theme());
         }
 
         if ($this->error !== null) {

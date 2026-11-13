@@ -11,6 +11,10 @@ text carries the user-visible effect first; ids stay in the bullets or the headi
 
 ## [Unreleased]
 
+### Changed
+- Favorites, Watch history, Playlists, Shared with me, Federation shares, Invite links, Recommendations and the admin Watch history, Webhooks, Duplicates and Auth providers screens now show the same animated loading skeleton as the library screens instead of a bare "Loading…" line. Set `NO_MOTION` or `PHLIX_NO_ANIMATION` to keep the skeleton still. (CON-S11 [CON-11, CON-24])
+- Press `?` for a keyboard-shortcut reference for the current screen; it is also available as "Keyboard shortcuts" in the command palette. (CON-S16 [CON-17])
+
 ### Fixed
 - Ctrl/Alt+letter chords no longer trigger screen actions: a modifier chord is no longer treated as the plain letter key. (CON-S2 [CON-3])
 - The Space bar now pauses/resumes audio on the Album and Audiobook screens (it was bound to a key the terminal never sends). (CON-S10 [CON-10])

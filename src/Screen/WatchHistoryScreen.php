@@ -19,6 +19,7 @@ use Phlix\Console\Msg\WatchHistoryLoadedMsg;
 use Phlix\Console\Msg\WatchHistoryFailedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Ui\Chrome;
+use Phlix\Console\Ui\Skeleton;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Model;
@@ -34,10 +35,11 @@ use SugarCraft\Core\Util\Width;
  * Fetches from GET /api/v1/users/me/recently-watched and displays
  * items in a scrollable list with progress indicators.
  */
-final class WatchHistoryScreen implements Model, Teardownable, Breadcrumbed, Themed
+final class WatchHistoryScreen implements Model, Teardownable, Breadcrumbed, Themed, Loadable, Shimmering
 {
     use SubscriptionCapable;
     use ThemedScreen;
+    use ShimmeringScreen;
     use ResizesTo;
     use SelectsNext;
     use SelectsPrevious;
@@ -165,7 +167,7 @@ final class WatchHistoryScreen implements Model, Teardownable, Breadcrumbed, The
     private function body(): string
     {
         if ($this->loading) {
-            return "\n\n  Loading watch history…";
+            return "\n\n  Loading watch history…\n\n" . Skeleton::bars($this->cols - 4, max(1, Chrome::bodyHeight($this->rows) - 4), $this->shimmerPhase(), $this->theme());
         }
         if ($this->error !== null) {
             return "\n\n  {$this->error}";

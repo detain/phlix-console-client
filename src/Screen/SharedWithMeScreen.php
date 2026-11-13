@@ -19,6 +19,7 @@ use Phlix\Console\Msg\SharedWithMeFailedMsg;
 use Phlix\Console\Msg\SharedWithMeLoadedMsg;
 use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Ui\Chrome;
+use Phlix\Console\Ui\Skeleton;
 use React\Promise\PromiseInterface;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
@@ -54,10 +55,11 @@ use SugarCraft\Core\Util\Width;
  * once carried are retired [review console__srphp m3], which is what re-hooks
  * it into {@see \Phlix\Console\App::baseView()}'s theme/breadcrumb gates.
  */
-final class SharedWithMeScreen implements Model, Breadcrumbed, Themed
+final class SharedWithMeScreen implements Model, Breadcrumbed, Themed, Loadable, Shimmering
 {
     use SubscriptionCapable;
     use ThemedScreen;
+    use ShimmeringScreen;
     use ResizesTo;
     use SelectsNext;
     use SelectsPrevious;
@@ -266,7 +268,7 @@ final class SharedWithMeScreen implements Model, Breadcrumbed, Themed
     private function body(): string
     {
         if ($this->loading) {
-            return "\n\n  Loading shared libraries…";
+            return "\n\n  Loading shared libraries…\n\n" . Skeleton::bars($this->cols - 4, max(1, Chrome::bodyHeight($this->rows) - 4), $this->shimmerPhase(), $this->theme());
         }
 
         if ($this->error !== null) {

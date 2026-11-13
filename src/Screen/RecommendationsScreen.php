@@ -19,6 +19,7 @@ use Phlix\Console\Msg\RecommendationDismissedMsg;
 use Phlix\Console\Msg\RecommendationsLoadedMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Ui\Chrome;
+use Phlix\Console\Ui\Skeleton;
 use Phlix\Console\Ui\RecommendationCard;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
@@ -34,10 +35,11 @@ use SugarCraft\Core\SubscriptionCapable;
  * Fetches from GET /api/v1/me/recommendations and displays
  * recommendation cards in a scrollable list.
  */
-final class RecommendationsScreen implements Model, Teardownable, CapturesSlash, Themed, TakesModifierChords
+final class RecommendationsScreen implements Model, Teardownable, CapturesSlash, Themed, TakesModifierChords, Loadable, Shimmering
 {
     use SubscriptionCapable;
     use ThemedScreen;
+    use ShimmeringScreen;
     use ResizesTo;
     use SelectsNext;
     use SelectsPrevious;
@@ -201,7 +203,7 @@ final class RecommendationsScreen implements Model, Teardownable, CapturesSlash,
     private function body(): string
     {
         if ($this->loading) {
-            return "\n\n  " . Lang::t('recommendations.loading');
+            return "\n\n  " . Lang::t('recommendations.loading') . "\n\n" . Skeleton::bars($this->cols - 4, max(1, Chrome::bodyHeight($this->rows) - 4), $this->shimmerPhase(), $this->theme());
         }
         if ($this->error !== null) {
             return "\n\n  {$this->error}";

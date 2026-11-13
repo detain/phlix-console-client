@@ -18,6 +18,7 @@ use Phlix\Console\Msg\AdminWatchHistoryLoadedMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Ui\Chrome;
+use Phlix\Console\Ui\Skeleton;
 use Phlix\Console\Ui\Table;
 use Phlix\Console\Ui\Truncate;
 use SugarCraft\Core\Cmd;
@@ -43,10 +44,11 @@ use SugarCraft\Forms\Form;
  * loaded data + flags are private mutable view state set via clone-mutate (the
  * established screen idiom).
  */
-final class AdminWatchHistoryScreen implements Breadcrumbed, Themed
+final class AdminWatchHistoryScreen implements Breadcrumbed, Themed, Loadable, Shimmering
 {
     use SubscriptionCapable;
     use ThemedScreen;
+    use ShimmeringScreen;
     use ResizesTo;
     use SelectsPrevious;
 
@@ -223,7 +225,7 @@ final class AdminWatchHistoryScreen implements Breadcrumbed, Themed
     private function body(): string
     {
         if ($this->loading) {
-            return "\n\n  Loading watch history…";
+            return "\n\n  Loading watch history…\n\n" . Skeleton::bars($this->cols - 4, max(1, Chrome::bodyHeight($this->rows) - 4), $this->shimmerPhase(), $this->theme());
         }
         if ($this->error !== null) {
             return "\n\n  {$this->error}\n  Press r to retry.";

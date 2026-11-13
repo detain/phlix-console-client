@@ -19,6 +19,7 @@ use Phlix\Console\Msg\OpenDetailMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Store\FavoritesStore;
 use Phlix\Console\Ui\Chrome;
+use Phlix\Console\Ui\Skeleton;
 use SugarCraft\Core\Cmd;
 use SugarCraft\Core\KeyType;
 use SugarCraft\Core\Model;
@@ -34,10 +35,11 @@ use SugarCraft\Core\Util\Width;
  * Fetches from GET /api/v1/users/me/favorites via {@see FavoritesStore}
  * and displays items in a scrollable list with a favorite marker (♥).
  */
-final class FavoritesScreen implements Model, Teardownable, Breadcrumbed, Themed
+final class FavoritesScreen implements Model, Teardownable, Breadcrumbed, Themed, Loadable, Shimmering
 {
     use SubscriptionCapable;
     use ThemedScreen;
+    use ShimmeringScreen;
     use ResizesTo;
     use SelectsNext;
     use SelectsPrevious;
@@ -163,7 +165,7 @@ final class FavoritesScreen implements Model, Teardownable, Breadcrumbed, Themed
     private function body(): string
     {
         if ($this->loading) {
-            return "\n\n  Loading favorites…";
+            return "\n\n  Loading favorites…\n\n" . Skeleton::bars($this->cols - 4, max(1, Chrome::bodyHeight($this->rows) - 4), $this->shimmerPhase(), $this->theme());
         }
         if ($this->error !== null) {
             return "\n\n  {$this->error}";
