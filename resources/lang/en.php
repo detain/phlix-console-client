@@ -133,6 +133,7 @@ return [
     'syncplay.modal_create_title' => 'Create watch group',
     'syncplay.modal_joining' => 'Joining watch group…',
 
+    // ---- BrowseScreen (empty-library banner + hints) -----------------
     'browse.loading' => 'Loading your libraries…',
     'browse.no_libraries' => 'No libraries yet.',
     'browse.no_libraries_admin' => 'Press : for the command palette, then {admin} → {libraries} to add one.',

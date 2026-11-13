@@ -133,10 +133,11 @@ return [
     'syncplay.modal_create_title' => 'Crear grupo de visionado',
     'syncplay.modal_joining' => 'Uniéndose al grupo de visionado…',
 
+    // ---- BrowseScreen (empty-library banner + hints) -----------------
     'browse.loading' => 'Cargando tus bibliotecas…',
     'browse.no_libraries' => 'Aún no hay bibliotecas.',
-    'browse.no_libraries_admin' => 'Pulse : para abrir la paleta de comandos y añada una desde {admin} → {libraries}.',
-    'browse.no_libraries_member' => 'Pida a un administrador que añada una.',
+    'browse.no_libraries_admin' => 'Pulsa : para abrir la paleta de comandos y añade una desde {admin} → {libraries}.',
+    'browse.no_libraries_member' => 'Pide a un administrador que añada una.',
     'browse.hint_refresh_quit' => 'R  recargar      q  salir',
 
     // ---- Command palette (App::staticActions) ---------------------------

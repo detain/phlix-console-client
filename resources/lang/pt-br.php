@@ -138,6 +138,7 @@ return [
     'syncplay.modal_create_title' => 'Criar grupo de exibição',
     'syncplay.modal_joining' => 'Entrando no grupo de exibição…',
 
+    // ---- BrowseScreen (empty-library banner + hints) -----------------
     'browse.loading' => 'Carregando suas bibliotecas…',
     'browse.no_libraries' => 'Nenhuma biblioteca ainda.',
     'browse.no_libraries_admin' => 'Pressione : para abrir a paleta de comandos e adicione uma em {admin} → {libraries}.',
@@ -201,7 +202,7 @@ return [
     'auth.signup_heading' => 'Crie sua conta do Phlix.',
     'auth.signup_title' => 'Cadastro',
     'auth.signup_progress' => 'Criando conta…',
-    'auth.signup_footer' => 'Tab  próximo      Enter  cadastrar      Esc  voltar ao login',
+    'auth.signup_footer' => 'Tab  próximo      Enter  cadastrar      Esc  voltar para a entrada',
     'auth.insecure_warning' => '⚠ Este servidor usa uma conexão insegura (http): sua senha e os tokens de sessão trafegam sem proteção.',
     'server.heading' => 'Conecte-se ao seu servidor Phlix.',
     'server.title' => 'Configuração',

@@ -59,7 +59,7 @@ return [
     'detail.similar_navigate_hint' => '←→  naviguer      ⏎  ouvrir',
     'detail.cast_label' => 'Distribution',
     'detail.directed_by' => 'Réalisé par ',
-    'detail.more_cast' => '  +{count} de plus',
+    'detail.more_cast' => '  +{count} autres',
     'detail.season' => 'saison',
     'detail.season_plural' => 'saisons',
     'detail.episode' => 'épisode',
@@ -133,6 +133,7 @@ return [
     'syncplay.modal_create_title' => 'Créer un groupe synchronisé',
     'syncplay.modal_joining' => 'Connexion au groupe synchronisé…',
 
+    // ---- BrowseScreen (empty-library banner + hints) -----------------
     'browse.loading' => 'Chargement de vos bibliothèques…',
     'browse.no_libraries' => 'Aucune bibliothèque pour le moment.',
     'browse.no_libraries_admin' => 'Appuyez sur : pour ouvrir la palette de commandes, puis {admin} → {libraries} pour en ajouter une.',
@@ -209,7 +210,7 @@ return [
     'settings.server_line' => 'Serveur : {url}',
     'settings.footer' => 'L  déconnexion      S  serveurs      Entrée  enregistrer      Échap  annuler',
     'syncplay.modal_none' => '(aucun disponible)',
-    'syncplay.modal_more' => '… et {count} de plus',
+    'syncplay.modal_more' => '… et {count} autres',
     'syncplay.modal_hint_list' => '↑↓ sélectionner  Entrée confirmer  Échap annuler',
     'syncplay.modal_name_label' => 'Nom :',
     'syncplay.modal_public' => 'Public',

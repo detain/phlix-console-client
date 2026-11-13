@@ -131,13 +131,14 @@ return [
     'syncplay.modal_public_groups' => 'Gruppi di visione pubblici:',
     'syncplay.modal_create_new' => '+ Crea un gruppo di visione',
     'syncplay.modal_create_title' => 'Crea gruppo di visione',
-    'syncplay.modal_joining' => 'Accesso al gruppo di visione…',
+    'syncplay.modal_joining' => 'Ingresso nel gruppo di visione…',
 
+    // ---- BrowseScreen (empty-library banner + hints) -----------------
     'browse.loading' => 'Caricamento delle librerie…',
     'browse.no_libraries' => 'Ancora nessuna libreria.',
     'browse.no_libraries_admin' => 'Premi : per aprire la palette dei comandi, poi {admin} → {libraries} per aggiungerne una.',
     'browse.no_libraries_member' => 'Chiedi a un amministratore di aggiungerne una.',
-    'browse.hint_refresh_quit' => 'R  ricaricare      q  uscire',
+    'browse.hint_refresh_quit' => 'R  ricarica      q  esci',
 
     // ---- Command palette (App::staticActions) ---------------------------
     'palette.search'     => 'Cerca',

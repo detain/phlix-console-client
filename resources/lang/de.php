@@ -133,10 +133,11 @@ return [
     'syncplay.modal_create_title' => 'Synchronisierte Gruppe erstellen',
     'syncplay.modal_joining' => 'Beitritt zur synchronisierten Gruppe…',
 
-    'browse.loading' => 'Ihre Bibliotheken werden geladen…',
+    // ---- BrowseScreen (empty-library banner + hints) -----------------
+    'browse.loading' => 'Deine Bibliotheken werden geladen…',
     'browse.no_libraries' => 'Noch keine Bibliotheken.',
-    'browse.no_libraries_admin' => 'Drücken Sie : für die Befehlspalette, dann {admin} → {libraries}, um eine hinzuzufügen.',
-    'browse.no_libraries_member' => 'Bitten Sie einen Administrator, eine hinzuzufügen.',
+    'browse.no_libraries_admin' => 'Drücke : für die Befehlspalette, dann {admin} → {libraries}, um eine hinzuzufügen.',
+    'browse.no_libraries_member' => 'Bitte einen Administrator, eine hinzuzufügen.',
     'browse.hint_refresh_quit' => 'R  neu laden      q  beenden',
 
     // ---- Command palette (App::staticActions) ---------------------------

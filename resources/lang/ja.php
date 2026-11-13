@@ -18,7 +18,7 @@ declare(strict_types=1);
 
 return [
     // ---- Auth (session expiry + sign-in/register failures — every surface) --
-    'auth.session_expired' => 'セッションの有効期限が切れました。もう一度ログインしてください。',
+    'auth.session_expired' => 'セッションの有効期限が切れました。もう一度サインインしてください。',
     'auth.register_taken' => 'このユーザー名はすでに使用されています。別の名前を選んでください。',
     'auth.register_pending' => 'アカウントは承認待ちです。管理者によって承認されるとサインインできます。',
     'auth.register_disabled' => 'このサーバーでは現在、登録が無効になっています。',
@@ -133,6 +133,7 @@ return [
     'syncplay.modal_create_title' => 'ウォッチグループを作成',
     'syncplay.modal_joining' => 'ウォッチグループに参加中…',
 
+    // ---- BrowseScreen (empty-library banner + hints) -----------------
     'browse.loading' => 'ライブラリを読み込んでいます…',
     'browse.no_libraries' => 'まだライブラリがありません。',
     'browse.no_libraries_admin' => ': を押してコマンドパレットを開き、{admin} → {libraries} から追加してください。',
@@ -205,9 +206,9 @@ return [
     'server.insecure_typed' => '⚠ http:// ではパスワードとセッショントークンが暗号化されずに送信されます。信頼できるローカルネットワーク以外では https:// を使用してください。',
     'server.invalid_url' => '有効なサーバー URL を入力してください (例: https://phlix.example.com)。',
     'settings.heading' => '設定',
-    'settings.logged_in_as' => '{name} としてログイン中',
+    'settings.logged_in_as' => '{name} としてサインイン中',
     'settings.server_line' => 'サーバー: {url}',
-    'settings.footer' => 'L  ログアウト      S  サーバー      Enter  保存      Esc  キャンセル',
+    'settings.footer' => 'L  サインアウト      S  サーバー      Enter  保存      Esc  キャンセル',
     'syncplay.modal_none' => '(利用可能なものはありません)',
     'syncplay.modal_more' => '… ほか {count} 件',
     'syncplay.modal_hint_list' => '↑↓ 選択  Enter 決定  Esc キャンセル',
