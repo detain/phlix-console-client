@@ -102,7 +102,7 @@ final class ServerScreen implements Model, Themed, CapturesSlash
             // structurally impossible (5k chars, emoji, spaces). Reachability
             // stays a sign-in-time concern (that failure UX is already fast and
             // clear); this gate only enforces the shape law at the boundary.
-            if (!self::isPlausibleServerUrl($url)) {
+            if (!Config::isPlausibleServerUrl($url)) {
                 return [
                     new self($form, 'Enter a valid server URL (e.g. https://phlix.example.com).', $this->cols, $this->rows),
                     null,
@@ -142,21 +142,5 @@ final class ServerScreen implements Model, Themed, CapturesSlash
         $body = implode("\n", $lines) . $this->form->view();
 
         return Chrome::frame('Setup', $body, 'Enter  connect      Esc  quit', $this->cols, $this->rows, theme: $this->theme());
-    }
-
-    /**
-     * Does the normalized URL have a shape a server could ever have? http(s)
-     * scheme (normalizeUrl forces one, so this only fires on scheme-embedded
-     * oddities) and filter_var-valid — which empirically refuses absurd lengths,
-     * non-ASCII host labels, and spaces before the value is persisted.
-     */
-    private static function isPlausibleServerUrl(string $url): bool
-    {
-        $scheme = parse_url($url, PHP_URL_SCHEME);
-        if (!is_string($scheme) || !in_array(strtolower($scheme), ['http', 'https'], true)) {
-            return false;
-        }
-
-        return filter_var($url, FILTER_VALIDATE_URL) !== false;
     }
 }

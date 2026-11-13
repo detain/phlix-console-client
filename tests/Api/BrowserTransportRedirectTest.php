@@ -32,7 +32,7 @@ final class BrowserTransportRedirectTest extends TestCase
         parent::tearDown();
     }
 
-    /** @param array<string,string> $seen @return int port */
+    /** @return int port */
     private function serve(callable $handler): int
     {
         $socket = new SocketServer('127.0.0.1:0');
@@ -76,9 +76,16 @@ final class BrowserTransportRedirectTest extends TestCase
 
             return new Response(200, [], 'ok');
         });
-        $portA = $this->serve(static fn (): Response => new Response(302, ['Location' => "http://127.0.0.1:{$portB}/x"]));
+        $portA = $this->serve(
+            static fn (): Response => new Response(302, ['Location' => "http://127.0.0.1:{$portB}/x"]),
+        );
 
-        $res = $this->await((new BrowserTransport())->send('GET', "http://127.0.0.1:{$portA}/a", ['Authorization' => 'Bearer secret'], ''));
+        $res = $this->await((new BrowserTransport())->send(
+            'GET',
+            "http://127.0.0.1:{$portA}/a",
+            ['Authorization' => 'Bearer secret'],
+            '',
+        ));
 
         self::assertSame(200, $res->getStatusCode());
         self::assertSame([''], $seenB, 'bearer must not follow a cross-origin hop');
@@ -96,7 +103,12 @@ final class BrowserTransportRedirectTest extends TestCase
             return new Response(200, [], 'ok');
         });
 
-        $this->await((new BrowserTransport())->send('GET', "http://127.0.0.1:{$port}/a", ['Authorization' => 'Bearer secret'], ''));
+        $this->await((new BrowserTransport())->send(
+            'GET',
+            "http://127.0.0.1:{$port}/a",
+            ['Authorization' => 'Bearer secret'],
+            '',
+        ));
 
         self::assertSame(['Bearer secret', 'Bearer secret'], $seen);
     }

@@ -450,6 +450,15 @@ final class ConfigTest extends TestCase
         self::assertSame('https://a.tld', Config::normalizeUrl('https://a.tld/'));
         self::assertSame('http://a.tld', Config::normalizeUrl('  http://a.tld  '));
         self::assertSame('', Config::normalizeUrl('   '));
+        // CON-S4: hostless input is refused and normalisation is idempotent.
+        self::assertSame('', Config::normalizeUrl('https://'));
+        self::assertSame('', Config::normalizeUrl('http:///'));
+        foreach (['a.tld', 'https://a.tld/', 'http://a.tld:8096//'] as $in) {
+            $once = Config::normalizeUrl($in);
+            self::assertSame($once, Config::normalizeUrl($once));
+        }
+        self::assertFalse(Config::isPlausibleServerUrl('https://'));
+        self::assertTrue(Config::isPlausibleServerUrl('https://a.tld'));
     }
 
     public function testDirHonoursXdgConfigHome(): void

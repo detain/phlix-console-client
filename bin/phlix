@@ -563,6 +563,13 @@ function runWatch(array $argv): int
         fwrite(STDERR, "Error: watch needs --hub and --server-id (env PHLIX_HUB_URL / PHLIX_HUB_SERVER_ID)\n");
         return 2;
     }
+    // Boundary law: schemeless --hub defaults to https://; a hostless or
+    // implausible value is a usage error (exit 2), never a silent mis-dial.
+    $hub = Config::normalizeUrl($hub);
+    if (!Config::isPlausibleServerUrl($hub)) {
+        fwrite(STDERR, "Error: --hub / PHLIX_HUB_URL is not a valid hub URL (e.g. https://hub.example.com)\n");
+        return 2;
+    }
     $relayToken = $args['relayToken'];
     $hubToken = $args['hubToken'];
     if ($args['hubTokenStdin']) {

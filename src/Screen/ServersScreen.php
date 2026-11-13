@@ -281,7 +281,7 @@ final class ServersScreen implements Model, Themed, CapturesSlash
 
         if ($form->isSubmitted()) {
             $url = Config::normalizeUrl($form->getString('server_url'));
-            if ($url === '') {
+            if ($url === '' || !Config::isPlausibleServerUrl($url)) {
                 return $this->formWithError();
             }
 

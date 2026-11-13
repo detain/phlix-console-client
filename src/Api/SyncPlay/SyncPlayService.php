@@ -796,7 +796,12 @@ final class SyncPlayService
     private function buildWebSocketUrl(SyncPlaySession $session): string
     {
         $scheme = str_starts_with($session->serverUrl, 'https://') ? 'wss://' : 'ws://';
-        $host = parse_url($session->serverUrl, PHP_URL_HOST) ?? 'localhost';
+        $host = parse_url($session->serverUrl, PHP_URL_HOST);
+        if (!is_string($host) || $host === '') {
+            throw new \InvalidArgumentException(
+                sprintf('SyncPlay server URL has no host: "%s"', $session->serverUrl),
+            );
+        }
         $port = $this->wsPort ?? self::DEFAULT_WS_PORT;
 
         return sprintf(

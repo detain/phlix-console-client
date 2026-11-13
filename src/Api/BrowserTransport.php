@@ -89,7 +89,14 @@ final class BrowserTransport implements Transport
      * @param array<string,string> $headers
      * @return PromiseInterface<\Psr\Http\Message\ResponseInterface>
      */
-    private function followRedirects(string $method, string $url, array $headers, string $body, ?string $origin, int $hop): PromiseInterface
+    private function followRedirects(
+        string $method,
+        string $url,
+        array $headers,
+        string $body,
+        ?string $origin,
+        int $hop,
+    ): PromiseInterface
     {
         return $this->dispatch($method, $url, $headers, $body)->then(
             function ($response) use ($method, $url, $headers, $body, $origin, $hop) {

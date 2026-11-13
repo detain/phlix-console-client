@@ -176,7 +176,7 @@ final class Config
                     hubId: self::string($row['hub_id'] ?? null) ?: null,
                     // Parse at the boundary: only a positive int is a port;
                     // anything else (junk, out-of-range, absent) is null = default.
-                    wsPort: (isset($row['ws_port']) && is_int($row['ws_port']) && $row['ws_port'] > 0)
+                    wsPort: (isset($row['ws_port']) && is_int($row['ws_port']) && $row['ws_port'] > 0 && $row['ws_port'] <= 65535)
                         ? $row['ws_port']
                         : null,
                 );
@@ -455,7 +455,37 @@ final class Config
             $url = 'https://' . $url;
         }
 
-        return rtrim($url, '/');
+        $url = rtrim($url, '/');
+
+        // Idempotence + hostless refusal: "https://" (or "https:///x") has no
+        // host, and re-normalising the stripped "https:" would otherwise
+        // persist "https://https:". Refuse (blank) instead.
+        $host = parse_url($url, PHP_URL_HOST);
+        if (!is_string($host) || $host === '') {
+            return '';
+        }
+
+        return $url;
+    }
+
+    /**
+     * Does the normalised URL have a shape a server could ever have? http(s)
+     * scheme, a host, and filter_var-valid (refuses absurd lengths, non-ASCII
+     * host labels, spaces). Shared gate for the wizard, the servers screen and
+     * the headless CLI.
+     */
+    public static function isPlausibleServerUrl(string $url): bool
+    {
+        $scheme = parse_url($url, PHP_URL_SCHEME);
+        if (!is_string($scheme) || !in_array(strtolower($scheme), ['http', 'https'], true)) {
+            return false;
+        }
+        $host = parse_url($url, PHP_URL_HOST);
+        if (!is_string($host) || $host === '') {
+            return false;
+        }
+
+        return filter_var($url, FILTER_VALIDATE_URL) !== false;
     }
 
     private static function extractLabelFromUrl(string $url): string
