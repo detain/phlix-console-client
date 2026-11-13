@@ -340,6 +340,51 @@ final class ApiClientTest extends TestCase
         self::assertSame('Bearer access-2', $t->requestAt(2)['headers']['Authorization'], 'the retry uses the refreshed token');
     }
 
+    public function testRefreshSettlingAfterServerSwitchDoesNotApplyOrPersistBundle(): void
+    {
+        $transport = new class () implements \Phlix\Console\Api\Transport {
+            /** @var \React\Promise\Deferred<\Psr\Http\Message\ResponseInterface> */
+            public \React\Promise\Deferred $pending;
+
+            public function send(string $method, string $url, array $headers, string $body): PromiseInterface
+            {
+                $this->pending = new \React\Promise\Deferred();
+
+                return $this->pending->promise();
+            }
+        };
+        $client = new ApiClient(self::BASE, $transport);
+        $client->setToken(new TokenBundle('stale', 'ref-A', 'Bearer', null));
+        $persisted = [];
+        $client->onTokenChanged(function (TokenBundle $b) use (&$persisted): void {
+            $persisted[] = $b;
+        });
+
+        $outcome = null;
+        $client->refresh()->then(
+            static function () use (&$outcome): void {
+                $outcome = 'resolved';
+            },
+            static function (\Throwable $e) use (&$outcome): void {
+                $outcome = $e;
+            },
+        );
+
+        // Switch to server B while A's refresh is in flight.
+        $client->setBaseUrl('https://other.example');
+        $client->setToken(null);
+
+        $transport->pending->resolve(new \React\Http\Message\Response(
+            200,
+            ['Content-Type' => 'application/json'],
+            (string) json_encode($this->authResponse('access-A', 'refresh-A')),
+        ));
+
+        self::assertSame([], $persisted, "A's bundle must not be persisted under B's identity");
+        self::assertNull($client->token(), "A's bundle must not become B's token");
+        self::assertInstanceOf(AuthError::class, $outcome);
+    }
+
     public function testLibrariesMapsList(): void
     {
         $t = (new FakeTransport())->json(200, ['libraries' => [

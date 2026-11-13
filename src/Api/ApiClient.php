@@ -71,6 +71,14 @@ final class ApiClient
     /** @var PromiseInterface<TokenBundle>|null  A refresh in flight, shared across callers. */
     private ?PromiseInterface $refreshInFlight = null;
 
+    /**
+     * Connection generation: bumped on every setBaseUrl() so a refresh that was
+     * started against the previous server can be recognised as stale when it
+     * settles, and its bundle never applied/persisted under the new server's
+     * identity [CON-7 / CU-004].
+     */
+    private int $generation = 0;
+
     public function __construct(
         private string $baseUrl,
         ?Transport $transport = null,
@@ -82,6 +90,10 @@ final class ApiClient
     public function setBaseUrl(string $baseUrl): void
     {
         $this->baseUrl = $baseUrl;
+        // A new connection: invalidate any refresh still in flight against the
+        // old server and stop new callers sharing it.
+        $this->generation++;
+        $this->refreshInFlight = null;
     }
 
     public function baseUrl(): string
@@ -202,23 +214,37 @@ final class ApiClient
         // cleared exactly once when it does.
         /** @var Deferred<TokenBundle> $deferred */
         $deferred = new Deferred();
-        $this->refreshInFlight = $deferred->promise();
+        $promise = $deferred->promise();
+        $this->refreshInFlight = $promise;
+        $generation = $this->generation;
 
         $this->exchange('POST', '/api/v1/auth/refresh', [], ['refresh_token' => $refreshToken], auth: false)
             ->then(
-                function (array $data) use ($deferred): void {
+                function (array $data) use ($deferred, $promise, $generation): void {
+                    if ($this->refreshInFlight === $promise) {
+                        $this->refreshInFlight = null;
+                    }
+                    // Connection switched while this refresh was in flight: the
+                    // bundle belongs to the OLD server — drop it, never apply
+                    // or persist it under the new server's identity.
+                    if ($generation !== $this->generation) {
+                        $deferred->reject(new AuthError('Server changed during token refresh', 401));
+
+                        return;
+                    }
                     $bundle = TokenBundle::fromAuthResponse($data);
                     $this->applyToken($bundle);
-                    $this->refreshInFlight = null;
                     $deferred->resolve($bundle);
                 },
-                function (\Throwable $error) use ($deferred): void {
-                    $this->refreshInFlight = null;
+                function (\Throwable $error) use ($deferred, $promise): void {
+                    if ($this->refreshInFlight === $promise) {
+                        $this->refreshInFlight = null;
+                    }
                     $deferred->reject($error);
                 },
             );
 
-        return $deferred->promise();
+        return $promise;
     }
 
     /**
