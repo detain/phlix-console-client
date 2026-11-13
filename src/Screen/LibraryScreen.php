@@ -59,7 +59,7 @@ use SugarCraft\Gallery\PosterGrid;
  * (the sugar-core / sugar-gallery pattern) so the screen stays immutable without
  * a giant positional constructor.
  */
-final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shimmering, Themed
+final class LibraryScreen implements Breadcrumbed, CapturesSlash, Loadable, Shimmering, Themed, TakesModifierChords
 {
     use SubscriptionCapable;
     use ThemedScreen;

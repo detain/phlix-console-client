@@ -194,7 +194,7 @@ final class ServersScreen implements Model, Themed, CapturesSlash
         // frame, then App rebuilds the screen on OpenServersMsg. The old
         // comment promised a hub import via myServers(); that fetch never
         // existed [review riders W14, R-CONSOLE-14].
-        if ($msg->type === KeyType::Char && $msg->rune === 'h' && !$msg->ctrl) {
+        if ($msg->type === KeyType::Char && $msg->rune === 'h' && !$msg->ctrl && !$msg->alt) {
             return [new self(
                 $this->servers,
                 $this->activeServerId,

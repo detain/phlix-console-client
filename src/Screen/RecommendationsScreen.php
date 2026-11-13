@@ -34,7 +34,7 @@ use SugarCraft\Core\SubscriptionCapable;
  * Fetches from GET /api/v1/me/recommendations and displays
  * recommendation cards in a scrollable list.
  */
-final class RecommendationsScreen implements Model, Teardownable, CapturesSlash, Themed
+final class RecommendationsScreen implements Model, Teardownable, CapturesSlash, Themed, TakesModifierChords
 {
     use SubscriptionCapable;
     use ThemedScreen;

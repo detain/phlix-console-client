@@ -154,6 +154,7 @@ use Phlix\Console\Screen\SharedWithMeScreen;
 use Phlix\Console\Screen\Shimmering;
 use Phlix\Console\Screen\StatsScreen;
 use Phlix\Console\Screen\RecommendationsScreen;
+use Phlix\Console\Screen\TakesModifierChords;
 use Phlix\Console\Screen\WatchHistoryScreen;
 use Phlix\Console\Screen\FavoritesScreen;
 use Phlix\Console\Screen\FederationSharesScreen;
@@ -587,6 +588,15 @@ final class App implements Model
             if ($msg instanceof KeyMsg && $this->isSearchKey($msg)) {
                 return $this->openSearch();
             }
+        }
+
+        // [CON-3] Modifier-chord choke: screen key arms match on the rune alone
+        // (`y` confirms, `q` quits), and a terminal reports Ctrl-Y / Alt-Q with
+        // that same rune. Ctrl-C / Ctrl-K never reach here (interrupt + palette
+        // gates above), so any other ctrl/alt Char|Space key is dropped unless
+        // the top screen owns a typed buffer and opted in.
+        if ($msg instanceof KeyMsg && $this->isModifierChord($msg) && !$this->topTakesModifierChords()) {
+            return [$this, null];
         }
 
         if ($msg instanceof BootResolvedMsg) {
@@ -1249,6 +1259,26 @@ final class App implements Model
     private function paletteAndSearchAvailable(): bool
     {
         return $this->auth->currentUser() !== null;
+    }
+
+    private function isModifierChord(KeyMsg $msg): bool
+    {
+        return ($msg->type === KeyType::Char || $msg->type === KeyType::Space)
+            && ($msg->ctrl || $msg->alt);
+    }
+
+    /**
+     * Does the top screen legitimately consume ctrl/alt-modified text keys
+     * (a typed-buffer screen that opted in, or a field currently edited)?
+     */
+    private function topTakesModifierChords(): bool
+    {
+        $top = $this->topScreen();
+        if ($top instanceof TakesModifierChords) {
+            return true;
+        }
+
+        return $top instanceof HostsTextInput && $top->isEditingText();
     }
 
     private function isPaletteToggle(KeyMsg $msg): bool

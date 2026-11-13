@@ -48,7 +48,7 @@ use SugarCraft\Style\Style;
  * Implements {@see CapturesSlash} so `/` types into the box instead of
  * re-opening search.
  */
-final class SearchScreen implements Breadcrumbed, CapturesSlash, Loadable, Shimmering, Themed
+final class SearchScreen implements Breadcrumbed, CapturesSlash, Loadable, Shimmering, Themed, TakesModifierChords
 {
     use SubscriptionCapable;
     use ThemedScreen;
