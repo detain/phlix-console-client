@@ -378,7 +378,7 @@ final class ServersScreen implements Model, Themed, CapturesSlash
         if ($this->addForm !== null) {
             $lines = ['Add a server', ''];
             if ($this->error !== null) {
-                $lines[] = '  ' . $this->error;
+                $lines[] = '  ' . Chrome::errorLine($this->error, $this->cols, $this->theme());
                 $lines[] = '';
             }
             // Live insecure warning while typing the URL [review
@@ -409,7 +409,7 @@ final class ServersScreen implements Model, Themed, CapturesSlash
         }
 
         if ($this->error !== null) {
-            $lines[] = '  ' . $this->error;
+            $lines[] = '  ' . Chrome::errorLine($this->error, $this->cols, $this->theme());
             $lines[] = '';
         }
 

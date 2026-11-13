@@ -123,7 +123,7 @@ final class LoginScreen implements Model, Themed, CapturesSlash, TakesModifierCh
             $lines[] = '  ' . Lang::t('auth.signin_progress');
             $lines[] = '';
         } elseif ($this->error !== null) {
-            $lines[] = '  ' . $this->error;
+            $lines[] = '  ' . Chrome::errorLine($this->error, $this->cols, $this->theme());
             $lines[] = '';
         }
         $body = implode("\n", $lines) . $this->form->view();

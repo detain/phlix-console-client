@@ -15,11 +15,16 @@ use SugarCraft\Core\Util\Width;
  */
 final class ErrorLineTripwireTest extends TestCase
 {
+    /** Interpolation form and, since CON-S12, the concatenation forms. */
+    private const RAW = '/\{\$this->errors?(?:\[[^\]]*\])?\}'
+        . '|\.\s*\$this->errors?\b(?!\s*(?:->|\())'
+        . '|\$this->errors?\s*\.(?!\.)/';
+
     public function testNoRawErrorInterpolationInScreens(): void
     {
         $offenders = [];
         foreach (glob(dirname(__DIR__, 2) . '/src/Screen/*.php') ?: [] as $file) {
-            if (preg_match('/\{\$this->errors?(?:\[[^\]]*\])?\}/', (string) file_get_contents($file)) === 1) {
+            if (preg_match(self::RAW, (string) file_get_contents($file)) === 1) {
                 $offenders[] = basename($file);
             }
         }
@@ -30,7 +35,10 @@ final class ErrorLineTripwireTest extends TestCase
     public function testScannerWouldCatchARawInterpolation(): void
     {
         $bad = 'return "\n  {$this->error}";';
-        self::assertSame(1, preg_match('/\{\$this->errors?(?:\[[^\]]*\])?\}/', $bad));
+        self::assertSame(1, preg_match(self::RAW, $bad));
+        self::assertSame(1, preg_match(self::RAW, "\$lines[] = '  ' . \$this->error;"), 'concat form');
+        self::assertSame(1, preg_match(self::RAW, "\$x = \$this->error . ' tail';"), 'trailing concat form');
+        self::assertSame(0, preg_match(self::RAW, "\$lines[] = '  ' . Chrome::errorLine(\$this->error, 80);"), 'errorLine is the lawful route');
     }
 
     public function testErrorLineIsBoundedByDisplayCells(): void

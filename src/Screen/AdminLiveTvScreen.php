@@ -934,7 +934,7 @@ final class AdminLiveTvScreen implements Breadcrumbed, Themed, HostsTextInput
             return '  Loading…';
         }
         if (isset($this->errors[$this->section->value])) {
-            return '  ' . $this->errors[$this->section->value] . "\n\n  Press r to retry.";
+            return '  ' . Chrome::errorLine($this->errors[$this->section->value], $this->cols, $this->theme()) . "\n\n  Press r to retry.";
         }
 
         return match ($this->section) {

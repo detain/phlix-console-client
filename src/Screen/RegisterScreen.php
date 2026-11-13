@@ -110,7 +110,7 @@ final class RegisterScreen implements Model, Themed, CapturesSlash, TakesModifie
             $lines[] = '  ' . Lang::t('auth.signup_progress');
             $lines[] = '';
         } elseif ($this->error !== null) {
-            $lines[] = '  ' . $this->error;
+            $lines[] = '  ' . Chrome::errorLine($this->error, $this->cols, $this->theme());
             $lines[] = '';
         }
         $body = implode("\n", $lines) . $this->form->view();

@@ -128,7 +128,7 @@ final class ServerScreen implements Model, Themed, CapturesSlash, TakesModifierC
     {
         $lines = [Lang::t('server.heading'), ''];
         if ($this->error !== null) {
-            $lines[] = '  ' . $this->error;
+            $lines[] = '  ' . Chrome::errorLine($this->error, $this->cols, $this->theme());
             $lines[] = '';
         }
         // Live insecure warning [review console__secaudit, M-CONSOLE-52]: an

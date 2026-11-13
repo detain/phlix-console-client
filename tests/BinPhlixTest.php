@@ -43,6 +43,40 @@ final class BinPhlixTest extends TestCase
     }
 
     /**
+     * CON-S22: the doctor truth rows (extension census, external-tool PATH
+     * probe, colour verdict, poster-cache lines) and the terminfo wording of
+     * the capability report are pinned, so a silent row loss reddens CI.
+     */
+    public function testDoctorPrintsTheExtensionToolColourAndCacheRows(): void
+    {
+        $result = $this->runPhlixWithDeadline(['doctor'], 15.0, $this->scratchHome());
+
+        $this->assertSame(0, $result['exitCode'], 'doctor stderr: ' . $result['stderr']);
+        $out = $result['stdout'];
+        $this->assertStringContainsString("PHP extensions:\n", $out);
+        foreach (['gd', 'intl', 'mbstring', 'ffi', 'json', 'curl', 'pcntl'] as $ext) {
+            $this->assertMatchesRegularExpression(
+                '/^  ' . preg_quote($ext, '/') . ' *: (loaded|MISSING)$/m',
+                $out,
+                "doctor lost the $ext extension row"
+            );
+        }
+        $this->assertStringContainsString("External tools (PATH):\n", $out);
+        foreach (['ffmpeg', 'ffplay', 'mpv'] as $tool) {
+            $this->assertMatchesRegularExpression(
+                '/^  ' . preg_quote($tool, '/') . ' *: \S/m',
+                $out,
+                "doctor lost the $tool PATH row"
+            );
+        }
+        $this->assertMatchesRegularExpression('/^Colour output: (enabled|suppressed \(NO_COLOR set or basic\/unset TERM\))$/m', $out);
+        $this->assertStringContainsString('Poster cache directory: ', $out);
+        $this->assertMatchesRegularExpression('/^Poster cache entry limit: \d+$/m', $out);
+        $this->assertMatchesRegularExpression('/^Poster cache current entries: \d+$/m', $out);
+        $this->assertStringContainsString('Protocol source : environment (+terminfo database)', $out);
+    }
+
+    /**
      * [review console__tuispec #1 / CU-053] end-to-end wiring: the default
      * `phlix doctor` must report the ENV snapshot (the retired live probe
      * may never run on a default path), and --probe must switch the label.

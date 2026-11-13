@@ -204,7 +204,7 @@ final class SettingsScreen implements Model, Themed, HostsTextInput
         $lines[] = '';
 
         if ($this->error !== null) {
-            $lines[] = '  ' . $this->error;
+            $lines[] = '  ' . Chrome::errorLine($this->error, $this->cols, $this->theme());
             $lines[] = '';
         }
         $body = implode("\n", $lines) . $this->form->view();

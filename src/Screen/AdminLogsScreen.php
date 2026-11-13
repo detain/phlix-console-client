@@ -309,7 +309,7 @@ final class AdminLogsScreen implements Breadcrumbed, Themed
         }
         if ($this->error !== null) {
             return [
-                Width::truncate($this->error, $width),
+                Chrome::errorLine($this->error, $width + 6, $this->theme()),
                 Width::truncate('Press r to retry.', $width),
             ];
         }

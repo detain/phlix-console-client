@@ -73,6 +73,43 @@ final class AppModifierChordChokeTest extends TestCase
         self::assertSame(1, $screen->seen);
     }
 
+    /**
+     * The HostsTextInput arm of the choke [CON-S2]: while a hosted form is
+     * focused on a text field the screen types, so chords reach it; once the
+     * field is not being edited the same chord is choked again.
+     */
+    public function testHostsTextInputScreenReceivesChordsOnlyWhileEditingText(): void
+    {
+        $screen = new ChordProbeHostsInputScreen();
+
+        $screen->editing = true;
+        $this->app($screen)->update(new KeyMsg(KeyType::Char, 'u', ctrl: true));
+        self::assertSame(1, $screen->seen, 'a chord reaches a screen that is editing text');
+
+        $screen->editing = false;
+        $this->app($screen)->update(new KeyMsg(KeyType::Char, 'u', ctrl: true));
+        self::assertSame(1, $screen->seen, 'the choke holds once the field is not being edited');
+    }
+
+    /**
+     * ServersScreen's 'h' refresh arm guards !alt as well as !ctrl [CON-S2]:
+     * Alt+h must not refresh the list the way a plain 'h' does.
+     */
+    public function testServersScreenHRefreshIgnoresAltChord(): void
+    {
+        $screen = new \Phlix\Console\Screen\ServersScreen(
+            [new ServerEntry(id: 's1', label: 'S', url: 'https://srv')],
+            's1',
+        );
+
+        [, $plainCmd] = $screen->update(new KeyMsg(KeyType::Char, 'h'));
+        self::assertNotNull($plainCmd, 'plain h refreshes the list');
+
+        [$next, $altCmd] = $screen->update(new KeyMsg(KeyType::Char, 'h', alt: true));
+        self::assertNull($altCmd, 'alt+h must not trigger the refresh');
+        self::assertSame($screen, $next);
+    }
+
     public function testOptedInTypedBufferScreenReceivesChords(): void
     {
         $screen = new ChordProbeTypedScreen();
@@ -108,6 +145,16 @@ class ChordProbeScreen implements Model
     public function subscriptions(): ?\SugarCraft\Core\Subscriptions
     {
         return null;
+    }
+}
+
+final class ChordProbeHostsInputScreen extends ChordProbeScreen implements \Phlix\Console\Screen\HostsTextInput
+{
+    public bool $editing = false;
+
+    public function isEditingText(): bool
+    {
+        return $this->editing;
     }
 }
 
