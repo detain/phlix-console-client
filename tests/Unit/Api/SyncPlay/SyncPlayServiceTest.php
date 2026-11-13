@@ -795,4 +795,29 @@ final class SyncPlayServiceTest extends TestCase
         self::assertSame([1.0, 2.0], $clock->oneShotDelays, 'the ladder climbs to the next rung');
         self::assertSame(1, $clock->pendingOneShotCount());
     }
+
+    public function testHostlessServerUrlRefusesLoudlyWithoutDialling(): void
+    {
+        $transport = new FakeTransport();
+        $clock = new FakeClockLoop();
+        $dials = 0;
+        $service = new SyncPlayService(
+            new ApiClient('https://', $transport),
+            $clock,
+            static function (string $url) use (&$dials): AsyncTcpConnection {
+                $dials++;
+
+                return new RecordingConnection();
+            },
+        );
+
+        $transport->json(200, self::joinEnvelope());
+        $rejection = null;
+        $service->joinRoom('sp_cca927fbf4ba11f9')->then(null, static function (\Throwable $e) use (&$rejection): void {
+            $rejection = $e;
+        });
+
+        self::assertSame(0, $dials, 'a hostless URL must never dial ws://localhost');
+        self::assertNotNull($rejection, 'the join must reject loudly');
+    }
 }

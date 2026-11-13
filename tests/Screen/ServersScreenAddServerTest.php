@@ -173,4 +173,20 @@ final class ServersScreenAddServerTest extends TestCase
         // the same law ServerScreen pins for the first-run URL form.
         self::assertInstanceOf(CapturesSlash::class, $this->screen());
     }
+
+    public function testHostlessUrlIsRefusedAndNeverPersisted(): void
+    {
+        $screen = $this->screen()->update(new KeyMsg(KeyType::Char, 'a'))[0];
+        $screen = $this->type($screen, 'https://');
+        $screen = $this->key($screen, KeyType::Down);
+
+        [$next, $cmd] = $screen->update(new KeyMsg(KeyType::Enter));
+
+        self::assertInstanceOf(ServersScreen::class, $next);
+        if ($cmd !== null) {
+            $out = $cmd();
+            self::assertNotInstanceOf(BatchMsg::class, $out, 'a hostless URL must not emit AddServerMsg');
+            self::assertNotInstanceOf(AddServerMsg::class, $out);
+        }
+    }
 }

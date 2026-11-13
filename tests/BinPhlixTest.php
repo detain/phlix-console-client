@@ -169,6 +169,13 @@ final class BinPhlixTest extends TestCase
         $this->assertStringContainsString('watch needs a token', $output['stderr']);
     }
 
+    public function testWatchHostlessHubExitsTwo(): void
+    {
+        $output = $this->runPhlix(['watch', '--hub', 'https://', '--server-id', 'srv-123']);
+        $this->assertSame(2, $output['exitCode'], 'a hostless --hub must be a usage error');
+        $this->assertStringContainsString('not a valid hub URL', $output['stderr']);
+    }
+
     public function testWatchUnknownOptionExitsTwo(): void
     {
         $output = $this->runPhlix(['watch', '--bogus']);

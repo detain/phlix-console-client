@@ -152,4 +152,19 @@ final class ServerScreenTest extends TestCase
     {
         self::assertStringContainsString('Setup', ServerScreen::create()->view());
     }
+
+    public function testHostlessUrlIsRefusedLikeTheServersScreenGate(): void
+    {
+        foreach (['https://', 'http:///x'] as $bogus) {
+            $screen = $this->type(ServerScreen::create(), $bogus);
+
+            [$next, $cmd] = $screen->update(new KeyMsg(KeyType::Enter));
+
+            self::assertInstanceOf(ServerScreen::class, $next);
+            self::assertNotNull($next->error, "'$bogus' must be refused");
+            if ($cmd !== null) {
+                self::assertNotInstanceOf(SubmitServerMsg::class, $cmd(), "'$bogus' must never be submitted");
+            }
+        }
+    }
 }
