@@ -109,6 +109,8 @@ final class DetailScreen implements Breadcrumbed, Themed
     private const HERO_WIDTH = 26;
     private const HERO_HEIGHT = 16;
     private const COL_GAP = 3;
+    /** Below this many columns the hero poster is dropped and the metadata column takes the full panel width. */
+    private const NARROW_COLS = 55;
     private const CARD_WIDTH = 14;
     private const POSTER_HEIGHT = 9;
     private const H_SPACING = 2;
@@ -431,9 +433,16 @@ final class DetailScreen implements Breadcrumbed, Themed
             return $this->containerView($this->item, $this->childGrid);
         }
 
-        $hero = $this->heroAnsi ?? $this->heroPlaceholder();
         $column = $this->metadataColumn($this->item);
-        $body = Layout::joinHorizontalWithSpacing(0.0, self::COL_GAP, $hero, $column);
+        if ($this->isNarrow()) {
+            // [CON-46] No room for hero + column side by side: the poster is
+            // decorative, so stack just the column at full panel width rather
+            // than letting the join clip it silently.
+            $body = $column;
+        } else {
+            $hero = $this->heroAnsi ?? $this->heroPlaceholder();
+            $body = Layout::joinHorizontalWithSpacing(0.0, self::COL_GAP, $hero, $column);
+        }
 
         return Chrome::frame($this->headerTitle(), $body, Lang::t(self::HINT_KEY), $this->cols, $this->rows, $this->crumbs, $this->theme());
     }
@@ -1576,8 +1585,17 @@ final class DetailScreen implements Breadcrumbed, Themed
         return implode("\n", array_fill(0, self::HERO_HEIGHT, $row));
     }
 
+    private function isNarrow(): bool
+    {
+        return $this->cols < self::NARROW_COLS;
+    }
+
     private function columnWidth(): int
     {
+        if ($this->isNarrow()) {
+            return max(1, $this->cols - 4);
+        }
+
         return max(20, $this->cols - 4 - self::HERO_WIDTH - self::COL_GAP);
     }
 

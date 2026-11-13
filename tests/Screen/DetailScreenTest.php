@@ -520,6 +520,20 @@ final class DetailScreenTest extends TestCase
         self::assertIsString($next->view());
     }
 
+    public function testNarrowTerminalDropsHeroAndNeverExceedsWidth(): void
+    {
+        [$narrow] = $this->loaded()->update(new WindowSizeMsg(40, 24));
+        $view = $narrow->view();
+
+        self::assertStringNotContainsString('░', $view, 'hero placeholder is dropped below 55 cols');
+        foreach (explode("\n", $view) as $line) {
+            self::assertLessThanOrEqual(40, \mb_strwidth(\preg_replace('/\e\[[0-9;]*m/', '', $line) ?? ''), 'no line overflows 40 cols');
+        }
+
+        [$wide] = $this->loaded()->update(new WindowSizeMsg(80, 24));
+        self::assertStringContainsString('░', $wide->view(), 'hero still renders at 80 cols');
+    }
+
     public function testLeafEnterIsANoOp(): void
     {
         // A movie has no children — Enter does nothing (only containers drill).

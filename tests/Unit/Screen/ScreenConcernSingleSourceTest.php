@@ -109,7 +109,6 @@ final class ScreenConcernSingleSourceTest extends TestCase
         'coerce:a822c509e3a0' => 2,
         'coerceError:596e227a29ed' => 2,
         'coerceJson:07adebc467f8' => 2,
-        'columnWidth:484739ee9582' => 2,
         'crumbLabel:a26cf16aa513' => 3,
         'crumbLabel:d5115694604e' => 3,
         'editingKey:c8c0a39d4bcf' => 2,

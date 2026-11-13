@@ -39,7 +39,8 @@ final class LocaleVocabularyPinTest extends TestCase
         foreach (['de', 'es', 'it'] as $l) {
             $c = $this->cat($l);
             foreach (['browse.loading', 'browse.no_libraries_admin', 'browse.no_libraries_member'] as $k) {
-                self::assertDoesNotMatchRegularExpression('/\b(Sie|Ihre|Ihr|Drücken|Bitten|Pulse|Pida|usted)\b/u', $c[$k], "$l $k");
+                $pattern = '/\b(Sie|Ihre|Ihr|Drücken|Bitten|Pulse|Pida|usted)\b/u';
+                self::assertDoesNotMatchRegularExpression($pattern, $c[$k], "$l $k");
             }
         }
     }
