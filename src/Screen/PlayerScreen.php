@@ -612,7 +612,22 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
      */
     public function isLineAligned(): bool
     {
-        return !($this->inner !== null && $this->inner->mode->isGraphics());
+        return !$this->graphicsActive();
+    }
+
+    /**
+     * True when a pixel-graphics frame is actually emitted: the inner player is in
+     * a graphics mode AND the terminal meets the {@see Chrome::MIN_ROWS} floor. Below
+     * the floor the blob (innerRows) + the 3 pinned chrome rows cannot fit and the
+     * terminal would scroll mid-frame, so the screen self-degrades to Chrome's
+     * plain resize notice (line-aligned text) until the next resize heals it.
+     */
+    private function graphicsActive(): bool
+    {
+        return $this->inner !== null
+            && $this->inner->mode->isGraphics()
+            && $this->rows >= Chrome::MIN_ROWS
+            && $this->cols >= Chrome::MIN_COLS;
     }
 
     public function view(): string
@@ -688,6 +703,10 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
             return Chrome::frame($this->item->name, $body, 'Esc  back', $this->cols, $this->rows, theme: $this->theme());
         }
 
+        if ($this->inner->mode->isGraphics() && !$this->graphicsActive()) {
+            return Chrome::frame($this->item->name, '', 'Esc  back', $this->cols, $this->rows, theme: $this->theme());
+        }
+
         $frame = $this->inner->view();
         if ($this->chromeHidden) {
             return $frame;
@@ -700,7 +719,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
         // row 3" bug). Keep the view on a SINGLE logical line and pin the transport
         // chrome to the bottom rows with absolute cursor moves, so it always sits
         // below the image regardless of where the image left the cursor.
-        if ($this->inner->mode->isGraphics()) {
+        if ($this->graphicsActive()) {
             return $frame . $this->graphicsChrome($this->inner);
         }
 
@@ -717,7 +736,7 @@ final class PlayerScreen implements Model, Teardownable, CapturesSlash, Themed, 
      */
     private function graphicsChrome(Player $inner): string
     {
-        $bottom = max(3, $this->rows);
+        $bottom = max(3, $this->rows); // graphicsActive() guarantees rows >= Chrome::MIN_ROWS
 
         return Ansi::cursorTo($bottom - 2, 1) . Ansi::eraseLine() . $this->captionLine($inner)
             . Ansi::cursorTo($bottom - 1, 1) . Ansi::eraseLine() . $this->scrubberLine($inner)

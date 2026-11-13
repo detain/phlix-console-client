@@ -969,7 +969,7 @@ final class App implements Model
         $bar = NowPlayingBar::render($nowPlaying, max(1, $this->cols), $this->theme);
 
         if ($opaqueFrame) {
-            return $view . Ansi::cursorTo($this->rows, 1) . Ansi::eraseLine() . $bar;
+            return $view . Ansi::cursorTo(max(1, $this->rows), 1) . Ansi::eraseLine() . $bar;
         }
 
         $lines = explode("\n", $view);

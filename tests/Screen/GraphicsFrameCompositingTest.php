@@ -210,6 +210,29 @@ final class GraphicsFrameCompositingTest extends TestCase
         self::assertFalse($graphics->isLineAligned());
     }
 
+    public function testGraphicsPathHonoursTheMinSizeFloorAt24x10(): void
+    {
+        // 24x10 is above the floor (MIN_COLS 20 / MIN_ROWS 9): graphics stays live.
+        $screen = $this->playerScreen(Mode::Sixel);
+        [$screen] = $screen->update(new \SugarCraft\Core\Msg\WindowSizeMsg(24, 10));
+        self::assertFalse($screen->isLineAligned());
+        self::assertStringStartsWith("\x1bP", $screen->view());
+    }
+
+    public function testGraphicsPathSelfDegradesBelowTheFloorWithoutMidFrameScroll(): void
+    {
+        $screen = $this->playerScreen(Mode::Sixel);
+        [$screen] = $screen->update(new \SugarCraft\Core\Msg\WindowSizeMsg(24, 6));
+
+        // Below the row floor the blob + 3 pinned chrome rows cannot fit: the
+        // screen degrades to the line-aligned resize notice, no DCS blob emitted.
+        self::assertTrue($screen->isLineAligned());
+        $view = $screen->view();
+        self::assertStringNotContainsString("\x1bP", $view);
+        self::assertStringContainsString('Terminal too small', $view);
+        self::assertLessThanOrEqual(6, count(explode("\n", $view)));
+    }
+
     public function testChapterMenuOverALiveSixelFrameIsGraftedNotSpliced(): void
     {
         $screen = $this->playerScreen(Mode::Sixel);
