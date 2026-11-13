@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Screen;
 
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Config\Config;
 use Phlix\Console\Msg\LogoutMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
@@ -187,18 +188,18 @@ final class SettingsScreen implements Model, Themed, HostsTextInput
 
     public function view(): string
     {
-        $lines = ['Settings', ''];
+        $lines = [Lang::t('settings.heading'), ''];
 
         // Show logged-in user info
         $currentUser = $this->authStore?->currentUser();
         if ($currentUser !== null) {
-            $lines[] = '  Logged in as ' . $currentUser->username;
+            $lines[] = '  ' . Lang::t('settings.logged_in_as', ['name' => $currentUser->username]);
         }
 
         // Show current server URL
         $activeServer = $this->config->activeServer();
         if ($activeServer !== null) {
-            $lines[] = '  Server: ' . $activeServer->url;
+            $lines[] = '  ' . Lang::t('settings.server_line', ['url' => $activeServer->url]);
         }
         $lines[] = '';
 
@@ -208,7 +209,7 @@ final class SettingsScreen implements Model, Themed, HostsTextInput
         }
         $body = implode("\n", $lines) . $this->form->view();
 
-        return Chrome::frame('Settings', $body, 'L  logout      S  servers      Enter  save      Esc  cancel', $this->cols, $this->rows, theme: $this->theme());
+        return Chrome::frame(Lang::t('settings.heading'), $body, Lang::t('settings.footer'), $this->cols, $this->rows, theme: $this->theme());
     }
 
     /** A submitted theme value, validated against the presets; blank/unknown → the current theme. */

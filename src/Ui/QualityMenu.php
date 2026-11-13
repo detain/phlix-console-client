@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Ui;
 
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Api\Dto\Rendition;
 use SugarCraft\Panels\SugarPanels;
 use SugarCraft\Style\Style;
@@ -160,7 +161,7 @@ final class QualityMenu
     /** @return list<string> the visible rows, "Auto" first then each rung. */
     private function rowLabels(): array
     {
-        $labels = ['Auto (recommended)'];
+        $labels = [Lang::t('quality.auto')];
         foreach ($this->variants as $rendition) {
             $labels[] = $rendition->displayLabel();
         }

@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Ui;
 
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Screen\Themed;
 use SugarCraft\Core\Util\Width;
 use SugarCraft\Panels\SugarPanels;
@@ -67,9 +68,9 @@ final class Chrome
     private static function tooSmallNotice(int $cols, int $rows): string
     {
         $lines = [
-            'Terminal too small.',
-            sprintf('Have %d×%d — Phlix needs at least %d×%d.', $cols, $rows, self::MIN_COLS, self::MIN_ROWS),
-            'Resize the window to continue.',
+            Lang::t('chrome.too_small_title'),
+            Lang::t('chrome.too_small_size', ['cols' => $cols, 'rows' => $rows, 'min_cols' => self::MIN_COLS, 'min_rows' => self::MIN_ROWS]),
+            Lang::t('chrome.too_small_resize'),
         ];
 
         $budget = max(1, $cols - 1);

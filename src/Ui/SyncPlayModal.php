@@ -309,7 +309,7 @@ final class SyncPlayModal
         $maxItems = min($roomCount, self::MAX_ROOMS_SHOWN);
 
         if ($roomCount === 0) {
-            $lines[] = '    (none available)';
+            $lines[] = '    ' . Lang::t('syncplay.modal_none');
         } else {
             for ($i = 0; $i < $maxItems; $i++) {
                 $room = $this->rooms[$i];
@@ -327,7 +327,7 @@ final class SyncPlayModal
             }
 
             if ($roomCount > self::MAX_ROOMS_SHOWN) {
-                $lines[] = sprintf('    … and %d more', $roomCount - self::MAX_ROOMS_SHOWN);
+                $lines[] = '    ' . Lang::t('syncplay.modal_more', ['count' => $roomCount - self::MAX_ROOMS_SHOWN]);
             }
         }
 
@@ -340,7 +340,7 @@ final class SyncPlayModal
             : $label;
 
         $lines[] = '';
-        $lines[] = '  ↑↓ select  Enter confirm  Esc cancel';
+        $lines[] = '  ' . Lang::t('syncplay.modal_hint_list');
 
         $body = implode("\n", $lines);
 
@@ -366,18 +366,18 @@ final class SyncPlayModal
         // law (cf. SearchScreen's query line).
         $nameBudget = max(1, $this->winWidth - 12); // border(2) + '  Name: '(8) + caret(1) + margin(1)
         $nameDisplay = Truncate::withEllipsis($this->roomName ?? '', $nameBudget) . '█';
-        $nameLabel = '  Name: ' . $nameDisplay;
-        $lines[] = Style::new()->reverse()->render($nameDisplay === '█' ? '  Name: █' : $nameLabel);
+        $nameLabel = '  ' . Lang::t('syncplay.modal_name_label') . ' ' . $nameDisplay;
+        $lines[] = Style::new()->reverse()->render($nameDisplay === '█' ? '  ' . Lang::t('syncplay.modal_name_label') . ' █' : $nameLabel);
 
         $lines[] = '';
 
         // Public/private toggle
-        $pubLabel = $this->isPublic ? '◉ Public' : '○ Private';
+        $pubLabel = $this->isPublic ? '◉ ' . Lang::t('syncplay.modal_public') : '○ ' . Lang::t('syncplay.modal_private');
         $lines[] = '  [P] ' . $pubLabel;
 
         $lines[] = '';
-        $lines[] = '  Enter create  ← back  type to edit name';
-        $lines[] = '  Esc cancel';
+        $lines[] = '  ' . Lang::t('syncplay.modal_hint_create');
+        $lines[] = '  ' . Lang::t('syncplay.modal_hint_cancel');
 
         $body = implode("\n", $lines);
 
@@ -407,11 +407,11 @@ final class SyncPlayModal
     private function renderError(): string
     {
         $lines = [];
-        $lines[] = Style::new()->bold()->render('  Error');
+        $lines[] = Style::new()->bold()->render('  ' . Lang::t('syncplay.modal_error_title'));
         $lines[] = '';
-        $lines[] = '  ' . ($this->error ?? 'Could not complete the action.');
+        $lines[] = '  ' . ($this->error ?? Lang::t('syncplay.modal_error_default'));
         $lines[] = '';
-        $lines[] = '  Press any key to continue';
+        $lines[] = '  ' . Lang::t('syncplay.modal_press_key');
 
         $body = implode("\n", $lines);
 

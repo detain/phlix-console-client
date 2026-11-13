@@ -157,7 +157,7 @@ final class ToastSentencePunctuationTest extends TestCase
     public function testNamedFallbackSentencesOutsideSuccessToastsStayTerminated(): void
     {
         $pins = [
-            'src/Ui/SyncPlayModal.php' => ['Could not complete the action'],
+            'resources/lang/en.php' => ['Could not complete the action'],
             'src/Screen/AdminServerRestartScreen.php' => ['Restart signal sent'],
         ];
         foreach ($pins as $relative => $sentences) {

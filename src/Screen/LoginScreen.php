@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Screen;
 
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\OpenRegisterMsg;
 use Phlix\Console\Msg\RequestQuitMsg;
 use Phlix\Console\Msg\SubmitLoginMsg;
@@ -110,17 +111,16 @@ final class LoginScreen implements Model, Themed, CapturesSlash, TakesModifierCh
 
     public function view(): string
     {
-        $lines = ['Sign in to Phlix.', ''];
+        $lines = [Lang::t('auth.signin_heading'), ''];
         // The credential form must say what the transport means [review
         // console__secaudit, M-CONSOLE-52]: on an http server the password
         // typed below crosses the wire unencrypted.
         if ($this->insecureServer) {
-            $lines[] = '  ⚠ This server uses an insecure connection (http) — your password';
-            $lines[] = '    and session tokens travel unprotected.';
+            $lines[] = '  ' . Lang::t('auth.insecure_warning');
             $lines[] = '';
         }
         if ($this->submitting) {
-            $lines[] = '  Signing in…';
+            $lines[] = '  ' . Lang::t('auth.signin_progress');
             $lines[] = '';
         } elseif ($this->error !== null) {
             $lines[] = '  ' . $this->error;
@@ -128,6 +128,6 @@ final class LoginScreen implements Model, Themed, CapturesSlash, TakesModifierCh
         }
         $body = implode("\n", $lines) . $this->form->view();
 
-        return Chrome::frame('Sign in', $body, 'Tab  next      Enter  sign in      s  sign up      Esc  quit', $this->cols, $this->rows, theme: $this->theme());
+        return Chrome::frame(Lang::t('auth.signin_title'), $body, Lang::t('auth.signin_footer'), $this->cols, $this->rows, theme: $this->theme());
     }
 }

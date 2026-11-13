@@ -55,13 +55,21 @@ final class LocaleCatalogsTest extends TestCase
         // 'player.hint_sleep' is the glyph-only countdown token ('  z ⏰ ') —
         // there is no word to translate, so every locale mirrors en byte-for-
         // byte (review M-CONSOLE-64; same class as the asc/desc order labels).
-        'es' => ['filter.order_asc', 'filter.order_desc', 'player.hint_sleep'],
+        // CON-S17 cognates identical to en by nature: es 'Error', fr 'Public',
+        // de/it 'Server: {url}', de 'Name:'.
+        'es' => ['filter.order_asc', 'filter.order_desc', 'player.hint_sleep', 'syncplay.modal_error_title'],
         'fr' => [
             'filter.order_asc', 'filter.order_desc', 'filter.sort_genre',
-            'palette.collections', 'palette.photos', 'player.hint_sleep',
+            'palette.collections', 'palette.photos', 'player.hint_sleep', 'syncplay.modal_public',
         ],
-        'de' => ['filter.order_asc', 'filter.order_desc', 'player.hint_sleep'],
-        'it' => ['detail.cast_label', 'filter.order_asc', 'filter.order_desc', 'player.hint_sleep'],
+        'de' => [
+            'filter.order_asc', 'filter.order_desc', 'player.hint_sleep',
+            'settings.server_line', 'syncplay.modal_name_label',
+        ],
+        'it' => [
+            'detail.cast_label', 'filter.order_asc', 'filter.order_desc', 'player.hint_sleep',
+            'settings.server_line',
+        ],
         'pt-br' => ['detail.item', 'filter.order_asc', 'filter.order_desc', 'library.items_one', 'player.hint_sleep'],
         'ja' => ['player.hint_sleep'],
     ];

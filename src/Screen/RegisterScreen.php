@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Screen;
 
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Msg\OpenLoginMsg;
 use Phlix\Console\Msg\SubmitRegisterMsg;
 use Phlix\Console\Ui\Chrome;
@@ -98,16 +99,15 @@ final class RegisterScreen implements Model, Themed, CapturesSlash, TakesModifie
 
     public function view(): string
     {
-        $lines = ['Create your Phlix account.', ''];
+        $lines = [Lang::t('auth.signup_heading'), ''];
         // Same law as LoginScreen [review console__secaudit, M-CONSOLE-52]:
         // signup credentials over http are as exposed as login ones.
         if ($this->insecureServer) {
-            $lines[] = '  ⚠ This server uses an insecure connection (http) — your password';
-            $lines[] = '    and session tokens travel unprotected.';
+            $lines[] = '  ' . Lang::t('auth.insecure_warning');
             $lines[] = '';
         }
         if ($this->submitting) {
-            $lines[] = '  Creating account…';
+            $lines[] = '  ' . Lang::t('auth.signup_progress');
             $lines[] = '';
         } elseif ($this->error !== null) {
             $lines[] = '  ' . $this->error;
@@ -115,6 +115,6 @@ final class RegisterScreen implements Model, Themed, CapturesSlash, TakesModifie
         }
         $body = implode("\n", $lines) . $this->form->view();
 
-        return Chrome::frame('Sign up', $body, 'Tab  next      Enter  sign up      Esc  back to sign in', $this->cols, $this->rows, theme: $this->theme());
+        return Chrome::frame(Lang::t('auth.signup_title'), $body, Lang::t('auth.signup_footer'), $this->cols, $this->rows, theme: $this->theme());
     }
 }

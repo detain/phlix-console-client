@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace Phlix\Console\Screen;
 
+use Phlix\Console\I18n\Lang;
 use Phlix\Console\Config\Config;
 use Phlix\Console\Msg\RequestQuitMsg;
 use Phlix\Console\Msg\SubmitServerMsg;
@@ -62,7 +63,7 @@ final class ServerScreen implements Model, Themed, CapturesSlash, TakesModifierC
     {
         return Form::new(
             Input::new('server')
-                ->withTitle('Phlix server URL')
+                ->withTitle(Lang::t('server.field_title'))
                 ->withPlaceholder('https://host:8096')
                 ->required(),
         );
@@ -104,7 +105,7 @@ final class ServerScreen implements Model, Themed, CapturesSlash, TakesModifierC
             // clear); this gate only enforces the shape law at the boundary.
             if (!Config::isPlausibleServerUrl($url)) {
                 return [
-                    new self($form, 'Enter a valid server URL (e.g. https://phlix.example.com).', $this->cols, $this->rows),
+                    new self($form, Lang::t('server.invalid_url'), $this->cols, $this->rows),
                     null,
                 ];
             }
@@ -125,7 +126,7 @@ final class ServerScreen implements Model, Themed, CapturesSlash, TakesModifierC
 
     public function view(): string
     {
-        $lines = ['Connect to your Phlix server.', ''];
+        $lines = [Lang::t('server.heading'), ''];
         if ($this->error !== null) {
             $lines[] = '  ' . $this->error;
             $lines[] = '';
@@ -135,12 +136,11 @@ final class ServerScreen implements Model, Themed, CapturesSlash, TakesModifierC
         // form says out loud what it means for the credentials about to move.
         $typed = Config::normalizeUrl($this->form->getString('server'));
         if ($typed !== '' && Config::isInsecureUrl($typed)) {
-            $lines[] = '  ⚠ http:// sends your password and session tokens unencrypted.';
-            $lines[] = '    Use https:// unless this is a trusted local network.';
+            $lines[] = '  ' . Lang::t('server.insecure_typed');
             $lines[] = '';
         }
         $body = implode("\n", $lines) . $this->form->view();
 
-        return Chrome::frame('Setup', $body, 'Enter  connect      Esc  quit', $this->cols, $this->rows, theme: $this->theme());
+        return Chrome::frame(Lang::t('server.title'), $body, Lang::t('server.footer'), $this->cols, $this->rows, theme: $this->theme());
     }
 }
