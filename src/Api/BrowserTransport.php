@@ -96,8 +96,7 @@ final class BrowserTransport implements Transport
         string $body,
         ?string $origin,
         int $hop,
-    ): PromiseInterface
-    {
+    ): PromiseInterface {
         return $this->dispatch($method, $url, $headers, $body)->then(
             function ($response) use ($method, $url, $headers, $body, $origin, $hop) {
                 $status = $response->getStatusCode();

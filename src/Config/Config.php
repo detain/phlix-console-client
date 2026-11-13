@@ -176,7 +176,8 @@ final class Config
                     hubId: self::string($row['hub_id'] ?? null) ?: null,
                     // Parse at the boundary: only a positive int is a port;
                     // anything else (junk, out-of-range, absent) is null = default.
-                    wsPort: (isset($row['ws_port']) && is_int($row['ws_port']) && $row['ws_port'] > 0 && $row['ws_port'] <= 65535)
+                    wsPort: (isset($row['ws_port']) && is_int($row['ws_port']) && $row['ws_port'] > 0
+                        && $row['ws_port'] <= 65535)
                         ? $row['ws_port']
                         : null,
                 );
