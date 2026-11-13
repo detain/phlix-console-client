@@ -97,23 +97,24 @@ locale catalogs drifted apart.
 
 ### vendor-patches
 
-Greps vendor PHP files for hand-patching markers (`ci.yml:149`). The current
+Greps vendor PHP files for hand-patching markers (`ci.yml:155`), single job on
+PHP 8.3 (`ci.yml:143`). The current
 pattern matches: `FIXED-BY`, `PATCH{`, `// PATCH`, `/* PATCH`, and the
 ANSI-red `PATCH` (`\x1b[1;31mPATCH`). Bare `ORIGINAL` is deliberately **not**
 matched — vendor packages legitimately contain constants/comments such as
 `COMPOSER_ORIGINAL_INIS` or `ORIGINAL_NODE`; it was dropped from the pattern by
-`09b4228` (see the in-step comment at `ci.yml:147-148`).
+`09b4228` (see the in-step comment at `ci.yml:153-154`).
 
 **Failure means:** Someone hand-patched a vendor file. Fork the package instead.
 
 ### smoke
 
 Bootstraps the full application with a stub HTTP server and runs
-`php bin/phlix run --selftest`. The step (`ci.yml:180-191`) starts
+`php bin/phlix run --selftest`. The step (`ci.yml:186-197`) starts
 `php -S 127.0.0.1:8099 tests/stub/router.php` in the same shell step
 (background processes die with the step), waits on the port, then runs
 `PHLIX_SERVER_URL=http://127.0.0.1:8099 php bin/phlix run --selftest`
-(`ci.yml:191`). The job `needs: test` (`ci.yml:160`) and runs across PHP
+(`ci.yml:197`). The job `needs: test` (`ci.yml:166`) and runs across PHP
 8.3, 8.4, 8.5. The selftest (`runSelftest()` in `bin/phlix`) verifies config
 loading, object graph wiring (including that `PlayerScreen`'s
 `SyncPlayService` is non-null), HTTP reachability (one real `GET
@@ -123,12 +124,12 @@ loading, object graph wiring (including that `PlayerScreen`'s
 
 ### composer-audit — "Security Audit" (postdates C9, S246)
 
-`php scripts/security-audit-check.php` (`ci.yml:230`) audits the **whole**
+`php scripts/security-audit-check.php` (`ci.yml:236`) audits the **whole**
 `composer.lock` (runtime AND development dependencies) against advisories.
-Single job on PHP 8.3 (`ci.yml:224`). It must remain the **last job in the
+Single job on PHP 8.3 (`ci.yml:230`). It must remain the **last job in the
 file**: `tests/Unit/SecurityAuditCheckTest.php` slices ci.yml from
 `composer-audit:` to EOF and fails on exclusion, `continue-on-error`, or any
-neutering wrap (`ci.yml:207-212`).
+neutering wrap (`ci.yml:213-218`).
 
 **Failure means:** an advisory landed in the lock, or the gate was weakened.
 
@@ -179,7 +180,7 @@ recreates the tag so it points at this commit. Skipped on PRs and tag pushes.
 | smoke                        | ✓   | ✓   | ✓   | ✓ |
 | i18n                         | ✓   | —   | —   | single-version job (`ci.yml:129`) |
 | vendor-patches               | runner-default PHP — no setup-php step | | | |
-| composer-audit (Security Audit) | ✓ | — | — | single-version job (`ci.yml:224`) |
+| composer-audit (Security Audit) | ✓ | — | — | single-version job (`ci.yml:230`) |
 
 All jobs with a matrix use `fail-fast: false` — all PHP versions run to
 completion regardless of individual job results. `build.yml` runs its phar job
