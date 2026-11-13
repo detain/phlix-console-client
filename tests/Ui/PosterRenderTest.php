@@ -127,12 +127,18 @@ final class PosterRenderTest extends TestCase
     {
         $loader = new PosterLoader(MosaicFactory::forMode('halfblock'));
 
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Invalid or missing URL scheme');
+        $caught = null;
 
-        // The load() method validates URL before any network activity.
-        // An empty string has no scheme and must be rejected immediately.
-        $loader->load('', 8, 12);
+        // load() validates the URL before any network activity and returns a
+        // rejected promise (never a sync throw). Empty string has no scheme.
+        $loader->load('', 8, 12)->then(
+            null,
+            static function (\Throwable $e) use (&$caught): void {
+                $caught = $e;
+            },
+        );
+        $this->assertInstanceOf(\InvalidArgumentException::class, $caught);
+        $this->assertSame('Invalid or missing URL scheme', $caught->getMessage());
     }
 
     /**
@@ -143,10 +149,16 @@ final class PosterRenderTest extends TestCase
     {
         $loader = new PosterLoader(MosaicFactory::forMode('halfblock'));
 
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Invalid or missing URL scheme');
+        $caught = null;
 
-        $loader->load('/images/local-poster.jpg', 8, 12);
+        $loader->load('/images/local-poster.jpg', 8, 12)->then(
+            null,
+            static function (\Throwable $e) use (&$caught): void {
+                $caught = $e;
+            },
+        );
+        $this->assertInstanceOf(\InvalidArgumentException::class, $caught);
+        $this->assertSame('Invalid or missing URL scheme', $caught->getMessage());
     }
 
     /**
@@ -157,10 +169,16 @@ final class PosterRenderTest extends TestCase
     {
         $loader = new PosterLoader(MosaicFactory::forMode('halfblock'));
 
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Invalid or missing URL scheme');
+        $caught = null;
 
-        $loader->load('file:///etc/passwd', 8, 12);
+        $loader->load('file:///etc/passwd', 8, 12)->then(
+            null,
+            static function (\Throwable $e) use (&$caught): void {
+                $caught = $e;
+            },
+        );
+        $this->assertInstanceOf(\InvalidArgumentException::class, $caught);
+        $this->assertSame('Invalid or missing URL scheme', $caught->getMessage());
     }
 
     /**

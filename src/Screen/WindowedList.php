@@ -36,7 +36,7 @@ trait WindowedList
      * @param int $hiddenRows body lines the layout spends outside the list:
      *                        the "\n\n" lead costs 2; the delete-prompt
      *                        branch spends 4 (lead + prompt + cancel hint)
-     * @param int $rowsPerTerminalRow screen lines each entry renders (poster
+     * @param int $rowsPerItem          screen lines each entry renders (poster
      *                                cards print a title + meta line = 2)
      * @return array{list<T>, int} visible slice + its offset in the full list
      */
