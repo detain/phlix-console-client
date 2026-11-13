@@ -147,6 +147,7 @@ return [
     'palette.search'     => 'Buscar',
     'palette.home'       => 'Início',
     'palette.settings'   => 'Configurações',
+    'palette.keys'       => 'Atalhos de teclado',
     'palette.stats'      => 'Estatísticas',
     'palette.watch_history'  => 'Histórico de reprodução',
     'palette.favorites'  => 'Favoritos',

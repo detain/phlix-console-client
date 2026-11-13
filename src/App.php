@@ -65,6 +65,7 @@ use Phlix\Console\Msg\OpenPhotoMsg;
 use Phlix\Console\Msg\OpenPhotosMsg;
 use Phlix\Console\Msg\OpenSearchMsg;
 use Phlix\Console\Msg\OpenServersMsg;
+use Phlix\Console\Msg\OpenKeyHelpMsg;
 use Phlix\Console\Msg\OpenSettingsMsg;
 use Phlix\Console\Msg\OpenSharedWithMeMsg;
 use Phlix\Console\Msg\OpenInviteLinksMsg;
@@ -152,6 +153,7 @@ use Phlix\Console\Screen\ServersScreen;
 use Phlix\Console\Screen\SettingsScreen;
 use Phlix\Console\Screen\SharedWithMeScreen;
 use Phlix\Console\Screen\Shimmering;
+use Phlix\Console\Screen\KeyHelpScreen;
 use Phlix\Console\Screen\StatsScreen;
 use Phlix\Console\Screen\RecommendationsScreen;
 use Phlix\Console\Screen\TakesModifierChords;
@@ -588,6 +590,11 @@ final class App implements Model
             if ($msg instanceof KeyMsg && $this->isSearchKey($msg)) {
                 return $this->openSearch();
             }
+            // `?` opens the key reference [CON-17] under the same capture rule
+            // as `/` (a typed field keeps its `?`); never stacked on itself.
+            if ($msg instanceof KeyMsg && $this->isKeyHelpKey($msg)) {
+                return $this->openKeyHelp();
+            }
         }
 
         // [CON-3] Modifier-chord choke: screen key arms match on the rune alone
@@ -771,6 +778,7 @@ final class App implements Model
                 return $app->openDetail($msg->id, $msg->name);
             },
             OpenSearchMsg::class => static fn (App $app, Msg $msg): array => $app->openSearch(),
+            OpenKeyHelpMsg::class => static fn (App $app, Msg $msg): array => $app->openKeyHelp(),
             OpenSettingsMsg::class => static fn (App $app, Msg $msg): array => $app->openSettings(),
             OpenStatsMsg::class => static fn (App $app, Msg $msg): array => $app->openStats(),
             OpenRecommendationsMsg::class => static fn (App $app, Msg $msg): array => $app->openRecommendations(),
@@ -1363,6 +1371,7 @@ final class App implements Model
             new PaletteAction(Lang::t('palette.search'), new OpenSearchMsg()),
             new PaletteAction(Lang::t('palette.home'), new GoHomeMsg()),
             new PaletteAction(Lang::t('palette.settings'), new OpenSettingsMsg()),
+            new PaletteAction(Lang::t('palette.keys'), new OpenKeyHelpMsg()),
             new PaletteAction(Lang::t('palette.watch_history'), new OpenWatchHistoryMsg()),
             new PaletteAction(Lang::t('palette.favorites'), new OpenFavoritesMsg()),
             new PaletteAction(Lang::t('palette.photos'), new OpenPhotosMsg()),
@@ -1404,6 +1413,26 @@ final class App implements Model
         $actions[] = new PaletteAction(Lang::t('palette.quit'), new RequestQuitMsg());
 
         return $actions;
+    }
+
+    private function isKeyHelpKey(KeyMsg $msg): bool
+    {
+        return $msg->type === KeyType::Char
+            && $msg->rune === '?'
+            && !$msg->ctrl
+            && !$msg->alt
+            && !$this->topCapturesPrintables()
+            && !($this->topScreen() instanceof KeyHelpScreen);
+    }
+
+    /** @return array{App, ?\Closure} */
+    private function openKeyHelp(): array
+    {
+        if ($this->topScreen() instanceof KeyHelpScreen) {
+            return [$this, null];
+        }
+
+        return [$this->push(Route::KeyHelp, new KeyHelpScreen($this->cols, $this->rows)), null];
     }
 
     private function isSearchKey(KeyMsg $msg): bool

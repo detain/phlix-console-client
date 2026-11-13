@@ -72,4 +72,5 @@ enum Route
     case FederationShares;
     case Playlists;
     case Collections;
+    case KeyHelp;
 }

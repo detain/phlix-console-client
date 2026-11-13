@@ -1527,7 +1527,7 @@ final class AppTest extends TestCase
         // [CU-021: review console__enduser #3] Stats no longer sits in the unconditional
         // head list — it reads the admin stats API, so it hangs off the is_admin block
         // with Admin (see testThePaletteOffersStatsOnlyToAnAdminUser).
-        self::assertSame(['Search', 'Home', 'Settings', 'Watch History', 'Favorites', 'Photos', 'Music Artists', 'Playlists', 'Collections', 'Servers', 'Shared With Me', 'Invite Links', 'Federation Shares', 'Show metrics', 'Sign out', 'Quit'], $labels);
+        self::assertSame(['Search', 'Home', 'Settings', 'Keyboard shortcuts', 'Watch History', 'Favorites', 'Photos', 'Music Artists', 'Playlists', 'Collections', 'Servers', 'Shared With Me', 'Invite Links', 'Federation Shares', 'Show metrics', 'Sign out', 'Quit'], $labels);
     }
 
     public function testCtrlKTogglesThePaletteClosed(): void
@@ -2205,6 +2205,27 @@ final class AppTest extends TestCase
         [$open] = $plainApp->update($this->ctrlK());
         $labels = array_map(static fn ($a): string => $a->label, $open->palette()->actions());
         self::assertNotContains('Stats', $labels, 'a member is never offered a screen their account cannot load');
+    }
+
+    // [CON-17] `?` opens the key reference from a signed-in screen; the palette carries it too.
+    public function testQuestionMarkOpensTheKeyReferenceAndTheTopKeyClosesIt(): void
+    {
+        $browse = $this->browsing();
+        [$help] = $browse->update(new \SugarCraft\Core\Msg\KeyMsg(\SugarCraft\Core\KeyType::Char, '?'));
+        self::assertSame(Route::KeyHelp, $help->route());
+        self::assertSame(2, $help->stackDepth());
+        self::assertStringContainsString('Keyboard shortcuts', $help->view());
+
+        [$again] = $help->update(new \SugarCraft\Core\Msg\KeyMsg(\SugarCraft\Core\KeyType::Char, '?'));
+        self::assertSame(2, $again->stackDepth(), '? never stacks the reference on itself');
+    }
+
+    public function testThePaletteOffersKeyboardShortcuts(): void
+    {
+        [$app] = $this->appWithAdminUser(false);
+        [$open] = $app->update($this->ctrlK());
+        $labels = array_map(static fn ($a): string => $a->label, $open->palette()->actions());
+        self::assertContains('Keyboard shortcuts', $labels);
     }
 
     public function testOpenStatsPushesTheStatsScreenWithAFetchCmd(): void

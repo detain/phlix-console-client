@@ -1,0 +1,17 @@
+<?php
+
+/**
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ * @license   MIT
+ */
+
+declare(strict_types=1);
+
+namespace Phlix\Console\Msg;
+
+use SugarCraft\Core\Msg;
+
+/** Open the key-reference screen — the App pushes a KeyHelpScreen onto the stack. */
+final readonly class OpenKeyHelpMsg implements Msg
+{
+}

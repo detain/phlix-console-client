@@ -468,6 +468,7 @@ and will never press Enter for you.
 | `/` | Global search (or filter within a grid) — once you're signed in; on the sign-in and server-pick forms it types as characters |
 | Filter bar keys | While the library filter bar is open: `Tab` cycles to the next field (shift-`Tab` back), `←`/`→` change the focused field's value, `c` clears all filters, `Esc` closes the bar (applied filters stay) |
 | `Ctrl-K` or `:` | Open command palette — same sign-in gate as `/` |
+| `?` | In-app key reference (scrollable; `Esc`/`q`/`?` close it) — same sign-in gate as `/`; also the palette's **Keyboard shortcuts** action. It renders the same table this section documents, so the two cannot drift |
 
 #### Media playback
 
@@ -652,7 +653,7 @@ without moving it, and a screen's own keys are consolidated under
 | **Player** | In-terminal video player with scrubber and controls |
 | **Cast** | Casting target list — Chromecast/DLNA/AirPlay/Roku — opened with `C` on a detail screen (works on streamable items) |
 | **Search** | Global debounced search over virtualized results grid |
-| **Command palette** | Fuzzy-ranked actions: Search, Home, Settings, Watch History, Favorites, Photos, Music Artists, Playlists, Collections, Servers, Shared With Me, Invite Links, Federation Shares, Show metrics / Hide metrics, Sign out, Quit — plus a `Go to <library>` jump per library, Stats and Admin when signed in as an admin, and Resume playback / Pause playback and Stop playback while a music or audiobook session is live |
+| **Command palette** | (its Keyboard shortcuts action, like the `?` key, opens the scrollable in-app key reference) Fuzzy-ranked actions: Search, Home, Settings, Keyboard shortcuts, Watch History, Favorites, Photos, Music Artists, Playlists, Collections, Servers, Shared With Me, Invite Links, Federation Shares, Show metrics / Hide metrics, Sign out, Quit — plus a `Go to <library>` jump per library, Stats and Admin when signed in as an admin, and Resume playback / Pause playback and Stop playback while a music or audiobook session is live |
 | **Admin** | Admin menu over the server: dashboard, users, auth providers, backups, plugins (install / catalog / edit / updates), logs, metrics, server settings, transcoding, libraries, filesystem, DLNA, port-forward candidates, server restart, live TV, parental profiles and controls, watch history, webhooks, duplicates |
 | **Settings** | Theme selection, photo slideshow interval; `s` opens **Servers**, `l` signs out |
 | **Stats** | Read-only server statistics screen — admin accounts only: the palette gates it behind the same `is_admin` check as **Admin**, since the data comes from the server's admin stats API. Playback totals and storage snapshot sums render in the shared chrome with humanized byte counts; a failed fetch shows its reason in the frame with `r` to retry. The live metrics HUD is separate, toggled by the palette's Show/Hide metrics actions |

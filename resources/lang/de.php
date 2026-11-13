@@ -142,6 +142,7 @@ return [
     'palette.search'     => 'Suche',
     'palette.home'       => 'Startseite',
     'palette.settings'   => 'Einstellungen',
+    'palette.keys'       => 'Tastenkürzel',
     'palette.stats'      => 'Statistiken',
     'palette.watch_history'  => 'Wiedergabeverlauf',
     'palette.favorites'  => 'Favoriten',

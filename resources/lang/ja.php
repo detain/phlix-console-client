@@ -142,6 +142,7 @@ return [
     'palette.search'     => '検索',
     'palette.home'       => 'ホーム',
     'palette.settings'   => '設定',
+    'palette.keys'       => 'キーボードショートカット',
     'palette.stats'      => '統計',
     'palette.watch_history'  => '視聴履歴',
     'palette.favorites'  => 'お気に入り',

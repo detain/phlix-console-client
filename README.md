@@ -29,7 +29,7 @@ What it does once connected:
   client** for server upkeep.
 
 The command palette is the one keypress to all of it — **Search**, **Home**,
-**Settings**, **Watch History**, **Favorites**, **Photos**,
+**Settings**, **Keyboard shortcuts**, **Watch History**, **Favorites**, **Photos**,
 **Music Artists**, **Playlists**, **Collections**, **Servers**,
 **Shared With Me**, **Invite Links**, **Federation Shares**,
 **Show metrics** / **Hide metrics**, **Stats** and **Admin** (admins only —
@@ -374,7 +374,7 @@ screen through every `--mode`; the stills below compare them side by side.
 > — transient top-right notifications that surface errors
 > which used to fail silently. The palette has since grown into the client's
 > universal navigator, registered screen-by-screen in `src/App.php`: **Search**,
-> **Home**, **Settings**, **Watch History**, **Favorites**,
+> **Home**, **Settings**, **Keyboard shortcuts**, **Watch History**, **Favorites**,
 > **Photos**, **Music Artists**, **Playlists**, **Collections**, **Servers**,
 > **Shared With Me**, **Invite Links**, **Federation Shares**, **Show metrics**
 > / **Hide metrics**, **Stats** and **Admin** (offered only while signed in as an admin),
