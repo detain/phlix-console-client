@@ -552,7 +552,7 @@ keys each individual screen adds, consolidated from the handlers (the
 
 | Screen | Keys |
 | --- | --- |
-| All screens | `Ctrl-Z` suspends the client to the background; resume it with `fg` — needs `ext-pcntl` (composer-enforced, soft only in PHAR) plus the optional `posix` extension (see **PHAR requirements** above; a PHAR on a PHP build missing either has no suspend) |
+| All screens | `Ctrl-Z` suspends the client to the background; resume it with `fg`. `ext-pcntl` is composer-enforced (soft only in PHAR); the optional `posix` extension is needed too (see **PHAR requirements** above; a PHAR on a PHP build missing either has no suspend) |
 | Photos → viewer | `←`/`→` previous/next photo (no wrap; manual paging resets the slideshow countdown), `i` EXIF panel on/off, `s` start/stop the slideshow, `Esc` back |
 | Cast — device list | `↑`/`↓` select, `Enter` start casting, `r` rescan for devices, `q`/`Esc` leave |
 | Cast — transport (session live) | `Space` play/pause, `r` refresh status, `x` stop the session (when the device allows stopping), `←`/`→` seek ∓10 s (`Shift`+arrow: ∓60 s, when the device allows seeking), `Esc` back to the device list |

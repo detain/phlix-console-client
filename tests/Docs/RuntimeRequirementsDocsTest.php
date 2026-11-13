@@ -124,9 +124,15 @@ final class RuntimeRequirementsDocsTest extends TestCase
 
         foreach ($paths as $path) {
             $contents = self::read($path);
-            $callsPcntl = preg_match('/\bpcntl_[a-z_]+\(/', $contents) === 1;
-            if ($callsPcntl && !str_contains($contents, "function_exists('pcntl_")) {
-                $unguarded[] = $path;
+            preg_match_all('/\bpcntl_[a-z_]+(?=\()/', $contents, $calls);
+            foreach (array_unique($calls[0]) as $function) {
+                // Per called function: a guard for pcntl_signal must not
+                // excuse an unguarded pcntl_fork in the same file.
+                $guard = "function_exists('" . $function . "')";
+                $guardDq = 'function_exists("' . $function . '")';
+                if (!str_contains($contents, $guard) && !str_contains($contents, $guardDq)) {
+                    $unguarded[] = $path . ': ' . $function;
+                }
             }
         }
 
@@ -307,6 +313,14 @@ final class RuntimeRequirementsDocsTest extends TestCase
         foreach ($notes[0] as $i => $note) {
             $sites['build.yml release note #' . ($i + 1)] = $note;
         }
+
+        // Sixth site: the Ctrl-Z row of the console.md key table [CON-S13] —
+        // it names pcntl/posix in prose, so it must obey the same doctrine.
+        preg_match('/^\| All screens \| `Ctrl-Z`.*$/m', self::read('docs/clients/console.md'), $row);
+        if (!isset($row[0])) {
+            throw new RuntimeException('console.md Ctrl-Z key-table row not found.');
+        }
+        $sites['console.md Ctrl-Z key-table row'] = $row[0];
 
         return $sites;
     }

@@ -24,6 +24,41 @@ text carries the user-visible effect first; ids stay in the bullets or the headi
   env `PHLIX_HUB_TOKEN` / `PHLIX_RELAY_TOKEN` or `--hub-token-stdin` / `--relay-token-stdin`.
   Env and stdin carriers are unchanged. (CON-S36 [CON-69])
 
+### Fixed — a captive-portal or proxy page no longer looks like an empty success (CON-S8 [CON-6]) — 2026-11-13
+
+When a network sits between you and the server and answers with a non-JSON page (a captive portal, a proxy error), the client now shows its "could not reach the server" message instead of silently showing empty lists.
+
+- **Why:** `ApiClient::decode()` coerced any unparseable 2xx body to `[]`, so typed endpoints resolved an empty success.
+- **What:** a non-empty 2xx body that fails `json_decode` now rejects with a `NetworkError` carrying the curated network sentence.
+
+### Fixed — a damaged sign-in file is reported instead of silently signing you out (CON-S23 [CON-36, CON-41]) — 2026-11-13
+
+If `token.json` exists but cannot be read (empty, not JSON, wrong shape), the client now says so at startup and `phlix doctor` prints a `Token WARN:` line, rather than quietly acting signed out.
+
+- **Why:** the token store swallowed an unhonourable file, and `doctor` exited 0 in total silence.
+- **What:** `TokenStore::loadError()` (the `Config::$loadError` idiom) feeds a boot toast and the doctor `Token WARN:` line; the broken file is never rewritten on load. Expiry docblocks (`getForServer()`, `TokenBundle::isExpired()/isValid()`) now state that expired bundles are returned on purpose so the 401 refresh-and-retry can heal them (CON-41).
+- **Also (CON-S21 review minor):** the `Theme` `ROLE_COLORS` docblock drops a stale Midnight sentence and `ThemePaletteSoleSourceTest` forbids the lifted Nocturne/Midnight badge colour on Daylight.
+
+### Fixed — redirects can no longer carry your sign-in to another host (CON-S3 [CON-4]) — 2026-11-13
+
+A server redirect to a different origin no longer receives your bearer token, and downloads re-check the trusted server on every redirect hop.
+
+- **What:** `BrowserTransport` follows redirects by hand and keeps `Authorization` only for the exact original origin; `DownloadService` re-runs `ServerAuthority::trusted()` per hop. (CON-S4 also touched `BrowserTransport.php` and its redirect test for a formatting-only fold-in, disclosed in that commit.)
+
+### Fixed — watch-group dialogs, errors and status are fully localized and fit small terminals (CON-S18 [CON-19, CON-28], CON-S38, CON-S1)
+
+The watch-group HUD status ("Not in watch group", "Synced", ...), the load/create/join failure messages and the default group name now use each language's own glossary term instead of English "room", and the SyncPlay dialog no longer wraps or clips mid-word on a ~38-column terminal (long rows end in an ellipsis; error text wraps).
+
+- **What:** new `syncplay.status_*`, `syncplay.ctx_*` and `syncplay.default_group_name` keys in all seven catalogs; `SyncPlayModal` fits every row to the panel width (tests at MIN_WIDTH for every locale, plus the error state in the glossary test).
+- **Also:** a synchronous throw while starting a trickplay fetch now settles the request as rejected and clears its in-flight entry instead of leaving it stuck (CON-S38); the SyncPlay pending-event queue drops its oldest entry in O(1) with a test of oldest-dropped order (CON-S1).
+
+### Fixed — switching servers no longer bounces you to the login screen, and long errors no longer overflow (CON-S7, CON-S12, CON-S16, CON-S26)
+
+- Switching servers while a request to the old one was still being refreshed could surface as "session expired" on the new server and send you to login; a failure that settles after a server switch is now a plain, non-auth error (CON-S7).
+- Sign-in, register, server, settings, Live TV and log-viewer error lines now share the bounded, danger-coloured error line instead of printing the raw server text (CON-S12).
+- The `?` keyboard-shortcuts screen's title and hint are localized in all seven languages (CON-S16).
+- The hub relay now ignores late events from a connection it has already replaced (CON-S26).
+
 ### Changed — saved-server URLs are now normalised consistently and hostless addresses are refused (CON-S4 [CON-5, CON-26, CON-27, CON-67]) — 2026-11-12
 
 Server and hub addresses you type are now cleaned up the same way everywhere, and an address with no host is rejected instead of being saved.

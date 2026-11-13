@@ -36,6 +36,19 @@ jobs:
       - name: Build phlix.phar
         run: box compile
 
+      - name: Assert the phar carries a real commit stamp
+        # [CON-S34] box's git-commit-placeholder must have baked the compiled
+        # commit over PHLIX_COMMIT; a phar that still says "dev" cannot be
+        # traced to the commit it was built from.
+        run: |
+          set -euo pipefail
+          OUT=$(php build/phlix.phar version)
+          echo "$OUT"
+          if ! echo "$OUT" | grep -Eq '\(commit [0-9a-f]{7,40}\)'; then
+            echo "::error::phlix.phar version has no hex commit stamp (got: $OUT) - git-commit-placeholder did not run"
+            exit 1
+          fi
+
       - name: Smoke-test the phar
         run: |
           php build/phlix.phar --version

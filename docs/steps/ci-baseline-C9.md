@@ -135,38 +135,41 @@ neutering wrap (`ci.yml:213-218`).
 
 ## Build Gates (`.github/workflows/build.yml`)
 
-### phar job (`build.yml:16-92`)
+### phar job (`build.yml:16-105`)
 
 1. `composer install --no-dev` (`build.yml:34`), then `box compile` →
    `build/phlix.phar` (`build.yml:37`)
-2. Smoke-tests the phar (`build.yml:39-53`) — three legs, and **no `help`
-   invocation**: `php build/phlix.phar --version` (`:41`);
+2. Asserts the built phar carries a real commit stamp (`build.yml:39-50`) —
+   [CON-S34] `php build/phlix.phar version` must print `(commit <hex>)`;
+   a `dev` stamp means box's `git-commit-placeholder` did not run.
+3. Smoke-tests the phar (`build.yml:52-66`) — three legs, and **no `help`
+   invocation**: `php build/phlix.phar --version` (`:54`);
    `php build/phlix.phar bogus || test $? -eq 2` — the unknown-command probe
-   must exit 2 (`:42`); and the stub-server selftest,
+   must exit 2 (`:55`); and the stub-server selftest,
    `PHLIX_SERVER_URL=http://127.0.0.1:8099 php build/phlix.phar run --selftest`
-   (`:46-53`), same in-step server pattern as the CI smoke job.
-3. Asserts the build is reproducible (`build.yml:55-71`) — [stable-PHAR] the
+   (`:59-66`), same in-step server pattern as the CI smoke job.
+4. Asserts the build is reproducible (`build.yml:68-84`) — [stable-PHAR] the
    phar is compiled a second time and both artifacts must share one sha256;
    a mismatch exits 1 with no `continue-on-error` anywhere in this workflow.
    The historical nondeterminism was box's random stub alias, pinned away by
    `box.json`'s `"alias"` key; a byte-drifting rebuild convicts here.
-4. Generates `SHA256SUMS` (`sha256sum phlix.phar > SHA256SUMS` in `build/`,
-   `build.yml:73-78`)
-5. Uploads `phlix.phar` and `SHA256SUMS` as artifacts (`build.yml:80-92`)
+5. Generates `SHA256SUMS` (`sha256sum phlix.phar > SHA256SUMS` in `build/`,
+   `build.yml:86-91`)
+6. Uploads `phlix.phar` and `SHA256SUMS` as artifacts (`build.yml:93-105`)
 
-### release-latest job (`build.yml:94-156`, on master push only)
+### release-latest job (`build.yml:107-169`, on master push only)
 
 Overwrites the rolling `latest` **prerelease** with the raw, directly
 downloadable `phlix.phar` + `SHA256SUMS` (GitHub artifacts are always served
 zipped; a Release is the only way to ship a bare runnable phar). Deletes and
 recreates the tag so it points at this commit. Skipped on PRs and tag pushes.
 
-### release-tag job (`build.yml:158-241`, on tag push `v*.*.*`)
+### release-tag job (`build.yml:171-254`, on tag push `v*.*.*`)
 
-1. Verifies `SHA256SUMS` integrity (`build.yml:191-195`)
+1. Verifies `SHA256SUMS` integrity (`build.yml:204-208`)
 2. Extracts version from tag and compares against `PHLIX_VERSION` in the PHAR
-   (`build.yml:197-220`)
-3. Publishes release with `phlix.phar` + `SHA256SUMS` (`build.yml:222-239`)
+   (`build.yml:210-233`)
+3. Publishes release with `phlix.phar` + `SHA256SUMS` (`build.yml:235-252`)
 
 **Failure means:** Version number mismatch between tag and built artifact.
 
