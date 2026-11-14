@@ -338,10 +338,13 @@ final class TerminalGraphicsDocsTest extends TestCase
     public function testHalfBlockDepthIsStatedConsistentlyAcrossDocs(): void
     {
         $renderer = self::repoFile('vendor/sugarcraft/sugar-image/src/Renderer/HalfBlockRenderer.php');
+        // The renderer tints every cell through OutputOptimizer::trueColor()
+        // (-> Ansi::fgRgbParams(): the 24-bit escapes); a palette/quantizing path
+        // would not name it.
         self::assertStringContainsString(
-            'Ansi::fgRgb(',
+            'OutputOptimizer::trueColor(',
             $renderer,
-            'HalfBlockRenderer no longer tints cells through Ansi::fgRgb() — '
+            'HalfBlockRenderer no longer tints cells through OutputOptimizer::trueColor() — '
             . 'the half-block depth claims in three docs need re-deriving.'
         );
 

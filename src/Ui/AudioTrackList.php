@@ -107,7 +107,7 @@ final class AudioTrackList
     /** Composite the menu box centred over a sugar-overlay dimmed background. */
     public function render(string $background, bool $opaqueFrame = false): string
     {
-        $box = SugarPanels::new()->render(
+        $box = PanelRender::render(
             SugarPanels::new()->leaf($this->body())->withBorder(true)->withPadding(0)->withTitle(' Audio Tracks '),
             $this->winWidth,
             $this->winHeight,

@@ -46,6 +46,9 @@ use SugarCraft\Core\Util\Ansi;
 use SugarCraft\Image\Mosaic;
 use SugarCraft\Video\Decode\RgbFrame;
 use SugarCraft\Video\Render\Mode;
+use SugarCraft\Video\Render\RendererFactory;
+use SugarCraft\ColorProfile\Probe\Capability;
+use SugarCraft\ColorProfile\Probe\ProbeReport;
 use SugarCraft\Video\Player;
 use SugarCraft\Video\Tests\FakeDecoder;
 
@@ -60,6 +63,26 @@ use SugarCraft\Video\Tests\FakeDecoder;
  */
 final class GraphicsFrameCompositingTest extends TestCase
 {
+    /**
+     * These pins mount a Player in a graphics mode on a fake decoder. Newer
+     * sugar-video refuses a graphics mode the host terminal never claimed
+     * (the "M1 door"), and CI has no real terminal — so script the capability
+     * report through the vendor's own test seam, exactly as its pins do.
+     */
+    protected function setUp(): void
+    {
+        RendererFactory::setDiagnoseForTesting(new ProbeReport([
+            Capability::Sixel->value => true,
+            Capability::KittyKeyboard->value => true,
+            Capability::ITerm2->value => true,
+        ]));
+    }
+
+    protected function tearDown(): void
+    {
+        RendererFactory::setDiagnoseForTesting(null);
+    }
+
     /** A miniature sixel payload on one logical line — structurally what the player frame's line 0 is. */
     private const BLOB = "\x1bPq\"0;1;800;480#0;1;65;65;65;120;120;120;0;0;0#1;2;200;200;200-$!0!1!2\x1b\\";
 

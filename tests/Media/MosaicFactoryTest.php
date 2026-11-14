@@ -28,16 +28,16 @@ final class MosaicFactoryTest extends TestCase
     #[DataProvider('modeProtocols')]
     public function testForcedModesSelectTheMatchingProtocol(string $mode, string $protocol): void
     {
-        self::assertSame($protocol, MosaicFactory::forMode($mode)->protocol());
+        self::assertSame($protocol, MosaicFactory::modeName(MosaicFactory::forMode($mode)));
     }
 
     public function testForcedModesProduceDistinctCacheProtocols(): void
     {
-        // The poster cache is keyed by protocol(), so distinct modes must report
+        // The poster cache is keyed by the render mode, so distinct modes must report
         // distinct protocol names — otherwise one mode could serve an image
         // cached in another.
         $protocols = array_map(
-            static fn (string $m): string => MosaicFactory::forMode($m)->protocol(),
+            static fn (string $m): string => MosaicFactory::modeName(MosaicFactory::forMode($m)),
             ['halfblock', 'quarterblock', 'ascii', 'ansi256', 'truecolor', 'sixel'],
         );
 
@@ -56,7 +56,7 @@ final class MosaicFactoryTest extends TestCase
         foreach ([null, 'auto'] as $mode) {
             self::assertSame(
                 'halfblock',
-                MosaicFactory::forMode($mode)->protocol(),
+                MosaicFactory::modeName(MosaicFactory::forMode($mode)),
                 'the unforced poster render mode must resolve to the universal half-block renderer',
             );
         }
@@ -74,7 +74,7 @@ final class MosaicFactoryTest extends TestCase
         // Cell-based modes tile as text (Mosaic::isInline() drives routing).
         foreach (['ascii', 'ansi256', 'truecolor', 'quarterblock', 'halfblock'] as $mode) {
             $mosaic = MosaicFactory::forPosterGrid($mode);
-            self::assertSame($mode, $mosaic->protocol());
+            self::assertSame($mode, MosaicFactory::modeName($mosaic));
             self::assertTrue($mosaic->isInline(), "{$mode} is a cell renderer");
         }
     }
@@ -84,7 +84,7 @@ final class MosaicFactoryTest extends TestCase
         // Graphics modes are kept (they tile via the image overlay), not downgraded.
         $mosaic = MosaicFactory::forPosterGrid('sixel');
 
-        self::assertSame('sixel', $mosaic->protocol());
+        self::assertSame('sixel', MosaicFactory::modeName($mosaic));
         self::assertFalse($mosaic->isInline(), 'sixel is painted as an overlay');
     }
 
@@ -92,7 +92,7 @@ final class MosaicFactoryTest extends TestCase
     {
         foreach ([null, 'auto'] as $mode) {
             $mosaic = MosaicFactory::forPosterGrid($mode);
-            self::assertSame('halfblock', $mosaic->protocol());
+            self::assertSame('halfblock', MosaicFactory::modeName($mosaic));
             self::assertTrue($mosaic->isInline());
         }
     }

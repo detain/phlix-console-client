@@ -1339,12 +1339,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/sugar-animation.git",
-                "reference": "a7a82486afe25ac1a8f3150a5ad0fd95ede6ec0d"
+                "reference": "7ffadc87bf189efaca43d0371944cfdffeed0eab"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/sugar-animation/zipball/a7a82486afe25ac1a8f3150a5ad0fd95ede6ec0d",
-                "reference": "a7a82486afe25ac1a8f3150a5ad0fd95ede6ec0d",
+                "url": "https://api.github.com/repos/sugarcraft/sugar-animation/zipball/7ffadc87bf189efaca43d0371944cfdffeed0eab",
+                "reference": "7ffadc87bf189efaca43d0371944cfdffeed0eab",
                 "shasum": ""
             },
             "require": {
@@ -1393,7 +1393,7 @@
                 "issues": "https://github.com/sugarcraft/sugar-animation/issues",
                 "source": "https://github.com/sugarcraft/sugar-animation"
             },
-            "time": "2026-10-17T07:19:07+00:00"
+            "time": "2026-10-20T17:00:02+00:00"
         },
         {
             "name": "sugarcraft/sugar-ansi-parser",
@@ -1401,15 +1401,16 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/sugar-ansi-parser.git",
-                "reference": "c4ebf01b79b76aa2bdc3c38766dd22fe904fa68d"
+                "reference": "e71821d462b32c22ea7ca5d392cbfd3a14708594"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/sugar-ansi-parser/zipball/c4ebf01b79b76aa2bdc3c38766dd22fe904fa68d",
-                "reference": "c4ebf01b79b76aa2bdc3c38766dd22fe904fa68d",
+                "url": "https://api.github.com/repos/sugarcraft/sugar-ansi-parser/zipball/e71821d462b32c22ea7ca5d392cbfd3a14708594",
+                "reference": "e71821d462b32c22ea7ca5d392cbfd3a14708594",
                 "shasum": ""
             },
             "require": {
+                "ext-mbstring": "*",
                 "php": "^8.3"
             },
             "require-dev": {
@@ -1450,7 +1451,7 @@
                 "issues": "https://github.com/sugarcraft/sugar-ansi-parser/issues",
                 "source": "https://github.com/sugarcraft/sugar-ansi-parser"
             },
-            "time": "2026-10-17T07:19:07+00:00"
+            "time": "2026-11-03T22:44:30+00:00"
         },
         {
             "name": "sugarcraft/sugar-async",
@@ -1458,12 +1459,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/sugar-async.git",
-                "reference": "b7fd5085b543b9385a01a8e416e0d9076be3fcca"
+                "reference": "d2741d182e5380780f552b90d9c05e4035f8c69c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/sugar-async/zipball/b7fd5085b543b9385a01a8e416e0d9076be3fcca",
-                "reference": "b7fd5085b543b9385a01a8e416e0d9076be3fcca",
+                "url": "https://api.github.com/repos/sugarcraft/sugar-async/zipball/d2741d182e5380780f552b90d9c05e4035f8c69c",
+                "reference": "d2741d182e5380780f552b90d9c05e4035f8c69c",
                 "shasum": ""
             },
             "require": {
@@ -1494,7 +1495,7 @@
                     "role": "Maintainer"
                 }
             ],
-            "description": "Shared async utilities for SugarCraft — cancellation tokens, subscriptions, and AsyncOps helpers (withTimeout, retry, debounce, throttle) built on ReactPHP.",
+            "description": "Shared async utilities for SugarCraft — cancellation tokens, subscriptions, timeout/deadline combinators, fan-in, debounce/throttle handles, retry, and a bounded cache-aside store, built on ReactPHP.",
             "homepage": "https://github.com/sugarcraft/sugar-async",
             "keywords": [
                 "async",
@@ -1509,7 +1510,7 @@
                 "issues": "https://github.com/sugarcraft/sugar-async/issues",
                 "source": "https://github.com/sugarcraft/sugar-async"
             },
-            "time": "2026-10-17T07:19:07+00:00"
+            "time": "2026-11-03T20:57:23+00:00"
         },
         {
             "name": "sugarcraft/sugar-cellbuffer",
@@ -1517,12 +1518,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/sugar-cellbuffer.git",
-                "reference": "5a2e62d4aa8e9b97ef525a24da76268c56a23d9c"
+                "reference": "36905dda10e478d166df364cf63464f29b1cbe2d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/sugar-cellbuffer/zipball/5a2e62d4aa8e9b97ef525a24da76268c56a23d9c",
-                "reference": "5a2e62d4aa8e9b97ef525a24da76268c56a23d9c",
+                "url": "https://api.github.com/repos/sugarcraft/sugar-cellbuffer/zipball/36905dda10e478d166df364cf63464f29b1cbe2d",
+                "reference": "36905dda10e478d166df364cf63464f29b1cbe2d",
                 "shasum": ""
             },
             "require": {
@@ -1564,7 +1565,7 @@
                 "issues": "https://github.com/sugarcraft/sugar-cellbuffer/issues",
                 "source": "https://github.com/sugarcraft/sugar-cellbuffer/tree/master"
             },
-            "time": "2026-10-17T07:19:07+00:00"
+            "time": "2026-11-04T02:16:05+00:00"
         },
         {
             "name": "sugarcraft/sugar-colorprofile",
@@ -1572,17 +1573,18 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/sugar-colorprofile.git",
-                "reference": "5cfb207365f9c5157cf83ab7b81bef535a58747a"
+                "reference": "9626e68010040c11aca1a9e751596a8679ae7aab"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/sugar-colorprofile/zipball/5cfb207365f9c5157cf83ab7b81bef535a58747a",
-                "reference": "5cfb207365f9c5157cf83ab7b81bef535a58747a",
+                "url": "https://api.github.com/repos/sugarcraft/sugar-colorprofile/zipball/9626e68010040c11aca1a9e751596a8679ae7aab",
+                "reference": "9626e68010040c11aca1a9e751596a8679ae7aab",
                 "shasum": ""
             },
             "require": {
                 "php": "^8.3",
                 "react/child-process": "^0.6",
+                "react/event-loop": "^0.5 || ^1.2",
                 "react/promise": "^3.3",
                 "sugarcraft/sugar-core": "dev-master"
             },
@@ -1626,7 +1628,7 @@
                 "issues": "https://github.com/sugarcraft/sugar-colorprofile/issues",
                 "source": "https://github.com/sugarcraft/sugar-colorprofile"
             },
-            "time": "2026-10-17T07:19:07+00:00"
+            "time": "2026-11-03T19:12:42+00:00"
         },
         {
             "name": "sugarcraft/sugar-constraints",
@@ -1634,12 +1636,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/sugar-constraints.git",
-                "reference": "88f18f36eb94fedd958f807c2058ffa9246147c7"
+                "reference": "f7b3a1f696873e58b7b597cda296587e3c49cae2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/sugar-constraints/zipball/88f18f36eb94fedd958f807c2058ffa9246147c7",
-                "reference": "88f18f36eb94fedd958f807c2058ffa9246147c7",
+                "url": "https://api.github.com/repos/sugarcraft/sugar-constraints/zipball/f7b3a1f696873e58b7b597cda296587e3c49cae2",
+                "reference": "f7b3a1f696873e58b7b597cda296587e3c49cae2",
                 "shasum": ""
             },
             "require": {
@@ -1666,7 +1668,7 @@
                     "role": "Maintainer"
                 }
             ],
-            "description": "Constraint-based layout solver (Cassowary simplex + greedy fallback)",
+            "description": "Constraint-based greedy layout solver for terminal grids (deprecated Cassowary shim retained for compatibility)",
             "homepage": "https://github.com/sugarcraft/sugar-constraints",
             "keywords": [
                 "cassowary",
@@ -1677,11 +1679,11 @@
                 "terminal"
             ],
             "support": {
-                "docs": "https://github.com/sugarcraft/sugar-constraints/blob/master/README.md",
+                "docs": "https://sugarcraft.github.io/lib/sugar-constraints.html",
                 "issues": "https://github.com/sugarcraft/sugar-constraints/issues",
-                "source": "https://github.com/sugarcraft/sugar-constraints/tree/master"
+                "source": "https://github.com/sugarcraft/sugar-constraints"
             },
-            "time": "2026-10-18T02:07:35+00:00"
+            "time": "2026-11-03T18:14:26+00:00"
         },
         {
             "name": "sugarcraft/sugar-core",
@@ -1689,16 +1691,17 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/sugar-core.git",
-                "reference": "0f6e64272cb0605adab3a1251f7fd19b86a97d12"
+                "reference": "49d118ef54c02159201b32cc82094f04a349db96"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/sugar-core/zipball/0f6e64272cb0605adab3a1251f7fd19b86a97d12",
-                "reference": "0f6e64272cb0605adab3a1251f7fd19b86a97d12",
+                "url": "https://api.github.com/repos/sugarcraft/sugar-core/zipball/49d118ef54c02159201b32cc82094f04a349db96",
+                "reference": "49d118ef54c02159201b32cc82094f04a349db96",
                 "shasum": ""
             },
             "require": {
                 "ext-intl": "*",
+                "ext-mbstring": "*",
                 "php": "^8.3",
                 "react/event-loop": "^1.6",
                 "react/promise": "^3.3",
@@ -1747,7 +1750,7 @@
                 "issues": "https://github.com/sugarcraft/sugar-core/issues",
                 "source": "https://github.com/sugarcraft/sugar-core"
             },
-            "time": "2026-10-19T12:59:14+00:00"
+            "time": "2026-11-05T00:46:19+00:00"
         },
         {
             "name": "sugarcraft/sugar-focus",
@@ -1755,12 +1758,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/sugar-focus.git",
-                "reference": "d17f87ac37301e0d0ea4b7f7ec6fe35070ac9d13"
+                "reference": "2c65b6e92106df86d20054dcd8078e1b9154d937"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/sugar-focus/zipball/d17f87ac37301e0d0ea4b7f7ec6fe35070ac9d13",
-                "reference": "d17f87ac37301e0d0ea4b7f7ec6fe35070ac9d13",
+                "url": "https://api.github.com/repos/sugarcraft/sugar-focus/zipball/2c65b6e92106df86d20054dcd8078e1b9154d937",
+                "reference": "2c65b6e92106df86d20054dcd8078e1b9154d937",
                 "shasum": ""
             },
             "require": {
@@ -1802,7 +1805,7 @@
                 "issues": "https://github.com/sugarcraft/sugar-focus/issues",
                 "source": "https://github.com/sugarcraft/sugar-focus"
             },
-            "time": "2026-10-17T07:19:07+00:00"
+            "time": "2026-11-03T23:07:30+00:00"
         },
         {
             "name": "sugarcraft/sugar-forms",
@@ -1810,12 +1813,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/sugar-forms.git",
-                "reference": "f21283db940369b84e16b9d58205120b7dfbba39"
+                "reference": "69f700285c70cbeb00a5fe8a4dc18479b323e53f"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/sugar-forms/zipball/f21283db940369b84e16b9d58205120b7dfbba39",
-                "reference": "f21283db940369b84e16b9d58205120b7dfbba39",
+                "url": "https://api.github.com/repos/sugarcraft/sugar-forms/zipball/69f700285c70cbeb00a5fe8a4dc18479b323e53f",
+                "reference": "69f700285c70cbeb00a5fe8a4dc18479b323e53f",
                 "shasum": ""
             },
             "require": {
@@ -1864,7 +1867,7 @@
                 "issues": "https://github.com/sugarcraft/sugar-forms/issues",
                 "source": "https://github.com/sugarcraft/sugar-forms"
             },
-            "time": "2026-10-19T23:49:24+00:00"
+            "time": "2026-11-04T00:03:10+00:00"
         },
         {
             "name": "sugarcraft/sugar-fuzzy",
@@ -1928,12 +1931,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/sugar-gallery.git",
-                "reference": "ec47c85f3696f5956c75d09f0d54ea06624ee403"
+                "reference": "eb09ad1777e86b3e718d9a59a96e3faf84f47bfa"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/sugar-gallery/zipball/ec47c85f3696f5956c75d09f0d54ea06624ee403",
-                "reference": "ec47c85f3696f5956c75d09f0d54ea06624ee403",
+                "url": "https://api.github.com/repos/sugarcraft/sugar-gallery/zipball/eb09ad1777e86b3e718d9a59a96e3faf84f47bfa",
+                "reference": "eb09ad1777e86b3e718d9a59a96e3faf84f47bfa",
                 "shasum": ""
             },
             "require": {
@@ -1945,6 +1948,10 @@
             "require-dev": {
                 "phpunit/phpunit": "^10.5",
                 "sugarcraft/sugar-image": "dev-master"
+            },
+            "suggest": {
+                "ext-gd": "Decode raster sources when producing posters through sugar-image",
+                "sugarcraft/sugar-image": "Render poster bytes for the pipeline example and its integration tests (dev-only; the widgets never depend on it)"
             },
             "default-branch": true,
             "type": "library",
@@ -1981,7 +1988,7 @@
                 "issues": "https://github.com/sugarcraft/sugar-gallery/issues",
                 "source": "https://github.com/sugarcraft/sugar-gallery"
             },
-            "time": "2026-10-17T07:19:07+00:00"
+            "time": "2026-11-03T17:44:11+00:00"
         },
         {
             "name": "sugarcraft/sugar-image",
@@ -1989,12 +1996,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/sugar-image.git",
-                "reference": "da85928093bb9cd3b5b1aadaa99ecfd2c87aa8a7"
+                "reference": "277e165f54d75576d4784c169d59aa58b8340076"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/sugar-image/zipball/da85928093bb9cd3b5b1aadaa99ecfd2c87aa8a7",
-                "reference": "da85928093bb9cd3b5b1aadaa99ecfd2c87aa8a7",
+                "url": "https://api.github.com/repos/sugarcraft/sugar-image/zipball/277e165f54d75576d4784c169d59aa58b8340076",
+                "reference": "277e165f54d75576d4784c169d59aa58b8340076",
                 "shasum": ""
             },
             "require": {
@@ -2003,6 +2010,7 @@
                 "php": "^8.3",
                 "react/promise": "^3.3",
                 "sugarcraft/sugar-animation": "dev-master",
+                "sugarcraft/sugar-cellbuffer": "dev-master",
                 "sugarcraft/sugar-colorprofile": "dev-master",
                 "sugarcraft/sugar-core": "dev-master"
             },
@@ -2032,7 +2040,7 @@
                     "role": "Maintainer"
                 }
             ],
-            "description": "Image-to-cell renderer — PNG/JPEG/static GIF to terminal via Sixel, Kitty, iTerm2, or half-block Unicode fallback. Port of charmbracelet/x/mosaic.",
+            "description": "Image-to-cell renderer for terminals — PNG/JPEG/GIF/APNG/WebP decoded via ext-gd and rendered through the best available protocol: Sixel, Kitty, iTerm2, the chafa CLI, or Unicode text tiers (half/quarter block, character ramp, chafa-style symbol coverage).",
             "homepage": "https://github.com/sugarcraft/sugar-image",
             "keywords": [
                 "charmbracelet",
@@ -2050,7 +2058,7 @@
                 "issues": "https://github.com/sugarcraft/sugar-image/issues",
                 "source": "https://github.com/sugarcraft/sugar-image"
             },
-            "time": "2026-10-17T20:49:35+00:00"
+            "time": "2026-11-04T03:04:01+00:00"
         },
         {
             "name": "sugarcraft/sugar-input",
@@ -2058,21 +2066,26 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/sugar-input.git",
-                "reference": "b8cded7a99e230b916e787099cf34f40e788bf7f"
+                "reference": "a0e9ab3e2f078b025d055930b729c1faf0726422"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/sugar-input/zipball/b8cded7a99e230b916e787099cf34f40e788bf7f",
-                "reference": "b8cded7a99e230b916e787099cf34f40e788bf7f",
+                "url": "https://api.github.com/repos/sugarcraft/sugar-input/zipball/a0e9ab3e2f078b025d055930b729c1faf0726422",
+                "reference": "a0e9ab3e2f078b025d055930b729c1faf0726422",
                 "shasum": ""
             },
             "require": {
+                "evenement/evenement": "^3.0",
                 "php": "^8.3",
                 "react/stream": "^1.2",
                 "sugarcraft/sugar-core": "dev-master"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
+            },
+            "suggest": {
+                "ext-pcntl": "Required by SignalResizeDriver for SIGWINCH detection; without it arm() returns false.",
+                "ext-posix": "Used by the test suite to self-signal SIGWINCH."
             },
             "default-branch": true,
             "type": "library",
@@ -2092,7 +2105,7 @@
                     "role": "Maintainer"
                 }
             ],
-            "description": "Terminal escape sequence decoder for keyboard (legacy + Kitty progressive) and mouse (SGR 1006). Provides InputDriver interface and EscapeDecoder implementation. Unblocks sugar-readline migration to real-TTY input.",
+            "description": "Terminal escape sequence decoder for keyboard (legacy, Kitty progressive protocol, xterm modifyOtherKeys) and mouse (X10, urxvt 1015, SGR 1006/1016), with typed terminal-reply draining. Provides the InputDriver interface and the EscapeDecoder implementation.",
             "homepage": "https://github.com/sugarcraft/sugar-input",
             "keywords": [
                 "escape-sequences",
@@ -2110,7 +2123,7 @@
                 "issues": "https://github.com/sugarcraft/sugar-input/issues",
                 "source": "https://github.com/sugarcraft/sugar-input"
             },
-            "time": "2026-10-18T23:19:01+00:00"
+            "time": "2026-11-03T16:51:41+00:00"
         },
         {
             "name": "sugarcraft/sugar-markdown",
@@ -2118,12 +2131,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/sugar-markdown.git",
-                "reference": "35a049d1f3ec64a0305e89c71be3a5963810a239"
+                "reference": "6d4a12e94dd1249722b7fbc0ddfee623465902dc"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/sugar-markdown/zipball/35a049d1f3ec64a0305e89c71be3a5963810a239",
-                "reference": "35a049d1f3ec64a0305e89c71be3a5963810a239",
+                "url": "https://api.github.com/repos/sugarcraft/sugar-markdown/zipball/6d4a12e94dd1249722b7fbc0ddfee623465902dc",
+                "reference": "6d4a12e94dd1249722b7fbc0ddfee623465902dc",
                 "shasum": ""
             },
             "require": {
@@ -2154,7 +2167,7 @@
                     "role": "Maintainer"
                 }
             ],
-            "description": "PHP port of charmbracelet/glamour — Markdown → ANSI renderer with word-wrap, OSC 8 hyperlinks, syntax highlighting, and 8 stock themes (ansi/plain/dark/light/notty/dracula/tokyo-night/pink).",
+            "description": "PHP port of charmbracelet/glamour — Markdown → ANSI renderer with word-wrap, OSC 8 hyperlinks, syntax highlighting, and 9 stock themes (ansi/plain/dark/light/notty/dracula/tokyo-night/pink/ascii).",
             "homepage": "https://github.com/sugarcraft/sugar-markdown",
             "keywords": [
                 "ansi",
@@ -2172,7 +2185,7 @@
                 "issues": "https://github.com/sugarcraft/sugar-markdown/issues",
                 "source": "https://github.com/sugarcraft/sugar-markdown"
             },
-            "time": "2026-10-17T07:19:07+00:00"
+            "time": "2026-11-04T11:58:14+00:00"
         },
         {
             "name": "sugarcraft/sugar-mouse",
@@ -2180,12 +2193,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/sugar-mouse.git",
-                "reference": "45afc302cd2bc0f4e71061294cd32e41140b9a48"
+                "reference": "5a00cfa219a003a4f121c4817656b1fbd0d9836c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/sugar-mouse/zipball/45afc302cd2bc0f4e71061294cd32e41140b9a48",
-                "reference": "45afc302cd2bc0f4e71061294cd32e41140b9a48",
+                "url": "https://api.github.com/repos/sugarcraft/sugar-mouse/zipball/5a00cfa219a003a4f121c4817656b1fbd0d9836c",
+                "reference": "5a00cfa219a003a4f121c4817656b1fbd0d9836c",
                 "shasum": ""
             },
             "require": {
@@ -2213,7 +2226,7 @@
                     "role": "Maintainer"
                 }
             ],
-            "description": "Self-contained Mark/Scan/Get mouse hit-testing (bubblezone pattern) plus ZoneClickTracker for press/release deduplication. No external Manager wiring needed.",
+            "description": "Mouse support for terminal UIs: sentinel-tagged Mark/Scan/Get hit-testing primitives (ZoneClickTracker press/release dedup, Selection) plus the bubblezone-style Zones Manager layer with hover, drag, and multi-click trackers — both layers in one package.",
             "homepage": "https://github.com/sugarcraft/sugar-mouse",
             "keywords": [
                 "bubblezone",
@@ -2228,7 +2241,7 @@
                 "issues": "https://github.com/sugarcraft/sugar-mouse/issues",
                 "source": "https://github.com/sugarcraft/sugar-mouse"
             },
-            "time": "2026-10-17T07:19:07+00:00"
+            "time": "2026-11-03T17:18:46+00:00"
         },
         {
             "name": "sugarcraft/sugar-navstack",
@@ -2236,12 +2249,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/sugar-navstack.git",
-                "reference": "b4c3caaded484cd00ad695d39321bcb4bc4474a2"
+                "reference": "3fba3db5f7dde0a71b6361c579852a52f68f980c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/sugar-navstack/zipball/b4c3caaded484cd00ad695d39321bcb4bc4474a2",
-                "reference": "b4c3caaded484cd00ad695d39321bcb4bc4474a2",
+                "url": "https://api.github.com/repos/sugarcraft/sugar-navstack/zipball/3fba3db5f7dde0a71b6361c579852a52f68f980c",
+                "reference": "3fba3db5f7dde0a71b6361c579852a52f68f980c",
                 "shasum": ""
             },
             "require": {
@@ -2256,6 +2269,7 @@
             "type": "library",
             "autoload": {
                 "psr-4": {
+                    "SugarCraft\\Crumbs\\": "aliases/",
                     "SugarCraft\\NavStack\\": "src/"
                 }
             },
@@ -2270,7 +2284,7 @@
                     "role": "Maintainer"
                 }
             ],
-            "description": "PHP port of KevM/bubbleo — NavStack and Breadcrumb components. Push/pop navigation stack with hierarchical breadcrumb rendering for terminal UIs.",
+            "description": "Navigation breadcrumbs for terminal UIs — a push/pop navigation stack with width-aware breadcrumb rendering, directory-driven stacks, and mouse-click crumb zones. Design antecedent: KevM/bubbleo.",
             "homepage": "https://github.com/sugarcraft/sugar-navstack",
             "keywords": [
                 "breadcrumbs",
@@ -2284,7 +2298,7 @@
                 "issues": "https://github.com/sugarcraft/sugar-navstack/issues",
                 "source": "https://github.com/sugarcraft/sugar-navstack"
             },
-            "time": "2026-10-17T07:19:07+00:00"
+            "time": "2026-11-04T01:54:11+00:00"
         },
         {
             "name": "sugarcraft/sugar-overlay",
@@ -2292,12 +2306,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/sugar-overlay.git",
-                "reference": "c1965ad07bb8ad4dd0f1f865ebad41be48da5274"
+                "reference": "7fa87151e1e489413f79f53ed6b947f5363ed251"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/sugar-overlay/zipball/c1965ad07bb8ad4dd0f1f865ebad41be48da5274",
-                "reference": "c1965ad07bb8ad4dd0f1f865ebad41be48da5274",
+                "url": "https://api.github.com/repos/sugarcraft/sugar-overlay/zipball/7fa87151e1e489413f79f53ed6b947f5363ed251",
+                "reference": "7fa87151e1e489413f79f53ed6b947f5363ed251",
                 "shasum": ""
             },
             "require": {
@@ -2329,7 +2343,7 @@
                     "role": "Maintainer"
                 }
             ],
-            "description": "PHP port of rmhubbert/bubbletea-overlay — modal/overlay compositing for terminal UIs. Composite foreground content over a background at any position (Top/Right/Bottom/Left/Center) with optional cell (column/row) offsets.",
+            "description": "Modal/overlay compositing for terminal UIs. Composite foreground content over a background at any position (Top/Right/Bottom/Left/Center) with optional cell (column/row) offsets, backdrop dimming, animated transitions, border chrome and click-zone hit-testing. Antecedent design: rmhubbert/bubbletea-overlay.",
             "homepage": "https://github.com/sugarcraft/sugar-overlay",
             "keywords": [
                 "bubbletea-overlay",
@@ -2344,7 +2358,7 @@
                 "issues": "https://github.com/sugarcraft/sugar-overlay/issues",
                 "source": "https://github.com/sugarcraft/sugar-overlay"
             },
-            "time": "2026-10-17T07:19:07+00:00"
+            "time": "2026-11-04T05:42:12+00:00"
         },
         {
             "name": "sugarcraft/sugar-panels",
@@ -2352,12 +2366,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/sugar-panels.git",
-                "reference": "ce42d390ba75b79a6805f743900884d0c9da3d27"
+                "reference": "9794bdfcbe3e6751bc31cf2823f25a9bb85f0ed7"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/sugar-panels/zipball/ce42d390ba75b79a6805f743900884d0c9da3d27",
-                "reference": "ce42d390ba75b79a6805f743900884d0c9da3d27",
+                "url": "https://api.github.com/repos/sugarcraft/sugar-panels/zipball/9794bdfcbe3e6751bc31cf2823f25a9bb85f0ed7",
+                "reference": "9794bdfcbe3e6751bc31cf2823f25a9bb85f0ed7",
                 "shasum": ""
             },
             "require": {
@@ -2388,11 +2402,12 @@
                     "role": "Maintainer"
                 }
             ],
-            "description": "PHP port of treilik/bubbleboxer — box-drawing layout engine. Compose terminal content into H/V panels with box-drawing borders, padding, and dynamic dimension calculation.",
+            "description": "Box-drawing layout engine — composes terminal content into horizontal and vertical panels with box-drawing borders, padding, and dynamic dimension calculation.",
             "homepage": "https://github.com/sugarcraft/sugar-panels",
             "keywords": [
                 "Border",
                 "box",
+                "bubbleboxer",
                 "layout",
                 "panel",
                 "sugarcraft",
@@ -2400,10 +2415,11 @@
                 "tui"
             ],
             "support": {
+                "docs": "https://sugarcraft.github.io/lib/sugar-panels.html",
                 "issues": "https://github.com/sugarcraft/sugar-panels/issues",
                 "source": "https://github.com/sugarcraft/sugar-panels"
             },
-            "time": "2026-10-17T07:19:07+00:00"
+            "time": "2026-11-03T16:24:24+00:00"
         },
         {
             "name": "sugarcraft/sugar-pty",
@@ -2411,12 +2427,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/sugar-pty.git",
-                "reference": "68441822a8b02706b697bf52e2e42d30b049918b"
+                "reference": "ac81de437324d0dc3eb7de6223201409fe7534b8"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/sugar-pty/zipball/68441822a8b02706b697bf52e2e42d30b049918b",
-                "reference": "68441822a8b02706b697bf52e2e42d30b049918b",
+                "url": "https://api.github.com/repos/sugarcraft/sugar-pty/zipball/ac81de437324d0dc3eb7de6223201409fe7534b8",
+                "reference": "ac81de437324d0dc3eb7de6223201409fe7534b8",
                 "shasum": ""
             },
             "require": {
@@ -2455,7 +2471,7 @@
                     "role": "Maintainer"
                 }
             ],
-            "description": "PHP port of charmbracelet/x/xpty — pseudo-terminal abstraction (open / spawn / resize) for SugarCraft. Linux + macOS via FFI to libc.",
+            "description": "PHP pseudo-terminal layer (open / spawn / resize) inspired by creack/pty and charmbracelet/x/xpty for SugarCraft. Linux + macOS via FFI to libc, Windows via ConPTY.",
             "homepage": "https://github.com/sugarcraft/sugar-pty",
             "keywords": [
                 "cli",
@@ -2474,7 +2490,7 @@
                 "issues": "https://github.com/sugarcraft/sugar-pty/issues",
                 "source": "https://github.com/sugarcraft/sugar-pty"
             },
-            "time": "2026-10-17T07:19:07+00:00"
+            "time": "2026-11-03T19:25:45+00:00"
         },
         {
             "name": "sugarcraft/sugar-quickpick",
@@ -2482,17 +2498,16 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/sugar-quickpick.git",
-                "reference": "9b7aa57eb1d4baf340603a950b701f26298e2507"
+                "reference": "0dd21460e6055372acb141a935ad89dfa3e54d65"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/sugar-quickpick/zipball/9b7aa57eb1d4baf340603a950b701f26298e2507",
-                "reference": "9b7aa57eb1d4baf340603a950b701f26298e2507",
+                "url": "https://api.github.com/repos/sugarcraft/sugar-quickpick/zipball/0dd21460e6055372acb141a935ad89dfa3e54d65",
+                "reference": "0dd21460e6055372acb141a935ad89dfa3e54d65",
                 "shasum": ""
             },
             "require": {
                 "php": "^8.3",
-                "sugarcraft/sugar-ansi-parser": "dev-master",
                 "sugarcraft/sugar-core": "dev-master",
                 "sugarcraft/sugar-fuzzy": "dev-master",
                 "sugarcraft/sugar-pty": "dev-master",
@@ -2519,7 +2534,7 @@
                     "role": "Maintainer"
                 }
             ],
-            "description": "PHP port of Genekkion/theHermit — fuzzy finder / quick-fix overlay for terminal UIs. Wraps a background view, renders a filterable list overlay on top, background continues to update underneath.",
+            "description": "Fuzzy finder / quick-pick overlay for terminal UIs. Wraps a background view, renders a filterable, rankable list overlay on top with borders and styles, background continues to update underneath. JSONL-backed selection history. Inspired by Genekkion/theHermit (Go); developed as a native PHP project.",
             "homepage": "https://github.com/sugarcraft/sugar-quickpick",
             "keywords": [
                 "finder",
@@ -2530,10 +2545,11 @@
                 "tui"
             ],
             "support": {
+                "docs": "https://sugarcraft.github.io/lib/sugar-quickpick.html",
                 "issues": "https://github.com/sugarcraft/sugar-quickpick/issues",
                 "source": "https://github.com/sugarcraft/sugar-quickpick"
             },
-            "time": "2026-10-17T07:19:07+00:00"
+            "time": "2026-11-03T16:18:04+00:00"
         },
         {
             "name": "sugarcraft/sugar-spring",
@@ -2541,12 +2557,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/sugar-spring.git",
-                "reference": "a85d636a6eadd89b8a24d830c336a8e43875928a"
+                "reference": "068e2a46febb2af1eafc81a6699591c443ffd0fa"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/sugar-spring/zipball/a85d636a6eadd89b8a24d830c336a8e43875928a",
-                "reference": "a85d636a6eadd89b8a24d830c336a8e43875928a",
+                "url": "https://api.github.com/repos/sugarcraft/sugar-spring/zipball/068e2a46febb2af1eafc81a6699591c443ffd0fa",
+                "reference": "068e2a46febb2af1eafc81a6699591c443ffd0fa",
                 "shasum": ""
             },
             "require": {
@@ -2576,7 +2592,7 @@
                     "role": "Maintainer"
                 }
             ],
-            "description": "PHP port of charmbracelet/harmonica — damped spring physics + Newtonian projectile simulation for terminal animation.",
+            "description": "Damped spring physics for PHP TUIs — spring core ported from charmbracelet/harmonica, extended with projectile simulation, easing/bezier timing, spring chains, collections and reduced-motion awareness.",
             "homepage": "https://github.com/sugarcraft/sugar-spring",
             "keywords": [
                 "animation",
@@ -2594,7 +2610,7 @@
                 "issues": "https://github.com/sugarcraft/sugar-spring/issues",
                 "source": "https://github.com/sugarcraft/sugar-spring"
             },
-            "time": "2026-10-17T07:19:07+00:00"
+            "time": "2026-11-03T19:56:40+00:00"
         },
         {
             "name": "sugarcraft/sugar-style",
@@ -2602,12 +2618,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/sugar-style.git",
-                "reference": "bf0cf5ead56d2625e31b16e2bc9bf85f8cb46cec"
+                "reference": "1bd8d70661421a3adc9ee6d66b908c85729d8a60"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/sugar-style/zipball/bf0cf5ead56d2625e31b16e2bc9bf85f8cb46cec",
-                "reference": "bf0cf5ead56d2625e31b16e2bc9bf85f8cb46cec",
+                "url": "https://api.github.com/repos/sugarcraft/sugar-style/zipball/1bd8d70661421a3adc9ee6d66b908c85729d8a60",
+                "reference": "1bd8d70661421a3adc9ee6d66b908c85729d8a60",
                 "shasum": ""
             },
             "require": {
@@ -2658,7 +2674,7 @@
                 "issues": "https://github.com/sugarcraft/sugar-style/issues",
                 "source": "https://github.com/sugarcraft/sugar-style"
             },
-            "time": "2026-10-17T07:19:07+00:00"
+            "time": "2026-11-03T19:57:07+00:00"
         },
         {
             "name": "sugarcraft/sugar-table",
@@ -2666,12 +2682,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/sugar-table.git",
-                "reference": "ab1b0201b54fee1833a1763948749cbd12c67542"
+                "reference": "e5c37a7f0954a9c9744cd1dc79c1d06c377fdab1"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/sugar-table/zipball/ab1b0201b54fee1833a1763948749cbd12c67542",
-                "reference": "ab1b0201b54fee1833a1763948749cbd12c67542",
+                "url": "https://api.github.com/repos/sugarcraft/sugar-table/zipball/e5c37a7f0954a9c9744cd1dc79c1d06c377fdab1",
+                "reference": "e5c37a7f0954a9c9744cd1dc79c1d06c377fdab1",
                 "shasum": ""
             },
             "require": {
@@ -2718,7 +2734,7 @@
                 "issues": "https://github.com/sugarcraft/sugar-table/issues",
                 "source": "https://github.com/sugarcraft/sugar-table"
             },
-            "time": "2026-10-17T07:19:07+00:00"
+            "time": "2026-11-03T15:32:09+00:00"
         },
         {
             "name": "sugarcraft/sugar-toast",
@@ -2726,12 +2742,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/sugar-toast.git",
-                "reference": "1338080fca004f51d8f3f96e7387ccc47dcae258"
+                "reference": "0ca9b99772225df19309ffb81d8a1935810e65d5"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/sugar-toast/zipball/1338080fca004f51d8f3f96e7387ccc47dcae258",
-                "reference": "1338080fca004f51d8f3f96e7387ccc47dcae258",
+                "url": "https://api.github.com/repos/sugarcraft/sugar-toast/zipball/0ca9b99772225df19309ffb81d8a1935810e65d5",
+                "reference": "0ca9b99772225df19309ffb81d8a1935810e65d5",
                 "shasum": ""
             },
             "require": {
@@ -2761,7 +2777,7 @@
                     "role": "Maintainer"
                 }
             ],
-            "description": "PHP port of DaltonSW/bubbleup — floating alert notification component for terminal UIs. Supports error/warning/info/success alerts at 6 screen positions, dynamic width, NerdFont/Unicode/ASCII symbols, auto-dismiss timers.",
+            "description": "PHP port of DaltonSW/bubbleup — floating alert notification component for terminal UIs. Supports error/warning/info/success alerts at 9 screen positions, dynamic width, NerdFont/Unicode/Ascii symbols, auto-dismiss timers.",
             "homepage": "https://github.com/sugarcraft/sugar-toast",
             "keywords": [
                 "alert",
@@ -2776,7 +2792,7 @@
                 "issues": "https://github.com/sugarcraft/sugar-toast/issues",
                 "source": "https://github.com/sugarcraft/sugar-toast"
             },
-            "time": "2026-10-17T07:19:07+00:00"
+            "time": "2026-11-03T17:31:08+00:00"
         },
         {
             "name": "sugarcraft/sugar-video",
@@ -2784,12 +2800,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/sugar-video.git",
-                "reference": "881c15474131dcbe35c0e52a037053592ca810bb"
+                "reference": "eeb7fda4721334c34ac8bc65cb024943020b72d4"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/sugar-video/zipball/881c15474131dcbe35c0e52a037053592ca810bb",
-                "reference": "881c15474131dcbe35c0e52a037053592ca810bb",
+                "url": "https://api.github.com/repos/sugarcraft/sugar-video/zipball/eeb7fda4721334c34ac8bc65cb024943020b72d4",
+                "reference": "eeb7fda4721334c34ac8bc65cb024943020b72d4",
                 "shasum": ""
             },
             "require": {
@@ -2803,6 +2819,10 @@
             "require-dev": {
                 "phpunit/phpunit": "^10.5",
                 "sugarcraft/sugar-testing": "dev-master"
+            },
+            "suggest": {
+                "ext-gd": "Required for .gif playback and animated .webp decoding (the pure-PHP routes; no ffmpeg needed). mp4/avi/webm need the ffmpeg and ffprobe binaries on $PATH — a runtime toolchain, not a Composer package.",
+                "ext-mbstring": "Used by the WebVTT subtitle parser for UTF-8-safe cue truncation in the caption overlay."
             },
             "default-branch": true,
             "type": "library",
@@ -2825,10 +2845,13 @@
             "description": "Terminal video player for SugarCraft — plays mp4 (and more) by decoding frames on the fly and rendering them to ASCII / ANSI / truecolor half-block / sixel / kitty output.",
             "homepage": "https://github.com/sugarcraft/sugar-video",
             "keywords": [
+                "Webp",
                 "ansi",
                 "ascii",
                 "ascii-art",
+                "avi",
                 "ffmpeg",
+                "gif",
                 "kitty",
                 "sixel",
                 "sugarcraft",
@@ -2837,14 +2860,15 @@
                 "tui",
                 "video",
                 "video-player",
-                "video-to-ascii"
+                "video-to-ascii",
+                "webvtt"
             ],
             "support": {
                 "docs": "https://sugarcraft.github.io/lib/sugar-video.html",
                 "issues": "https://github.com/sugarcraft/sugar-video/issues",
                 "source": "https://github.com/sugarcraft/sugar-video"
             },
-            "time": "2026-10-17T07:19:07+00:00"
+            "time": "2026-11-04T05:37:21+00:00"
         },
         {
             "name": "symfony/deprecation-contracts",
@@ -7383,12 +7407,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sugarcraft/sugar-testing.git",
-                "reference": "5c6bf44cfb24c22640a6ac7e2b0a8660643952b5"
+                "reference": "190578044f24f206a8bfa0a07420b475a011ff8d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sugarcraft/sugar-testing/zipball/5c6bf44cfb24c22640a6ac7e2b0a8660643952b5",
-                "reference": "5c6bf44cfb24c22640a6ac7e2b0a8660643952b5",
+                "url": "https://api.github.com/repos/sugarcraft/sugar-testing/zipball/190578044f24f206a8bfa0a07420b475a011ff8d",
+                "reference": "190578044f24f206a8bfa0a07420b475a011ff8d",
                 "shasum": ""
             },
             "require": {
@@ -7399,6 +7423,9 @@
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
+            },
+            "suggest": {
+                "ext-gd": "Pixel materialization in Graphics assertions (the pixel paths fail loudly without it)"
             },
             "default-branch": true,
             "type": "library",
@@ -7418,13 +7445,13 @@
                     "role": "Maintainer"
                 }
             ],
-            "description": "Test harness for TEA programs — ProgramSimulator, golden-file assertions, and snapshot helpers for SugarCraft.",
+            "description": "Test harness for SugarCraft terminal programs — golden snapshots, cell-grid assertions, program simulation, scripted input, VHS tape building, and graphics decoding.",
             "homepage": "https://github.com/sugarcraft/sugar-testing",
             "keywords": [
                 "bubbletea",
                 "elm-architecture",
+                "golden-file",
                 "sugarcraft",
-                "tea",
                 "terminal",
                 "testing",
                 "tui"
@@ -7434,7 +7461,7 @@
                 "issues": "https://github.com/sugarcraft/sugar-testing/issues",
                 "source": "https://github.com/sugarcraft/sugar-testing"
             },
-            "time": "2026-10-17T07:19:07+00:00"
+            "time": "2026-11-03T15:32:21+00:00"
         },
         {
             "name": "symfony/console",

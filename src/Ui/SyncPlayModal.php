@@ -362,7 +362,7 @@ final class SyncPlayModal
 
         $body = implode("\n", $lines);
 
-        return SugarPanels::new()->render(
+        return PanelRender::render(
             SugarPanels::new()->leaf($body)->withBorder(true)->withPadding(0)->withTitle(' SyncPlay '),
             $this->winWidth,
             $this->winHeight,
@@ -399,7 +399,7 @@ final class SyncPlayModal
 
         $body = implode("\n", $lines);
 
-        return SugarPanels::new()->render(
+        return PanelRender::render(
             SugarPanels::new()->leaf($body)->withBorder(true)->withPadding(0)->withTitle(' ' . $this->fitTitle($createTitle) . ' '),
             $this->winWidth,
             $this->winHeight,
@@ -415,7 +415,7 @@ final class SyncPlayModal
 
         $body = implode("\n", $lines);
 
-        return SugarPanels::new()->render(
+        return PanelRender::render(
             SugarPanels::new()->leaf($body)->withBorder(true)->withPadding(0)->withTitle(' SyncPlay '),
             $this->winWidth,
             $this->winHeight,
@@ -437,7 +437,7 @@ final class SyncPlayModal
 
         $body = implode("\n", $lines);
 
-        return SugarPanels::new()->render(
+        return PanelRender::render(
             SugarPanels::new()->leaf($body)->withBorder(true)->withPadding(0)->withTitle(' SyncPlay '),
             $this->winWidth,
             $this->winHeight,

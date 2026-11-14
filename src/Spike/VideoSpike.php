@@ -31,16 +31,25 @@ final class VideoSpike
         if (!is_file($src)) {
             return "source: {$src} (not a local file — passed straight to ffmpeg)";
         }
-        $v = VideoSource::probe($src);
-        // [review CON-37] VideoSource::probe() fails soft: an absent, hung or
-        // erroring ffprobe (or a file with no video stream) comes back as a
-        // zeroed default. Printing that as `0x0  0.00fps  0.0s` fabricated
-        // metadata for a source nobody measured — say what actually happened.
+        $noMetadata = sprintf(
+            'source: %s (no video metadata — ffprobe unavailable or found no video stream)',
+            basename($src),
+        );
+        try {
+            $v = VideoSource::probe($src);
+        } catch (\RuntimeException) {
+            // A local file ffprobe drained but found no decodable video stream
+            // is a typed hard error upstream (it used to be a zeroed default).
+            // The probe report is informational: say so, and let the frame
+            // decode that follows name ffmpeg's own exit status.
+            return $noMetadata;
+        }
+        // [review CON-37] VideoSource::probe() still fails soft for an absent or
+        // hung ffprobe: that comes back as a zeroed default. Printing it as
+        // `0x0  0.00fps  0.0s` fabricated metadata for a source nobody
+        // measured — say what actually happened.
         if ($v->width <= 0 || $v->height <= 0) {
-            return sprintf(
-                'source: %s (no video metadata — ffprobe unavailable or found no video stream)',
-                basename($src),
-            );
+            return $noMetadata;
         }
 
         return sprintf(

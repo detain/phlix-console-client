@@ -117,7 +117,7 @@ final class Chrome
 
         $root = $b->vertical($header, $content, $status)->withSpacing(1);
 
-        return $b->render($root, max(1, $cols), max(1, $rows));
+        return PanelRender::plain($b->render($root, max(1, $cols), max(1, $rows)));
     }
 
     /**

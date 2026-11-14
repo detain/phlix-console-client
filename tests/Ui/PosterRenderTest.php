@@ -200,7 +200,7 @@ final class PosterRenderTest extends TestCase
     public function testInlineModesProduceDistinctCacheKeys(): void
     {
         $protocols = array_map(
-            static fn (string $mode): string => MosaicFactory::forMode($mode)->protocol(),
+            static fn (string $mode): string => MosaicFactory::modeName(MosaicFactory::forMode($mode)),
             ['halfblock', 'quarterblock', 'ascii', 'ansi256', 'truecolor'],
         );
 
@@ -238,7 +238,7 @@ final class PosterRenderTest extends TestCase
         foreach (['halfblock', 'sixel', 'iterm2', 'kitty', 'ascii', 'ansi256', 'truecolor'] as $mode) {
             $loader = new PosterLoader(MosaicFactory::forMode($mode));
 
-            self::assertSame(MosaicFactory::forMode($mode)->protocol(), $loader->protocol());
+            self::assertSame(MosaicFactory::modeName(MosaicFactory::forMode($mode)), $loader->protocol());
         }
     }
 

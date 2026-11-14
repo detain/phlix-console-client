@@ -172,7 +172,7 @@ final class PosterLoader
      */
     public function protocol(): string
     {
-        return $this->mosaic->protocol();
+        return MosaicFactory::modeName($this->mosaic);
     }
 
     /**

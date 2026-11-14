@@ -142,7 +142,10 @@ device-attributes query (`ESC [ c`) to fill the gaps the env table leaves
 geometry.
 
 `Mosaic::auto()` never throws, and its protocol precedence is
-kitty → iterm2 → sixel → chafa → halfblock: a terminal with no usable
-graphics protocol lands on the half-block cell mode. The other cell modes
+kitty → iterm2 → sixel → chafa (explicit opt-in only) → symbols → halfblock —
+chafa is never auto-selected, and the symbol-map tier (not half-block) is the
+practical floor for a text-capable terminal. The app itself does not follow
+`Mosaic::auto()` for posters: the unforced default is the half-block cell
+renderer. The other cell modes
 (`quarterblock`, `ascii`, and its `ansi256`/`truecolor` tinted ramps) are
 explicit `--mode` picks at launch, not stages of an automatic fallback ladder.

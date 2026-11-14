@@ -133,7 +133,7 @@ final class UserRatingPicker
     /** Composite the picker box centred over a sugar-overlay dimmed background. */
     public function render(string $background, Theme $theme): string
     {
-        $box = SugarPanels::new()->render(
+        $box = PanelRender::render(
             SugarPanels::new()
                 ->leaf($this->body($theme))
                 ->withBorder(true)

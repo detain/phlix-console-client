@@ -70,6 +70,21 @@ final class MosaicFactory
     }
 
     /**
+     * The render MODE a mosaic encodes — the name {@see forMode()} accepts
+     * back, and the vocabulary {@see \SugarCraft\Video\Render\Mode} speaks.
+     *
+     * sugar-image reports one 'ascii' protocol for all colour arms of the ASCII
+     * renderer and carries the arm in {@see Mosaic::modeDetail()}
+     * ('ansi16'/'ansi256'/'truecolor'). Folding the two together keeps the video
+     * player opening in the colour depth the posters use, and keeps distinct
+     * modes distinct wherever this app keys on them.
+     */
+    public static function modeName(Mosaic $mosaic): string
+    {
+        return $mosaic->modeDetail() ?? $mosaic->protocol();
+    }
+
+    /**
      * Resolve a mode to a Mosaic for the poster grid.
      *
      * Cell modes (half/quarter-block, ascii/ansi256/truecolor) tile as text;
