@@ -69,6 +69,12 @@ use RuntimeException;
  * one accessor can peel all ten sites (the six single-member variants would
  * ride along); owned by the next consolidation lane.
  *
+ * Hub pairing busy-flag rotation (measured rotation, this lane): the
+ * AdminRemoteAccessScreen withError() copy now settles busy through
+ * settledBusy() instead of `busy = false`, so it no longer hashes into the
+ * withError:5a4c9bf589c3 family. The downward rotation 5 -> 4 is the measured
+ * red re-pinned here; the other copies are unchanged.
+ *
  * Red-on-parent law: on the pre-M37 tree, guard 1 fails (37 copies, no trait
  * files) and guard 2 fails (pinned map post-dates the extraction).
  */
@@ -177,7 +183,7 @@ final class ScreenConcernSingleSourceTest extends TestCase
         'viewportRows:ce5064a54ecb' => 6,
         'withCrumbs:1c62c2ce3e24' => 49,
         'withError:41a7477e3aeb' => 9,
-        'withError:5a4c9bf589c3' => 5,
+        'withError:5a4c9bf589c3' => 4,
         'withError:639c23cc173c' => 5,
         'withError:8d3aaa6a1ae5' => 2,
         'withError:deec2cb39eeb' => 8,

@@ -799,6 +799,18 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
                         );
                     }
 
+                    // The server answers a claim it has not seen consumed as a 200 with
+                    // success:false, which decode() raises as an ApiError. That is the same
+                    // pending outcome as paired:false, so it spends a poll like one and the
+                    // timeout reason is reached instead of the pending sentence.
+                    if (self::isPendingAnswer($e)) {
+                        return \React\Promise\Timer\sleep(3)->then(
+                            static function () use ($remaining, $poll): PromiseInterface {
+                                return $poll($remaining - 1);
+                            }
+                        );
+                    }
+
                     // Transient failure (hub unreachable, etc.) — retry.
                     if ($remaining > 1) {
                         return \React\Promise\Timer\sleep(3)->then(
@@ -831,6 +843,18 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
     private static function isClaimExpiry(\Throwable $e): bool
     {
         return ($e instanceof ApiError && $e->statusCode === 410) || str_contains($e->getMessage(), 'expired');
+    }
+
+    /**
+     * The poll's 200 {success:false,message:'Claim is still pending.'} answer. The
+     * status is 200 because the hub route reports pending as an envelope, not a failure
+     * status; the message check keeps other 200 envelopes on the transient path.
+     */
+    private static function isPendingAnswer(\Throwable $e): bool
+    {
+        return $e instanceof ApiError
+            && $e->statusCode === 200
+            && str_contains(strtolower($e->getMessage()), 'pending');
     }
 
     /**

@@ -1067,6 +1067,33 @@ final class AdminRemoteAccessScreenTest extends TestCase
         self::assertStringContainsString('Pairing timed out.', $toast->message);
     }
 
+    public function testTheServersPendingEnvelopeIsAPendingPollAndTimesOutAfterTenPolls(): void
+    {
+        // The real hub answers a claim it has not seen consumed as 200 {success:false}, not paired:false.
+        $transport = $this->statusTransport($this->inactivePayloads());
+        $transport->json(200, ['claimCode' => 'ABCD-1234', 'claimId' => 'claim-7', 'expiresIn' => 600]);
+        for ($i = 0; $i < 10; $i++) {
+            $transport->json(200, ['success' => false, 'message' => 'Claim is still pending.']);
+        }
+        $screen = $this->loaded($transport);
+
+        [$waiting] = $screen->update(new KeyMsg(KeyType::Char, 'p'));
+        [$working, $cmd] = $this->typedHubUrl($waiting, 'hub.example')->update(new KeyMsg(KeyType::Enter));
+        [$polling, $pollCmd] = $working->update($this->runCmd($cmd));
+
+        $expired = $this->settleOnFakeClock($pollCmd);
+        self::assertInstanceOf(HubPairingExpiredMsg::class, $expired);
+        self::assertSame('Pairing timed out.', $expired->reason);
+        self::assertSame(15, $transport->requestCount(), 'four statuses, the claim, then ten pending polls');
+
+        [$after, $toastCmd] = $polling->update($expired);
+        self::assertStringNotContainsString('Claim code', $after->view(), 'the wizard closes');
+        $toast = $this->runCmd($toastCmd);
+        self::assertInstanceOf(ShowToastMsg::class, $toast);
+        self::assertStringContainsString('Pairing timed out.', $toast->message);
+        self::assertStringNotContainsString('still pending', $toast->message);
+    }
+
     public function testThePollSuccessDoesNotCloseTheLiveWizardBeforeItsMessageIsDispatched(): void
     {
         $transport = $this->statusTransport($this->inactivePayloads());
