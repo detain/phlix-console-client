@@ -103,6 +103,7 @@ final class ServerSwitchInvalidationTest extends TestCase
         // the cache slot; only the epoch guard stops the old server's late write.
         $libraries->all();
         self::assertSame($base + 2, $transport->requestCount(), 'the post-switch fetch goes to the new server');
+        self::assertStringStartsWith('https://two.example', $transport->requests[$base + 1]['url'], 'the post-switch fetch is addressed to the new server');
 
         $transport->respondJson($base, ['libraries' => [['id' => 'old', 'name' => 'Stale', 'type' => 'movie']]]);
         self::assertNull($libraries->cached(), 'a library list from the previous server is not cached after the switch');
@@ -126,6 +127,7 @@ final class ServerSwitchInvalidationTest extends TestCase
             $pending = $page;
         });
         self::assertSame($base + 2, $transport->requestCount(), 'the post-switch page goes to the new server');
+        self::assertStringStartsWith('https://two.example', $transport->requests[$base + 1]['url'], 'the post-switch page is addressed to the new server');
 
         $transport->respondJson($base, ['items' => [['id' => 'old', 'name' => 'Stale', 'type' => 'movie']], 'total' => 1, 'offset' => 0, 'limit' => 18]);
 
