@@ -153,6 +153,27 @@ final class DetailScreenTest extends TestCase
         );
     }
 
+    public function testRefetchedOverviewReplacesTheSynopsisAtTheSameWidth(): void
+    {
+        // A retry re-dispatches fetchItem() on the same instance at the same width,
+        // so the cache key must notice the overview changed even though the width did not.
+        $loaded = $this->loaded(['overview' => 'Original synopsis about hackers.'], 120, 40);
+        self::assertStringContainsString('hackers', $loaded->view());
+
+        $refetch = (new FakeTransport())->json(
+            200,
+            $this->detailResponse(['overview' => 'Replacement synopsis about zeppelins.']),
+        );
+        $msg = $this->runBatch($this->screenWith($refetch, cols: 120, rows: 40)->init())[0];
+        self::assertInstanceOf(DetailLoadedMsg::class, $msg);
+
+        [$updated] = $loaded->update($msg);
+        $view = $updated->view();
+
+        self::assertStringContainsString('zeppelins', $view, 'the refetched overview is rendered');
+        self::assertStringNotContainsString('hackers', $view, 'the stale synopsis is not served from the cache');
+    }
+
     public function testRuntimeFallsBackToDurationSeconds(): void
     {
         // No TMDB runtime, but a probed duration of 5400s → 90m → 1h 30m.
