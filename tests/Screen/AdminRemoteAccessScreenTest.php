@@ -736,6 +736,73 @@ final class AdminRemoteAccessScreenTest extends TestCase
         self::assertStringNotContainsString('Pairing failed.', $toast->message);
     }
 
+    public function testEscDuringThePairingPollLeavesTheScreenIdle(): void
+    {
+        $transport = $this->statusTransport($this->inactivePayloads());
+        $transport->json(200, ['claimCode' => 'ABCD-1234', 'claimId' => 'claim-7', 'expiresIn' => 600]);
+        $screen = $this->loaded($transport);
+
+        [$waiting] = $screen->update(new KeyMsg(KeyType::Char, 'p'));
+        [$working, $cmd] = $this->typedHubUrl($waiting, 'hub.example')->update(new KeyMsg(KeyType::Enter));
+        [$polling] = $working->update($this->runCmd($cmd));
+        self::assertFalse($polling->isBusy(), 'the claim clears the request busy flag');
+
+        [$cancelled] = $polling->update(new KeyMsg(KeyType::Escape));
+        self::assertFalse($cancelled->isBusy(), 'Esc during POLLING leaves the screen idle');
+        self::assertStringNotContainsString('Working', $cancelled->view());
+
+        // The panel actions are live again, so `p` reopens the wizard instead of being dropped.
+        [$reopened] = $cancelled->update(new KeyMsg(KeyType::Char, 'p'));
+        self::assertStringContainsString('Hub URL:', $reopened->view());
+    }
+
+    public function testThePollExpiryReasonReachesTheToast(): void
+    {
+        $transport = $this->statusTransport($this->inactivePayloads());
+        $transport->json(200, ['claimCode' => 'ABCD-1234', 'claimId' => 'claim-7', 'expiresIn' => 600]);
+        $transport->json(410, ['error' => 'Claim has expired.']);
+        $screen = $this->loaded($transport);
+
+        [$waiting] = $screen->update(new KeyMsg(KeyType::Char, 'p'));
+        [$working, $cmd] = $this->typedHubUrl($waiting, 'hub.example')->update(new KeyMsg(KeyType::Enter));
+        [$polling, $pollCmd] = $working->update($this->runCmd($cmd));
+
+        $expired = $this->runCmd($pollCmd);
+        self::assertInstanceOf(HubPairingExpiredMsg::class, $expired);
+        self::assertSame('Claim has expired.', $expired->reason);
+
+        [$after, $toastCmd] = $polling->update($expired);
+        self::assertStringNotContainsString('Claim code', $after->view(), 'the wizard closes');
+
+        $toast = $this->runCmd($toastCmd);
+        self::assertInstanceOf(ShowToastMsg::class, $toast);
+        self::assertSame(ToastType::Error, $toast->type);
+        self::assertStringContainsString('Claim has expired.', $toast->message);
+        self::assertStringNotContainsString('Pairing failed.', $toast->message);
+    }
+
+    public function testAPollFailureClosesTheWizardOnAScreenThatWasResizedMidPoll(): void
+    {
+        $transport = $this->statusTransport($this->inactivePayloads());
+        $transport->json(200, ['claimCode' => 'ABCD-1234', 'claimId' => 'claim-7', 'expiresIn' => 600]);
+        $screen = $this->loaded($transport);
+
+        [$waiting] = $screen->update(new KeyMsg(KeyType::Char, 'p'));
+        [$working, $cmd] = $this->typedHubUrl($waiting, 'hub.example')->update(new KeyMsg(KeyType::Enter));
+        [$polling] = $working->update($this->runCmd($cmd));
+        [$resized] = $polling->update(new WindowSizeMsg(100, 30));
+        self::assertStringContainsString('Claim code: ABCD-1234', $resized->view());
+
+        // The poll's terminal outcome (timeout or final network failure) arrives as this message.
+        [$after, $toastCmd] = $resized->update(new AdminRemoteActionFailedMsg('Pairing timed out.'));
+        self::assertStringNotContainsString('Claim code', $after->view(), 'the live wizard closes');
+        self::assertFalse($after->isBusy());
+
+        $toast = $this->runCmd($toastCmd);
+        self::assertInstanceOf(ShowToastMsg::class, $toast);
+        self::assertStringContainsString('Pairing timed out.', $toast->message);
+    }
+
     // ---- hub unenroll --------------------------------------------------
 
     public function testHubUnenrollArmsAConfirmThenPerformsOnY(): void

@@ -210,7 +210,10 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
             return $this->onActionDone($msg);
         }
         if ($msg instanceof AdminRemoteActionFailedMsg) {
-            return [$this->idle(), Cmd::send(ShowToastMsg::error($msg->message))];
+            // The pairing poll ends in this message on timeout or a final network
+            // failure, and the wizard's own state lives on the screen the program
+            // renders, so the poll's outcome closes the wizard here as well.
+            return [$this->cancelPairingWizard()->idle(), Cmd::send(ShowToastMsg::error($msg->message))];
         }
         if ($msg instanceof AdminPortForwardCandidatesLoadedMsg) {
             return $this->onCandidatesLoaded($msg->candidates);
@@ -689,10 +692,16 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
         });
     }
 
-    /** Move the wizard to SHOWING_CODE with the claim details from a successful request. */
+    /**
+     * Move the wizard to SHOWING_CODE with the claim details from a successful request.
+     * The request is done here and the wizard captures input from now on, so the busy
+     * flag set when Enter was pressed is cleared: the detached poll must not leave the
+     * screen reading "Working…" after the user cancels with Esc.
+     */
     private function withClaim(HubPairingDoneMsg $msg): self
     {
         $next = clone $this;
+        $next->busy = false;
         $next->wizard = PairingWizard::showingCode($msg->claimCode, $msg->claimId, $msg->hubUrl, $msg->expiresIn);
 
         return $next;
@@ -709,11 +718,12 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
         $admin = $this->admin;
         $screen = $this;
 
-        // Recursive inner that captures the remaining poll count.
+        // Recursive inner that captures the remaining poll count. Terminal outcomes
+        // travel as messages only: the screen captured here is a snapshot that a
+        // resize may have replaced, so writing the final wizard state onto it would
+        // never reach the live screen.
         $poll = static function (int $remaining) use ($admin, $claimId, $hubUrl, $screen, &$poll): PromiseInterface {
             if ($remaining <= 0) {
-                $screen->wizard = PairingWizard::error('Pairing timed out.');
-
                 return \React\Promise\Timer\sleep(0)->then(
                     static fn (): Msg => new AdminRemoteActionFailedMsg('Pairing timed out.')
                 );
@@ -741,8 +751,6 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
                 },
                 static function (\Throwable $e) use ($screen, $remaining, $poll): PromiseInterface {
                     if (str_contains($e->getMessage(), 'expired')) {
-                        $screen->wizard = PairingWizard::error('Claim has expired.');
-
                         return \React\Promise\Timer\sleep(0)->then(
                             static fn (): Msg => new HubPairingExpiredMsg('Claim has expired.')
                         );
@@ -757,8 +765,6 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
                         );
                     }
 
-                    $screen->wizard = PairingWizard::error(ExceptionSentences::sentence($e, 'admin-remote-access-screen'));
-
                     return \React\Promise\Timer\sleep(0)->then(
                         static fn (): Msg => new AdminRemoteActionFailedMsg(ExceptionSentences::sentence($e, 'admin-remote-access-screen'))
                     );
@@ -766,7 +772,9 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
             );
         };
 
-        return static fn (): PromiseInterface => $poll(self::MAX_POLLS);
+        // Cmd::promise wraps the chain as an AsyncCmd; a bare closure returning the
+        // promise would be dispatched as a Msg by the Program and never settle.
+        return Cmd::promise(static fn (): PromiseInterface => $poll(self::MAX_POLLS));
     }
 
     // ---- rendering -----------------------------------------------------
