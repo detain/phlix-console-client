@@ -934,6 +934,63 @@ final class AdminRemoteAccessScreenTest extends TestCase
         self::assertTrue($status->status->hub->paired);
     }
 
+    public function testAStaleSuccessRefetchDoesNotReleaseTheBusyFlagOfTheReopenedRequest(): void
+    {
+        $transport = $this->statusTransport($this->inactivePayloads());
+        $transport->json(200, ['claimCode' => 'ABCD-1234', 'claimId' => 'claim-7', 'expiresIn' => 600]);
+        $transport->json(200, ['paired' => true, 'serverId' => 'srv-9']);
+        foreach ($this->activePayloads() as $payload) {                 // refetch after the pairing
+            $transport->json(200, $payload);
+        }
+        $screen = $this->loaded($transport);
+
+        [$waiting] = $screen->update(new KeyMsg(KeyType::Char, 'p'));
+        [$working, $cmd] = $this->typedHubUrl($waiting, 'hub.example')->update(new KeyMsg(KeyType::Enter));
+        [$polling, $pollCmd] = $working->update($this->runCmd($cmd));
+
+        // Esc during POLLING, `p` reopens, and Enter sends a second claim that is still in flight.
+        [$cancelled] = $polling->update(new KeyMsg(KeyType::Escape));
+        [$reopened] = $cancelled->update(new KeyMsg(KeyType::Char, 'p'));
+        [$inFlight, $secondCmd] = $this->typedHubUrl($reopened, 'hub.example')->update(new KeyMsg(KeyType::Enter));
+        self::assertNotNull($secondCmd, 'the reopened wizard sends its own claim');
+        self::assertTrue($inFlight->isBusy(), 'the reopened claim is in flight');
+
+        // Poll A reports paired, and its refetch settles while the reopened claim is still out.
+        [$afterPaired, $fetchCmd] = $inFlight->update($this->runCmd($pollCmd));
+        [$afterStatus] = $afterPaired->update($this->runCmd($fetchCmd));
+        self::assertTrue($afterStatus->isBusy(), 'the refetch does not release the reopened claim');
+        self::assertStringContainsString('Hub URL:', $afterStatus->view(), 'the live wizard stays open');
+
+        [, $duplicateCmd] = $afterStatus->update(new KeyMsg(KeyType::Enter));
+        self::assertNull($duplicateCmd, 'a second Enter while the reopened claim is in flight dispatches nothing');
+    }
+
+    public function testAClaimFromAnEarlierScreenInstanceDoesNotMatchThisScreensAttempt(): void
+    {
+        // Two screens are loaded in turn, so the status payloads are queued for both.
+        $transport = $this->statusTransport(array_merge($this->inactivePayloads(), $this->inactivePayloads()));
+        $transport->json(200, ['claimCode' => 'ABCD-1234', 'claimId' => 'claim-7', 'expiresIn' => 600]);
+        $earlier = $this->loaded($transport);
+        $current = $this->loaded($transport);
+
+        [$earlierWaiting] = $earlier->update(new KeyMsg(KeyType::Char, 'p'));
+        [, $earlierCmd] = $this->typedHubUrl($earlierWaiting, 'hub.example')->update(new KeyMsg(KeyType::Enter));
+
+        [$currentWaiting] = $current->update(new KeyMsg(KeyType::Char, 'p'));
+        [$currentWorking, $currentCmd] = $this->typedHubUrl($currentWaiting, 'hub.example')
+            ->update(new KeyMsg(KeyType::Enter));
+        self::assertNotNull($currentCmd, 'the current screen sends its own claim');
+
+        // The earlier screen's claim lands on the current screen. Each screen starts its
+        // attempts from zero, so the number alone must not let it through.
+        $earlierClaim = $this->runCmd($earlierCmd);
+        self::assertInstanceOf(HubPairingDoneMsg::class, $earlierClaim);
+        [$after, $pollCmd] = $currentWorking->update($earlierClaim);
+        self::assertNull($pollCmd, 'a claim from another screen starts no poll here');
+        self::assertStringNotContainsString('Claim code', $after->view());
+        self::assertStringContainsString('Hub URL:', $after->view(), 'the current wizard stays on its URL prompt');
+    }
+
     public function testABare410IsTheExpiryOnTheFirstPollWithTheLiteralReason(): void
     {
         $transport = $this->statusTransport($this->inactivePayloads());

@@ -131,6 +131,13 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
      */
     private int $pairingAttempt = 0;
 
+    /**
+     * Source of pairingAttempt values. Process-wide because the screen is rebuilt on
+     * every open: a per-instance counter restarting at 0 would hand a request left
+     * over from an earlier screen the same number as the current attempt.
+     */
+    private static int $pairingSequence = 0;
+
     /** @var list<string> */
     private array $crumbs = [];
 
@@ -477,7 +484,7 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
         $next = clone $this;
         $next->status = $status;
         $next->loaded = true;
-        $next->busy = false;
+        $next->busy = $this->settledBusy();
         $next->error = null;
 
         return $next;
@@ -488,9 +495,19 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
         $next = clone $this;
         $next->error = $error;
         $next->loaded = false;
-        $next->busy = false;
+        $next->busy = $this->settledBusy();
 
         return $next;
+    }
+
+    /**
+     * Whether a settled status or error leaves the busy flag set. While the pairing
+     * wizard is open the flag belongs to its claim request, so a refetch started by a
+     * cancelled attempt must not release it and let a second Enter claim again.
+     */
+    private function settledBusy(): bool
+    {
+        return !$this->wizard->isIdle() && $this->busy;
     }
 
     /** Move the panel selection by $delta, clamped to the four panels. */
@@ -663,7 +680,7 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
     private function startPairingWizard(): self
     {
         $next = clone $this;
-        $next->pairingAttempt = $this->pairingAttempt + 1;
+        $next->pairingAttempt = ++self::$pairingSequence;
         $next->wizard = PairingWizard::waitingForUrl();
 
         return $next;
@@ -677,7 +694,7 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
     private function cancelPairingWizard(): self
     {
         $next = clone $this;
-        $next->pairingAttempt = $this->pairingAttempt + 1;
+        $next->pairingAttempt = ++self::$pairingSequence;
         $next->busy = false;
         $next->wizard = PairingWizard::idle();
 
