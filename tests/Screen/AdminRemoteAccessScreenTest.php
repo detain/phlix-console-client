@@ -1094,6 +1094,24 @@ final class AdminRemoteAccessScreenTest extends TestCase
         self::assertStringNotContainsString('still pending', $toast->message);
     }
 
+    public function testAPollAuthErrorSurfacesASessionExpiryWithoutRetrying(): void
+    {
+        // A token with no refresh half, so the 401 is not retried through a refresh.
+        $transport = $this->statusTransport($this->inactivePayloads());
+        $transport->json(200, ['claimCode' => 'ABCD-1234', 'claimId' => 'claim-7', 'expiresIn' => 600]);
+        $transport->json(401, ['error' => 'Unauthorized']);
+        $screen = $this->screenWithNoRefresh($transport);
+        $screen = $screen->update($this->runCmd($screen->init()))[0];
+
+        [$waiting] = $screen->update(new KeyMsg(KeyType::Char, 'p'));
+        [$working, $cmd] = $this->typedHubUrl($waiting, 'hub.example')->update(new KeyMsg(KeyType::Enter));
+        [, $pollCmd] = $working->update($this->runCmd($cmd));
+
+        $expired = $this->settleOnFakeClock($pollCmd);
+        self::assertInstanceOf(SessionExpiredMsg::class, $expired);
+        self::assertSame(6, $transport->requestCount(), 'four statuses, the claim, then one poll with no retry');
+    }
+
     public function testThePollSuccessDoesNotCloseTheLiveWizardBeforeItsMessageIsDispatched(): void
     {
         $transport = $this->statusTransport($this->inactivePayloads());

@@ -793,6 +793,14 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
                     );
                 },
                 static function (\Throwable $e) use ($remaining, $poll, $attempt): PromiseInterface {
+                    // Checked first: the session-expired text can contain "expired", which
+                    // isClaimExpiry() would otherwise read as the claim lapsing.
+                    if ($e instanceof AuthError) {
+                        return \React\Promise\Timer\sleep(0)->then(
+                            static fn (): Msg => new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
+                        );
+                    }
+
                     if (self::isClaimExpiry($e)) {
                         return \React\Promise\Timer\sleep(0)->then(
                             static fn (): Msg => new HubPairingExpiredMsg($attempt, self::expiryReason($e))

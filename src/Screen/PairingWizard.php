@@ -82,6 +82,11 @@ final readonly class PairingWizard
         return $this->hubUrl;
     }
 
+    /**
+     * The initial poll figure from showingCode(). Nothing decrements it during
+     * POLLING: the live poll budget is the countdown in
+     * AdminRemoteAccessScreen::hubPairingPollCmd(), so this value is not a live countdown.
+     */
     public function pollLeft(): int
     {
         return $this->pollLeft;
@@ -107,19 +112,6 @@ final readonly class PairingWizard
             $this->claimId,
             $this->hubUrl,
             $this->pollLeft,
-        );
-    }
-
-    /** Update the remaining poll countdown (called after each pending poll result). */
-    public function withPollCountdown(int $remaining): self
-    {
-        return new self(
-            $this->phase,
-            $this->inputBuffer,
-            $this->claimCode,
-            $this->claimId,
-            $this->hubUrl,
-            $remaining,
         );
     }
 

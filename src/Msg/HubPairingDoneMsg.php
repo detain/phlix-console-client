@@ -14,7 +14,8 @@ use SugarCraft\Core\Msg;
 /**
  * The hub pairing claim code was received from the server — the wizard moves
  * to the "show code + poll" phase carrying the claimCode, claimId and hubUrl.
- * The wizard counts its own polls from expiresIn, so pollLeft is not rendered.
+ * The wizard derives its initial pollLeft from expiresIn and never decrements it;
+ * the poll budget is enforced by AdminRemoteAccessScreen::hubPairingPollCmd().
  */
 final readonly class HubPairingDoneMsg implements Msg
 {
