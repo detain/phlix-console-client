@@ -219,19 +219,19 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
             return [$this->withCandidatesError($msg->message), null];
         }
         if ($msg instanceof HubPairingDoneMsg) {
-            // Claim code received — wizard is in POLLING phase. Start bounded poll.
-            return [$this, $this->hubPairingPollCmd($msg->claimId, $msg->hubUrl)];
+            // Claim code received — show it, then start the bounded poll on that same instance.
+            $next = $this->withClaim($msg);
+
+            return [$next, $next->hubPairingPollCmd($msg->claimId, $msg->hubUrl)];
         }
         if ($msg instanceof HubPairingPollSucceededMsg) {
             // Pairing completed — refetch all statuses to show paired state.
             return [$this->cancelPairingWizard(), $this->fetchCmd()];
         }
         if ($msg instanceof HubPairingExpiredMsg) {
-            // Pairing failed (claim expired or hub unreachable after retries) —
-            // cancel the wizard and toast the failure reason.
-            $reason = $this->wizard->errorMessage() ?? 'Pairing failed.';
-
-            return [$this->cancelPairingWizard(), Cmd::send(ShowToastMsg::error($reason))];
+            // Pairing failed (claim expired or the request was refused) — cancel the
+            // wizard, clear the request's busy flag, and toast the reason it carries.
+            return [$this->cancelPairingWizard()->idle(), Cmd::send(ShowToastMsg::error($msg->reason ?? 'Pairing failed.'))];
         }
 
         return [$this, null];
@@ -663,46 +663,39 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
 
     /**
      * Build the command for the hub pairing request (Enter was pressed with a
-     * URL in the buffer). On success the server returns {claimCode, claimId,
-     * expiresIn} and the wizard moves to SHOWING_CODE + starts polling. On
-     * failure the wizard enters ERROR and the friendly message is toasted.
+     * URL in the buffer). The closure only resolves to a Msg: on success a
+     * HubPairingDoneMsg carrying the claim, on failure a HubPairingExpiredMsg
+     * carrying the friendly reason. update() moves the wizard, never this
+     * closure, because the screen this was built from is not the one the
+     * program renders once the request has been dispatched.
      */
     private function hubPairingRequestCmd(string $hubUrl): \Closure
     {
         $admin = $this->admin;
-        $screen = $this;
 
-        return Cmd::promise(static function () use ($admin, $hubUrl, $screen): PromiseInterface {
+        return Cmd::promise(static function () use ($admin, $hubUrl): PromiseInterface {
             return $admin->hubPair($hubUrl)->then(
-                static function (array $result) use ($screen, $hubUrl): Msg {
-                    // Move wizard to SHOWING_CODE phase with the claim details.
-                    $screen->wizard = PairingWizard::showingCode(
-                        $result['claimCode'],
-                        $result['claimId'],
-                        $hubUrl,
-                        $result['expiresIn'],
-                    );
-
-                    return new HubPairingDoneMsg(
-                        $result['claimCode'],
-                        $result['claimId'],
-                        $hubUrl,
-                        $result['expiresIn'],
-                        self::MAX_POLLS,
-                    );
-                },
-                static function (\Throwable $e) use ($screen): Msg {
-                    if ($e instanceof AuthError) {
-                        return new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY));
-                    }
-
-                    // Pairing request failed (hub unreachable, etc.).
-                    $screen->wizard = PairingWizard::error(ExceptionSentences::sentence($e, 'admin-remote-access-screen'));
-
-                    return new HubPairingExpiredMsg();
-                },
+                static fn (array $result): Msg => new HubPairingDoneMsg(
+                    $result['claimCode'],
+                    $result['claimId'],
+                    $hubUrl,
+                    $result['expiresIn'],
+                    self::MAX_POLLS,
+                ),
+                static fn (\Throwable $e): Msg => $e instanceof AuthError
+                    ? new SessionExpiredMsg(Lang::t(self::SESSION_EXPIRED_KEY))
+                    : new HubPairingExpiredMsg(ExceptionSentences::sentence($e, 'admin-remote-access-screen')),
             );
         });
+    }
+
+    /** Move the wizard to SHOWING_CODE with the claim details from a successful request. */
+    private function withClaim(HubPairingDoneMsg $msg): self
+    {
+        $next = clone $this;
+        $next->wizard = PairingWizard::showingCode($msg->claimCode, $msg->claimId, $msg->hubUrl, $msg->expiresIn);
+
+        return $next;
     }
 
     /**
@@ -751,7 +744,7 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
                         $screen->wizard = PairingWizard::error('Claim has expired.');
 
                         return \React\Promise\Timer\sleep(0)->then(
-                            static fn (): Msg => new HubPairingExpiredMsg()
+                            static fn (): Msg => new HubPairingExpiredMsg('Claim has expired.')
                         );
                     }
 

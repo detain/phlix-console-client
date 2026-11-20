@@ -13,6 +13,8 @@ use Phlix\Console\Msg\AdminRemoteActionDoneMsg;
 use Phlix\Console\Msg\AdminRemoteActionFailedMsg;
 use Phlix\Console\Msg\AdminRemoteFailedMsg;
 use Phlix\Console\Msg\AdminRemoteStatusLoadedMsg;
+use Phlix\Console\Msg\HubPairingDoneMsg;
+use Phlix\Console\Msg\HubPairingExpiredMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\ShowToastMsg;
@@ -674,6 +676,64 @@ final class AdminRemoteAccessScreenTest extends TestCase
 
         self::assertNull($cancelled->pendingConfirm());
         self::assertNull($cmd, 'Esc during a confirm cancels rather than navigating back');
+    }
+
+    // ---- hub pairing wizard --------------------------------------------
+
+    /** Type $text into the wizard's hub URL buffer, one key at a time. */
+    private function typedHubUrl(AdminRemoteAccessScreen $screen, string $text): AdminRemoteAccessScreen
+    {
+        foreach (str_split($text) as $char) {
+            [$screen] = $screen->update(new KeyMsg(KeyType::Char, $char));
+        }
+
+        return $screen;
+    }
+
+    public function testPairingRendersTheClaimCodeOnTheLiveScreen(): void
+    {
+        $transport = $this->statusTransport($this->inactivePayloads());
+        $transport->json(200, ['claimCode' => 'ABCD-1234', 'claimId' => 'claim-7', 'expiresIn' => 600]);
+        $screen = $this->loaded($transport);
+
+        [$waiting] = $screen->update(new KeyMsg(KeyType::Char, 'p'));
+        $typing = $this->typedHubUrl($waiting, 'hub.example');
+        [$working, $cmd] = $typing->update(new KeyMsg(KeyType::Enter));
+
+        $msg = $this->runCmd($cmd);
+        self::assertInstanceOf(HubPairingDoneMsg::class, $msg);
+        self::assertSame('ABCD-1234', $msg->claimCode);
+
+        // The screen the program holds after the claim arrives is the one that shows the code.
+        [$live, $pollCmd] = $working->update($msg);
+        self::assertStringContainsString('Claim code: ABCD-1234', $live->view());
+        self::assertStringNotContainsString('Hub URL:', $live->view());
+        self::assertNotNull($pollCmd);
+    }
+
+    public function testAPairingRequestErrorToastsTheRealServerMessage(): void
+    {
+        $transport = $this->statusTransport($this->inactivePayloads());
+        $transport->json(409, ['success' => false, 'message' => 'Hub refused the pairing request: URL not allowed.']);
+        $screen = $this->loaded($transport);
+
+        [$waiting] = $screen->update(new KeyMsg(KeyType::Char, 'p'));
+        $typing = $this->typedHubUrl($waiting, 'hub.example');
+        [$working, $cmd] = $typing->update(new KeyMsg(KeyType::Enter));
+
+        $msg = $this->runCmd($cmd);
+        self::assertInstanceOf(HubPairingExpiredMsg::class, $msg);
+        self::assertSame('Hub refused the pairing request: URL not allowed.', $msg->reason);
+
+        [$after, $toastCmd] = $working->update($msg);
+        self::assertFalse($after->isBusy(), 'the request busy state is cleared on failure');
+        self::assertStringNotContainsString('Hub URL:', $after->view(), 'the wizard closes');
+
+        $toast = $this->runCmd($toastCmd);
+        self::assertInstanceOf(ShowToastMsg::class, $toast);
+        self::assertSame(ToastType::Error, $toast->type);
+        self::assertStringContainsString('URL not allowed', $toast->message);
+        self::assertStringNotContainsString('Pairing failed.', $toast->message);
     }
 
     // ---- hub unenroll --------------------------------------------------

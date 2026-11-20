@@ -1274,7 +1274,7 @@ final class AdminClient
                 'claimId' => Coerce::str($body['claimId'] ?? ''),
                 'expiresIn' => Coerce::int($body['expiresIn'] ?? 600),
             ];
-        });
+        }, self::reThrowFriendly(...));
     }
 
     /**
