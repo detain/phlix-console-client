@@ -888,6 +888,27 @@ final class AdminRemoteAccessScreenTest extends TestCase
         self::assertNotNull($pollCmd);
     }
 
+    public function testTheWizardViewShowsTheWorkingNoteWhileTheClaimRequestIsInFlight(): void
+    {
+        $transport = $this->statusTransport($this->inactivePayloads());
+        $transport->json(200, ['claimCode' => 'ABCD-1234', 'claimId' => 'claim-7', 'expiresIn' => 600]);
+        $screen = $this->loaded($transport);
+
+        [$waiting] = $screen->update(new KeyMsg(KeyType::Char, 'p'));
+        [$working, $cmd] = $this->typedHubUrl($waiting, 'hub.example')->update(new KeyMsg(KeyType::Enter));
+        self::assertNotNull($cmd);
+        self::assertTrue($working->isBusy(), 'the claim request is in flight');
+
+        // The URL prompt stays on screen, and the in-flight state must show beside it.
+        $view = $working->view();
+        self::assertStringContainsString('Hub URL: hub.example_', $view);
+        self::assertStringContainsString('Working…', $view, 'the wizard view shows the in-flight request');
+
+        // Once the claim arrives the request is done, so the Working note leaves the view.
+        [$live] = $working->update($this->runCmd($cmd));
+        self::assertStringNotContainsString('Working…', $live->view());
+    }
+
     public function testAPollOutcomeFromACancelledAttemptDoesNotTouchTheReopenedWizard(): void
     {
         $transport = $this->statusTransport($this->inactivePayloads());

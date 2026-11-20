@@ -67,6 +67,10 @@ use SugarCraft\Core\SubscriptionCapable;
  * {@see AdminClient} re-surfaces it) and leaves the statuses unchanged. An auth
  * failure surfaces a session expiry. `r` refreshes.
  *
+ * A pairing poll that succeeds from a cancelled attempt still refetches the statuses, but
+ * the reopened wizard keeps polling its own claim: the user reopened it, so closing it
+ * would discard the claim they are now watching.
+ *
  * Stable collaborators are readonly; the loaded status, selected panel, busy
  * flag, pending confirm, and error are private mutable view state set via
  * clone-mutate (the established screen idiom).
@@ -1072,9 +1076,12 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
                 ? 'Unenroll from the hub? (y/n)'
                 : 'Release the subdomain? (y/n)';
         }
-        $phase = $this->wizard->phase();
         if ($this->wizard->isWaitingForUrl()) {
-            return 'Hub URL: ' . $this->wizard->inputBuffer() . '_';
+            $prompt = 'Hub URL: ' . $this->wizard->inputBuffer() . '_';
+
+            // The prompt stays up while the claim request is in flight, so the Working note
+            // rides beside it instead of being hidden behind the prompt.
+            return $this->busy ? $prompt . '   Working…' : $prompt;
         }
         if ($this->wizard->isPolling()) {
             return 'Claim code: ' . $this->wizard->claimCode() . '   (Esc to cancel)';
