@@ -218,6 +218,13 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
             return [$this->withStatus($msg->status), null];
         }
         if ($msg instanceof AdminRemoteFailedMsg) {
+            // The open pairing wizard owns the body, and body() shows the error screen in
+            // place of it, so a failed refetch (e.g. one a cancelled attempt started) would
+            // hide the URL prompt or claim code. The failure is toasted and the status kept.
+            if (!$this->wizard->isIdle()) {
+                return [$this, Cmd::send(ShowToastMsg::error($msg->message))];
+            }
+
             return [$this->withError($msg->message), null];
         }
         if ($msg instanceof AdminRemoteActionDoneMsg) {

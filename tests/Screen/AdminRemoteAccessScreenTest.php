@@ -934,6 +934,79 @@ final class AdminRemoteAccessScreenTest extends TestCase
         self::assertTrue($status->status->hub->paired);
     }
 
+    /** Queue a status refetch whose relay leg fails, so the whole fan-out rejects. */
+    private function queueFailingRefetch(FakeTransport $transport): void
+    {
+        $active = $this->activePayloads();
+        $transport->json(200, $active[0])
+            ->json(200, $active[1])
+            ->json(500, ['success' => false, 'message' => 'boom'])
+            ->json(200, $active[3]);
+    }
+
+    public function testAFailedRefetchFromACancelledAttemptKeepsTheReopenedWizardOnScreen(): void
+    {
+        $transport = $this->statusTransport($this->inactivePayloads());
+        $transport->json(200, ['claimCode' => 'ABCD-1234', 'claimId' => 'claim-7', 'expiresIn' => 600]);
+        $transport->json(200, ['paired' => true, 'serverId' => 'srv-9']);
+        $this->queueFailingRefetch($transport);
+        $screen = $this->loaded($transport);
+
+        [$waiting] = $screen->update(new KeyMsg(KeyType::Char, 'p'));
+        [$working, $cmd] = $this->typedHubUrl($waiting, 'hub.example')->update(new KeyMsg(KeyType::Enter));
+        [$polling, $pollCmd] = $working->update($this->runCmd($cmd));
+
+        // Esc during POLLING, then `p` reopens the wizard while poll A is still running.
+        [$cancelled] = $polling->update(new KeyMsg(KeyType::Escape));
+        [$reopened] = $cancelled->update(new KeyMsg(KeyType::Char, 'p'));
+
+        // Poll A finds the hub paired; its refetch then fails.
+        [$afterPoll, $fetchCmd] = $reopened->update($this->runCmd($pollCmd));
+        $failed = $this->runCmd($fetchCmd);
+        self::assertInstanceOf(AdminRemoteFailedMsg::class, $failed);
+        [$after, $toastCmd] = $afterPoll->update($failed);
+
+        self::assertStringContainsString('Hub URL:', $after->view(), 'the reopened wizard stays on screen');
+        self::assertStringNotContainsString('Press r to retry', $after->view(), 'the error screen does not replace it');
+
+        $toast = $this->runCmd($toastCmd);
+        self::assertInstanceOf(ShowToastMsg::class, $toast);
+        self::assertSame(ToastType::Error, $toast->type);
+        self::assertStringContainsString('Could not load', $toast->message);
+
+        // The wizard keeps capturing keys, so typing still lands in the URL buffer.
+        [$typed] = $after->update(new KeyMsg(KeyType::Char, 'x'));
+        self::assertStringContainsString('Hub URL: x_', $typed->view());
+    }
+
+    public function testAFailedRefetchFromACancelledAttemptKeepsTheClaimCodeOnTheLiveScreen(): void
+    {
+        $transport = $this->statusTransport($this->inactivePayloads());
+        $transport->json(200, ['claimCode' => 'ABCD-1234', 'claimId' => 'claim-7', 'expiresIn' => 600]);
+        $transport->json(200, ['claimCode' => 'EFGH-5678', 'claimId' => 'claim-8', 'expiresIn' => 600]);
+        $transport->json(200, ['paired' => true, 'serverId' => 'srv-9']);
+        $this->queueFailingRefetch($transport);
+        $screen = $this->loaded($transport);
+
+        [$waiting] = $screen->update(new KeyMsg(KeyType::Char, 'p'));
+        [$working, $cmd] = $this->typedHubUrl($waiting, 'hub.example')->update(new KeyMsg(KeyType::Enter));
+        [$polling, $pollCmd] = $working->update($this->runCmd($cmd));
+
+        // Esc, then `p` and a second claim for attempt C, which is now POLLING.
+        [$cancelled] = $polling->update(new KeyMsg(KeyType::Escape));
+        [$reopened] = $cancelled->update(new KeyMsg(KeyType::Char, 'p'));
+        [$claiming, $secondCmd] = $this->typedHubUrl($reopened, 'hub.example')->update(new KeyMsg(KeyType::Enter));
+        [$live] = $claiming->update($this->runCmd($secondCmd));
+        self::assertStringContainsString('Claim code: EFGH-5678', $live->view());
+
+        // Poll A (stale) reports paired, and its refetch fails while attempt C polls.
+        [$afterPoll, $fetchCmd] = $live->update($this->runCmd($pollCmd));
+        [$after] = $afterPoll->update($this->runCmd($fetchCmd));
+
+        self::assertStringContainsString('Claim code: EFGH-5678', $after->view(), 'the live claim code stays visible');
+        self::assertStringNotContainsString('Press r to retry', $after->view());
+    }
+
     public function testAStaleSuccessRefetchDoesNotReleaseTheBusyFlagOfTheReopenedRequest(): void
     {
         $transport = $this->statusTransport($this->inactivePayloads());
