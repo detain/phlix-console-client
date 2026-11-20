@@ -15,6 +15,7 @@ use Phlix\Console\Msg\AdminRemoteFailedMsg;
 use Phlix\Console\Msg\AdminRemoteStatusLoadedMsg;
 use Phlix\Console\Msg\HubPairingDoneMsg;
 use Phlix\Console\Msg\HubPairingExpiredMsg;
+use Phlix\Console\Msg\HubPairingPollSucceededMsg;
 use Phlix\Console\Msg\NavigateBackMsg;
 use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\ShowToastMsg;
@@ -898,6 +899,60 @@ final class AdminRemoteAccessScreenTest extends TestCase
         $toast = $this->runCmd($toastCmd);
         self::assertInstanceOf(ShowToastMsg::class, $toast);
         self::assertStringContainsString('Claim expired at 13:00 UTC', $toast->message);
+        self::assertStringNotContainsString('HTTP 410', $toast->message);
+    }
+
+    public function testASuccessFromACancelledAttemptStillRefetchesTheStatusesButKeepsTheReopenedWizard(): void
+    {
+        $transport = $this->statusTransport($this->inactivePayloads());
+        $transport->json(200, ['claimCode' => 'ABCD-1234', 'claimId' => 'claim-7', 'expiresIn' => 600]);
+        $transport->json(200, ['paired' => true, 'serverId' => 'srv-9']);
+        foreach ($this->activePayloads() as $payload) {                 // refetch after the pairing
+            $transport->json(200, $payload);
+        }
+        $screen = $this->loaded($transport);
+
+        [$waiting] = $screen->update(new KeyMsg(KeyType::Char, 'p'));
+        [$working, $cmd] = $this->typedHubUrl($waiting, 'hub.example')->update(new KeyMsg(KeyType::Enter));
+        [$polling, $pollCmd] = $working->update($this->runCmd($cmd));
+
+        // Esc during POLLING, then `p` reopens the wizard while poll A is still running.
+        [$cancelled] = $polling->update(new KeyMsg(KeyType::Escape));
+        [$reopened] = $cancelled->update(new KeyMsg(KeyType::Char, 'p'));
+        self::assertStringContainsString('Hub URL:', $reopened->view());
+
+        // Poll A finds the hub paired. The attempt is stale, but the statuses must still refetch.
+        $paired = $this->runCmd($pollCmd);
+        self::assertInstanceOf(HubPairingPollSucceededMsg::class, $paired);
+        [$after, $fetchCmd] = $reopened->update($paired);
+        self::assertNotNull($fetchCmd, 'a stale success still refetches the statuses');
+        self::assertStringContainsString('Hub URL:', $after->view(), 'the live wizard stays open');
+
+        $status = $this->runCmd($fetchCmd);
+        self::assertInstanceOf(AdminRemoteStatusLoadedMsg::class, $status);
+        self::assertTrue($status->status->hub->paired);
+    }
+
+    public function testABare410IsTheExpiryOnTheFirstPollWithTheLiteralReason(): void
+    {
+        $transport = $this->statusTransport($this->inactivePayloads());
+        $transport->json(200, ['claimCode' => 'ABCD-1234', 'claimId' => 'claim-7', 'expiresIn' => 600]);
+        $transport->json(410, []);                                      // no body: only the HTTP status
+        $screen = $this->loaded($transport);
+
+        [$waiting] = $screen->update(new KeyMsg(KeyType::Char, 'p'));
+        [$working, $cmd] = $this->typedHubUrl($waiting, 'hub.example')->update(new KeyMsg(KeyType::Enter));
+        [$polling, $pollCmd] = $working->update($this->runCmd($cmd));
+
+        $expired = $this->runCmd($pollCmd);
+        self::assertInstanceOf(HubPairingExpiredMsg::class, $expired);
+        self::assertSame('Claim has expired.', $expired->reason);
+        self::assertSame(6, $transport->requestCount(), 'a bare 410 is not retried: four statuses, the claim, one poll');
+
+        [, $toastCmd] = $polling->update($expired);
+        $toast = $this->runCmd($toastCmd);
+        self::assertInstanceOf(ShowToastMsg::class, $toast);
+        self::assertStringContainsString('Claim has expired.', $toast->message);
         self::assertStringNotContainsString('HTTP 410', $toast->message);
     }
 

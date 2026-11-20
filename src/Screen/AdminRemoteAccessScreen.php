@@ -236,10 +236,13 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
             return [$next, $next->hubPairingPollCmd($msg->claimId, $msg->hubUrl, $msg->attempt)];
         }
         if ($msg instanceof HubPairingPollSucceededMsg) {
+            // The hub is paired whichever attempt saw it, so the statuses are refetched either
+            // way. Only closing the wizard is gated on the attempt: a stale poll must not close
+            // a wizard the user has reopened.
             if ($msg->attempt !== $this->pairingAttempt) {
-                return [$this, null];
+                return [$this, $this->fetchCmd()];
             }
-            // Pairing completed — refetch all statuses to show paired state.
+
             return [$this->cancelPairingWizard(), $this->fetchCmd()];
         }
         if ($msg instanceof HubPairingExpiredMsg) {
@@ -779,13 +782,9 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
                     );
                 },
                 static function (\Throwable $e) use ($screen, $remaining, $poll, $attempt): PromiseInterface {
-                    if (str_contains($e->getMessage(), 'expired')) {
-                        // The server's own sentence when it sent one; the literal only backs up a bare 410.
+                    if (self::isClaimExpiry($e)) {
                         return \React\Promise\Timer\sleep(0)->then(
-                            static fn (): Msg => new HubPairingExpiredMsg(
-                                $attempt,
-                                ExceptionSentences::sentence($e, 'admin-remote-access-screen', 'Claim has expired.'),
-                            )
+                            static fn (): Msg => new HubPairingExpiredMsg($attempt, self::expiryReason($e))
                         );
                     }
 
@@ -811,6 +810,32 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
         // Cmd::promise wraps the chain as an AsyncCmd; a bare closure returning the
         // promise would be dispatched as a Msg by the Program and never settle.
         return Cmd::promise(static fn (): PromiseInterface => $poll(self::MAX_POLLS));
+    }
+
+    /**
+     * A 410 means the hub has dropped the claim, whatever its body says, so it is
+     * recognised by status. The message check covers any other status that carries
+     * the word.
+     */
+    private static function isClaimExpiry(\Throwable $e): bool
+    {
+        return ($e instanceof ApiError && $e->statusCode === 410) || str_contains($e->getMessage(), 'expired');
+    }
+
+    /**
+     * The server's own sentence when it sent one. A bare 410 has only the HTTP status
+     * line as its message, so the literal stands in for it.
+     */
+    private static function expiryReason(\Throwable $e): string
+    {
+        if ($e instanceof ApiError && $e->statusCode === 410) {
+            $serverSentence = $e->body['message'] ?? $e->body['error'] ?? null;
+            if (!is_string($serverSentence) || $serverSentence === '') {
+                return 'Claim has expired.';
+            }
+        }
+
+        return ExceptionSentences::sentence($e, 'admin-remote-access-screen', 'Claim has expired.');
     }
 
     // ---- rendering -----------------------------------------------------
