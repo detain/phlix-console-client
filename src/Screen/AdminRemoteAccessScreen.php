@@ -627,6 +627,11 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
                 return [$this->cancelPairingWizard(), null];
             }
             if ($msg->type === KeyType::Enter) {
+                // A request is already in flight for this attempt; a second Enter must not
+                // dispatch a duplicate claim the screen would then have to reconcile.
+                if ($this->busy) {
+                    return [$this, null];
+                }
                 $url = $this->wizard->inputBuffer();
                 if ($url === '') {
                     // Empty URL — stay in the wizard, no-op.
@@ -642,7 +647,7 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
             return [$this, null];
         }
 
-        // In any other wizard phase (SHOWING_CODE, POLLING, ERROR), only Esc
+        // In any other wizard phase (SHOWING_CODE, POLLING), only Esc
         // is accepted — it cancels the wizard and returns to idle.
         if ($msg->type === KeyType::Escape) {
             return [$this->cancelPairingWizard(), null];
@@ -997,12 +1002,6 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
         }
         if ($this->wizard->isPolling()) {
             return 'Claim code: ' . $this->wizard->claimCode() . '   (Esc to cancel)';
-        }
-        if ($this->wizard->isError()) {
-            $pollLeft = $this->wizard->pollLeft();
-            $attempts = $pollLeft === 1 ? '1 attempt left' : ($pollLeft > 0 ? $pollLeft . ' attempts left' : '');
-
-            return 'Waiting for hub… ' . $attempts . '   (Esc to cancel)';
         }
         if ($this->busy) {
             return 'Working…';

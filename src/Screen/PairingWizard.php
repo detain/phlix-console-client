@@ -11,7 +11,8 @@ namespace Phlix\Console\Screen;
 
 /**
  * Immutable hub pairing wizard state machine. Tracks the phase, user input
- * buffer, claim details, remaining poll countdown, and any error message.
+ * buffer, claim details and the remaining poll countdown. Failures never park
+ * the wizard in a phase of their own: the screen closes it and toasts the reason.
  *
  * @readonly
  */
@@ -21,7 +22,6 @@ final readonly class PairingWizard
     private const PHASE_IDLE = 0;
     private const PHASE_WAITING_FOR_URL = 1;
     private const PHASE_POLLING = 3;
-    private const PHASE_ERROR = 4;
 
     private function __construct(
         private int $phase,
@@ -30,18 +30,17 @@ final readonly class PairingWizard
         private string $claimId,
         private string $hubUrl,
         private int $pollLeft,
-        private ?string $errorMessage,
     ) {
     }
 
     public static function idle(): self
     {
-        return new self(self::PHASE_IDLE, '', '', '', '', 0, null);
+        return new self(self::PHASE_IDLE, '', '', '', '', 0);
     }
 
     public static function waitingForUrl(): self
     {
-        return new self(self::PHASE_WAITING_FOR_URL, '', '', '', '', 0, null);
+        return new self(self::PHASE_WAITING_FOR_URL, '', '', '', '', 0);
     }
 
     /**
@@ -55,12 +54,7 @@ final readonly class PairingWizard
         // Derive initial poll-left from claim TTL: one poll every 3s, max 10.
         $pollLeft = min(10, (int) ceil($expiresIn / 3.0));
 
-        return new self(self::PHASE_POLLING, '', $claimCode, $claimId, $hubUrl, $pollLeft, null);
-    }
-
-    public static function error(string $message): self
-    {
-        return new self(self::PHASE_ERROR, '', '', '', '', 0, $message);
+        return new self(self::PHASE_POLLING, '', $claimCode, $claimId, $hubUrl, $pollLeft);
     }
 
     public function phase(): int
@@ -93,11 +87,6 @@ final readonly class PairingWizard
         return $this->pollLeft;
     }
 
-    public function errorMessage(): ?string
-    {
-        return $this->errorMessage;
-    }
-
     public function isIdle(): bool
     {
         return $this->phase === self::PHASE_IDLE;
@@ -118,7 +107,6 @@ final readonly class PairingWizard
             $this->claimId,
             $this->hubUrl,
             $this->pollLeft,
-            $this->errorMessage,
         );
     }
 
@@ -132,7 +120,6 @@ final readonly class PairingWizard
             $this->claimId,
             $this->hubUrl,
             $remaining,
-            $this->errorMessage,
         );
     }
 
@@ -140,10 +127,5 @@ final readonly class PairingWizard
     public function isPolling(): bool
     {
         return $this->phase === self::PHASE_POLLING;
-    }
-
-    public function isError(): bool
-    {
-        return $this->phase === self::PHASE_ERROR;
     }
 }

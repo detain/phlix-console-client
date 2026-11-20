@@ -829,6 +829,30 @@ final class AdminRemoteAccessScreenTest extends TestCase
         self::assertFalse($after->isBusy(), 'the cancelled request does not leave the screen busy');
     }
 
+    public function testASecondEnterWhileTheRequestIsInFlightDispatchesNoSecondClaim(): void
+    {
+        $transport = $this->statusTransport($this->inactivePayloads());
+        $transport->json(200, ['claimCode' => 'ABCD-1234', 'claimId' => 'claim-7', 'expiresIn' => 600]);
+        $screen = $this->loaded($transport);
+
+        [$waiting] = $screen->update(new KeyMsg(KeyType::Char, 'p'));
+        [$working, $cmd] = $this->typedHubUrl($waiting, 'hub.example')->update(new KeyMsg(KeyType::Enter));
+        self::assertNotNull($cmd, 'the first Enter dispatches the claim request');
+        self::assertTrue($working->isBusy(), 'the request is in flight');
+
+        // The wizard stays on the URL prompt while the request runs, so a second Enter
+        // must be swallowed rather than dispatched under the same attempt.
+        [$again, $secondCmd] = $working->update(new KeyMsg(KeyType::Enter));
+        self::assertSame($working, $again);
+        self::assertNull($secondCmd, 'a second Enter while in flight dispatches no second request');
+
+        $msg = $this->runCmd($cmd);
+        self::assertInstanceOf(HubPairingDoneMsg::class, $msg);
+        [$live, $pollCmd] = $working->update($msg);
+        self::assertStringContainsString('Claim code: ABCD-1234', $live->view());
+        self::assertNotNull($pollCmd);
+    }
+
     public function testAPollOutcomeFromACancelledAttemptDoesNotTouchTheReopenedWizard(): void
     {
         $transport = $this->statusTransport($this->inactivePayloads());
