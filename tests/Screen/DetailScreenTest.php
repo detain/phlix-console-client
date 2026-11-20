@@ -56,7 +56,7 @@ final class DetailScreenTest extends TestCase
         parent::tearDown();
     }
 
-    private function screenWith(FakeTransport $transport, ?PosterLoader $posters = null, string $base = 'https://srv'): DetailScreen
+    private function screenWith(FakeTransport $transport, ?PosterLoader $posters = null, string $base = 'https://srv', int $cols = 120, int $rows = 40): DetailScreen
     {
         $this->transport = $transport;
         $api = new ApiClient($base, $transport);
@@ -68,8 +68,8 @@ final class DetailScreenTest extends TestCase
             new FavoritesStore($api),
             $posters ?? new PosterLoader(Mosaic::halfBlock()),
             $api->baseUrl(),
-            cols: 120,
-            rows: 40,
+            cols: $cols,
+            rows: $rows,
         );
     }
 
@@ -98,10 +98,10 @@ final class DetailScreenTest extends TestCase
     }
 
     /** Load an item into the screen (init → DetailLoadedMsg → update). */
-    private function loaded(array $overrides = []): DetailScreen
+    private function loaded(array $overrides = [], int $cols = 120, int $rows = 40): DetailScreen
     {
         $transport = (new FakeTransport())->json(200, $this->detailResponse($overrides));
-        $screen = $this->screenWith($transport);
+        $screen = $this->screenWith($transport, cols: $cols, rows: $rows);
         $msg = $this->runBatch($screen->init())[0];
         self::assertInstanceOf(DetailLoadedMsg::class, $msg);
 
@@ -135,6 +135,22 @@ final class DetailScreenTest extends TestCase
         self::assertStringContainsString('Directed by', $view);
         self::assertStringContainsString('Keanu', $view);
         self::assertStringContainsString('hacker', $view, 'the synopsis is rendered');
+    }
+
+    public function testResizeRewrapsTheSynopsisAtTheNewWidth(): void
+    {
+        $overview = str_repeat('The quick brown fox jumps over the lazy dog and keeps on running. ', 6);
+        $wide = $this->loaded(['overview' => $overview], 120, 40);
+        $wide->view(); // primes the synopsis renderer at the initial width
+
+        [$resized] = $wide->update(new WindowSizeMsg(60, 40));
+
+        $fresh = $this->loaded(['overview' => $overview], 60, 40);
+        self::assertSame(
+            $fresh->view(),
+            $resized->view(),
+            'after a resize the synopsis is re-wrapped at the new width, not served from the old width',
+        );
     }
 
     public function testRuntimeFallsBackToDurationSeconds(): void

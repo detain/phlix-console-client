@@ -154,6 +154,8 @@ final class DetailScreen implements Breadcrumbed, Themed
 
     // Cached renderer for synopsis markdown rendering (performance optimization).
     private ?Renderer $synopsisRenderer = null;
+    /** The wrap width $synopsisRenderer was built for. */
+    private ?int $synopsisRendererWidth = null;
 
     // Leaf mode: similar / More Like This.
     /** @var list<MediaItem>|null */
@@ -1566,12 +1568,15 @@ final class DetailScreen implements Breadcrumbed, Themed
 
     /**
      * Get a cached Renderer instance configured for synopsis rendering.
-     * Caching avoids repeated Renderer::ansi()->withWordWrap() instantiation.
+     * The cache is keyed by wrap width: screens are cloned on resize and the
+     * clone carries the old renderer, so an unkeyed cache would keep wrapping
+     * at the width of the first render.
      */
     private function getSynopsisRenderer(int $width): Renderer
     {
-        if ($this->synopsisRenderer === null) {
+        if ($this->synopsisRenderer === null || $this->synopsisRendererWidth !== $width) {
             $this->synopsisRenderer = Renderer::ansi()->withWordWrap($width);
+            $this->synopsisRendererWidth = $width;
         }
         return $this->synopsisRenderer;
     }
