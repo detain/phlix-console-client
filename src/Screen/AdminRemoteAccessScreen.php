@@ -748,27 +748,21 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
     private function hubPairingPollCmd(string $claimId, string $hubUrl, int $attempt): \Closure
     {
         $admin = $this->admin;
-        $screen = $this;
 
         // Recursive inner that captures the remaining poll count. Terminal outcomes
         // travel as messages only: the screen captured here is a snapshot that a
-        // resize may have replaced, so writing the final wizard state onto it would
-        // never reach the live screen.
-        $poll = static function (int $remaining) use ($admin, $claimId, $hubUrl, $attempt, $screen, &$poll): PromiseInterface {
+        // resize may have replaced, and the live screen must not change before the
+        // message that closes the wizard is dispatched.
+        $poll = static function (int $remaining) use ($admin, $claimId, $hubUrl, $attempt, &$poll): PromiseInterface {
             if ($remaining <= 0) {
                 return \React\Promise\Timer\sleep(0)->then(
                     static fn (): Msg => new HubPairingExpiredMsg($attempt, 'Pairing timed out.')
                 );
             }
 
-            // Update wizard countdown so view() shows it.
-            $screen->wizard = $screen->wizard->withPollCountdown($remaining - 1);
-
             return $admin->hubPoll($claimId, $hubUrl)->then(
-                static function (array $result) use ($screen, $hubUrl, $remaining, $poll, $attempt): PromiseInterface {
+                static function (array $result) use ($hubUrl, $remaining, $poll, $attempt): PromiseInterface {
                     if ($result['paired']) {
-                        $screen->wizard = PairingWizard::idle();
-
                         return \React\Promise\Timer\sleep(0)->then(
                             static fn (): Msg => new HubPairingPollSucceededMsg($result['serverId'] ?? '', $hubUrl, $attempt)
                         );
@@ -781,7 +775,7 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
                         }
                     );
                 },
-                static function (\Throwable $e) use ($screen, $remaining, $poll, $attempt): PromiseInterface {
+                static function (\Throwable $e) use ($remaining, $poll, $attempt): PromiseInterface {
                     if (self::isClaimExpiry($e)) {
                         return \React\Promise\Timer\sleep(0)->then(
                             static fn (): Msg => new HubPairingExpiredMsg($attempt, self::expiryReason($e))

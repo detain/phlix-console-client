@@ -21,6 +21,7 @@ use Phlix\Console\Msg\SessionExpiredMsg;
 use Phlix\Console\Msg\ShowToastMsg;
 use Phlix\Console\Config\TokenBundle;
 use Phlix\Console\Screen\AdminRemoteAccessScreen;
+use Phlix\Console\Tests\Api\FakeClockLoop;
 use Phlix\Console\Tests\Api\FakeTransport;
 use Phlix\Console\Ui\Theme;
 use PHPUnit\Framework\TestCase;
@@ -954,6 +955,113 @@ final class AdminRemoteAccessScreenTest extends TestCase
         self::assertInstanceOf(ShowToastMsg::class, $toast);
         self::assertStringContainsString('Claim has expired.', $toast->message);
         self::assertStringNotContainsString('HTTP 410', $toast->message);
+    }
+
+    public function testAPollThatKeepsFailingRetriesTenTimesThenToastsTheServersMessage(): void
+    {
+        $transport = $this->statusTransport($this->inactivePayloads());
+        $transport->json(200, ['claimCode' => 'ABCD-1234', 'claimId' => 'claim-7', 'expiresIn' => 600]);
+        for ($i = 0; $i < 10; $i++) {
+            $transport->json(500, ['success' => false, 'message' => 'Hub down']);
+        }
+        $screen = $this->loaded($transport);
+
+        [$waiting] = $screen->update(new KeyMsg(KeyType::Char, 'p'));
+        [$working, $cmd] = $this->typedHubUrl($waiting, 'hub.example')->update(new KeyMsg(KeyType::Enter));
+        [$polling, $pollCmd] = $working->update($this->runCmd($cmd));
+
+        $expired = $this->settleOnFakeClock($pollCmd);
+        self::assertInstanceOf(HubPairingExpiredMsg::class, $expired);
+        self::assertSame('Hub down', $expired->reason);
+        self::assertSame(15, $transport->requestCount(), 'four statuses, the claim, then all ten polls');
+
+        [$after, $toastCmd] = $polling->update($expired);
+        self::assertStringNotContainsString('Claim code', $after->view(), 'the wizard closes');
+
+        $toast = $this->runCmd($toastCmd);
+        self::assertInstanceOf(ShowToastMsg::class, $toast);
+        self::assertSame(ToastType::Error, $toast->type);
+        self::assertStringContainsString('Hub down', $toast->message);
+        self::assertStringNotContainsString('Pairing failed.', $toast->message);
+    }
+
+    public function testAPollThatNeverSeesPairingTimesOutAfterTenPolls(): void
+    {
+        $transport = $this->statusTransport($this->inactivePayloads());
+        $transport->json(200, ['claimCode' => 'ABCD-1234', 'claimId' => 'claim-7', 'expiresIn' => 600]);
+        for ($i = 0; $i < 10; $i++) {
+            $transport->json(200, ['paired' => false]);
+        }
+        $screen = $this->loaded($transport);
+
+        [$waiting] = $screen->update(new KeyMsg(KeyType::Char, 'p'));
+        [$working, $cmd] = $this->typedHubUrl($waiting, 'hub.example')->update(new KeyMsg(KeyType::Enter));
+        [$polling, $pollCmd] = $working->update($this->runCmd($cmd));
+
+        $expired = $this->settleOnFakeClock($pollCmd);
+        self::assertInstanceOf(HubPairingExpiredMsg::class, $expired);
+        self::assertSame('Pairing timed out.', $expired->reason);
+        self::assertSame(15, $transport->requestCount(), 'ten pending answers, then the timeout without an eleventh request');
+
+        [$after, $toastCmd] = $polling->update($expired);
+        self::assertStringNotContainsString('Claim code', $after->view(), 'the wizard closes');
+        $toast = $this->runCmd($toastCmd);
+        self::assertInstanceOf(ShowToastMsg::class, $toast);
+        self::assertStringContainsString('Pairing timed out.', $toast->message);
+    }
+
+    public function testThePollSuccessDoesNotCloseTheLiveWizardBeforeItsMessageIsDispatched(): void
+    {
+        $transport = $this->statusTransport($this->inactivePayloads());
+        $transport->json(200, ['claimCode' => 'ABCD-1234', 'claimId' => 'claim-7', 'expiresIn' => 600]);
+        $transport->json(200, ['paired' => true, 'serverId' => 'srv-9']);
+        $screen = $this->loaded($transport);
+
+        [$waiting] = $screen->update(new KeyMsg(KeyType::Char, 'p'));
+        [$working, $cmd] = $this->typedHubUrl($waiting, 'hub.example')->update(new KeyMsg(KeyType::Enter));
+        [$polling, $pollCmd] = $working->update($this->runCmd($cmd));
+
+        $paired = $this->settleOnFakeClock($pollCmd);
+        self::assertInstanceOf(HubPairingPollSucceededMsg::class, $paired);
+        self::assertStringContainsString(
+            'Claim code: ABCD-1234',
+            $polling->view(),
+            'the poll callback must not move the wizard; only the dispatched message does',
+        );
+
+        [$after] = $polling->update($paired);
+        self::assertStringNotContainsString('Claim code', $after->view(), 'the message closes the wizard');
+    }
+
+    /**
+     * Run a poll command against the fake clock: each retry sleeps on a one-shot
+     * timer, so the chain is advanced by firing those timers in order instead of
+     * waiting on the wall clock. The real loop is restored before returning.
+     */
+    private function settleOnFakeClock(?\Closure $pollCmd): ?Msg
+    {
+        self::assertNotNull($pollCmd);
+        $clock = new FakeClockLoop();
+        $previous = Loop::get();
+        Loop::set($clock);
+        try {
+            $result = $pollCmd();
+            self::assertInstanceOf(AsyncCmd::class, $result);
+
+            $settled = null;
+            $done = false;
+            $result->promise->then(static function (mixed $value) use (&$settled, &$done): void {
+                $settled = $value;
+                $done = true;
+            });
+            while (!$done) {
+                $clock->fireNextOneShot();
+            }
+        } finally {
+            Loop::set($previous);
+        }
+
+        return $settled instanceof Msg ? $settled : null;
     }
 
     // ---- hub unenroll --------------------------------------------------
