@@ -152,10 +152,10 @@ final class DetailScreen implements Breadcrumbed, Themed
     /** @var array{0:int,1:int} the last child window requested (dedups fetches) */
     private array $childRequested = [0, -1];
 
-    // Cached renderer for synopsis markdown rendering (performance optimization).
-    private ?Renderer $synopsisRenderer = null;
-    /** The wrap width $synopsisRenderer was built for. */
-    private ?int $synopsisRendererWidth = null;
+    // Rendered synopsis markdown, and the [wrap width, overview] it was produced from.
+    private ?string $synopsisCache = null;
+    /** @var array{0:int,1:string}|null */
+    private ?array $synopsisCacheKey = null;
 
     // Leaf mode: similar / More Like This.
     /** @var list<MediaItem>|null */
@@ -1553,7 +1553,7 @@ final class DetailScreen implements Breadcrumbed, Themed
         }
 
         try {
-            $rendered = $this->getSynopsisRenderer($width)->render($overview);
+            $rendered = $this->renderSynopsis($overview, $width);
         } catch (\Throwable $e) {
             // Fallback to plain text on render failure.
             return [Width::truncate($overview, $width)];
@@ -1567,18 +1567,19 @@ final class DetailScreen implements Breadcrumbed, Themed
     }
 
     /**
-     * Get a cached Renderer instance configured for synopsis rendering.
-     * The cache is keyed by wrap width: screens are cloned on resize and the
-     * clone carries the old renderer, so an unkeyed cache would keep wrapping
-     * at the width of the first render.
+     * Render the overview to ANSI once per (wrap width, overview) pair. view()
+     * runs every frame, so re-parsing the markdown each time would dominate the
+     * frame cost. The key includes the width because screens are cloned on
+     * resize and the clone carries the cache from before the resize.
      */
-    private function getSynopsisRenderer(int $width): Renderer
+    private function renderSynopsis(string $overview, int $width): string
     {
-        if ($this->synopsisRenderer === null || $this->synopsisRendererWidth !== $width) {
-            $this->synopsisRenderer = Renderer::ansi()->withWordWrap($width);
-            $this->synopsisRendererWidth = $width;
+        $key = [$width, $overview];
+        if ($this->synopsisCache === null || $this->synopsisCacheKey !== $key) {
+            $this->synopsisCache = Renderer::ansi()->withWordWrap($width)->render($overview);
+            $this->synopsisCacheKey = $key;
         }
-        return $this->synopsisRenderer;
+        return $this->synopsisCache;
     }
 
     /** A dim placeholder block the exact size of the hero, shown until it loads. */
