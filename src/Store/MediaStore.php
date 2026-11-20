@@ -73,6 +73,14 @@ final class MediaStore
     /** @var PromiseInterface<list<ContinueWatchingItem>>|null  in-flight continue-watching fetch */
     private ?PromiseInterface $continueInFlight = null;
 
+    /**
+     * Bumped by {@see invalidate()}. A fetch captures the epoch it started under
+     * and writes the caches (and clears its in-flight slot) only while that epoch
+     * is still current, so a response that lands after an invalidate (for example
+     * from the server the store was just switched away from) is dropped.
+     */
+    private int $epoch = 0;
+
     /** @var \Closure(): float */
     private readonly \Closure $clock;
 
@@ -126,14 +134,19 @@ final class MediaStore
         $deferred = new Deferred();
         $this->inFlight[$key] = $deferred->promise();
 
+        $epoch = $this->epoch;
         $this->api->media($query)->then(
-            function (MediaPage $page) use ($key, $now, $deferred): void {
-                $this->pages->put($key, ['page' => $page, 'at' => $now]);
-                unset($this->inFlight[$key]);
+            function (MediaPage $page) use ($key, $now, $epoch, $deferred): void {
+                if ($epoch === $this->epoch) {
+                    $this->pages->put($key, ['page' => $page, 'at' => $now]);
+                    unset($this->inFlight[$key]);
+                }
                 $deferred->resolve($page);
             },
-            function (\Throwable $error) use ($key, $deferred): void {
-                unset($this->inFlight[$key]);
+            function (\Throwable $error) use ($key, $epoch, $deferred): void {
+                if ($epoch === $this->epoch) {
+                    unset($this->inFlight[$key]);
+                }
                 $deferred->reject($error);
             },
         );
@@ -168,14 +181,19 @@ final class MediaStore
         $deferred = new Deferred();
         $this->itemsInFlight[$id] = $deferred->promise();
 
+        $epoch = $this->epoch;
         $this->api->mediaItem($id)->then(
-            function (MediaItem $item) use ($id, $now, $deferred): void {
-                $this->items->put($id, ['item' => $item, 'at' => $now]);
-                unset($this->itemsInFlight[$id]);
+            function (MediaItem $item) use ($id, $now, $epoch, $deferred): void {
+                if ($epoch === $this->epoch) {
+                    $this->items->put($id, ['item' => $item, 'at' => $now]);
+                    unset($this->itemsInFlight[$id]);
+                }
                 $deferred->resolve($item);
             },
-            function (\Throwable $error) use ($id, $deferred): void {
-                unset($this->itemsInFlight[$id]);
+            function (\Throwable $error) use ($id, $epoch, $deferred): void {
+                if ($epoch === $this->epoch) {
+                    unset($this->itemsInFlight[$id]);
+                }
                 $deferred->reject($error);
             },
         );
@@ -209,14 +227,19 @@ final class MediaStore
         $deferred = new Deferred();
         $this->ratingsInFlight[$id] = $deferred->promise();
 
+        $epoch = $this->epoch;
         $this->api->mediaRatings($id)->then(
-            function (MediaRatings $mediaRatings) use ($id, $now, $deferred): void {
-                $this->ratings->put($id, ['ratings' => $mediaRatings, 'at' => $now]);
-                unset($this->ratingsInFlight[$id]);
+            function (MediaRatings $mediaRatings) use ($id, $now, $epoch, $deferred): void {
+                if ($epoch === $this->epoch) {
+                    $this->ratings->put($id, ['ratings' => $mediaRatings, 'at' => $now]);
+                    unset($this->ratingsInFlight[$id]);
+                }
                 $deferred->resolve($mediaRatings);
             },
-            function (\Throwable $error) use ($id, $deferred): void {
-                unset($this->ratingsInFlight[$id]);
+            function (\Throwable $error) use ($id, $epoch, $deferred): void {
+                if ($epoch === $this->epoch) {
+                    unset($this->ratingsInFlight[$id]);
+                }
                 $deferred->reject($error);
             },
         );
@@ -250,14 +273,19 @@ final class MediaStore
         $deferred = new Deferred();
         $this->chaptersInFlight[$id] = $deferred->promise();
 
+        $epoch = $this->epoch;
         $this->api->mediaChapters($id)->then(
-            function (array $chapters) use ($id, $now, $deferred): void {
-                $this->chapters->put($id, ['chapters' => $chapters, 'at' => $now]);
-                unset($this->chaptersInFlight[$id]);
+            function (array $chapters) use ($id, $now, $epoch, $deferred): void {
+                if ($epoch === $this->epoch) {
+                    $this->chapters->put($id, ['chapters' => $chapters, 'at' => $now]);
+                    unset($this->chaptersInFlight[$id]);
+                }
                 $deferred->resolve($chapters);
             },
-            function (\Throwable $error) use ($id, $deferred): void {
-                unset($this->chaptersInFlight[$id]);
+            function (\Throwable $error) use ($id, $epoch, $deferred): void {
+                if ($epoch === $this->epoch) {
+                    unset($this->chaptersInFlight[$id]);
+                }
                 $deferred->reject($error);
             },
         );
@@ -345,14 +373,19 @@ final class MediaStore
         $deferred = new Deferred();
         $this->letterIndexesInFlight[$key] = $deferred->promise();
 
+        $epoch = $this->epoch;
         $this->api->letterIndex($query)->then(
-            function (LetterIndex $index) use ($key, $now, $deferred): void {
-                $this->letterIndexes->put($key, ['index' => $index, 'at' => $now]);
-                unset($this->letterIndexesInFlight[$key]);
+            function (LetterIndex $index) use ($key, $now, $epoch, $deferred): void {
+                if ($epoch === $this->epoch) {
+                    $this->letterIndexes->put($key, ['index' => $index, 'at' => $now]);
+                    unset($this->letterIndexesInFlight[$key]);
+                }
                 $deferred->resolve($index);
             },
-            function (\Throwable $error) use ($key, $deferred): void {
-                unset($this->letterIndexesInFlight[$key]);
+            function (\Throwable $error) use ($key, $epoch, $deferred): void {
+                if ($epoch === $this->epoch) {
+                    unset($this->letterIndexesInFlight[$key]);
+                }
                 $deferred->reject($error);
             },
         );
@@ -379,14 +412,19 @@ final class MediaStore
         $deferred = new Deferred();
         $this->continueInFlight = $deferred->promise();
 
+        $epoch = $this->epoch;
         $this->api->continueWatching()->then(
-            function (array $items) use ($now, $deferred): void {
-                $this->continue = ['items' => $items, 'at' => $now];
-                $this->continueInFlight = null;
+            function (array $items) use ($now, $epoch, $deferred): void {
+                if ($epoch === $this->epoch) {
+                    $this->continue = ['items' => $items, 'at' => $now];
+                    $this->continueInFlight = null;
+                }
                 $deferred->resolve($items);
             },
-            function (\Throwable $error) use ($deferred): void {
-                $this->continueInFlight = null;
+            function (\Throwable $error) use ($epoch, $deferred): void {
+                if ($epoch === $this->epoch) {
+                    $this->continueInFlight = null;
+                }
                 $deferred->reject($error);
             },
         );
@@ -396,6 +434,7 @@ final class MediaStore
 
     public function invalidate(): void
     {
+        ++$this->epoch;
         $this->pages->clear();
         $this->inFlight = [];
         $this->letterIndexes->clear();

@@ -28,6 +28,13 @@ final class LibrariesStore
     /** @var LruMap<mixed>|null */
     private ?LruMap $cache;
 
+    /**
+     * Bumped by {@see invalidate()}. A fetch that settles under an older epoch
+     * (it started before the invalidate, e.g. against the server just switched
+     * away from) must not write the cache.
+     */
+    private int $epoch = 0;
+
     /** @var \Closure(): float */
     private readonly \Closure $clock;
 
@@ -66,8 +73,10 @@ final class LibrariesStore
             return resolve($cached['cache']);
         }
 
-        return $this->api->libraries()->then(function (array $libraries) use ($key, $now): array {
-            if ($this->cache !== null) {
+        $epoch = $this->epoch;
+
+        return $this->api->libraries()->then(function (array $libraries) use ($key, $now, $epoch): array {
+            if ($epoch === $this->epoch && $this->cache !== null) {
                 $this->cache->put($key, ['cache' => $libraries, 'at' => $now]);
             }
 
@@ -90,6 +99,7 @@ final class LibrariesStore
 
     public function invalidate(): void
     {
+        ++$this->epoch;
         $this->cache = null;
     }
 }

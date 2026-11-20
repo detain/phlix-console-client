@@ -28,6 +28,13 @@ final class FavoritesStore
     /** @var PromiseInterface<MediaPage>|null */
     private ?PromiseInterface $inFlight = null;
 
+    /**
+     * Bumped by {@see invalidate()}. A fetch captures the epoch it started under
+     * and writes the cache (and clears its in-flight slot) only while that epoch
+     * is still current, so a response that lands after an invalidate is dropped.
+     */
+    private int $epoch = 0;
+
     /** @var \Closure(): float */
     private readonly \Closure $clock;
 
@@ -69,14 +76,19 @@ final class FavoritesStore
         $deferred = new Deferred();
         $this->inFlight = $deferred->promise();
 
+        $epoch = $this->epoch;
         $this->api->favorites()->then(
-            function (MediaPage $page) use ($now, $deferred): void {
-                $this->cache = ['page' => $page, 'at' => $now];
-                $this->inFlight = null;
+            function (MediaPage $page) use ($now, $epoch, $deferred): void {
+                if ($epoch === $this->epoch) {
+                    $this->cache = ['page' => $page, 'at' => $now];
+                    $this->inFlight = null;
+                }
                 $deferred->resolve($page);
             },
-            function (\Throwable $error) use ($deferred): void {
-                $this->inFlight = null;
+            function (\Throwable $error) use ($epoch, $deferred): void {
+                if ($epoch === $this->epoch) {
+                    $this->inFlight = null;
+                }
                 $deferred->reject($error);
             },
         );
@@ -89,6 +101,7 @@ final class FavoritesStore
      */
     public function invalidate(): void
     {
+        ++$this->epoch;
         $this->cache = null;
         $this->inFlight = null;
     }
