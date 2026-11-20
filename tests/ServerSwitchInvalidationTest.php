@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace Phlix\Console\Tests;
 
 use Phlix\Console\Api\ApiClient;
+use Phlix\Console\Api\Dto\MediaPage;
 use Phlix\Console\Api\MediaQuery;
 use Phlix\Console\App;
 use Phlix\Console\Config\Config;
@@ -98,8 +99,47 @@ final class ServerSwitchInvalidationTest extends TestCase
 
         $libraries->all();
         $app->update(new SwitchServerMsg('s2'));
-        $transport->respondJson($base, ['libraries' => [['id' => 'old', 'name' => 'Stale', 'type' => 'movie']]]);
+        // The browse screen re-enters after the switch and refetches, which re-creates
+        // the cache slot; only the epoch guard stops the old server's late write.
+        $libraries->all();
+        self::assertSame($base + 2, $transport->requestCount(), 'the post-switch fetch goes to the new server');
 
+        $transport->respondJson($base, ['libraries' => [['id' => 'old', 'name' => 'Stale', 'type' => 'movie']]]);
         self::assertNull($libraries->cached(), 'a library list from the previous server is not cached after the switch');
+
+        $transport->respondJson($base + 1, ['libraries' => [['id' => 'new', 'name' => 'Fresh', 'type' => 'movie']]]);
+        $cached = $libraries->cached();
+        self::assertNotNull($cached, 'the new server\'s list is cached once it settles');
+        self::assertSame('Fresh', $cached[0]->name);
+    }
+
+    public function testMediaPageFromTheOldServerSettlingAfterTheSwitchIsNotServed(): void
+    {
+        [$app, , $media, $transport] = $this->bootTwoServers();
+        $query = MediaQuery::forLibrary('lib-1', limit: 18);
+        $base = $transport->requestCount();
+
+        $media->page($query);
+        $app->update(new SwitchServerMsg('s2'));
+        $pending = null;
+        $media->page($query)->then(static function (MediaPage $page) use (&$pending): void {
+            $pending = $page;
+        });
+        self::assertSame($base + 2, $transport->requestCount(), 'the post-switch page goes to the new server');
+
+        $transport->respondJson($base, ['items' => [['id' => 'old', 'name' => 'Stale', 'type' => 'movie']], 'total' => 1, 'offset' => 0, 'limit' => 18]);
+
+        // The old response must not seed the page cache, so a repeat call still waits on
+        // the new server's in-flight fetch instead of being served the stale page.
+        $served = null;
+        $media->page($query)->then(static function (MediaPage $page) use (&$served): void {
+            $served = $page;
+        });
+        self::assertNull($served, 'a page from the previous server is not served from the cache after the switch');
+        self::assertSame($base + 2, $transport->requestCount(), 'the repeat call joins the in-flight fetch rather than refetching');
+
+        $transport->respondJson($base + 1, ['items' => [['id' => 'new', 'name' => 'Fresh', 'type' => 'movie']], 'total' => 1, 'offset' => 0, 'limit' => 18]);
+        self::assertNotNull($pending, 'the post-switch caller receives the new server\'s page');
+        self::assertSame('Fresh', $pending->items[0]->name);
     }
 }
