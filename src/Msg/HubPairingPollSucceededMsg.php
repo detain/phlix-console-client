@@ -18,9 +18,11 @@ use SugarCraft\Core\Msg;
  */
 final readonly class HubPairingPollSucceededMsg implements Msg
 {
+    /** @param int $attempt The pairing attempt this success belongs to (see HubPairingDoneMsg). */
     public function __construct(
         public string $serverId,
         public string $hubUrl,
+        public int $attempt,
     ) {
     }
 }

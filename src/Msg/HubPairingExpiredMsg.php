@@ -22,8 +22,13 @@ use SugarCraft\Core\Msg;
  */
 final readonly class HubPairingExpiredMsg implements Msg
 {
-    /** @param string|null $reason The friendly failure text; null falls back to a generic line. */
+    /**
+     * @param int         $attempt The pairing attempt this outcome belongs to; an
+     *                             outcome for an attempt the user has since cancelled is dropped
+     * @param string|null $reason  The friendly failure text; null falls back to a generic line.
+     */
     public function __construct(
+        public int $attempt,
         public ?string $reason = null,
     ) {
     }

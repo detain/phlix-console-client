@@ -24,6 +24,8 @@ final readonly class HubPairingDoneMsg implements Msg
      * @param string $hubUrl      The hub base URL used for the pairing request
      * @param int    $expiresIn  Seconds until the claim code expires
      * @param int    $pollLeft   Remaining poll attempts (displayed as countdown)
+     * @param int    $attempt    The pairing attempt that issued the request; a result
+     *                           for an attempt the user has since cancelled is dropped
      */
     public function __construct(
         public string $claimCode,
@@ -31,6 +33,7 @@ final readonly class HubPairingDoneMsg implements Msg
         public string $hubUrl,
         public int $expiresIn,
         public int $pollLeft,
+        public int $attempt,
     ) {
     }
 }

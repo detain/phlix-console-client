@@ -1302,7 +1302,7 @@ final class AdminClient
                 'paired' => (bool) ($body['paired'] ?? false),
                 'serverId' => Coerce::str($body['serverId'] ?? ''),
             ];
-        });
+        }, self::reThrowFriendly(...));
     }
 
     /**

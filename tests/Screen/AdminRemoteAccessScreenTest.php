@@ -789,18 +789,92 @@ final class AdminRemoteAccessScreenTest extends TestCase
 
         [$waiting] = $screen->update(new KeyMsg(KeyType::Char, 'p'));
         [$working, $cmd] = $this->typedHubUrl($waiting, 'hub.example')->update(new KeyMsg(KeyType::Enter));
-        [$polling] = $working->update($this->runCmd($cmd));
+        $claim = $this->runCmd($cmd);
+        self::assertInstanceOf(HubPairingDoneMsg::class, $claim);
+        [$polling] = $working->update($claim);
         [$resized] = $polling->update(new WindowSizeMsg(100, 30));
         self::assertStringContainsString('Claim code: ABCD-1234', $resized->view());
 
         // The poll's terminal outcome (timeout or final network failure) arrives as this message.
-        [$after, $toastCmd] = $resized->update(new AdminRemoteActionFailedMsg('Pairing timed out.'));
+        [$after, $toastCmd] = $resized->update(new HubPairingExpiredMsg($claim->attempt, 'Pairing timed out.'));
         self::assertStringNotContainsString('Claim code', $after->view(), 'the live wizard closes');
         self::assertFalse($after->isBusy());
 
         $toast = $this->runCmd($toastCmd);
         self::assertInstanceOf(ShowToastMsg::class, $toast);
         self::assertStringContainsString('Pairing timed out.', $toast->message);
+    }
+
+    public function testEscDuringTheRequestDropsTheClaimWhenItArrives(): void
+    {
+        $transport = $this->statusTransport($this->inactivePayloads());
+        $transport->json(200, ['claimCode' => 'ABCD-1234', 'claimId' => 'claim-7', 'expiresIn' => 600]);
+        $screen = $this->loaded($transport);
+
+        [$waiting] = $screen->update(new KeyMsg(KeyType::Char, 'p'));
+        [$working, $cmd] = $this->typedHubUrl($waiting, 'hub.example')->update(new KeyMsg(KeyType::Enter));
+        self::assertTrue($working->isBusy(), 'the request is in flight');
+
+        // Esc lands before the hub answers: the wizard closes and the request is abandoned.
+        [$cancelled] = $working->update(new KeyMsg(KeyType::Escape));
+        self::assertStringNotContainsString('Hub URL:', $cancelled->view());
+
+        // The claim arrives late. It must not reopen the wizard or start a poll.
+        $claim = $this->runCmd($cmd);
+        self::assertInstanceOf(HubPairingDoneMsg::class, $claim);
+        [$after, $pollCmd] = $cancelled->update($claim);
+        self::assertNull($pollCmd, 'no poll runs for a cancelled attempt');
+        self::assertStringNotContainsString('Claim code', $after->view());
+        self::assertStringNotContainsString('Hub URL:', $after->view());
+        self::assertFalse($after->isBusy(), 'the cancelled request does not leave the screen busy');
+    }
+
+    public function testAPollOutcomeFromACancelledAttemptDoesNotTouchTheReopenedWizard(): void
+    {
+        $transport = $this->statusTransport($this->inactivePayloads());
+        $transport->json(200, ['claimCode' => 'ABCD-1234', 'claimId' => 'claim-7', 'expiresIn' => 600]);
+        $transport->json(410, ['error' => 'Claim has expired.']);
+        $screen = $this->loaded($transport);
+
+        [$waiting] = $screen->update(new KeyMsg(KeyType::Char, 'p'));
+        [$working, $cmd] = $this->typedHubUrl($waiting, 'hub.example')->update(new KeyMsg(KeyType::Enter));
+        [$polling, $pollCmd] = $working->update($this->runCmd($cmd));
+
+        // Esc during POLLING, then `p` opens a second wizard while poll A is still running.
+        [$cancelled] = $polling->update(new KeyMsg(KeyType::Escape));
+        [$reopened] = $cancelled->update(new KeyMsg(KeyType::Char, 'p'));
+        self::assertStringContainsString('Hub URL:', $reopened->view());
+
+        // Poll A ends now; its expiry must neither close wizard B nor toast over it.
+        $stale = $this->runCmd($pollCmd);
+        self::assertInstanceOf(HubPairingExpiredMsg::class, $stale);
+        [$after, $toastCmd] = $reopened->update($stale);
+        self::assertNull($toastCmd, 'a stale outcome shows no toast');
+        self::assertStringContainsString('Hub URL:', $after->view(), 'the live wizard stays open');
+    }
+
+    public function testAPollRejectionKeepsTheServersOwnMessage(): void
+    {
+        $transport = $this->statusTransport($this->inactivePayloads());
+        $transport->json(200, ['claimCode' => 'ABCD-1234', 'claimId' => 'claim-7', 'expiresIn' => 600]);
+        // The poll answers non-2xx with the friendly text in `message`, not `error`.
+        $transport->json(410, ['success' => false, 'message' => 'Claim expired at 13:00 UTC']);
+        $screen = $this->loaded($transport);
+
+        [$waiting] = $screen->update(new KeyMsg(KeyType::Char, 'p'));
+        [$working, $cmd] = $this->typedHubUrl($waiting, 'hub.example')->update(new KeyMsg(KeyType::Enter));
+        [$polling, $pollCmd] = $working->update($this->runCmd($cmd));
+
+        // The expiry is recognised on the first poll, so there is no retry and no 'Request failed (HTTP 410)'.
+        $expired = $this->runCmd($pollCmd);
+        self::assertInstanceOf(HubPairingExpiredMsg::class, $expired);
+        self::assertSame('Claim expired at 13:00 UTC', $expired->reason);
+
+        [, $toastCmd] = $polling->update($expired);
+        $toast = $this->runCmd($toastCmd);
+        self::assertInstanceOf(ShowToastMsg::class, $toast);
+        self::assertStringContainsString('Claim expired at 13:00 UTC', $toast->message);
+        self::assertStringNotContainsString('HTTP 410', $toast->message);
     }
 
     // ---- hub unenroll --------------------------------------------------
