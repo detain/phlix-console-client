@@ -346,8 +346,9 @@ final class AdminRemoteAccessScreen implements Breadcrumbed, Themed
         if ($rune === 'u' && $status->hub->paired) {
             return [$this->armConfirm('unenroll'), null];
         }
-        // `p` starts the hub pairing wizard when not paired.
-        if ($rune === 'p' && !$status->hub->paired) {
+        // `p` starts the hub pairing wizard when not paired. Not while the error block is up:
+        // it replaces the wizard prompt, so a wizard opened behind it would capture keys unseen.
+        if ($rune === 'p' && !$status->hub->paired && $this->error === null) {
             return [$this->startPairingWizard(), null];
         }
 

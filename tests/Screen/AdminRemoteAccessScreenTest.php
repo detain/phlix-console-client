@@ -713,6 +713,39 @@ final class AdminRemoteAccessScreenTest extends TestCase
         self::assertNotNull($pollCmd);
     }
 
+    public function testPKeyDoesNotOpenThePairingWizardBehindAFailedRefresh(): void
+    {
+        // The failed refetch keeps the unpaired status, so `p` would pass the status guard
+        // while the error block hides the wizard prompt. The wizard must not start.
+        $inactive = $this->inactivePayloads();
+        $transport = $this->statusTransport($inactive);
+        $transport->json(200, $inactive[0])
+            ->json(200, $inactive[1])
+            ->json(500, ['success' => false, 'message' => 'boom'])
+            ->json(200, $inactive[3]);
+        $transport->json(200, $inactive[0])
+            ->json(200, $inactive[1])
+            ->json(200, $inactive[2])
+            ->json(200, $inactive[3]);
+        $screen = $this->loaded($transport);
+
+        [$refreshing, $refetch] = $screen->update(new KeyMsg(KeyType::Char, 'r'));
+        $failed = $this->runCmd($refetch);
+        self::assertInstanceOf(AdminRemoteFailedMsg::class, $failed);
+        [$errored] = $refreshing->update($failed);
+        self::assertStringContainsString('Press r to retry', $errored->view());
+
+        [$stillErrored, $cmd] = $errored->update(new KeyMsg(KeyType::Char, 'p'));
+        self::assertNull($cmd);
+        self::assertStringContainsString('Press r to retry', $stillErrored->view());
+        self::assertStringNotContainsString('Hub URL:', $stillErrored->view());
+
+        // No wizard is capturing keys, so `r` still refreshes the statuses.
+        [$retrying, $retry] = $stillErrored->update(new KeyMsg(KeyType::Char, 'r'));
+        self::assertTrue($retrying->isBusy());
+        self::assertInstanceOf(AdminRemoteStatusLoadedMsg::class, $this->runCmd($retry));
+    }
+
     public function testAPairingRequestErrorToastsTheRealServerMessage(): void
     {
         $transport = $this->statusTransport($this->inactivePayloads());
