@@ -45,6 +45,14 @@ use RecursiveIteratorIterator;
  *  4. TOTAL COVERAGE + FAIL-LOUD: every preset resolves every role (both
  *     attribute modes) and the whole avatar ramp; an unknown role, a
  *     palette-less theme id, or a negative slot throws at the boundary.
+ *
+ * This pin governs COLOUR VALUES only. The theme-id VOCABULARY (the id set
+ * itself) is pinned cross-repo by phlix-tokens test/themes-vocabulary.test.mjs
+ * ([S-tokens-19], finding phlix-tokens-014): the presets here must stay set-
+ * equal to @phlix/tokens THEMES and phlix-server's BuiltInThemes::IDS, while
+ * the hexes above deliberately mirror the browser palette for terminal
+ * surfaces rather than copy it. Adding or renaming a preset id here without
+ * the other two lists reddens THAT pin, not this file.
  */
 final class ThemePaletteSoleSourceTest extends TestCase
 {
